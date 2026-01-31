@@ -60,6 +60,16 @@ export const updatePolicy = (secretId: string, policyId: string, policyConfig: u
 export const deletePolicy = (secretId: string, policyId: string) =>
   api.delete(`/secrets/${secretId}/policies/${policyId}`);
 
+// Audit Logs
+export const listAuditLogs = (secretId: string, params?: { action?: string; status?: string; page?: number; limit?: number }) =>
+  api.get(`/secrets/${secretId}/audit-logs`, { params });
+export const getAuditLog = (secretId: string, logId: string) =>
+  api.get(`/secrets/${secretId}/audit-logs/${logId}`);
+export const getAuditLogActions = (secretId: string) =>
+  api.get(`/secrets/${secretId}/audit-logs/actions`);
+export const exportAuditLogs = (secretId: string, format: 'json' | 'csv', params?: { action?: string; status?: string }) =>
+  api.get(`/secrets/${secretId}/audit-logs/export`, { params: { ...params, format }, responseType: format === 'csv' ? 'blob' : undefined });
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>

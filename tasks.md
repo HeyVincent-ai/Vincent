@@ -368,41 +368,41 @@
 ## Phase 10: Audit Logging System
 
 ### 10.1 Audit Log Implementation
-- [ ] Create audit logging service
-- [ ] Log all skill executions with full details:
-  - [ ] Full request input data
-  - [ ] Full response output data
-  - [ ] Policy check results
-  - [ ] Approval status and details
-  - [ ] Execution time
-  - [ ] Error messages if failed
-- [ ] Log admin actions:
-  - [ ] Policy creates/updates/deletes
-  - [ ] API key creates/revokes
-  - [ ] Secret claims
+- [x] Create audit logging service
+- [x] Log all skill executions with full details:
+  - [x] Full request input data
+  - [x] Full response output data
+  - [x] Policy check results
+  - [x] Approval status and details
+  - [x] Execution time
+  - [x] Error messages if failed
+- [x] Log admin actions:
+  - [x] Policy creates/updates/deletes
+  - [x] API key creates/revokes
+  - [x] Secret claims
   - [ ] Telegram linking
-- [ ] Track metadata:
-  - [ ] API key ID or user ID that triggered action
-  - [ ] IP address
-  - [ ] User agent
-  - [ ] Timestamp
+- [x] Track metadata:
+  - [x] API key ID or user ID that triggered action
+  - [x] IP address
+  - [x] User agent
+  - [x] Timestamp
 - [ ] Implement log retention policy (configurable)
 
 ### 10.2 Audit Log API
-- [ ] `GET /api/secrets/:id/audit-logs` - List audit logs (admin only)
-- [ ] `GET /api/secrets/:id/audit-logs/:logId` - Get single log detail
-- [ ] Filter by date range
-- [ ] Filter by action type
-- [ ] Filter by status (success, failed, pending)
-- [ ] Pagination support
-- [ ] `GET /api/secrets/:id/audit-logs/export` - Export as CSV/JSON
+- [x] `GET /api/secrets/:id/audit-logs` - List audit logs (admin only)
+- [x] `GET /api/secrets/:id/audit-logs/:logId` - Get single log detail
+- [x] Filter by date range
+- [x] Filter by action type
+- [x] Filter by status (success, failed, pending)
+- [x] Pagination support
+- [x] `GET /api/secrets/:id/audit-logs/export` - Export as CSV/JSON
 
 ### 10.3 Audit Log UI
-- [ ] Audit log list view in secret detail page
-- [ ] Expandable log entries showing full input/output
-- [ ] Filter/search controls
-- [ ] Export button
-- [ ] Visual indicators for success/failure/pending
+- [x] Audit log list view in secret detail page
+- [x] Expandable log entries showing full input/output
+- [x] Filter/search controls
+- [x] Export button
+- [x] Visual indicators for success/failure/pending
 
 ---
 

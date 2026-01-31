@@ -8,6 +8,7 @@ import { AuthenticatedRequest } from '../../types';
 import { sendSuccess, errors } from '../../utils/response';
 import * as secretService from '../../services/secret.service';
 import * as apiKeyService from '../../services/apiKey.service';
+import { auditService } from '../../audit';
 
 const router = Router();
 
@@ -127,6 +128,16 @@ router.post(
       userId: req.user!.id,
     });
 
+    auditService.log({
+      secretId: id,
+      userId: req.user!.id,
+      action: 'secret.claim',
+      inputData: { secretId: id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     sendSuccess(res, { secret });
   })
 );
@@ -167,6 +178,16 @@ router.delete(
     const id = (req.params as Record<string, string>).id;
 
     await secretService.deleteSecret(id, req.user!.id);
+
+    auditService.log({
+      secretId: id,
+      userId: req.user!.id,
+      action: 'secret.delete',
+      inputData: { secretId: id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     sendSuccess(res, { message: 'Secret deleted successfully' });
   })

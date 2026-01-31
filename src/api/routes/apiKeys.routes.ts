@@ -5,6 +5,7 @@ import { AuthenticatedRequest } from '../../types';
 import { sendSuccess, errors } from '../../utils/response';
 import * as apiKeyService from '../../services/apiKey.service';
 import * as secretService from '../../services/secret.service';
+import { auditService } from '../../audit';
 
 const router = Router();
 
@@ -49,6 +50,17 @@ router.post(
     const { apiKey, plainKey } = await apiKeyService.createApiKey({
       secretId,
       name: body.name,
+    });
+
+    auditService.log({
+      secretId,
+      userId,
+      action: 'apikey.create',
+      inputData: { name: body.name },
+      outputData: { apiKeyId: apiKey.id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
     });
 
     sendSuccess(
@@ -110,6 +122,16 @@ router.delete(
     }
 
     const apiKey = await apiKeyService.revokeApiKey(keyId, secretId, userId);
+
+    auditService.log({
+      secretId,
+      userId,
+      action: 'apikey.revoke',
+      inputData: { apiKeyId: keyId },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     sendSuccess(res, {
       apiKey,

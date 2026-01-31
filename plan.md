@@ -768,7 +768,61 @@ All skill executions and admin actions are logged with full input/output data fo
 - Gas usage summary on secret detail
 - Secret preview on claim page (would need unauthenticated endpoint)
 
-**Next up: Phase 10 - Audit Logging System**
-- Audit logging service
-- Audit log API endpoints with filtering and pagination
-- Audit log UI in secret detail page
+### Phase 10: Audit Logging System (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Audit logging service (`src/audit/audit.service.ts`) with fire-and-forget `log()` function
+- Query function with filtering (action type, status, date range) and pagination
+- Single log detail retrieval, distinct action types query, and bulk export (up to 10k records)
+- REST API endpoints at `/api/secrets/:secretId/audit-logs`:
+  - `GET /` - List with filtering and pagination
+  - `GET /actions` - Distinct action types for filter dropdown
+  - `GET /export` - Export as JSON or CSV with Content-Disposition headers
+  - `GET /:logId` - Single log detail
+- All audit log endpoints require session auth + secret ownership
+- Audit logging integrated into route handlers:
+  - `skill.transfer` and `skill.send_transaction` in EVM wallet routes (with duration tracking)
+  - `policy.create`, `policy.update`, `policy.delete` in policy routes
+  - `apikey.create`, `apikey.revoke` in API key routes
+  - `secret.claim`, `secret.delete` in secrets routes
+- Frontend `AuditLogViewer` component with:
+  - Filterable list by action type and status
+  - Expandable entries showing full input/output JSON
+  - CSV and JSON export buttons
+  - Pagination controls
+  - Status badges (green/red/yellow for SUCCESS/FAILED/PENDING)
+- New "Audit Logs" tab added to SecretDetail page
+
+**Key decisions made:**
+- Audit logging is fire-and-forget: errors are caught and logged to console, never blocking the main request
+- Logs capture IP address, user agent, duration (for skill executions), and both input/output data
+- Export capped at 10,000 records as safety limit
+- CSV export uses proper quoting with escaped double-quotes
+- Skill execution audit logs map status: `executed` → SUCCESS, `denied` → FAILED, `pending_approval` → PENDING
+- Distinct action types endpoint supports dynamic filter dropdowns in the UI
+
+**Files created:**
+- `src/audit/audit.service.ts` - Audit log service (log, query, getById, getActionTypes, exportLogs)
+- `src/audit/index.ts` - Module exports
+- `src/api/routes/auditLogs.routes.ts` - Audit log REST API endpoints
+- `frontend/src/components/AuditLogViewer.tsx` - Audit log UI component
+
+**Files modified:**
+- `src/api/routes/index.ts` - Mounted audit log routes
+- `src/api/routes/evmWallet.routes.ts` - Added audit logging to transfer and send-transaction
+- `src/api/routes/policies.routes.ts` - Added audit logging to create, update, delete
+- `src/api/routes/apiKeys.routes.ts` - Added audit logging to create and revoke
+- `src/api/routes/secrets.routes.ts` - Added audit logging to claim and delete
+- `frontend/src/api.ts` - Added audit log API functions
+- `frontend/src/pages/SecretDetail.tsx` - Added Audit Logs tab
+
+**Deferred items:**
+- Telegram linking audit log (would require changes to bot callback handler)
+- Log retention policy (configurable TTL/cleanup job)
+
+**Next up: Phase 11 - Deployment & Operations**
+- Heroku setup
+- CI/CD pipeline
+- Monitoring and alerting

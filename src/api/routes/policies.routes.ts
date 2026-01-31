@@ -6,6 +6,7 @@ import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/ses
 import { AuthenticatedRequest } from '../../types';
 import { sendSuccess, errors } from '../../utils/response';
 import * as policyService from '../../services/policy.service';
+import { auditService } from '../../audit';
 
 const router = Router({ mergeParams: true });
 
@@ -54,6 +55,17 @@ router.post(
       policyConfig: body.policyConfig,
     });
 
+    auditService.log({
+      secretId,
+      userId: req.user?.id,
+      action: 'policy.create',
+      inputData: { policyType: body.policyType, policyConfig: body.policyConfig },
+      outputData: { policyId: policy.id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     sendSuccess(res, { policy }, 201);
   })
 );
@@ -77,6 +89,17 @@ router.put(
       policyConfig: body.policyConfig,
     });
 
+    auditService.log({
+      secretId,
+      userId: req.user?.id,
+      action: 'policy.update',
+      inputData: { policyId, policyConfig: body.policyConfig },
+      outputData: { policyId: policy.id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
     sendSuccess(res, { policy });
   })
 );
@@ -94,6 +117,16 @@ router.delete(
     const { secretId, policyId } = req.params as Record<string, string>;
 
     await policyService.deletePolicy(policyId, secretId);
+
+    auditService.log({
+      secretId,
+      userId: req.user?.id,
+      action: 'policy.delete',
+      inputData: { policyId },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
 
     sendSuccess(res, { message: 'Policy deleted successfully' });
   })

@@ -5,6 +5,7 @@ import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { sendSuccess, errors } from '../../utils/response';
 import * as evmWallet from '../../skills/evmWallet.service';
+import { auditService } from '../../audit';
 
 const router = Router();
 
@@ -31,12 +32,26 @@ router.post(
       return;
     }
 
+    const start = Date.now();
     const result = await evmWallet.executeTransfer({
       secretId: req.secret.id,
       apiKeyId: req.apiKey?.id,
       to: body.to,
       amount: body.amount,
       token: body.token,
+    });
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.transfer',
+      inputData: { to: body.to, amount: body.amount, token: body.token },
+      outputData: result,
+      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      errorMessage: result.status === 'denied' ? result.reason : undefined,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
     });
 
     const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;
@@ -64,12 +79,26 @@ router.post(
       return;
     }
 
+    const start = Date.now();
     const result = await evmWallet.executeSendTransaction({
       secretId: req.secret.id,
       apiKeyId: req.apiKey?.id,
       to: body.to,
       data: body.data,
       value: body.value,
+    });
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.send_transaction',
+      inputData: { to: body.to, data: body.data, value: body.value },
+      outputData: result,
+      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      errorMessage: result.status === 'denied' ? result.reason : undefined,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
     });
 
     const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;

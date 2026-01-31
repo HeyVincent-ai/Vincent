@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { getSecret, deleteSecret } from '../api';
 import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
+import AuditLogViewer from '../components/AuditLogViewer';
 
 interface SecretData {
   id: string;
@@ -19,7 +20,7 @@ export default function SecretDetail() {
   const navigate = useNavigate();
   const [secret, setSecret] = useState<SecretData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'policies' | 'apikeys'>('policies');
+  const [tab, setTab] = useState<'policies' | 'apikeys' | 'auditlogs'>('policies');
 
   useEffect(() => {
     if (!id) return;
@@ -93,11 +94,18 @@ export default function SecretDetail() {
           >
             API Keys
           </button>
+          <button
+            onClick={() => setTab('auditlogs')}
+            className={`pb-2 text-sm font-medium border-b-2 ${tab === 'auditlogs' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            Audit Logs
+          </button>
         </div>
       </div>
 
       {tab === 'policies' && <PolicyManager secretId={secret.id} />}
       {tab === 'apikeys' && <ApiKeyManager secretId={secret.id} />}
+      {tab === 'auditlogs' && <AuditLogViewer secretId={secret.id} />}
     </div>
   );
 }
