@@ -92,6 +92,7 @@ async function getWalletData(secretId: string) {
     smartAccountAddress: secret.walletMetadata.smartAccountAddress as Address,
     chainId: secret.walletMetadata.chainId,
     userId: secret.userId,
+    createdAt: secret.createdAt,
   };
 }
 
@@ -104,7 +105,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId);
+  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId, wallet.createdAt);
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -273,7 +274,7 @@ export async function executeSendTransaction(
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId);
+  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId, wallet.createdAt);
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }

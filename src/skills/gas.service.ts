@@ -96,7 +96,8 @@ export async function getGasUsageForUser(
  */
 export async function checkSubscriptionForChain(
   userId: string | null,
-  chainId: number
+  chainId: number,
+  secretCreatedAt: Date
 ): Promise<{ allowed: boolean; reason?: string }> {
   // Testnets are always free
   const TESTNET_CHAIN_IDS = [11155111, 5, 80001, 421613, 84532]; // sepolia, goerli, mumbai, arb-goerli, base-sepolia
@@ -104,11 +105,18 @@ export async function checkSubscriptionForChain(
     return { allowed: true };
   }
 
-  // Mainnet requires a claimed secret with an active subscription
+  // Allow free mainnet usage for the first 3 days after the secret was created
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+  const trialEnd = new Date(secretCreatedAt.getTime() + threeDaysMs);
+  if (new Date() < trialEnd) {
+    return { allowed: true };
+  }
+
+  // After trial, mainnet requires a claimed secret with an active subscription
   if (!userId) {
     return {
       allowed: false,
-      reason: 'Mainnet transactions require the wallet to be claimed and a subscription to be active',
+      reason: 'Free trial expired. Mainnet transactions require the wallet to be claimed and an active subscription ($10/month).',
     };
   }
 
@@ -123,7 +131,7 @@ export async function checkSubscriptionForChain(
   if (!subscription) {
     return {
       allowed: false,
-      reason: 'Mainnet transactions require an active subscription ($10/month). Subscribe at /api/billing/subscribe',
+      reason: 'Free trial expired. Mainnet transactions require an active subscription ($10/month). Subscribe at /api/billing/subscribe',
     };
   }
 
