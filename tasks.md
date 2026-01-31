@@ -309,9 +309,9 @@
 - [x] Set up API client (axios or fetch wrapper)
 
 ### 9.2 Authentication Pages
-- [x] Login page with Stytch magic link
-- [ ] OAuth login buttons (if applicable)
-- [x] Handle auth callback
+- [x] Login page with Stytch pre-built UI SDK (`<StytchLogin>` component)
+- [x] OAuth login buttons (Google via Stytch UI SDK)
+- [x] Handle auth callback (Stytch SDK session detection + backend sync)
 - [x] Implement logout
 
 ### 9.3 Dashboard

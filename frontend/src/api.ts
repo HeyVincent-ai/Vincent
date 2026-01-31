@@ -15,7 +15,8 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    const url = err.config?.url || '';
+    if (err.response?.status === 401 && !url.startsWith('/auth/')) {
       localStorage.removeItem('sessionToken');
       window.location.href = '/login';
     }
@@ -24,14 +25,8 @@ api.interceptors.response.use(
 );
 
 // Auth
-export const sendMagicLink = (email: string) =>
-  api.post('/auth/magic-link', { email, redirectUrl: `${window.location.origin}/auth/callback` });
-
-export const authenticate = (token: string) =>
-  api.post('/auth/authenticate', { token });
-
-export const authenticateOAuth = (token: string) =>
-  api.post('/auth/oauth', { token });
+export const syncSession = (sessionToken: string) =>
+  api.post('/auth/session', { sessionToken });
 
 export const logout = () => api.post('/auth/logout');
 

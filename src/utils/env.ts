@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ override: true });
 
 const envSchema = z.object({
   // Server Configuration
@@ -14,9 +14,9 @@ const envSchema = z.object({
   // Database
   DATABASE_URL: z.string().url(),
 
-  // Stytch Authentication (optional in development)
-  STYTCH_PROJECT_ID: z.string().optional(),
-  STYTCH_SECRET: z.string().optional(),
+  // Stytch Authentication
+  STYTCH_PROJECT_ID: z.string().min(1),
+  STYTCH_SECRET: z.string().min(1),
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
   // ZeroDev Configuration (optional in development)
@@ -30,6 +30,7 @@ const envSchema = z.object({
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_BOT_USERNAME: z.string().optional(),
 
   // API Security
   API_KEY_SALT_ROUNDS: z

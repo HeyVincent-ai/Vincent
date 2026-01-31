@@ -8,72 +8,34 @@ import * as authService from '../../services/auth.service';
 
 const router = Router();
 
-const sendMagicLinkSchema = z.object({
-  email: z.string().email(),
-  redirectUrl: z.string().url(),
-});
-
-const authenticateSchema = z.object({
-  token: z.string().min(1),
+const sessionSchema = z.object({
+  sessionToken: z.string().min(1),
 });
 
 /**
- * POST /api/auth/magic-link
- * Send a magic link to the user's email
+ * POST /api/auth/session
+ * Validate a Stytch session token and return/create the user in our DB
+ * Called by the frontend after the Stytch UI SDK authenticates the user
  */
 router.post(
-  '/magic-link',
+  '/session',
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const body = sendMagicLinkSchema.parse(req.body);
+    const body = sessionSchema.parse(req.body);
 
-    await authService.sendMagicLink(body.email, body.redirectUrl);
+    const user = await authService.syncSession(body.sessionToken);
 
-    sendSuccess(res, { message: 'Magic link sent' });
-  })
-);
-
-/**
- * POST /api/auth/authenticate
- * Authenticate a magic link token
- */
-router.post(
-  '/authenticate',
-  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const body = authenticateSchema.parse(req.body);
-
-    const result = await authService.authenticateMagicLink(body.token);
+    if (!user) {
+      errors.unauthorized(res, 'Invalid session');
+      return;
+    }
 
     sendSuccess(res, {
       user: {
-        id: result.user.id,
-        email: result.user.email,
-        telegramUsername: result.user.telegramUsername,
-        createdAt: result.user.createdAt,
+        id: user.id,
+        email: user.email,
+        telegramUsername: user.telegramUsername,
+        createdAt: user.createdAt,
       },
-      sessionToken: result.sessionToken,
-    });
-  })
-);
-
-/**
- * POST /api/auth/oauth
- * Authenticate an OAuth callback token
- */
-router.post(
-  '/oauth',
-  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
-    const body = authenticateSchema.parse(req.body);
-
-    const result = await authService.authenticateOAuth(body.token);
-
-    sendSuccess(res, {
-      user: {
-        id: result.user.id,
-        email: result.user.email,
-        telegramUsername: result.user.telegramUsername,
-        createdAt: result.user.createdAt,
-      },
-      sessionToken: result.sessionToken,
     });
   })
 );

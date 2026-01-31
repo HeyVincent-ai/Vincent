@@ -748,8 +748,20 @@ All skill executions and admin actions are logged with full input/output data fo
 - `frontend/src/pages/Claim.tsx` - Secret claim flow
 - `frontend/src/pages/Billing.tsx` - Subscription and usage
 
+**Post-Phase 9 Update: Stytch UI SDK Migration**
+- Replaced custom magic link login flow with Stytch pre-built UI SDK (`@stytch/react`)
+- Installed `@stytch/react` and `@stytch/vanilla-js` in frontend
+- Wrapped app with `StytchProvider` using `StytchUIClient` in `main.tsx`
+- Login page now renders `<StytchLogin>` component with email magic links + Google OAuth
+- AuthCallback uses `useStytchSession` hook to detect Stytch session, then syncs to backend
+- New backend endpoint `POST /api/auth/session` validates Stytch session token and finds/creates user
+- Removed old `/api/auth/magic-link`, `/api/auth/authenticate`, `/api/auth/oauth` endpoints
+- Removed `sendMagicLink`, `authenticateMagicLink`, `authenticateOAuth` from auth service
+- Added `syncSession` to auth service (validates session + findOrCreateUser)
+- Requires `VITE_STYTCH_PUBLIC_TOKEN` env var in `frontend/.env`
+- Session auth middleware (`validateSession`) unchanged - still validates Stytch sessions for API calls
+
 **Deferred items:**
-- OAuth login buttons (requires Stytch frontend SDK)
 - Editable memo field on secret detail
 - Policy edit (update) UI - currently delete + recreate
 - Audit log summary on secret detail (Phase 10)

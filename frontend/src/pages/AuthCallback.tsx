@@ -1,31 +1,58 @@
-import { useEffect, useState } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { authenticate } from '../api';
+import { useEffect, useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useStytch } from '@stytch/react';
 import { useAuth } from '../auth';
+import { syncSession } from '../api';
 
 export default function AuthCallback() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { setSession } = useAuth();
+  const stytch = useStytch();
   const [error, setError] = useState('');
+  const didRun = useRef(false);
 
   useEffect(() => {
-    const token = searchParams.get('token');
-    if (!token) {
+    if (didRun.current) return;
+    didRun.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    const tokenType = params.get('stytch_token_type');
+
+    if (!token || !tokenType) {
       setError('Missing authentication token');
       return;
     }
 
-    authenticate(token)
-      .then((res) => {
-        const { user, sessionToken } = res.data.data;
-        setSession(sessionToken, user);
-        navigate('/');
+    let authPromise: Promise<{ session_token: string }>;
+
+    if (tokenType === 'magic_links') {
+      authPromise = stytch.magicLinks.authenticate(token, {
+        session_duration_minutes: 60,
+      }) as Promise<{ session_token: string }>;
+    } else if (tokenType === 'oauth') {
+      authPromise = stytch.oauth.authenticate(token, {
+        session_duration_minutes: 60,
+      }) as Promise<{ session_token: string }>;
+    } else {
+      setError(`Unknown token type: ${tokenType}`);
+      return;
+    }
+
+    authPromise
+      .then((resp) => {
+        const sessionToken = resp.session_token;
+        return syncSession(sessionToken).then((res) => {
+          const { user } = res.data.data;
+          setSession(sessionToken, user);
+          navigate('/');
+        });
       })
-      .catch(() => {
-        setError('Authentication failed. The link may have expired.');
+      .catch((err) => {
+        console.error('Auth callback error:', err);
+        setError('Authentication failed. Please try again.');
       });
-  }, [searchParams, navigate, setSession]);
+  }, [stytch, navigate, setSession]);
 
   if (error) {
     return (

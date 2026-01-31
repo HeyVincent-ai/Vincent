@@ -9,9 +9,7 @@ let stytchClient: stytch.Client | null = null;
 
 function getStytchClient(): stytch.Client {
   if (!stytchClient) {
-    if (!env.STYTCH_PROJECT_ID || !env.STYTCH_SECRET) {
-      throw new AppError('CONFIG_ERROR', 'Stytch credentials not configured', 500);
-    }
+    console.log('Initializing Stytch client with project:', env.STYTCH_PROJECT_ID, 'env:', env.STYTCH_ENV);
     stytchClient = new stytch.Client({
       project_id: env.STYTCH_PROJECT_ID,
       secret: env.STYTCH_SECRET,
@@ -22,75 +20,35 @@ function getStytchClient(): stytch.Client {
 }
 
 /**
- * Send a magic link to the user's email
+ * Validate a Stytch session token and find/create the user in our DB.
+ * Called after the Stytch frontend SDK authenticates the user.
  */
-export async function sendMagicLink(email: string, redirectUrl: string): Promise<void> {
+export async function syncSession(sessionToken: string): Promise<User | null> {
   const client = getStytchClient();
 
-  await client.magicLinks.email.loginOrCreate({
-    email,
-    login_magic_link_url: redirectUrl,
-    signup_magic_link_url: redirectUrl,
-  });
-}
+  try {
+    const response = await client.sessions.authenticate({
+      session_token: sessionToken,
+    });
 
-/**
- * Authenticate a magic link token and return/create the user
- */
-export async function authenticateMagicLink(token: string): Promise<{
-  user: User;
-  sessionToken: string;
-}> {
-  const client = getStytchClient();
+    const stytchUserId = response.user.user_id;
+    const email = response.user.emails[0]?.email;
 
-  const response = await client.magicLinks.authenticate({
-    token,
-    session_duration_minutes: 60 * 24 * 7, // 7 days
-  });
+    if (!email) {
+      throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
+    }
 
-  const stytchUserId = response.user.user_id;
-  const email = response.user.emails[0]?.email;
-
-  if (!email) {
-    throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
+    return await findOrCreateUser({ email, stytchUserId });
+  } catch (err: unknown) {
+    const stytchErr = err as { status_code?: number; error_type?: string; error_message?: string };
+    console.error('syncSession failed:', {
+      status_code: stytchErr.status_code,
+      error_type: stytchErr.error_type,
+      error_message: stytchErr.error_message,
+      raw: err,
+    });
+    return null;
   }
-
-  // Find or create user in our database
-  const user = await findOrCreateUser({ email, stytchUserId });
-
-  return {
-    user,
-    sessionToken: response.session_token,
-  };
-}
-
-/**
- * Authenticate an OAuth callback and return/create the user
- */
-export async function authenticateOAuth(token: string): Promise<{
-  user: User;
-  sessionToken: string;
-}> {
-  const client = getStytchClient();
-
-  const response = await client.oauth.authenticate({
-    token,
-    session_duration_minutes: 60 * 24 * 7, // 7 days
-  });
-
-  const stytchUserId = response.user.user_id;
-  const email = response.user.emails[0]?.email;
-
-  if (!email) {
-    throw new AppError('AUTH_ERROR', 'No email found for OAuth user', 400);
-  }
-
-  const user = await findOrCreateUser({ email, stytchUserId });
-
-  return {
-    user,
-    sessionToken: response.session_token,
-  };
 }
 
 /**

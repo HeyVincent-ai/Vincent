@@ -7,6 +7,7 @@ import { sendSuccess, errors } from '../../utils/response';
 import prisma from '../../db/client';
 import * as secretService from '../../services/secret.service';
 import { generateLinkingCode } from '../../telegram';
+import { env } from '../../utils/env';
 
 const router = Router();
 
@@ -110,7 +111,7 @@ router.post(
 
     sendSuccess(res, {
       linkingCode: code,
-      botUsername: 'Send /start ' + code + ' to the SafeSkills bot on Telegram',
+      botUsername: env.TELEGRAM_BOT_USERNAME || null,
       expiresInMinutes: 10,
     });
   })
