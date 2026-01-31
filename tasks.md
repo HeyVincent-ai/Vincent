@@ -202,34 +202,34 @@
 ## Phase 6: Human Approval System
 
 ### 6.1 Telegram Bot Setup
-- [ ] Create Telegram bot via BotFather
-- [ ] Set up Telegram bot SDK (node-telegram-bot-api or grammy)
-- [ ] Implement bot startup and connection handling
-- [ ] Store bot webhook/polling configuration
+- [x] Create Telegram bot via BotFather
+- [x] Set up Telegram bot SDK (grammy)
+- [x] Implement bot startup and connection handling (long polling)
+- [x] Store bot webhook/polling configuration
 
 ### 6.2 User Linking
-- [ ] Implement `/start` command with linking code
-- [ ] Generate unique linking codes for users
-- [ ] Verify Telegram username matches registered user
-- [ ] Store Telegram chat ID for user
+- [x] Implement `/start` command with linking code
+- [x] Generate unique linking codes for users (POST /api/user/telegram/link)
+- [x] Verify Telegram username matches registered user
+- [x] Store Telegram chat ID for user
 
 ### 6.3 Approval Flow
-- [ ] Create pending approval record in database
-- [ ] Send approval request message to user
-  - [ ] Format transaction details nicely
-  - [ ] Include inline keyboard (Approve/Deny buttons)
-- [ ] Handle button callbacks
-  - [ ] Validate callback is for correct user
-  - [ ] Update pending approval status
-  - [ ] Resume transaction execution
-- [ ] Implement timeout handling
-  - [ ] Background job to expire old approvals
-  - [ ] Notify agent of timeout
+- [x] Create pending approval record in database
+- [x] Send approval request message to user
+  - [x] Format transaction details nicely
+  - [x] Include inline keyboard (Approve/Deny buttons)
+- [x] Handle button callbacks
+  - [x] Validate callback is for correct user
+  - [x] Update pending approval status
+  - [x] Resume transaction execution
+- [x] Implement timeout handling
+  - [x] Background job to expire old approvals (1-minute interval checker)
+  - [x] Notify agent of timeout
 
 ### 6.4 Approval Notifications
-- [ ] Send confirmation when action is approved
-- [ ] Send notification when action is denied
-- [ ] Send notification for automatic approvals (optional, configurable)
+- [x] Send confirmation when action is approved
+- [x] Send notification when action is denied
+- [x] Send notification for automatic approvals (timeout expiry notifications)
 
 ---
 

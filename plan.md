@@ -576,3 +576,47 @@ All skill executions and admin actions are logged with full input/output data fo
 - User linking flow
 - Approval request/response via inline keyboards
 - Timeout handling
+
+### Phase 6: Human Approval System (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Grammy (Telegram bot SDK) integration with long polling mode
+- Bot startup/shutdown integrated into server lifecycle (index.ts)
+- User linking flow: API endpoint generates 10-minute linking codes, user sends `/start <code>` to bot
+- `/start`, `/status`, `/unlink` commands for Telegram bot
+- Inline keyboard approval flow: Approve/Deny buttons on formatted transaction details
+- Callback query handler validates user ownership, expiry, and duplicate responses
+- On approval: transaction is immediately executed via `approvalExecutor.ts` (re-reads wallet data, executes via ZeroDev)
+- On denial: transaction log updated to DENIED status
+- Periodic timeout checker (every 60 seconds) expires pending approvals past their deadline
+- Expired approvals marked as DENIED with TIMEOUT status on TransactionLog
+- Timeout notifications sent to user via Telegram
+- `sendApprovalRequest()` called fire-and-forget from evmWallet.service when policy requires approval
+- `sendNotification()` utility for arbitrary messages to linked users
+- Telegram message ID stored on PendingApproval for reference
+
+**Key decisions made:**
+- Used grammy over node-telegram-bot-api (better TypeScript support, active maintenance)
+- Long polling instead of webhooks (simpler for development; can switch to webhooks for production)
+- Linking codes stored in-memory with 10-minute expiry (sufficient for single-instance; would need Redis for multi-instance)
+- Approval execution is separate module (`approvalExecutor.ts`) to avoid circular dependencies with evmWallet.service
+- Fire-and-forget pattern for sending approval requests (non-blocking for agent API response)
+- Timeout checker runs as setInterval (simple; could upgrade to a proper job queue for production)
+
+**Files created:**
+- `src/telegram/bot.ts` - Bot initialization, commands, callback handling, approval messaging
+- `src/telegram/approvalExecutor.ts` - Executes approved transactions after Telegram approval
+- `src/telegram/timeoutChecker.ts` - Periodic job to expire timed-out approvals
+- `src/telegram/index.ts` - Module exports
+
+**Files modified:**
+- `src/index.ts` - Bot startup/shutdown in server lifecycle
+- `src/skills/evmWallet.service.ts` - Calls sendApprovalRequest after creating PendingApproval
+- `src/api/routes/user.routes.ts` - Added POST /api/user/telegram/link endpoint
+- `package.json` - Added `grammy` dependency
+
+**Next up: Phase 7 - Secret Management API (for Agents)**
+- Agent info endpoint
+- Response formatting standardization

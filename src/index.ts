@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { env } from './utils/env';
 import prisma from './db/client';
+import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram';
 
 async function main() {
   const app = createApp();
@@ -14,6 +15,10 @@ async function main() {
     process.exit(1);
   }
 
+  // Start Telegram bot
+  await startBot();
+  startTimeoutChecker();
+
   // Start server
   const server = app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
@@ -24,6 +29,9 @@ async function main() {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`${signal} received, shutting down gracefully...`);
+
+    stopTimeoutChecker();
+    await stopBot();
 
     server.close(async () => {
       console.log('HTTP server closed');

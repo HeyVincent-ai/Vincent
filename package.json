@@ -51,6 +51,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^8.2.1",
+    "grammy": "^1.39.3",
     "helmet": "^8.1.0",
     "prisma": "^5.22.0",
     "stytch": "^13.1.0",

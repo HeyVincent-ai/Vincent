@@ -5,6 +5,7 @@ import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
 import * as priceService from '../services/price.service';
 import * as zerodev from './zerodev.service';
 import * as gasService from './gas.service';
+import { sendApprovalRequest } from '../telegram';
 
 // ============================================================
 // Types
@@ -174,8 +175,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   }
 
   if (policyResult.verdict === 'require_approval') {
-    // Create pending approval (Telegram integration in Phase 6)
-    await prisma.pendingApproval.create({
+    const pendingApproval = await prisma.pendingApproval.create({
       data: {
         transactionLogId: txLog.id,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000), // 30 min timeout
@@ -186,6 +186,11 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
       where: { id: txLog.id },
       data: { status: 'PENDING' },
     });
+
+    // Send Telegram approval request (fire-and-forget)
+    sendApprovalRequest(pendingApproval.id).catch((err) =>
+      console.error('Failed to send approval request:', err)
+    );
 
     return {
       txHash: '',
@@ -336,12 +341,17 @@ export async function executeSendTransaction(
   }
 
   if (policyResult.verdict === 'require_approval') {
-    await prisma.pendingApproval.create({
+    const pendingApproval = await prisma.pendingApproval.create({
       data: {
         transactionLogId: txLog.id,
         expiresAt: new Date(Date.now() + 30 * 60 * 1000),
       },
     });
+
+    // Send Telegram approval request (fire-and-forget)
+    sendApprovalRequest(pendingApproval.id).catch((err) =>
+      console.error('Failed to send approval request:', err)
+    );
 
     return {
       txHash: null,

@@ -6,6 +6,7 @@ import { AuthenticatedRequest } from '../../types';
 import { sendSuccess, errors } from '../../utils/response';
 import prisma from '../../db/client';
 import * as secretService from '../../services/secret.service';
+import { generateLinkingCode } from '../../telegram';
 
 const router = Router();
 
@@ -90,6 +91,28 @@ router.get(
     const secrets = await secretService.getSecretsByUserId(req.user.id);
 
     sendSuccess(res, { secrets });
+  })
+);
+
+/**
+ * POST /api/user/telegram/link
+ * Generate a Telegram linking code for the current user
+ */
+router.post(
+  '/telegram/link',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (!req.user) {
+      errors.unauthorized(res);
+      return;
+    }
+
+    const code = generateLinkingCode(req.user.id);
+
+    sendSuccess(res, {
+      linkingCode: code,
+      botUsername: 'Send /start ' + code + ' to the SafeSkills bot on Telegram',
+      expiresInMinutes: 10,
+    });
   })
 );
 
