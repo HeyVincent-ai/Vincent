@@ -79,7 +79,7 @@ export function createApp(): Express {
   if (env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
     app.use(express.static(frontendPath));
-    app.get('*', (_req, res) => {
+    app.get('/{*splat}', (_req, res) => {
       res.sendFile(path.join(frontendPath, 'index.html'));
     });
   }
