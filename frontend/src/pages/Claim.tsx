@@ -40,7 +40,16 @@ export default function Claim() {
         <div className="bg-white p-8 rounded-lg shadow-sm border max-w-md w-full text-center">
           <h2 className="text-xl font-semibold mb-2">Sign in to claim this secret</h2>
           <p className="text-gray-600 mb-4">You need to be authenticated to claim a secret.</p>
-          <a href="/login" className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block">Sign In</a>
+          <a
+            href="/login"
+            onClick={() => {
+              localStorage.setItem('pendingClaim', JSON.stringify({
+                url: window.location.pathname + window.location.search,
+                expiresAt: Date.now() + 15 * 60 * 1000,
+              }));
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block"
+          >Sign In</a>
         </div>
       </div>
     );

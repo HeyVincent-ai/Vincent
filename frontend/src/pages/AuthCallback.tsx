@@ -45,6 +45,20 @@ export default function AuthCallback() {
         return syncSession(sessionToken).then((res) => {
           const { user } = res.data.data;
           setSession(sessionToken, user);
+
+          const pending = localStorage.getItem('pendingClaim');
+          if (pending) {
+            try {
+              const { url, expiresAt } = JSON.parse(pending);
+              localStorage.removeItem('pendingClaim');
+              if (Date.now() < expiresAt) {
+                navigate(url);
+                return;
+              }
+            } catch {
+              localStorage.removeItem('pendingClaim');
+            }
+          }
           navigate('/');
         });
       })
