@@ -5,6 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec tsx src/index.ts",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "dev:all": "concurrently -n api,web -c blue,green \"npm run dev\" \"npm run dev:frontend\"",
     "build": "tsc",
     "start": "node dist/index.js",
     "lint": "eslint src",
@@ -32,6 +34,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.1.0",
     "@types/uuid": "^11.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
