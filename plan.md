@@ -349,7 +349,6 @@ All skill executions and admin actions are logged with full input/output data fo
 - ESLint + Prettier for code quality
 - Full folder structure as planned
 - Environment variable management with Zod validation
-- Docker + docker-compose for local development with PostgreSQL
 - Prisma ORM with comprehensive schema (all models from the plan)
 - Express server with TypeScript
 - Middleware stack: cors, helmet, rate-limiting, request logging
@@ -375,8 +374,6 @@ All skill executions and admin actions are logged with full input/output data fo
 - `src/api/middleware/requestLogger.ts` - Request logging
 - `prisma/schema.prisma` - Full database schema
 - `prisma/seed.ts` - Database seeding
-- `docker-compose.yml` - Local development environment
-- `Dockerfile` and `Dockerfile.dev` - Container builds
 
 **Next up: Phase 2 - Secret Storage Foundation**
 - Implement secret creation service (with wallet generation)
@@ -423,7 +420,7 @@ All skill executions and admin actions are logged with full input/output data fo
 
 **Known issues:**
 - ESLint config needs migration to ESLint 9 flat config format (`eslint.config.js`)
-- Initial Prisma migration not yet run (requires Docker daemon)
+- Initial Prisma migration not yet run (requires local PostgreSQL or DATABASE_URL)
 - API key validation is O(n) over all keys - needs optimization for production scale
 
 **Next up: Phase 3 - Authentication & User Management**

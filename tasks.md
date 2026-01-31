@@ -22,8 +22,6 @@
   /frontend       # React app (separate or monorepo)
   ```
 - [x] Set up environment variable management (.env, validation)
-- [x] Create Dockerfile for local development
-- [x] Set up docker-compose with PostgreSQL
 
 ### 1.2 Database Setup
 - [x] Install and configure Prisma
@@ -38,7 +36,7 @@
   - [x] Subscription model (Stripe subscription tracking)
   - [x] GasUsage model (per-transaction gas costs)
   - [x] MonthlyGasSummary model (aggregated monthly billing)
-- [ ] Create initial migration (requires Docker to be running)
+- [ ] Create initial migration (requires local PostgreSQL or DATABASE_URL)
 - [x] Set up database seeding for development
 
 ### 1.3 Core Backend Infrastructure
