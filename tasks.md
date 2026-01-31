@@ -234,22 +234,22 @@
 ## Phase 7: Secret Management API (for Agents)
 
 ### 7.1 Agent Endpoints
-- [ ] `POST /api/secrets` - Create new secret
-  - [ ] Accept secret type (e.g., `evm_wallet`) and optional memo
-  - [ ] For evm_wallet: generate EOA private key, create smart account
-  - [ ] Generate and return API key
-  - [ ] Generate and return claim URL
-  - [ ] Return wallet address (for evm_wallet)
-  - [ ] Agent never receives the actual secret value
-- [ ] `GET /api/secrets/info` - Get secret info by API key
-  - [ ] Return metadata, not secret value
-  - [ ] For evm_wallet: return address, chain
+- [x] `POST /api/secrets` - Create new secret
+  - [x] Accept secret type (e.g., `evm_wallet`) and optional memo
+  - [x] For evm_wallet: generate EOA private key, create smart account
+  - [x] Generate and return API key
+  - [x] Generate and return claim URL
+  - [x] Return wallet address (for evm_wallet)
+  - [x] Agent never receives the actual secret value
+- [x] `GET /api/secrets/info` - Get secret info by API key
+  - [x] Return metadata, not secret value
+  - [x] For evm_wallet: return address, chain
 
 ### 7.2 Response Formatting
-- [ ] Standardize API response format
-- [ ] Include transaction hashes where applicable
-- [ ] Include approval status in responses
-- [ ] Provide clear error messages
+- [x] Standardize API response format
+- [x] Include transaction hashes where applicable
+- [x] Include approval status in responses
+- [x] Provide clear error messages
 
 ---
 
