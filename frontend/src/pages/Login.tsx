@@ -9,11 +9,11 @@ const loginConfig = {
     signupRedirectURL: `${window.location.origin}/auth/callback`,
     signupExpirationMinutes: 43200,
   },
-  oauthOptions: {
-    providers: [{ type: OAuthProviders.Google }],
-    loginRedirectURL: `${window.location.origin}/auth/callback`,
-    signupRedirectURL: `${window.location.origin}/auth/callback`,
-  },
+  // oauthOptions: {
+  //   providers: [{ type: OAuthProviders.Google }],
+  //   loginRedirectURL: `${window.location.origin}/auth/callback`,
+  //   signupRedirectURL: `${window.location.origin}/auth/callback`,
+  // },
 };
 
 export default function Login() {
