@@ -430,3 +430,48 @@ All skill executions and admin actions are logged with full input/output data fo
 - Stytch integration for user auth
 - Session management
 - Replace userId stubs with real auth
+
+### Phase 3: Authentication & User Management (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Stytch SDK integration with lazy initialization (only connects when auth is actually used)
+- Magic link authentication flow (send link + authenticate token)
+- OAuth authentication flow (Google etc. via Stytch)
+- Session validation via Stytch sessions API (7-day session duration)
+- Session revocation (logout)
+- Find-or-create user pattern: matches by stytchUserId first, then email, then creates new
+- Session auth middleware with token extraction from Authorization header or x-session-token header
+- Optional session auth middleware for dual-purpose endpoints
+- Secret ownership validation middleware (requireSecretOwnership)
+- User API routes: GET /api/user/profile, PUT /api/user/telegram, GET /api/user/secrets
+- Auth API routes: POST /api/auth/magic-link, POST /api/auth/authenticate, POST /api/auth/oauth, POST /api/auth/logout
+- Replaced all userId stubs in secrets.routes.ts with real session auth
+- GET/PUT/DELETE on secrets now require session + ownership
+- POST /api/secrets/:id/claim requires session (userId from req.user)
+- POST /api/secrets (create) remains unauthenticated (agent endpoint)
+
+**Key decisions made:**
+- Session tokens distinguished from API keys by checking for `ssk_` prefix
+- Stytch client initialized lazily to avoid startup failures when credentials aren't configured
+- Telegram chat ID is reset when username changes (forces re-linking)
+- Secret ownership middleware is separate from session middleware for composability
+- Used `req.params as Record<string, string>` pattern instead of the `str()` helper for cleaner Express 5 param access
+
+**Files created:**
+- `src/services/auth.service.ts` - Stytch integration and user management
+- `src/api/middleware/sessionAuth.ts` - Session auth + ownership middleware
+- `src/api/routes/auth.routes.ts` - Authentication endpoints
+- `src/api/routes/user.routes.ts` - User profile/settings endpoints
+
+**Files modified:**
+- `src/api/routes/secrets.routes.ts` - Replaced userId stubs with real session auth
+- `src/api/routes/index.ts` - Mounted auth and user routes
+- `src/services/index.ts` - Added auth service export
+
+**Next up: Phase 4 - Policy System**
+- Design policy configuration schema
+- Implement policy engine core
+- EVM wallet-specific policy checkers
+- USD price conversion integration

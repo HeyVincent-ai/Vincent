@@ -86,23 +86,23 @@
 ## Phase 3: Authentication & User Management
 
 ### 3.1 Stytch Integration
-- [ ] Set up Stytch SDK
-- [ ] Implement authentication endpoints:
-  - [ ] Magic link flow (email)
-  - [ ] OAuth (Google, optional)
-- [ ] Handle Stytch callbacks
-- [ ] Create/retrieve user on successful auth
-- [ ] Generate session tokens
+- [x] Set up Stytch SDK
+- [x] Implement authentication endpoints:
+  - [x] Magic link flow (email)
+  - [x] OAuth (Google, optional)
+- [x] Handle Stytch callbacks
+- [x] Create/retrieve user on successful auth
+- [x] Generate session tokens
 
 ### 3.2 User API Endpoints
-- [ ] `GET /api/user/profile` - Get current user
-- [ ] `PUT /api/user/telegram` - Update Telegram username
-- [ ] `GET /api/user/secrets` - List user's claimed secrets
+- [x] `GET /api/user/profile` - Get current user
+- [x] `PUT /api/user/telegram` - Update Telegram username
+- [x] `GET /api/user/secrets` - List user's claimed secrets
 
 ### 3.3 Authorization Middleware
-- [ ] Create session validation middleware
-- [ ] Create secret ownership validation
-- [ ] Create API key authentication for agent endpoints
+- [x] Create session validation middleware
+- [x] Create secret ownership validation
+- [x] Create API key authentication for agent endpoints (done in Phase 2, verified working)
 
 ---
 
