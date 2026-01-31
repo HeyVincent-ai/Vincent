@@ -109,35 +109,35 @@
 ## Phase 4: Policy System
 
 ### 4.1 Policy Engine Core
-- [ ] Design policy configuration schema (JSON structure)
-- [ ] Implement policy storage/retrieval
-- [ ] Create policy validator (validate config structure)
-- [ ] Build policy checker interface
+- [x] Design policy configuration schema (JSON structure)
+- [x] Implement policy storage/retrieval
+- [x] Create policy validator (validate config structure)
+- [x] Build policy checker interface
 
 ### 4.2 EVM Wallet Policies
-- [ ] Implement `address_allowlist` policy checker
-- [ ] Implement `function_allowlist` policy checker
-- [ ] Implement `token_allowlist` policy checker
-- [ ] Implement `spending_limit_per_tx` policy checker
-- [ ] Implement `spending_limit_daily` policy checker
-  - [ ] Track spending over rolling 24h window
-- [ ] Implement `spending_limit_weekly` policy checker
-  - [ ] Track spending over rolling 7-day window
-- [ ] Implement `require_approval` policy checker
-- [ ] Implement `approval_threshold` policy checker
+- [x] Implement `address_allowlist` policy checker
+- [x] Implement `function_allowlist` policy checker
+- [x] Implement `token_allowlist` policy checker
+- [x] Implement `spending_limit_per_tx` policy checker
+- [x] Implement `spending_limit_daily` policy checker
+  - [x] Track spending over rolling 24h window
+- [x] Implement `spending_limit_weekly` policy checker
+  - [x] Track spending over rolling 7-day window
+- [x] Implement `require_approval` policy checker
+- [x] Implement `approval_threshold` policy checker
 
 ### 4.3 USD Price Conversion
-- [ ] Integrate price oracle (CoinGecko or similar)
-- [ ] Implement ETH → USD conversion
-- [ ] Implement ERC20 → USD conversion
-- [ ] Add caching for price data (refresh every few minutes)
-- [ ] Handle missing/stale prices gracefully
+- [x] Integrate price oracle (CoinGecko or similar)
+- [x] Implement ETH → USD conversion
+- [x] Implement ERC20 → USD conversion
+- [x] Add caching for price data (refresh every few minutes)
+- [x] Handle missing/stale prices gracefully
 
 ### 4.4 Policy API Endpoints
-- [ ] `GET /api/secrets/:id/policies` - List policies
-- [ ] `POST /api/secrets/:id/policies` - Create policy
-- [ ] `PUT /api/secrets/:id/policies/:policyId` - Update policy
-- [ ] `DELETE /api/secrets/:id/policies/:policyId` - Delete policy
+- [x] `GET /api/secrets/:id/policies` - List policies
+- [x] `POST /api/secrets/:id/policies` - Create policy
+- [x] `PUT /api/secrets/:id/policies/:policyId` - Update policy
+- [x] `DELETE /api/secrets/:id/policies/:policyId` - Delete policy
 
 ---
 

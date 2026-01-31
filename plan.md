@@ -475,3 +475,49 @@ All skill executions and admin actions are logged with full input/output data fo
 - Implement policy engine core
 - EVM wallet-specific policy checkers
 - USD price conversion integration
+
+### Phase 4: Policy System (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Policy service with full CRUD: create, list, get, update, delete
+- Zod-based policy config validation per policy type (8 types)
+- Policy checker engine with two-phase evaluation: deny conditions first, then approval requirements
+- Address allowlist checker: validates `to` address against allowed list
+- Function allowlist checker: validates 4-byte function selectors for send_transaction actions
+- Token allowlist checker: validates ERC20 token addresses for transfer actions
+- Spending limit per-tx checker: compares USD value against max
+- Spending limit daily/weekly checkers: rolling window aggregation from TransactionLog
+- Require approval checker: forces human approval when enabled
+- Approval threshold checker: requires approval above USD threshold
+- CoinGecko price service with 5-minute cache, ETH and ERC20 → USD conversion
+- Well-known token address → CoinGecko ID mapping for common tokens
+- Graceful handling of missing prices (deny for spending limits, require_approval for thresholds)
+- Policy REST API with session auth + ownership middleware
+- Duplicate policy type prevention (409 Conflict)
+
+**Key decisions made:**
+- Default-open policy: if no policies exist, actions are allowed
+- Allowlist policies are restrictive: if present, action MUST match or it's denied
+- When USD price is unavailable, spending limits deny (safe default) and approval thresholds require approval (safe default)
+- Daily/weekly spending tracked via `usdValue` field in TransactionLog.requestData (set at execution time by skill executor)
+- Policy routes mounted at `/api/secrets/:secretId/policies` with `mergeParams: true`
+- One policy per type per secret (enforced in service layer, not DB constraint)
+
+**Files created:**
+- `src/services/policy.service.ts` - Policy CRUD + config validation schemas
+- `src/services/price.service.ts` - CoinGecko price fetching with caching
+- `src/policies/checker.ts` - Policy evaluation engine with all 8 checkers
+- `src/policies/index.ts` - Policy module exports
+- `src/api/routes/policies.routes.ts` - Policy REST API endpoints
+
+**Files modified:**
+- `src/api/routes/index.ts` - Mounted policy routes
+- `src/services/index.ts` - Added policy and price service exports
+
+**Next up: Phase 5 - EVM Wallet Skill**
+- ZeroDev integration for smart accounts
+- Gas tracking
+- Transfer and send transaction functions
+- Skill API endpoints
