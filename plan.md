@@ -335,3 +335,50 @@ All skill executions and admin actions are logged with full input/output data fo
 - Self-hosted option
 - Multiple chain support for EVM wallet
 - Session keys for reduced approval friction
+
+---
+
+## Implementation Progress & Learnings
+
+### Phase 1: Project Setup & Infrastructure (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Node.js/TypeScript project with strict tsconfig
+- ESLint + Prettier for code quality
+- Full folder structure as planned
+- Environment variable management with Zod validation
+- Docker + docker-compose for local development with PostgreSQL
+- Prisma ORM with comprehensive schema (all models from the plan)
+- Express server with TypeScript
+- Middleware stack: cors, helmet, rate-limiting, request logging
+- Error handling with custom AppError class and async wrapper
+- Health check endpoint at `/health`
+- Standard API response format with success/error helpers
+
+**Key decisions made:**
+- Using `tsx` for development (faster than ts-node)
+- Environment validation happens at startup (fail fast)
+- All Prisma model names use snake_case in database (via @@map)
+- Comprehensive audit logging schema includes duration tracking
+- TransactionLog separate from AuditLog for cleaner separation of concerns
+
+**Files created:**
+- `src/index.ts` - Server entry point with graceful shutdown
+- `src/app.ts` - Express app configuration
+- `src/db/client.ts` - Prisma client singleton
+- `src/utils/env.ts` - Environment validation
+- `src/utils/response.ts` - API response helpers
+- `src/types/index.ts` - TypeScript types
+- `src/api/middleware/errorHandler.ts` - Error handling
+- `src/api/middleware/requestLogger.ts` - Request logging
+- `prisma/schema.prisma` - Full database schema
+- `prisma/seed.ts` - Database seeding
+- `docker-compose.yml` - Local development environment
+- `Dockerfile` and `Dockerfile.dev` - Container builds
+
+**Next up: Phase 2 - Secret Storage Foundation**
+- Implement secret creation service (with wallet generation)
+- API key generation and validation
+- Secret claiming flow

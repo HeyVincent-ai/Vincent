@@ -1,0 +1,258 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model - authenticated users who can claim and manage secrets
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  stytchUserId      String?   @unique @map("stytch_user_id")
+  telegramUsername  String?   @map("telegram_username")
+  telegramChatId    String?   @map("telegram_chat_id")
+  stripeCustomerId  String?   @unique @map("stripe_customer_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  secrets            Secret[]
+  subscriptions      Subscription[]
+  gasUsages          GasUsage[]
+  monthlyGasSummaries MonthlyGasSummary[]
+  auditLogs          AuditLog[]
+
+  @@map("users")
+}
+
+// Secret types enum
+enum SecretType {
+  EVM_WALLET
+  API_KEY
+  SSH_KEY
+  OAUTH_TOKEN
+}
+
+// Secret model - stores secrets with optional value (can be null for user-provided secrets)
+model Secret {
+  id          String      @id @default(cuid())
+  userId      String?     @map("user_id")
+  type        SecretType
+  value       String?     // Encrypted at rest, null for user-provided secrets until set
+  memo        String?     // User-friendly description
+  claimToken  String?     @unique @map("claim_token")
+  claimedAt   DateTime?   @map("claimed_at")
+  deletedAt   DateTime?   @map("deleted_at")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  user              User?                 @relation(fields: [userId], references: [id])
+  walletMetadata    WalletSecretMetadata?
+  apiKeys           ApiKey[]
+  policies          Policy[]
+  transactionLogs   TransactionLog[]
+  auditLogs         AuditLog[]
+  gasUsages         GasUsage[]
+
+  @@map("secrets")
+}
+
+// Wallet-specific metadata for EVM_WALLET secrets
+model WalletSecretMetadata {
+  id                  String   @id @default(cuid())
+  secretId            String   @unique @map("secret_id")
+  smartAccountAddress String   @map("smart_account_address")
+  chainId             Int      @map("chain_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@map("wallet_secret_metadata")
+}
+
+// API Keys for agent access to secrets
+model ApiKey {
+  id        String    @id @default(cuid())
+  secretId  String    @map("secret_id")
+  keyHash   String    @map("key_hash") // bcrypt hashed, original shown only once
+  name      String    // Friendly name for the key
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  secret          Secret           @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  transactionLogs TransactionLog[]
+  auditLogs       AuditLog[]
+
+  @@map("api_keys")
+}
+
+// Policy types enum
+enum PolicyType {
+  ADDRESS_ALLOWLIST
+  FUNCTION_ALLOWLIST
+  TOKEN_ALLOWLIST
+  SPENDING_LIMIT_PER_TX
+  SPENDING_LIMIT_DAILY
+  SPENDING_LIMIT_WEEKLY
+  REQUIRE_APPROVAL
+  APPROVAL_THRESHOLD
+}
+
+// Policies for governing secret usage
+model Policy {
+  id           String     @id @default(cuid())
+  secretId     String     @map("secret_id")
+  policyType   PolicyType @map("policy_type")
+  policyConfig Json       @map("policy_config") // JSON configuration for the policy
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@map("policies")
+}
+
+// Transaction status enum
+enum TransactionStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXECUTED
+  FAILED
+  TIMEOUT
+}
+
+// Transaction log for skill executions
+model TransactionLog {
+  id            String            @id @default(cuid())
+  secretId      String            @map("secret_id")
+  apiKeyId      String?           @map("api_key_id")
+  actionType    String            @map("action_type") // e.g., "transfer", "send_transaction"
+  requestData   Json              @map("request_data")
+  responseData  Json?             @map("response_data")
+  status        TransactionStatus @default(PENDING)
+  txHash        String?           @map("tx_hash")
+  approvedBy    String?           @map("approved_by") // Who approved if needed
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  secret          Secret           @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  apiKey          ApiKey?          @relation(fields: [apiKeyId], references: [id])
+  pendingApproval PendingApproval?
+
+  @@map("transaction_logs")
+}
+
+// Pending approvals for transactions requiring human approval
+model PendingApproval {
+  id                String    @id @default(cuid())
+  transactionLogId  String    @unique @map("transaction_log_id")
+  telegramMessageId String?   @map("telegram_message_id")
+  expiresAt         DateTime  @map("expires_at")
+  approved          Boolean?  // null = pending, true = approved, false = denied
+  respondedAt       DateTime? @map("responded_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  transactionLog TransactionLog @relation(fields: [transactionLogId], references: [id], onDelete: Cascade)
+
+  @@map("pending_approvals")
+}
+
+// Subscription status enum
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+// Stripe subscription tracking
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @map("user_id")
+  stripeSubscriptionId String             @unique @map("stripe_subscription_id")
+  status               SubscriptionStatus
+  currentPeriodStart   DateTime           @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  canceledAt           DateTime?          @map("canceled_at")
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// Gas usage tracking per transaction
+model GasUsage {
+  id              String   @id @default(cuid())
+  secretId        String   @map("secret_id")
+  userId          String?  @map("user_id")
+  transactionHash String   @map("transaction_hash")
+  chainId         Int      @map("chain_id")
+  gasUsed         BigInt   @map("gas_used")
+  gasPriceGwei    Decimal  @map("gas_price_gwei") @db.Decimal(20, 9)
+  costUsd         Decimal  @map("cost_usd") @db.Decimal(20, 8)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id])
+
+  @@map("gas_usage")
+}
+
+// Monthly gas summary for billing
+model MonthlyGasSummary {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  month           String   // Format: YYYY-MM
+  totalCostUsd    Decimal  @map("total_cost_usd") @db.Decimal(20, 8)
+  billed          Boolean  @default(false)
+  stripeInvoiceId String?  @map("stripe_invoice_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, month])
+  @@map("monthly_gas_summaries")
+}
+
+// Audit log status enum
+enum AuditLogStatus {
+  SUCCESS
+  FAILED
+  PENDING
+}
+
+// Comprehensive audit logging
+model AuditLog {
+  id           String         @id @default(cuid())
+  secretId     String?        @map("secret_id")
+  apiKeyId     String?        @map("api_key_id")
+  userId       String?        @map("user_id")
+  action       String         // e.g., "skill.transfer", "policy.create", "secret.claim"
+  inputData    Json?          @map("input_data")
+  outputData   Json?          @map("output_data")
+  status       AuditLogStatus
+  errorMessage String?        @map("error_message")
+  ipAddress    String?        @map("ip_address")
+  userAgent    String?        @map("user_agent")
+  durationMs   Int?           @map("duration_ms") // Execution time in milliseconds
+  createdAt    DateTime       @default(now()) @map("created_at")
+
+  secret Secret? @relation(fields: [secretId], references: [id], onDelete: SetNull)
+  apiKey ApiKey? @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([secretId, createdAt])
+  @@index([action, createdAt])
+  @@index([status, createdAt])
+  @@map("audit_logs")
+}
