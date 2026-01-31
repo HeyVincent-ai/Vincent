@@ -1,4 +1,4 @@
-# SafeSkills - Give Your Agent a Wallet with Policies
+# Wallet - Give Your Agent a Wallet with Policies
 
 SafeSkills gives your AI agent its own blockchain wallet -- without ever exposing private keys. You create a wallet, set spending policies, and your agent can transfer tokens and interact with smart contracts within the boundaries you define.
 
