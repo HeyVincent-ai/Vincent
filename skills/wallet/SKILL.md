@@ -1,6 +1,6 @@
 ---
 name: Agent Wallet
-description: The agent's wallet. Use this skill to create a wallet the agent can safely use for EVM chains.
+description: The agent's wallet. Use this skill to create a wallet the agent can safely use for EVM chains, without ever exposing the private keys.
 ---
 
 # Agent Wallet - Give Your Agent a Wallet with Policies
@@ -123,6 +123,6 @@ If no policies are set, all actions are allowed by default. Once the owner claim
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
 - Always store the API key from wallet creation -- it's the only way to authenticate.
 - Always share the claim URL with the user after creating a wallet.
-- The default chain ID `11155111` is Ethereum Sepolia testnet. Adjust as needed.
+- The default chain ID `8453` is Ethereum Sepolia testnet. Adjust as needed.
 - If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the claim URL.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.
