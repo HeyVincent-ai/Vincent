@@ -521,3 +521,58 @@ All skill executions and admin actions are logged with full input/output data fo
 - Gas tracking
 - Transfer and send transaction functions
 - Skill API endpoints
+
+### Phase 5: EVM Wallet Skill (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- ZeroDev SDK v5.5.7 integration with Kernel v3.1 smart accounts and EntryPoint v0.7
+- Smart account creation from EOA private key via ZeroDev
+- Secret creation now creates real ZeroDev smart accounts when ZERODEV_PROJECT_ID is configured (falls back to placeholder otherwise)
+- Default chain changed from mainnet (1) to Sepolia testnet (11155111) for safety
+- ZeroDev paymaster integration for gas sponsorship on all transactions
+- Multi-chain support architecture (mainnet + Sepolia, extensible via CHAIN_MAP)
+- Gas tracking service: records gas usage per transaction with USD conversion via CoinGecko
+- Gas usage queries by secret and by user with date filtering
+- Subscription check before mainnet transactions (testnets always free)
+- ETH transfer via ZeroDev smart account with policy checks
+- ERC20 transfer with automatic decimal fetching and token amount conversion
+- Generic send transaction for arbitrary contract calls
+- Full policy integration: deny/allow/require_approval flow with TransactionLog recording
+- Pending approval creation for require_approval verdicts (Telegram integration deferred to Phase 6)
+- Balance checking: ETH and ERC20 (with symbol and decimals)
+- Smart account address retrieval
+- REST API endpoints with Zod validation:
+  - `POST /api/skills/evm-wallet/transfer`
+  - `POST /api/skills/evm-wallet/send-transaction`
+  - `GET /api/skills/evm-wallet/balance` (supports `?tokens=addr1,addr2`)
+  - `GET /api/skills/evm-wallet/address`
+- All skill endpoints authenticated via API key middleware
+
+**Key decisions made:**
+- ZeroDev SDK v5 uses viem's native account abstraction (no more `permissionless` package needed)
+- Constants like `KERNEL_V3_1` and `getEntryPoint` are accessed via `constants` namespace export from `@zerodev/sdk`
+- Paymaster is passed directly as `paymaster: paymasterClient` to `createKernelAccountClient` (v5 API)
+- Gas recording is available but not auto-triggered on every tx (can be called by caller when receipt is available)
+- USD value is stored in TransactionLog.requestData for spending limit window calculations
+- Transfer amounts are accepted as human-readable strings (e.g. "0.1" ETH) and converted to wei internally
+- Policy check happens before execution; on deny/require_approval, no on-chain tx is sent
+
+**Files created:**
+- `src/skills/zerodev.service.ts` - ZeroDev smart account creation, transaction execution, balance queries
+- `src/skills/evmWallet.service.ts` - High-level EVM wallet skill: transfer, sendTx, balance, address with policy integration
+- `src/skills/gas.service.ts` - Gas usage recording, queries, subscription checks
+- `src/skills/index.ts` - Skill module exports
+- `src/api/routes/evmWallet.routes.ts` - REST API endpoints for EVM wallet skill
+
+**Files modified:**
+- `src/services/secret.service.ts` - Uses real ZeroDev smart account creation when configured, default chain → Sepolia
+- `src/api/routes/index.ts` - Mounted EVM wallet skill routes at `/skills/evm-wallet`
+- `package.json` - Added `@zerodev/sdk`, `@zerodev/ecdsa-validator`, `viem` dependencies
+
+**Next up: Phase 6 - Human Approval System**
+- Telegram bot setup
+- User linking flow
+- Approval request/response via inline keyboards
+- Timeout handling

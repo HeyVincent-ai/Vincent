@@ -144,58 +144,58 @@
 ## Phase 5: EVM Wallet Skill
 
 ### 5.1 ZeroDev Integration
-- [ ] Set up ZeroDev SDK
-- [ ] Implement smart account creation from EOA
-- [ ] Store smart account address in WalletSecretMetadata
-- [ ] Implement transaction signing with EOA
-- [ ] Handle multiple chains (start with one, design for many)
-- [ ] Configure ZeroDev paymaster for gas sponsorship
-  - [ ] Set up testnet paymaster (always sponsor)
-  - [ ] Set up mainnet paymaster (sponsor if user has subscription)
+- [x] Set up ZeroDev SDK
+- [x] Implement smart account creation from EOA
+- [x] Store smart account address in WalletSecretMetadata
+- [x] Implement transaction signing with EOA
+- [x] Handle multiple chains (start with one, design for many)
+- [x] Configure ZeroDev paymaster for gas sponsorship
+  - [x] Set up testnet paymaster (always sponsor)
+  - [x] Set up mainnet paymaster (sponsor if user has subscription)
 
 ### 5.2 Gas Tracking
-- [ ] Record gas usage for each transaction
-  - [ ] Capture gas used, gas price
-  - [ ] Convert to USD cost
-  - [ ] Store in GasUsage table
-- [ ] Implement gas usage queries
-  - [ ] Get usage for current billing period
-  - [ ] Get usage by secret/wallet
-- [ ] Check subscription before mainnet transactions
-  - [ ] If no active subscription, return error with subscribe link
+- [x] Record gas usage for each transaction
+  - [x] Capture gas used, gas price
+  - [x] Convert to USD cost
+  - [x] Store in GasUsage table
+- [x] Implement gas usage queries
+  - [x] Get usage for current billing period
+  - [x] Get usage by secret/wallet
+- [x] Check subscription before mainnet transactions
+  - [x] If no active subscription, return error with subscribe link
 
 ### 5.3 Transfer Function
-- [ ] Implement ETH transfer
-  - [ ] Validate to address
-  - [ ] Build transfer transaction
-  - [ ] Check policies
-  - [ ] Execute or request approval
-  - [ ] Log transaction
-- [ ] Implement ERC20 transfer
-  - [ ] Fetch token decimals
-  - [ ] Build transfer call data
-  - [ ] Check policies (including token allowlist)
-  - [ ] Execute or request approval
-  - [ ] Log transaction
+- [x] Implement ETH transfer
+  - [x] Validate to address
+  - [x] Build transfer transaction
+  - [x] Check policies
+  - [x] Execute or request approval
+  - [x] Log transaction
+- [x] Implement ERC20 transfer
+  - [x] Fetch token decimals
+  - [x] Build transfer call data
+  - [x] Check policies (including token allowlist)
+  - [x] Execute or request approval
+  - [x] Log transaction
 
 ### 5.4 Send Transaction Function
-- [ ] Implement generic transaction sending
-  - [ ] Parse to, data, value
-  - [ ] Extract function selector from data
-  - [ ] Check policies (address, function allowlists)
-  - [ ] Execute or request approval
-  - [ ] Log transaction
+- [x] Implement generic transaction sending
+  - [x] Parse to, data, value
+  - [x] Extract function selector from data
+  - [x] Check policies (address, function allowlists)
+  - [x] Execute or request approval
+  - [x] Log transaction
 
 ### 5.5 Read-Only Functions
-- [ ] Implement balance checking (ETH)
-- [ ] Implement ERC20 balance checking
-- [ ] Implement address retrieval (smart account address)
+- [x] Implement balance checking (ETH)
+- [x] Implement ERC20 balance checking
+- [x] Implement address retrieval (smart account address)
 
 ### 5.6 Skill API Endpoints
-- [ ] `POST /api/skills/evm-wallet/transfer` - Execute transfer
-- [ ] `POST /api/skills/evm-wallet/send-transaction` - Execute tx
-- [ ] `GET /api/skills/evm-wallet/balance` - Get balance
-- [ ] `GET /api/skills/evm-wallet/address` - Get wallet address
+- [x] `POST /api/skills/evm-wallet/transfer` - Execute transfer
+- [x] `POST /api/skills/evm-wallet/send-transaction` - Execute tx
+- [x] `GET /api/skills/evm-wallet/balance` - Get balance
+- [x] `GET /api/skills/evm-wallet/address` - Get wallet address
 
 ---
 

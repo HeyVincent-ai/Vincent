@@ -1,8 +1,10 @@
 import { SecretType, Secret, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
+import { type Hex } from 'viem';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
 import { env } from '../utils/env';
+import * as zerodev from '../skills/zerodev.service';
 
 // Types for secret operations
 export interface CreateSecretInput {
@@ -50,8 +52,7 @@ function generatePrivateKey(): string {
   return '0x' + randomBytes(32).toString('hex');
 }
 
-// Generate a placeholder smart account address
-// In Phase 5, this will be replaced with actual ZeroDev integration
+// Generate a placeholder smart account address (fallback when ZeroDev not configured)
 function generatePlaceholderAddress(): string {
   return '0x' + randomBytes(20).toString('hex');
 }
@@ -71,12 +72,20 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
-    const smartAccountAddress = generatePlaceholderAddress();
+    const chainId = 11155111; // Default to Sepolia testnet
+
+    // Create ZeroDev smart account if configured, otherwise use placeholder
+    let smartAccountAddress: string;
+    if (env.ZERODEV_PROJECT_ID) {
+      smartAccountAddress = await zerodev.createSmartAccount(secretValue as Hex, chainId);
+    } else {
+      smartAccountAddress = generatePlaceholderAddress();
+    }
 
     walletMetadata = {
       create: {
         smartAccountAddress,
-        chainId: 1, // Default to Ethereum mainnet, can be changed later
+        chainId,
       },
     };
   }
