@@ -700,7 +700,63 @@ All skill executions and admin actions are logged with full input/output data fo
 - Marking MonthlyGasSummary as billed after invoice payment
 - Cron job for end-of-month gas aggregation
 
-**Next up: Phase 9 - Frontend Application**
-- React + TypeScript project setup
-- Auth pages, dashboard, secret detail, policy management
-- API key management, Telegram config, claim flow, billing UI
+### Phase 9: Frontend Application (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- React + TypeScript + Vite project in `frontend/` directory
+- Tailwind CSS v4 via `@tailwindcss/vite` plugin
+- React Router v7 with protected routes and public-only routes
+- Axios-based API client with session token management and 401 auto-redirect
+- Auth context provider with session persistence in localStorage
+- Login page with magic link email flow
+- Auth callback page that exchanges Stytch tokens for sessions
+- Dashboard listing all claimed secrets with type badges and wallet addresses
+- Secret detail page with metadata display, delete functionality
+- Tabbed interface for policies and API keys on secret detail
+- Policy manager: list, create (all 8 types with dynamic config forms), delete
+- API key manager: list, create (with one-time key display + clipboard copy), revoke
+- Settings page with Telegram username configuration and linking code generation
+- Claim page: requires auth, claims secret via token, redirects to dashboard
+- Billing page: subscription status, Stripe Checkout redirect, cancel flow, current month usage, usage history, invoices
+- Vite dev server proxies `/api` to backend on port 3000
+- Production build verified (Vite build succeeds, TypeScript clean)
+
+**Key decisions made:**
+- Tailwind CSS v4 uses `@import "tailwindcss"` instead of v3's `@tailwind` directives
+- `@tailwindcss/vite` plugin handles Tailwind processing (no PostCSS config needed)
+- Auth state stored in React context + localStorage for persistence across refreshes
+- API client auto-removes session and redirects to `/login` on 401 responses
+- Claim page is accessible without layout (no nav bar) since user may not be logged in yet
+- OAuth login button deferred (Stytch OAuth requires additional frontend SDK setup)
+- Policy edit UI deferred (create + delete covers core needs; edit can be done via delete+recreate)
+- Audit log and gas usage summary on secret detail page deferred to Phase 10
+
+**Files created:**
+- `frontend/` - Full Vite + React + TypeScript project
+- `frontend/src/api.ts` - Axios API client with all endpoint functions
+- `frontend/src/auth.tsx` - Auth context provider and `useAuth` hook
+- `frontend/src/components/Layout.tsx` - App shell with nav bar
+- `frontend/src/components/PolicyManager.tsx` - Policy CRUD component
+- `frontend/src/components/ApiKeyManager.tsx` - API key CRUD component
+- `frontend/src/pages/Login.tsx` - Magic link login
+- `frontend/src/pages/AuthCallback.tsx` - Auth token exchange
+- `frontend/src/pages/Dashboard.tsx` - Secret list
+- `frontend/src/pages/SecretDetail.tsx` - Secret detail with tabs
+- `frontend/src/pages/Settings.tsx` - Telegram configuration
+- `frontend/src/pages/Claim.tsx` - Secret claim flow
+- `frontend/src/pages/Billing.tsx` - Subscription and usage
+
+**Deferred items:**
+- OAuth login buttons (requires Stytch frontend SDK)
+- Editable memo field on secret detail
+- Policy edit (update) UI - currently delete + recreate
+- Audit log summary on secret detail (Phase 10)
+- Gas usage summary on secret detail
+- Secret preview on claim page (would need unauthenticated endpoint)
+
+**Next up: Phase 10 - Audit Logging System**
+- Audit logging service
+- Audit log API endpoints with filtering and pagination
+- Audit log UI in secret detail page

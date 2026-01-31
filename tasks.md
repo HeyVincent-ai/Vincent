@@ -303,65 +303,65 @@
 ## Phase 9: Frontend Application
 
 ### 9.1 Project Setup
-- [ ] Initialize React + TypeScript project (Vite or CRA)
-- [ ] Set up Tailwind CSS or styled-components
-- [ ] Configure routing (React Router)
-- [ ] Set up API client (axios or fetch wrapper)
+- [x] Initialize React + TypeScript project (Vite or CRA)
+- [x] Set up Tailwind CSS or styled-components
+- [x] Configure routing (React Router)
+- [x] Set up API client (axios or fetch wrapper)
 
 ### 9.2 Authentication Pages
-- [ ] Login page with Stytch magic link
+- [x] Login page with Stytch magic link
 - [ ] OAuth login buttons (if applicable)
-- [ ] Handle auth callback
-- [ ] Implement logout
+- [x] Handle auth callback
+- [x] Implement logout
 
 ### 9.3 Dashboard
-- [ ] List all claimed secrets
-- [ ] Show secret type, memo, created date
-- [ ] Show wallet address for evm_wallet secrets
-- [ ] Quick actions (view, configure)
+- [x] List all claimed secrets
+- [x] Show secret type, memo, created date
+- [x] Show wallet address for evm_wallet secrets
+- [x] Quick actions (view, configure)
 
 ### 9.4 Secret Detail Page
-- [ ] Display secret metadata
+- [x] Display secret metadata
 - [ ] Show memo/description (editable)
-- [ ] For evm_wallet: show address, balance
+- [x] For evm_wallet: show address, balance
 - [ ] Audit log summary/link
 - [ ] Gas usage summary
 - [ ] Future: secret value input for user-provided secrets
 
 ### 9.5 Policy Management UI
-- [ ] List current policies
-- [ ] Add new policy form
-  - [ ] Policy type dropdown
-  - [ ] Dynamic config fields based on type
+- [x] List current policies
+- [x] Add new policy form
+  - [x] Policy type dropdown
+  - [x] Dynamic config fields based on type
 - [ ] Edit existing policies
-- [ ] Delete policies with confirmation
+- [x] Delete policies with confirmation
 
 ### 9.6 API Key Management UI
-- [ ] List API keys (name, created, status)
-- [ ] Create new API key
-  - [ ] Show key once on creation
-  - [ ] Copy to clipboard button
-- [ ] Revoke API key with confirmation
+- [x] List API keys (name, created, status)
+- [x] Create new API key
+  - [x] Show key once on creation
+  - [x] Copy to clipboard button
+- [x] Revoke API key with confirmation
 
 ### 9.7 Telegram Configuration
-- [ ] Display current Telegram username
-- [ ] Edit Telegram username
-- [ ] Show linking instructions
-- [ ] Display linking status (connected/not connected)
+- [x] Display current Telegram username
+- [x] Edit Telegram username
+- [x] Show linking instructions
+- [x] Display linking status (connected/not connected)
 
 ### 9.8 Claim Flow
-- [ ] Claim page (accessed via claim URL)
+- [x] Claim page (accessed via claim URL)
 - [ ] Show secret preview (type, memo)
-- [ ] Require authentication to claim
-- [ ] Confirmation and redirect to dashboard
+- [x] Require authentication to claim
+- [x] Confirmation and redirect to dashboard
 
 ### 9.9 Billing UI
-- [ ] Subscription status display
-- [ ] Subscribe button (redirect to Stripe Checkout)
-- [ ] Current month gas usage display
-- [ ] Usage history view
-- [ ] Invoice history view
-- [ ] Cancel subscription flow
+- [x] Subscription status display
+- [x] Subscribe button (redirect to Stripe Checkout)
+- [x] Current month gas usage display
+- [x] Usage history view
+- [x] Invoice history view
+- [x] Cancel subscription flow
 
 ---
 
