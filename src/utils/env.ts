@@ -33,10 +33,6 @@ const envSchema = z.object({
   TELEGRAM_BOT_USERNAME: z.string().optional(),
 
   // API Security
-  API_KEY_SALT_ROUNDS: z
-    .string()
-    .default('12')
-    .transform((val) => parseInt(val, 10)),
   CLAIM_TOKEN_EXPIRY_DAYS: z
     .string()
     .default('7')

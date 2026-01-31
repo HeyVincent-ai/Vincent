@@ -1,9 +1,7 @@
 import { ApiKey } from '@prisma/client';
-import { randomBytes } from 'crypto';
-import bcrypt from 'bcrypt';
+import { randomBytes, createHash } from 'crypto';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
-import { env } from '../utils/env';
 
 // Types for API key operations
 export interface CreateApiKeyInput {
@@ -33,6 +31,14 @@ export interface ValidateApiKeyResult {
 
 // API key prefix for easy identification
 const API_KEY_PREFIX = 'ssk_';
+
+/**
+ * SHA-256 hash an API key. API keys are high-entropy random strings,
+ * so SHA-256 is sufficient (no need for bcrypt's slow hashing).
+ */
+function hashApiKey(plainKey: string): string {
+  return createHash('sha256').update(plainKey).digest('hex');
+}
 
 /**
  * Generate a secure API key
@@ -65,7 +71,7 @@ export async function createApiKey(input: CreateApiKeyInput): Promise<CreateApiK
   const plainKey = generateApiKey();
 
   // Hash the key for storage
-  const keyHash = await bcrypt.hash(plainKey, env.API_KEY_SALT_ROUNDS);
+  const keyHash = hashApiKey(plainKey);
 
   // Store the hashed key
   const apiKey = await prisma.apiKey.create({
@@ -91,10 +97,12 @@ export async function validateApiKey(plainKey: string): Promise<ValidateApiKeyRe
     return { valid: false };
   }
 
-  // Get all non-revoked API keys (we need to check each hash)
-  // In production with many keys, consider using key fingerprinting for faster lookup
-  const apiKeys = await prisma.apiKey.findMany({
+  const keyHash = hashApiKey(plainKey);
+
+  // Direct lookup by hash — O(1) instead of O(n) bcrypt compares
+  const apiKey = await prisma.apiKey.findFirst({
     where: {
+      keyHash,
       revokedAt: null,
     },
     include: {
@@ -102,23 +110,15 @@ export async function validateApiKey(plainKey: string): Promise<ValidateApiKeyRe
     },
   });
 
-  for (const apiKey of apiKeys) {
-    // Skip if secret is deleted
-    if (apiKey.secret.deletedAt) {
-      continue;
-    }
-
-    const matches = await bcrypt.compare(plainKey, apiKey.keyHash);
-    if (matches) {
-      return {
-        valid: true,
-        apiKey,
-        secretId: apiKey.secretId,
-      };
-    }
+  if (!apiKey || apiKey.secret.deletedAt) {
+    return { valid: false };
   }
 
-  return { valid: false };
+  return {
+    valid: true,
+    apiKey,
+    secretId: apiKey.secretId,
+  };
 }
 
 /**
