@@ -642,3 +642,65 @@ All skill executions and admin actions are logged with full input/output data fo
 - Stripe SDK integration
 - Subscription management (checkout, webhooks, cancellation)
 - Gas usage billing (monthly aggregation, invoicing)
+
+### Phase 8: Billing & Subscriptions (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Stripe SDK v20 (stripe@20.3.0) integration with lazy initialization
+- Stripe customer creation (get-or-create pattern, stored on User model)
+- Checkout session creation for $10/month subscription via Stripe Checkout
+- Subscription cancellation at period end via Stripe API
+- Stripe webhook handler for 5 event types:
+  - `checkout.session.completed` - activates subscription with period dates
+  - `invoice.paid` - confirms subscription active
+  - `invoice.payment_failed` - marks subscription as PAST_DUE
+  - `customer.subscription.deleted` - marks subscription as CANCELED
+  - `customer.subscription.updated` - syncs status and period dates
+- Raw body capture in Express for Stripe webhook signature verification
+- Monthly gas aggregation service:
+  - Per-user per-month gas cost summation from GasUsage records
+  - MonthlyGasSummary upsert (creates or updates)
+  - Batch aggregation across all users for a given month
+  - Current month usage with recent transaction details
+  - Historical usage summaries
+- Billing REST API endpoints (all session-authenticated):
+  - `GET /api/billing/subscription` - subscription status
+  - `POST /api/billing/subscribe` - create Stripe Checkout session
+  - `POST /api/billing/cancel` - cancel subscription
+  - `POST /api/billing/webhook` - Stripe webhook (signature-authenticated)
+  - `GET /api/billing/usage` - current month gas usage
+  - `GET /api/billing/usage/history` - monthly usage history
+  - `GET /api/billing/invoices` - past billed invoices
+- Duplicate subscription prevention (409 if already subscribed)
+
+**Key decisions made:**
+- Stripe SDK v20 (API version 2026-01-28.clover) has breaking changes from older versions:
+  - `current_period_start/end` moved from `Subscription` to `SubscriptionItem` - implemented `extractPeriodDates()` helper that reads from first item
+  - `Invoice.subscription` field removed - replaced by `invoice.parent.subscription_details.subscription` path
+  - `apiVersion` parameter no longer needed in constructor (SDK defaults to its bundled version)
+- Raw body for webhook verification captured via `express.json({ verify })` callback that stores buffer on `req.rawBody`
+- Gas invoice creation via Stripe metered billing deferred - requires more Stripe product configuration and is better done when the billing flow is tested end-to-end
+- Gas aggregation is callable on-demand (not cron-based yet) - production deployment can trigger via cron or scheduled task
+
+**Files created:**
+- `src/billing/stripe.service.ts` - Stripe customer, checkout, subscription, and webhook handling
+- `src/billing/gasAggregation.service.ts` - Monthly gas cost aggregation and usage queries
+- `src/billing/index.ts` - Module exports
+- `src/api/routes/billing.routes.ts` - Billing REST API endpoints
+
+**Files modified:**
+- `src/app.ts` - Added raw body capture for webhook signature verification
+- `src/api/routes/index.ts` - Mounted billing routes at `/billing`
+- `package.json` - Added `stripe` dependency
+
+**Deferred items:**
+- Stripe metered billing for gas usage invoicing (requires Stripe product setup)
+- Marking MonthlyGasSummary as billed after invoice payment
+- Cron job for end-of-month gas aggregation
+
+**Next up: Phase 9 - Frontend Application**
+- React + TypeScript project setup
+- Auth pages, dashboard, secret detail, policy management
+- API key management, Telegram config, claim flow, billing UI

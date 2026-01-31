@@ -5,6 +5,7 @@ import policiesRouter from './policies.routes';
 import authRouter from './auth.routes';
 import userRouter from './user.routes';
 import evmWalletRouter from './evmWallet.routes';
+import billingRouter from './billing.routes';
 
 const router = Router();
 
@@ -15,5 +16,6 @@ router.use('/secrets', secretsRouter);
 router.use('/secrets', apiKeysRouter); // API key routes are nested under /secrets/:secretId/api-keys
 router.use('/secrets/:secretId/policies', policiesRouter); // Policy routes nested under /secrets/:secretId/policies
 router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
+router.use('/billing', billingRouter); // Billing & subscription endpoints
 
 export default router;

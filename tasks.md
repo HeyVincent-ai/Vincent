@@ -256,45 +256,47 @@
 ## Phase 8: Billing & Subscriptions
 
 ### 8.1 Stripe Integration
-- [ ] Set up Stripe SDK
-- [ ] Create Stripe product and price for $10/month subscription
-- [ ] Implement Stripe customer creation (on user signup or first subscribe)
-- [ ] Store stripe_customer_id on User model
+- [x] Set up Stripe SDK
+- [x] Create Stripe product and price for $10/month subscription
+- [x] Implement Stripe customer creation (on user signup or first subscribe)
+- [x] Store stripe_customer_id on User model
 
 ### 8.2 Subscription Management
-- [ ] Implement subscription creation via Stripe Checkout
-  - [ ] Create checkout session
-  - [ ] Redirect user to Stripe
-  - [ ] Handle success/cancel redirects
-- [ ] Implement Stripe webhook handler
-  - [ ] `checkout.session.completed` - activate subscription
-  - [ ] `invoice.paid` - confirm payment
-  - [ ] `invoice.payment_failed` - handle failed payment
-  - [ ] `customer.subscription.deleted` - deactivate subscription
-- [ ] Implement subscription status checking
-- [ ] Implement subscription cancellation
+- [x] Implement subscription creation via Stripe Checkout
+  - [x] Create checkout session
+  - [x] Redirect user to Stripe
+  - [x] Handle success/cancel redirects
+- [x] Implement Stripe webhook handler
+  - [x] `checkout.session.completed` - activate subscription
+  - [x] `invoice.paid` - confirm payment
+  - [x] `invoice.payment_failed` - handle failed payment
+  - [x] `customer.subscription.deleted` - deactivate subscription
+  - [x] `customer.subscription.updated` - sync status and period
+- [x] Implement subscription status checking
+- [x] Implement subscription cancellation
 
 ### 8.3 Subscription API Endpoints
-- [ ] `GET /api/billing/subscription` - Get current subscription status
-- [ ] `POST /api/billing/subscribe` - Create Stripe checkout session
-- [ ] `POST /api/billing/webhook` - Stripe webhook handler
-- [ ] `POST /api/billing/cancel` - Cancel subscription
+- [x] `GET /api/billing/subscription` - Get current subscription status
+- [x] `POST /api/billing/subscribe` - Create Stripe checkout session
+- [x] `POST /api/billing/webhook` - Stripe webhook handler
+- [x] `POST /api/billing/cancel` - Cancel subscription
 
 ### 8.4 Gas Usage Billing
-- [ ] Implement monthly gas cost aggregation
-  - [ ] Cron job or scheduled task at end of month
-  - [ ] Sum all GasUsage records per user for the month
-  - [ ] Create MonthlyGasSummary record
-- [ ] Create Stripe invoice for gas usage
+- [x] Implement monthly gas cost aggregation
+  - [x] Aggregation function callable per-user per-month
+  - [x] Sum all GasUsage records per user for the month
+  - [x] Create/update MonthlyGasSummary record
+- [x] Implement batch monthly aggregation for all users
+- [ ] Create Stripe invoice for gas usage (deferred - requires Stripe metered billing setup)
   - [ ] Use Stripe metered billing or invoice items
   - [ ] Attach to customer's subscription
 - [ ] Handle invoice payment
   - [ ] Mark MonthlyGasSummary as billed
 
 ### 8.5 Usage API Endpoints
-- [ ] `GET /api/billing/usage` - Get current month gas usage
-- [ ] `GET /api/billing/usage/history` - Get historical usage by month
-- [ ] `GET /api/billing/invoices` - List past invoices from Stripe
+- [x] `GET /api/billing/usage` - Get current month gas usage
+- [x] `GET /api/billing/usage/history` - Get historical usage by month
+- [x] `GET /api/billing/invoices` - List past invoices
 
 ---
 
