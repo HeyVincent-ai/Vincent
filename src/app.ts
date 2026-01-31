@@ -13,7 +13,16 @@ export function createApp(): Express {
   const app = express();
 
   // Security middleware
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", "https://api.stytch.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+      },
+    },
+  }));
 
   // CORS configuration
   app.use(
