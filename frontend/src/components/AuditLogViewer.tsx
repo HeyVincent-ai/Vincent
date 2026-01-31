@@ -162,13 +162,13 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
                   {log.inputData && (
                     <div>
                       <span className="font-semibold">Input:</span>
-                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.inputData, null, 2)}</pre>
+                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.inputData as Record<string, unknown>, null, 2)}</pre>
                     </div>
                   )}
                   {log.outputData && (
                     <div>
                       <span className="font-semibold">Output:</span>
-                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.outputData, null, 2)}</pre>
+                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.outputData as Record<string, unknown>, null, 2)}</pre>
                     </div>
                   )}
                   {log.ipAddress && (

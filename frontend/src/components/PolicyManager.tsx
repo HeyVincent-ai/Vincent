@@ -106,7 +106,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
               <input
                 value={configInput}
                 onChange={(e) => setConfigInput(e.target.value)}
-                placeholder={typeDef.configFields[0].placeholder}
+                placeholder={'placeholder' in typeDef.configFields[0] ? typeDef.configFields[0].placeholder : ''}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               />
             </div>
