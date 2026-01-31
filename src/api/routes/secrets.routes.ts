@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { SecretType } from '@prisma/client';
+import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../middleware/errorHandler';
 import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth';
 import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth';
@@ -11,6 +12,18 @@ import * as apiKeyService from '../../services/apiKey.service';
 import { auditService } from '../../audit';
 
 const router = Router();
+
+// Strict rate limiter for unauthenticated secret creation (5 per IP per 15 min)
+const secretCreationLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: {
+    success: false,
+    error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many secret creation requests. Try again later.' },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // Validation schemas
 const createSecretSchema = z.object({
@@ -36,6 +49,7 @@ const setSecretValueSchema = z.object({
  */
 router.post(
   '/',
+  secretCreationLimiter,
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const body = createSecretSchema.parse(req.body);
 

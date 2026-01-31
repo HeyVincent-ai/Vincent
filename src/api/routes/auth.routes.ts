@@ -1,5 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../middleware/errorHandler';
 import { sessionAuthMiddleware } from '../middleware/sessionAuth';
 import { AuthenticatedRequest } from '../../types';
@@ -7,6 +8,18 @@ import { sendSuccess, errors } from '../../utils/response';
 import * as authService from '../../services/auth.service';
 
 const router = Router();
+
+// Strict rate limiter for auth endpoints (10 per IP per 15 min)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: {
+    success: false,
+    error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many auth requests. Try again later.' },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const sessionSchema = z.object({
   sessionToken: z.string().min(1),
@@ -19,6 +32,7 @@ const sessionSchema = z.object({
  */
 router.post(
   '/session',
+  authLimiter,
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const body = sessionSchema.parse(req.body);
 
