@@ -1,6 +1,6 @@
 ---
 name: Agent Wallet
-description: Give your AI agent its own blockchain wallet without ever exposing private keys.
+description: The agent's wallet. Use this skill to create a wallet the agent can safely use for EVM chains.
 ---
 
 # Agent Wallet - Give Your Agent a Wallet with Policies
