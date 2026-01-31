@@ -382,3 +382,51 @@ All skill executions and admin actions are logged with full input/output data fo
 - Implement secret creation service (with wallet generation)
 - API key generation and validation
 - Secret claiming flow
+
+### Phase 2: Secret Storage Foundation (COMPLETED)
+
+**Completed: 2026-01-31**
+
+**What was implemented:**
+- Secret service with full CRUD: create, retrieve, claim, set value, soft delete
+- EVM_WALLET secret creation generates EOA private key + placeholder smart account address
+- Non-wallet secret types create placeholder with null value awaiting user input
+- Claim token generation (64-char hex) with configurable expiry (default 7 days)
+- Claim tokens are one-time use and invalidated after claiming
+- API key service: generation, bcrypt hashing, validation, listing, revocation
+- API key format: `ssk_<64 hex chars>` prefix for easy identification
+- API key auth middleware (Bearer token in Authorization header)
+- Optional API key auth middleware for dual-purpose endpoints
+- Secret access validation middleware (ensures API key matches requested secret)
+- Full REST API routes for secrets and API keys
+- Zod validation on all request bodies
+- Secret creation endpoint returns API key + claim URL in single response
+
+**Key decisions made:**
+- Express 5 returns `string | string[]` for params/query - used `str()` helper to safely extract strings
+- API key validation iterates all non-revoked keys and bcrypt-compares (noted: will need optimization at scale, e.g. key fingerprinting)
+- User auth (Phase 3) is stubbed: userId passed via request body/query params for testing
+- Wallet address generation is placeholder - will be replaced by ZeroDev in Phase 5
+- `toPublicData()` pattern ensures secret values never leak to API responses
+
+**Files created:**
+- `src/services/secret.service.ts` - Secret CRUD business logic
+- `src/services/apiKey.service.ts` - API key management business logic
+- `src/services/index.ts` - Service exports
+- `src/api/middleware/apiKeyAuth.ts` - API key authentication middleware
+- `src/api/routes/secrets.routes.ts` - Secret API endpoints
+- `src/api/routes/apiKeys.routes.ts` - API key management endpoints
+- `src/api/routes/index.ts` - Route aggregation
+
+**Files modified:**
+- `src/app.ts` - Mounted API router
+
+**Known issues:**
+- ESLint config needs migration to ESLint 9 flat config format (`eslint.config.js`)
+- Initial Prisma migration not yet run (requires Docker daemon)
+- API key validation is O(n) over all keys - needs optimization for production scale
+
+**Next up: Phase 3 - Authentication & User Management**
+- Stytch integration for user auth
+- Session management
+- Replace userId stubs with real auth

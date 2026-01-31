@@ -22,20 +22,11 @@ interface PrismaError extends Error {
 }
 
 function isPrismaError(err: unknown): err is PrismaError {
-  return (
-    err instanceof Error &&
-    err.name === 'PrismaClientKnownRequestError' &&
-    'code' in err
-  );
+  return err instanceof Error && err.name === 'PrismaClientKnownRequestError' && 'code' in err;
 }
 
 // Error handler middleware
-export function errorHandler(
-  err: Error,
-  req: Request,
-  res: Response,
-  _next: NextFunction
-): void {
+export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
   // Log error for debugging
   console.error('Error:', {
     name: err.name,

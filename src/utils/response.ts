@@ -46,8 +46,7 @@ export const errors = {
   unauthorized: (res: Response, message = 'Unauthorized') =>
     sendError(res, 'UNAUTHORIZED', message, 401),
 
-  forbidden: (res: Response, message = 'Forbidden') =>
-    sendError(res, 'FORBIDDEN', message, 403),
+  forbidden: (res: Response, message = 'Forbidden') => sendError(res, 'FORBIDDEN', message, 403),
 
   badRequest: (res: Response, message: string, details?: unknown) =>
     sendError(res, 'BAD_REQUEST', message, 400, details),
@@ -58,9 +57,7 @@ export const errors = {
   internal: (res: Response, message = 'Internal server error') =>
     sendError(res, 'INTERNAL_ERROR', message, 500),
 
-  rateLimit: (res: Response) =>
-    sendError(res, 'RATE_LIMIT_EXCEEDED', 'Too many requests', 429),
+  rateLimit: (res: Response) => sendError(res, 'RATE_LIMIT_EXCEEDED', 'Too many requests', 429),
 
-  conflict: (res: Response, message: string) =>
-    sendError(res, 'CONFLICT', message, 409),
+  conflict: (res: Response, message: string) => sendError(res, 'CONFLICT', message, 409),
 };

@@ -38,7 +38,7 @@
   - [x] Subscription model (Stripe subscription tracking)
   - [x] GasUsage model (per-transaction gas costs)
   - [x] MonthlyGasSummary model (aggregated monthly billing)
-- [ ] Create initial migration
+- [ ] Create initial migration (requires Docker to be running)
 - [x] Set up database seeding for development
 
 ### 1.3 Core Backend Infrastructure
@@ -54,32 +54,32 @@
 ## Phase 2: Secret Storage Foundation
 
 ### 2.1 Secret CRUD Operations
-- [ ] Implement secret creation service
-  - [ ] Generate unique ID
-  - [ ] For generated secrets (wallets): create and store the secret value
-  - [ ] For future user-provided secrets: create placeholder with null value
-  - [ ] Generate claim token
-  - [ ] Store in database (PostgreSQL encrypted at rest)
-- [ ] Implement secret retrieval (metadata only, never raw value to agents)
-- [ ] Implement secret claiming
-  - [ ] Validate claim token
-  - [ ] Associate with user
-  - [ ] Mark as claimed
-  - [ ] Invalidate claim token
-- [ ] Implement secret value setting (for future user-provided secrets)
-  - [ ] Only allow if secret value is null
-  - [ ] Only allow for claimed secrets
-- [ ] Implement secret deletion (soft delete with audit trail)
+- [x] Implement secret creation service
+  - [x] Generate unique ID
+  - [x] For generated secrets (wallets): create and store the secret value
+  - [x] For future user-provided secrets: create placeholder with null value
+  - [x] Generate claim token
+  - [x] Store in database (PostgreSQL encrypted at rest)
+- [x] Implement secret retrieval (metadata only, never raw value to agents)
+- [x] Implement secret claiming
+  - [x] Validate claim token
+  - [x] Associate with user
+  - [x] Mark as claimed
+  - [x] Invalidate claim token
+- [x] Implement secret value setting (for future user-provided secrets)
+  - [x] Only allow if secret value is null
+  - [x] Only allow for claimed secrets
+- [x] Implement secret deletion (soft delete with audit trail)
 
 ### 2.2 API Key Management
-- [ ] Implement API key generation
-  - [ ] Generate secure random key
-  - [ ] Hash key with bcrypt
-  - [ ] Store hash, return plain key once
-- [ ] Implement API key validation middleware
-- [ ] Implement API key listing (show name, created, revoked status)
-- [ ] Implement API key revocation
-- [ ] Add API key usage tracking
+- [x] Implement API key generation
+  - [x] Generate secure random key
+  - [x] Hash key with bcrypt
+  - [x] Store hash, return plain key once
+- [x] Implement API key validation middleware
+- [x] Implement API key listing (show name, created, revoked status)
+- [x] Implement API key revocation
+- [x] Add API key usage tracking
 
 ---
 

@@ -6,6 +6,7 @@ import { env } from './utils/env';
 import { errorHandler } from './api/middleware/errorHandler';
 import { requestLogger } from './api/middleware/requestLogger';
 import { sendSuccess } from './utils/response';
+import apiRouter from './api/routes';
 
 export function createApp(): Express {
   const app = express();
@@ -25,7 +26,10 @@ export function createApp(): Express {
   const limiter = rateLimit({
     windowMs: env.RATE_LIMIT_WINDOW_MS,
     max: env.RATE_LIMIT_MAX_REQUESTS,
-    message: { success: false, error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' } },
+    message: {
+      success: false,
+      error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many requests' },
+    },
     standardHeaders: true,
     legacyHeaders: false,
   });
@@ -47,16 +51,20 @@ export function createApp(): Express {
     });
   });
 
-  // API routes will be mounted here
-  // app.use('/api', apiRouter);
-
-  // Placeholder for API routes
+  // API info endpoint
   app.get('/api', (_req, res) => {
     sendSuccess(res, {
       message: 'SafeSkills API',
       version: '1.0.0',
+      endpoints: {
+        secrets: '/api/secrets',
+        health: '/health',
+      },
     });
   });
+
+  // Mount API routes
+  app.use('/api', apiRouter);
 
   // Error handling middleware (must be last)
   app.use(errorHandler);
