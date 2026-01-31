@@ -25,11 +25,14 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
 
   // Log response after it's sent
   res.on('finish', () => {
-    logEntry.duration = Date.now() - startTime;
-    logEntry.statusCode = res.statusCode;
+    const duration = Date.now() - startTime;
+    const status = res.statusCode;
+    logEntry.duration = duration;
+    logEntry.statusCode = status;
 
-    // Use structured JSON logging
-    console.log(JSON.stringify(logEntry));
+    const color = status >= 500 ? '\x1b[31m' : status >= 400 ? '\x1b[33m' : '\x1b[32m';
+    const reset = '\x1b[0m';
+    console.log(`${color}${req.method} ${req.originalUrl} ${status}${reset} ${duration}ms`);
   });
 
   next();

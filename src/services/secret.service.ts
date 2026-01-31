@@ -10,6 +10,7 @@ import * as zerodev from '../skills/zerodev.service';
 export interface CreateSecretInput {
   type: SecretType;
   memo?: string;
+  chainId?: number;
 }
 
 export interface CreateSecretResult {
@@ -63,7 +64,7 @@ function generatePlaceholderAddress(): string {
  * - For other types: creates placeholder awaiting user-provided value
  */
 export async function createSecret(input: CreateSecretInput): Promise<CreateSecretResult> {
-  const { type, memo } = input;
+  const { type, memo, chainId: requestedChainId } = input;
 
   const claimToken = generateClaimToken();
   let secretValue: string | null = null;
@@ -72,7 +73,7 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
-    const chainId = 11155111; // Default to Sepolia testnet
+    const chainId = requestedChainId ?? 11155111; // Default to Sepolia testnet
 
     // Create ZeroDev smart account if configured, otherwise use placeholder
     let smartAccountAddress: string;

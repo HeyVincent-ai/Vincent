@@ -38,6 +38,8 @@ export const updateTelegram = (telegramUsername: string) =>
 export const generateTelegramLink = () => api.post('/user/telegram/link');
 
 // Secrets
+export const createSecret = (type: string, memo?: string) =>
+  api.post('/secrets', { type, memo });
 export const getSecret = (id: string) => api.get(`/secrets/${id}`);
 export const claimSecret = (id: string, claimToken: string) =>
   api.post(`/secrets/${id}/claim`, { claimToken });

@@ -17,7 +17,7 @@ import {
   formatUnits,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia, mainnet, type Chain } from 'viem/chains';
+import { sepolia, mainnet, baseSepolia, type Chain } from 'viem/chains';
 import { env } from '../utils/env';
 
 const entryPoint = constants.getEntryPoint('0.7');
@@ -27,14 +27,15 @@ const kernelVersion = constants.KERNEL_V3_1;
 const CHAIN_MAP: Record<number, Chain> = {
   1: mainnet,
   11155111: sepolia,
+  84532: baseSepolia,
 };
 
 function getBundlerUrl(projectId: string, chainId: number): string {
-  return `https://rpc.zerodev.app/api/v2/bundler/${projectId}?chainId=${chainId}`;
+  return `https://rpc.zerodev.app/api/v3/${projectId}/chain/${chainId}`;
 }
 
 function getPaymasterUrl(projectId: string, chainId: number): string {
-  return `https://rpc.zerodev.app/api/v2/paymaster/${projectId}?chainId=${chainId}`;
+  return `https://rpc.zerodev.app/api/v3/${projectId}/chain/${chainId}`;
 }
 
 function getChain(chainId: number): Chain {
