@@ -17,18 +17,20 @@ import {
   formatUnits,
 } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { sepolia, mainnet, baseSepolia, type Chain } from 'viem/chains';
+import { type Chain } from 'viem/chains';
+import * as chains from 'viem/chains';
 import { env } from '../utils/env';
 
 const entryPoint = constants.getEntryPoint('0.7');
 const kernelVersion = constants.KERNEL_V3_1;
 
-// Chain configuration
-const CHAIN_MAP: Record<number, Chain> = {
-  1: mainnet,
-  11155111: sepolia,
-  84532: baseSepolia,
-};
+// Build chain lookup from all viem chains
+const CHAIN_MAP: Record<number, Chain> = {};
+for (const value of Object.values(chains)) {
+  if (value && typeof value === 'object' && 'id' in value && 'name' in value) {
+    CHAIN_MAP[(value as Chain).id] = value as Chain;
+  }
+}
 
 function getBundlerUrl(projectId: string, chainId: number): string {
   return `https://rpc.zerodev.app/api/v3/${projectId}/chain/${chainId}`;
@@ -41,7 +43,7 @@ function getPaymasterUrl(projectId: string, chainId: number): string {
 function getChain(chainId: number): Chain {
   const chain = CHAIN_MAP[chainId];
   if (!chain) {
-    throw new Error(`Unsupported chain ID: ${chainId}`);
+    throw new Error(`Unsupported chain ID: ${chainId}. No matching chain found in viem.`);
   }
   return chain;
 }
