@@ -1,4 +1,5 @@
 import express, { Express, Request } from 'express';
+import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -73,6 +74,15 @@ export function createApp(): Express {
 
   // Mount API routes
   app.use('/api', apiRouter);
+
+  // Serve frontend in production
+  if (env.NODE_ENV === 'production') {
+    const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
+    app.use(express.static(frontendPath));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(frontendPath, 'index.html'));
+    });
+  }
 
   // Error handling middleware (must be last)
   app.use(errorHandler);

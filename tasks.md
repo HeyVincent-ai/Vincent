@@ -408,18 +408,17 @@
 
 ## Phase 11: Deployment & Operations
 
-### 11.1 Heroku Setup
-- [ ] Create Heroku app
-- [ ] Configure PostgreSQL addon
+### 11.1 Railway Setup
+- [ ] Create Railway project
+- [ ] Add PostgreSQL service
 - [ ] Set up environment variables
-- [ ] Configure buildpacks (Node.js)
-- [ ] Set up SSL/custom domain
+- [ ] Configure build and start commands
+- [ ] Set up custom domain + SSL
 
 ### 11.2 CI/CD
-- [ ] Set up GitHub Actions or Heroku pipeline
-- [ ] Run tests on PR
-- [ ] Auto-deploy main branch to staging
-- [ ] Manual promotion to production
+- [ ] Configure Railway auto-deploy from GitHub
+- [ ] Run tests on PR (GitHub Actions)
+- [ ] Auto-deploy main branch to production
 
 ### 11.3 Monitoring
 - [ ] Set up error tracking (Sentry)
@@ -473,7 +472,7 @@ Phases 9-11 complete:
 - Full frontend application with billing UI
 - Comprehensive audit logs viewable by admin
 - Gas usage tracking and monthly invoicing
-- Deployed to Heroku
+- Deployed to Railway
 - Basic monitoring
 
 ### 1.0 Release
@@ -492,8 +491,8 @@ Phase 12 complete:
 | ZeroDev | Smart accounts + gas sponsorship | Yes (free tier available) |
 | Stripe | Subscriptions + billing | Yes |
 | Telegram | Approval bot | Bot created via BotFather |
-| Heroku | Hosting | Yes |
-| PostgreSQL | Database | Via Heroku addon |
+| Railway | Hosting | Yes |
+| PostgreSQL | Database | Via Railway service |
 | CoinGecko | Price data | Optional API key for higher limits |
 
 ---

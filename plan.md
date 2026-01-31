@@ -184,7 +184,7 @@ We handle gas for users via ZeroDev's paymaster:
 | Smart Accounts | ZeroDev |
 | Payments | Stripe |
 | Approval Bot | Telegram Bot API |
-| Hosting | Heroku |
+| Hosting | Railway |
 | Frontend | React + TypeScript |
 
 ## Database Schema (Conceptual)
@@ -318,7 +318,7 @@ All skill executions and admin actions are logged with full input/output data fo
 
 ## Security Considerations
 
-1. **Database Encryption**: PostgreSQL encrypted at rest (Heroku provides this)
+1. **Database Encryption**: PostgreSQL encrypted at rest (Railway provides this)
 2. **API Key Hashing**: API keys hashed with bcrypt, only shown once on creation
 3. **Rate Limiting**: Aggressive rate limiting on all endpoints
 4. **Comprehensive Audit Logging**: All actions logged with full inputs/outputs, viewable by admin
@@ -823,6 +823,6 @@ All skill executions and admin actions are logged with full input/output data fo
 - Log retention policy (configurable TTL/cleanup job)
 
 **Next up: Phase 11 - Deployment & Operations**
-- Heroku setup
+- Railway setup
 - CI/CD pipeline
 - Monitoring and alerting

@@ -52,6 +52,9 @@ const envSchema = z.object({
     .default('100')
     .transform((val) => parseInt(val, 10)),
 
+  // Frontend URL (for CORS in production)
+  FRONTEND_URL: z.string().optional(),
+
   // Price Oracle
   COINGECKO_API_KEY: z.string().optional(),
 });
