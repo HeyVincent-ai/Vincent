@@ -159,13 +159,13 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
                       <span className="font-semibold text-red-600">Error:</span> {log.errorMessage}
                     </div>
                   )}
-                  {log.inputData && (
+                  {!!log.inputData && (
                     <div>
                       <span className="font-semibold">Input:</span>
                       <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.inputData as Record<string, unknown>, null, 2)}</pre>
                     </div>
                   )}
-                  {log.outputData && (
+                  {!!log.outputData && (
                     <div>
                       <span className="font-semibold">Output:</span>
                       <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.outputData as Record<string, unknown>, null, 2)}</pre>
