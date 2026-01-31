@@ -160,8 +160,17 @@ export async function startBot(): Promise<void> {
     }
   });
 
+  // Handle middleware errors without crashing
+  bot.catch((err) => {
+    console.error('Telegram bot error:', err.message);
+  });
+
+  // Drop pending updates so we claim the polling slot from any prior instance
+  await bot.api.deleteWebhook({ drop_pending_updates: true });
+
   // Start bot with long polling
   bot.start({
+    drop_pending_updates: true,
     onStart: () => console.log('Telegram bot started'),
   });
 }

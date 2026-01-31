@@ -1,5 +1,5 @@
 import { StytchLogin } from '@stytch/react';
-import { Products, OAuthProviders } from '@stytch/vanilla-js';
+import { Products } from '@stytch/vanilla-js';
 
 const loginConfig = {
   products: [Products.emailMagicLinks, Products.oauth],

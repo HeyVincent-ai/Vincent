@@ -3,6 +3,11 @@ import { env } from './utils/env';
 import prisma from './db/client';
 import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram';
 
+// Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason);
+});
+
 async function main() {
   const app = createApp();
 
