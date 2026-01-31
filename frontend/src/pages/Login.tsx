@@ -5,9 +5,9 @@ const loginConfig = {
   products: [Products.emailMagicLinks, Products.oauth],
   emailMagicLinksOptions: {
     loginRedirectURL: `${window.location.origin}/auth/callback`,
-    loginExpirationMinutes: 60,
+    loginExpirationMinutes: 43200,
     signupRedirectURL: `${window.location.origin}/auth/callback`,
-    signupExpirationMinutes: 60,
+    signupExpirationMinutes: 43200,
   },
   oauthOptions: {
     providers: [{ type: OAuthProviders.Google }],
