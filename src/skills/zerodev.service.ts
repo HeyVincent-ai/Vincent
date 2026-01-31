@@ -48,9 +48,12 @@ function getChain(chainId: number): Chain {
 
 function getPublicClient(chainId: number) {
   const chain = getChain(chainId);
+  const projectId = env.ZERODEV_PROJECT_ID;
+  // Use ZeroDev RPC when available (default public RPCs are heavily rate-limited)
+  const rpcUrl = projectId ? getBundlerUrl(projectId, chainId) : undefined;
   return createPublicClient({
     chain,
-    transport: http(),
+    transport: http(rpcUrl),
   });
 }
 
