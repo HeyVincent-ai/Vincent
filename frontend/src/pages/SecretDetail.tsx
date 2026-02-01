@@ -10,7 +10,6 @@ interface SecretData {
   type: string;
   memo: string | null;
   walletAddress?: string;
-  chainId?: number;
   claimedAt: string | null;
   createdAt: string;
 }
@@ -69,12 +68,6 @@ export default function SecretDetail() {
             <div className="col-span-2">
               <dt className="text-gray-500">Wallet Address</dt>
               <dd className="font-mono text-sm">{secret.walletAddress}</dd>
-            </div>
-          )}
-          {secret.chainId && (
-            <div>
-              <dt className="text-gray-500">Chain ID</dt>
-              <dd className="font-medium">{secret.chainId}</dd>
             </div>
           )}
         </dl>

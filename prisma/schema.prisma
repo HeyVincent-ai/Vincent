@@ -64,7 +64,6 @@ model WalletSecretMetadata {
   id                  String   @id @default(cuid())
   secretId            String   @unique @map("secret_id")
   smartAccountAddress String   @map("smart_account_address")
-  chainId             Int      @map("chain_id")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 

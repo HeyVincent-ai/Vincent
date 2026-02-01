@@ -7,7 +7,6 @@ interface Secret {
   type: string;
   memo: string | null;
   walletAddress?: string;
-  chainId?: number;
   createdAt: string;
 }
 

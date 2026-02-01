@@ -23,8 +23,8 @@ export async function executeApprovedTransaction(
   }
 
   const privateKey = secret.value as Hex;
-  const chainId = secret.walletMetadata.chainId;
   const requestData = txLog.requestData as Record<string, unknown>;
+  const chainId = requestData.chainId as number;
 
   try {
     let result: { txHash: string; smartAccountAddress: string };

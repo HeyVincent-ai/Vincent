@@ -17,6 +17,7 @@ export interface TransferInput {
   to: string;
   amount: string; // Human-readable amount (e.g. "0.1" for ETH, "100" for tokens)
   token?: string; // Token address, or "ETH" / undefined for native ETH
+  chainId: number;
 }
 
 export interface TransferOutput {
@@ -33,6 +34,7 @@ export interface SendTransactionInput {
   to: string;
   data: string; // Hex-encoded calldata
   value?: string; // ETH value in ether (e.g. "0.1")
+  chainId: number;
 }
 
 export interface SendTransactionOutput {
@@ -58,7 +60,6 @@ export interface BalanceOutput {
 
 export interface AddressOutput {
   smartAccountAddress: string;
-  chainId: number;
 }
 
 // ============================================================
@@ -90,7 +91,6 @@ async function getWalletData(secretId: string) {
   return {
     privateKey: secret.value as Hex,
     smartAccountAddress: secret.walletMetadata.smartAccountAddress as Address,
-    chainId: secret.walletMetadata.chainId,
     userId: secret.userId,
     createdAt: secret.createdAt,
   };
@@ -101,11 +101,11 @@ async function getWalletData(secretId: string) {
 // ============================================================
 
 export async function executeTransfer(input: TransferInput): Promise<TransferOutput> {
-  const { secretId, apiKeyId, to, amount, token } = input;
+  const { secretId, apiKeyId, to, amount, token, chainId } = input;
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId, wallet.createdAt);
+  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -150,6 +150,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         to,
         amount,
         token: token ?? 'ETH',
+        chainId,
         usdValue,
       },
       status: policyResult.verdict === 'allow' ? 'PENDING' : 'DENIED',
@@ -209,7 +210,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
     if (isNativeEth) {
       result = await zerodev.executeTransfer({
         privateKey: wallet.privateKey,
-        chainId: wallet.chainId,
+        chainId: chainId,
         to: to as Address,
         value: parseEther(amount),
       });
@@ -217,12 +218,12 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
       // Get token decimals for proper amount conversion
       const decimals = await zerodev.getTokenDecimals(
         token as Address,
-        wallet.chainId
+        chainId
       );
 
       result = await zerodev.executeTransfer({
         privateKey: wallet.privateKey,
-        chainId: wallet.chainId,
+        chainId: chainId,
         to: to as Address,
         tokenAddress: token as Address,
         tokenAmount: parseUnits(amount, decimals),
@@ -270,11 +271,11 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
 export async function executeSendTransaction(
   input: SendTransactionInput
 ): Promise<SendTransactionOutput> {
-  const { secretId, apiKeyId, to, data, value } = input;
+  const { secretId, apiKeyId, to, data, value, chainId } = input;
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, wallet.chainId, wallet.createdAt);
+  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -316,6 +317,7 @@ export async function executeSendTransaction(
         data,
         value: value ?? '0',
         functionSelector,
+        chainId,
         usdValue,
       },
       status: 'PENDING',
@@ -367,7 +369,7 @@ export async function executeSendTransaction(
   try {
     const result = await zerodev.executeSendTransaction({
       privateKey: wallet.privateKey,
-      chainId: wallet.chainId,
+      chainId: chainId,
       to: to as Address,
       data: data as Hex,
       value: value ? parseEther(value) : 0n,
@@ -411,18 +413,19 @@ export async function executeSendTransaction(
 
 export async function getBalance(
   secretId: string,
+  chainId: number,
   tokenAddresses?: string[]
 ): Promise<BalanceOutput> {
   const wallet = await getWalletData(secretId);
 
   const eth = await zerodev.getEthBalance(
     wallet.smartAccountAddress,
-    wallet.chainId
+    chainId
   );
 
   const result: BalanceOutput = {
     address: wallet.smartAccountAddress,
-    chainId: wallet.chainId,
+    chainId: chainId,
     eth,
   };
 
@@ -432,7 +435,7 @@ export async function getBalance(
         const tokenBalance = await zerodev.getErc20Balance(
           wallet.smartAccountAddress,
           addr as Address,
-          wallet.chainId
+          chainId
         );
         return {
           address: addr,
@@ -450,6 +453,5 @@ export async function getAddress(secretId: string): Promise<AddressOutput> {
 
   return {
     smartAccountAddress: wallet.smartAccountAddress,
-    chainId: wallet.chainId,
   };
 }

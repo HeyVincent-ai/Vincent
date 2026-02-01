@@ -55,12 +55,10 @@ describe('Base Sepolia E2E: ERC20 Transfer with Gas Sponsorship', () => {
       .send({
         type: 'EVM_WALLET',
         memo: 'E2E test wallet - Base Sepolia',
-        chainId: BASE_SEPOLIA_CHAIN_ID,
       })
       .expect(201);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.secret.chainId).toBe(BASE_SEPOLIA_CHAIN_ID);
     expect(res.body.data.secret.walletAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
     expect(res.body.data.apiKey.key).toMatch(/^ssk_/);
 
@@ -79,17 +77,16 @@ describe('Base Sepolia E2E: ERC20 Transfer with Gas Sponsorship', () => {
       .expect(200);
 
     expect(res.body.data.smartAccountAddress).toBe(smartAccountAddress);
-    expect(res.body.data.chainId).toBe(BASE_SEPOLIA_CHAIN_ID);
   }, 30_000);
 
   it('should get balance (ETH should be 0, proving no native gas needed)', async () => {
     const res = await request(app)
-      .get('/api/skills/evm-wallet/balance')
+      .get(`/api/skills/evm-wallet/balance?chainId=${BASE_SEPOLIA_CHAIN_ID}`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
     expect(res.body.data.eth.balance).toBe('0');
-    expect(res.body.data.chainId).toBe(BASE_SEPOLIA_CHAIN_ID);
+    expect(res.body.data.chainId).toBe(BASE_SEPOLIA_CHAIN_ID);  // chainId echoed from request
     console.log(`ETH balance: ${res.body.data.eth.balance} (confirming no native gas)`);
   }, 30_000);
 
@@ -101,6 +98,7 @@ describe('Base Sepolia E2E: ERC20 Transfer with Gas Sponsorship', () => {
         to: RECIPIENT,
         amount: '0',
         token: USDC_ADDRESS,
+        chainId: BASE_SEPOLIA_CHAIN_ID,
       })
       .expect(200);
 

@@ -10,7 +10,6 @@ import * as zerodev from '../skills/zerodev.service';
 export interface CreateSecretInput {
   type: SecretType;
   memo?: string;
-  chainId?: number;
 }
 
 export interface CreateSecretResult {
@@ -27,7 +26,6 @@ export interface SecretPublicData {
   claimedAt: Date | null;
   createdAt: Date;
   walletAddress?: string;
-  chainId?: number;
 }
 
 export interface ClaimSecretInput {
@@ -64,7 +62,7 @@ function generatePlaceholderAddress(): string {
  * - For other types: creates placeholder awaiting user-provided value
  */
 export async function createSecret(input: CreateSecretInput): Promise<CreateSecretResult> {
-  const { type, memo, chainId: requestedChainId } = input;
+  const { type, memo } = input;
 
   const claimToken = generateClaimToken();
   let secretValue: string | null = null;
@@ -73,12 +71,16 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
-    const chainId = requestedChainId ?? 11155111; // Default to Sepolia testnet
+
+    // Use Sepolia for counterfactual address derivation. With ZeroDev, the
+    // smart account address is the same on all chains, so the chain used
+    // here doesn't matter — the wallet works on any chain.
+    const derivationChainId = 11155111; // Sepolia
 
     // Create ZeroDev smart account if configured, otherwise use placeholder
     let smartAccountAddress: string;
     if (env.ZERODEV_PROJECT_ID) {
-      smartAccountAddress = await zerodev.createSmartAccount(secretValue as Hex, chainId);
+      smartAccountAddress = await zerodev.createSmartAccount(secretValue as Hex, derivationChainId);
     } else {
       smartAccountAddress = generatePlaceholderAddress();
     }
@@ -86,7 +88,6 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     walletMetadata = {
       create: {
         smartAccountAddress,
-        chainId,
       },
     };
   }
@@ -329,7 +330,7 @@ export async function getSecretByApiKeyId(apiKeyId: string): Promise<Secret | nu
 
 // Helper to convert secret to public data (excludes sensitive value)
 type SecretWithMetadata = Secret & {
-  walletMetadata?: { smartAccountAddress: string; chainId: number } | null;
+  walletMetadata?: { smartAccountAddress: string } | null;
 };
 
 function toPublicData(secret: SecretWithMetadata): SecretPublicData {
@@ -344,7 +345,6 @@ function toPublicData(secret: SecretWithMetadata): SecretPublicData {
 
   if (secret.walletMetadata) {
     publicData.walletAddress = secret.walletMetadata.smartAccountAddress;
-    publicData.chainId = secret.walletMetadata.chainId;
   }
 
   return publicData;

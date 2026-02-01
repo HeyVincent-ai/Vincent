@@ -29,7 +29,6 @@ const secretCreationLimiter = rateLimit({
 const createSecretSchema = z.object({
   type: z.nativeEnum(SecretType),
   memo: z.string().max(500).optional(),
-  chainId: z.number().int().positive().optional(),
 });
 
 const claimSecretSchema = z.object({
@@ -56,7 +55,6 @@ router.post(
     const { secret, claimUrl } = await secretService.createSecret({
       type: body.type,
       memo: body.memo,
-      chainId: body.chainId,
     });
 
     const { apiKey, plainKey } = await apiKeyService.createApiKey({

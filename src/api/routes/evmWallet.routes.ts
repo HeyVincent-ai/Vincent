@@ -20,6 +20,7 @@ const transferSchema = z.object({
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
   amount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
   token: z.string().optional(), // Token address or "ETH"
+  chainId: z.number().int().positive(),
 });
 
 router.post(
@@ -39,6 +40,7 @@ router.post(
       to: body.to,
       amount: body.amount,
       token: body.token,
+      chainId: body.chainId,
     });
 
     auditService.log({
@@ -67,6 +69,7 @@ const sendTxSchema = z.object({
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
   data: z.string().regex(/^0x[a-fA-F0-9]*$/, 'Invalid hex data'),
   value: z.string().regex(/^\d+(\.\d+)?$/, 'Value must be a numeric string').optional(),
+  chainId: z.number().int().positive(),
 });
 
 router.post(
@@ -86,6 +89,7 @@ router.post(
       to: body.to,
       data: body.data,
       value: body.value,
+      chainId: body.chainId,
     });
 
     auditService.log({
@@ -118,13 +122,24 @@ router.get(
       return;
     }
 
+    const chainIdParam = req.query.chainId;
+    if (!chainIdParam || typeof chainIdParam !== 'string') {
+      errors.badRequest(res, 'chainId query parameter is required');
+      return;
+    }
+    const chainId = parseInt(chainIdParam, 10);
+    if (isNaN(chainId) || chainId <= 0) {
+      errors.badRequest(res, 'chainId must be a positive integer');
+      return;
+    }
+
     // Optional: query param for token addresses (comma-separated)
     const tokensParam = req.query.tokens;
     const tokenAddresses = typeof tokensParam === 'string' && tokensParam
       ? tokensParam.split(',').map((t) => t.trim())
       : undefined;
 
-    const result = await evmWallet.getBalance(req.secret.id, tokenAddresses);
+    const result = await evmWallet.getBalance(req.secret.id, chainId, tokenAddresses);
     sendSuccess(res, result);
   })
 );
