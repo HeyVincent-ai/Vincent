@@ -73,6 +73,7 @@ export async function executeApprovedTransaction(
       // Re-fetch a fresh quote (0x quotes expire quickly)
       const sellAmount = requestData.sellAmount as string;
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
+      console.log(`getting quote with data`, { sellToken, buyToken, sellAmount, takerAddress, chainId, slippageBps });
       const quote = await zeroExService.getQuote({
         sellToken,
         buyToken,
