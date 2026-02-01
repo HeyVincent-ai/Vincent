@@ -182,6 +182,7 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
 ## Important Notes
 
+- **No gas needed.** A paymaster is fully set up -- all transaction gas fees are sponsored automatically. The wallet does not need ETH for gas.
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
 - Always store the API key from wallet creation -- it's the only way to authenticate.
 - Always share the claim URL with the user after creating a wallet.
