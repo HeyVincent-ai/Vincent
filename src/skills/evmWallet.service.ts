@@ -8,6 +8,7 @@ import * as zeroExService from './zeroEx.service';
 import * as gasService from './gas.service';
 import * as alchemyService from './alchemy.service';
 import { sendApprovalRequest } from '../telegram';
+import { getExplorerTxUrl } from '../config/chains';
 
 // ============================================================
 // Types
@@ -28,6 +29,7 @@ export interface TransferOutput {
   smartAccountAddress: string;
   reason?: string;
   transactionLogId: string;
+  explorerUrl?: string;
 }
 
 export interface SendTransactionInput {
@@ -45,6 +47,7 @@ export interface SendTransactionOutput {
   smartAccountAddress: string;
   reason?: string;
   transactionLogId: string;
+  explorerUrl?: string;
 }
 
 export interface BalanceOutput {
@@ -250,6 +253,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
       status: 'executed',
       smartAccountAddress: result.smartAccountAddress,
       transactionLogId: txLog.id,
+      explorerUrl: getExplorerTxUrl(chainId, result.txHash),
     };
   } catch (error) {
     // Update transaction log with failure
@@ -394,6 +398,7 @@ export async function executeSendTransaction(
       status: 'executed',
       smartAccountAddress: result.smartAccountAddress,
       transactionLogId: txLog.id,
+      explorerUrl: getExplorerTxUrl(chainId, result.txHash),
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -527,6 +532,7 @@ export interface SwapExecuteOutput {
   smartAccountAddress: string;
   reason?: string;
   transactionLogId: string;
+  explorerUrl?: string;
 }
 
 // ============================================================
@@ -735,6 +741,7 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
       buyAmount: quote.buyAmount,
       smartAccountAddress: result.smartAccountAddress,
       transactionLogId: txLog.id,
+      explorerUrl: getExplorerTxUrl(chainId, result.txHash),
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

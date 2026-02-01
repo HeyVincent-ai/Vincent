@@ -1,4 +1,5 @@
 import { env } from '../utils/env';
+import { CHAIN_ID_TO_ALCHEMY_NETWORK } from '../config/chains';
 
 // Token metadata cache (permanent - token metadata doesn't change)
 interface TokenMetadata {
@@ -23,19 +24,8 @@ const NETWORK_TO_RPC: Record<string, string> = {
   'base-sepolia': 'https://base-sepolia.g.alchemy.com/v2',
 };
 
-// Alchemy network identifiers
-const CHAIN_ID_TO_NETWORK: Record<number, string> = {
-  1: 'eth-mainnet',
-  11155111: 'eth-sepolia',
-  137: 'polygon-mainnet',
-  80002: 'polygon-amoy',
-  42161: 'arb-mainnet',
-  421614: 'arb-sepolia',
-  10: 'opt-mainnet',
-  11155420: 'opt-sepolia',
-  8453: 'base-mainnet',
-  84532: 'base-sepolia',
-};
+// Use central chain config for chain ID → Alchemy network mapping
+const CHAIN_ID_TO_NETWORK: Record<number, string> = CHAIN_ID_TO_ALCHEMY_NETWORK;
 
 export interface TokenBalance {
   network: string;

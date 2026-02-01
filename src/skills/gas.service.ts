@@ -1,6 +1,7 @@
 import { Decimal } from '@prisma/client/runtime/library';
 import prisma from '../db/client';
 import * as priceService from '../services/price.service';
+import { TESTNET_CHAIN_IDS } from '../config/chains';
 
 export interface RecordGasInput {
   secretId: string;
@@ -100,7 +101,6 @@ export async function checkSubscriptionForChain(
   secretCreatedAt: Date
 ): Promise<{ allowed: boolean; reason?: string }> {
   // Testnets are always free
-  const TESTNET_CHAIN_IDS = [11155111, 5, 80001, 421613, 84532]; // sepolia, goerli, mumbai, arb-goerli, base-sepolia
   if (TESTNET_CHAIN_IDS.includes(chainId)) {
     return { allowed: true };
   }
