@@ -71,7 +71,10 @@ export async function executeApprovedTransaction(
       const slippageBps = (requestData.slippageBps as number) ?? 100;
 
       // Re-fetch a fresh quote (0x quotes expire quickly)
-      const sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
+      let sellAmountDecimals = 18;
+      if (!zeroExService.isNativeToken(sellToken)) {
+        sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
+      }
       const sellAmountWei = parseUnits(requestData.sellAmount as string, sellAmountDecimals).toString();
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
       console.log(`getting quote with data`, { sellToken, buyToken, sellAmountWei, takerAddress, chainId, slippageBps });
