@@ -515,16 +515,16 @@ Phase 12 complete:
 ## Phase 13: Wallet Balances (Alchemy Portfolio API)
 
 ### 13.1 Alchemy Integration
-- [ ] Add Alchemy SDK / HTTP client for Portfolio API
-- [ ] Implement `GET /api/skills/evm-wallet/balances` endpoint (API key auth)
-  - [ ] Call Alchemy `getTokenBalancesByAddress` to get all token balances across chains
-  - [ ] Return aggregated balances (native + ERC20) with USD values
-- [ ] Add balance retrieval to agent skill (so agents can query portfolio)
+- [x] Add Alchemy SDK / HTTP client for Portfolio API
+- [x] Implement `GET /api/skills/evm-wallet/balances` endpoint (API key auth)
+  - [x] Call Alchemy `getTokenBalancesByAddress` to get all token balances across chains
+  - [x] Return aggregated balances (native + ERC20) with USD values
+- [x] Add balance retrieval to agent skill (so agents can query portfolio)
 
 ### 13.2 Frontend Balances Display
-- [ ] Show token balances on SecretDetail page for claimed wallets
-- [ ] Display per-chain breakdown with token symbols, amounts, and USD values
-- [ ] Auto-refresh balances periodically or on user action
+- [x] Show token balances on SecretDetail page for claimed wallets
+- [x] Display per-chain breakdown with token symbols, amounts, and USD values
+- [x] Auto-refresh balances periodically or on user action
 
 ---
 

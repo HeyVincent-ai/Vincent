@@ -5,6 +5,7 @@ import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
 import * as priceService from '../services/price.service';
 import * as zerodev from './zerodev.service';
 import * as gasService from './gas.service';
+import * as alchemyService from './alchemy.service';
 import { sendApprovalRequest } from '../telegram';
 
 // ============================================================
@@ -453,5 +454,25 @@ export async function getAddress(secretId: string): Promise<AddressOutput> {
 
   return {
     smartAccountAddress: wallet.smartAccountAddress,
+  };
+}
+
+// ============================================================
+// Portfolio Balances (Alchemy)
+// ============================================================
+
+export async function getPortfolioBalances(
+  secretId: string,
+  chainIds?: number[]
+) {
+  const wallet = await getWalletData(secretId);
+  const portfolio = await alchemyService.getPortfolioBalances(
+    wallet.smartAccountAddress,
+    chainIds
+  );
+
+  return {
+    address: wallet.smartAccountAddress,
+    tokens: portfolio.tokens,
   };
 }

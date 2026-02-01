@@ -145,6 +145,29 @@ router.get(
 );
 
 // ============================================================
+// GET /api/skills/evm-wallet/balances (Alchemy Portfolio)
+// ============================================================
+
+router.get(
+  '/balances',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    // Optional: comma-separated chain IDs
+    const chainIdsParam = req.query.chainIds;
+    const chainIds = typeof chainIdsParam === 'string' && chainIdsParam
+      ? chainIdsParam.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id))
+      : undefined;
+
+    const result = await evmWallet.getPortfolioBalances(req.secret.id, chainIds);
+    sendSuccess(res, result);
+  })
+);
+
+// ============================================================
 // GET /api/skills/evm-wallet/address
 // ============================================================
 

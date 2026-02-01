@@ -53,6 +53,9 @@ const envSchema = z.object({
 
   // Price Oracle
   COINGECKO_API_KEY: z.string().optional(),
+
+  // Alchemy
+  ALCHEMY_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

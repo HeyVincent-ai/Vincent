@@ -72,6 +72,12 @@ export const getAuditLogActions = (secretId: string) =>
 export const exportAuditLogs = (secretId: string, format: 'json' | 'csv', params?: { action?: string; status?: string }) =>
   api.get(`/secrets/${secretId}/audit-logs/export`, { params: { ...params, format }, responseType: format === 'csv' ? 'blob' : undefined });
 
+// Balances (Alchemy Portfolio)
+export const getSecretBalances = (secretId: string, chainIds?: number[]) =>
+  api.get(`/secrets/${secretId}/balances`, {
+    params: chainIds ? { chainIds: chainIds.join(',') } : undefined,
+  });
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>

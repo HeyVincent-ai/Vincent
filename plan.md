@@ -826,3 +826,48 @@ All skill executions and admin actions are logged with full input/output data fo
 - Railway setup
 - CI/CD pipeline
 - Monitoring and alerting
+
+### Phase 13: Wallet Balances - Alchemy Portfolio API (COMPLETED)
+
+**Completed: 2026-02-01**
+
+**What was implemented:**
+- Alchemy Portfolio API integration via direct HTTP calls (no SDK needed)
+- `src/skills/alchemy.service.ts` - Portfolio service with multi-chain support (10 networks: Ethereum, Sepolia, Polygon, Arbitrum, Optimism, Base + testnets)
+- Network chunking for Alchemy's 20-network-per-request limit
+- `GET /api/skills/evm-wallet/balances` - API key authenticated endpoint for agents
+- `GET /api/secrets/:id/balances` - Session authenticated endpoint for frontend
+- Both endpoints support optional `chainIds` query param to filter networks
+- `getPortfolioBalances()` in evmWallet.service.ts wraps Alchemy calls with wallet data lookup
+- Frontend `BalancesDisplay` component with:
+  - Grouped by network display
+  - Token logos, symbols, names
+  - Formatted balances with proper decimal handling
+  - USD values when available
+  - Zero-balance filtering
+  - Manual refresh button
+  - Error handling with retry
+- Component integrated into SecretDetail page for EVM_WALLET secrets
+- `ALCHEMY_API_KEY` added to env validation (optional)
+- Frontend API client function `getSecretBalances()`
+
+**Key decisions made:**
+- Used Alchemy Portfolio API directly via fetch (no SDK dependency needed)
+- Two endpoints: one for agents (API key auth), one for frontend (session auth + ownership)
+- All supported networks queried by default when no chainIds filter provided
+- Zero balances filtered out in frontend for cleaner display
+- Balance formatting handles arbitrary decimals, truncated to 6 decimal places
+
+**Files created:**
+- `src/skills/alchemy.service.ts` - Alchemy Portfolio API client
+- `frontend/src/components/BalancesDisplay.tsx` - Balance display component
+
+**Files modified:**
+- `src/utils/env.ts` - Added ALCHEMY_API_KEY
+- `src/skills/evmWallet.service.ts` - Added getPortfolioBalances function
+- `src/api/routes/evmWallet.routes.ts` - Added /balances endpoint (API key auth)
+- `src/api/routes/secrets.routes.ts` - Added /:id/balances endpoint (session auth)
+- `frontend/src/api.ts` - Added getSecretBalances function
+- `frontend/src/pages/SecretDetail.tsx` - Integrated BalancesDisplay component
+
+**Next up: Phase 14 - Reverse Claim Flow**

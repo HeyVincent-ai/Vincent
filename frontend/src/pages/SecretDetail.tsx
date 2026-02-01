@@ -4,6 +4,7 @@ import { getSecret, deleteSecret } from '../api';
 import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
+import BalancesDisplay from '../components/BalancesDisplay';
 
 interface SecretData {
   id: string;
@@ -68,6 +69,11 @@ export default function SecretDetail() {
             <div className="col-span-2">
               <dt className="text-gray-500">Wallet Address</dt>
               <dd className="font-mono text-sm">{secret.walletAddress}</dd>
+            </div>
+          )}
+          {secret.type === 'EVM_WALLET' && (
+            <div className="col-span-2 mt-2">
+              <BalancesDisplay secretId={secret.id} />
             </div>
           )}
         </dl>

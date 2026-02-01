@@ -9,6 +9,7 @@ import { AuthenticatedRequest } from '../../types';
 import { sendSuccess, errors } from '../../utils/response';
 import * as secretService from '../../services/secret.service';
 import * as apiKeyService from '../../services/apiKey.service';
+import * as evmWallet from '../../skills/evmWallet.service';
 import { auditService } from '../../audit';
 
 const router = Router();
@@ -176,6 +177,28 @@ router.put(
     });
 
     sendSuccess(res, { secret });
+  })
+);
+
+/**
+ * GET /api/secrets/:id/balances
+ * Get portfolio balances for a wallet secret (Alchemy Portfolio API)
+ * Requires: User session + ownership
+ */
+router.get(
+  '/:id/balances',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+
+    const chainIdsParam = req.query.chainIds;
+    const chainIds = typeof chainIdsParam === 'string' && chainIdsParam
+      ? chainIdsParam.split(',').map((c) => parseInt(c.trim(), 10)).filter((c) => !isNaN(c))
+      : undefined;
+
+    const result = await evmWallet.getPortfolioBalances(id, chainIds);
+    sendSuccess(res, result);
   })
 );
 
