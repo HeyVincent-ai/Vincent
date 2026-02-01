@@ -21,7 +21,9 @@ export interface PolicyCheckAction {
   value?: number;                // ETH value (in ETH, not wei)
   tokenAddress?: string;         // ERC20 token address (lowercase), undefined = native ETH
   tokenAmount?: number;          // Token amount in human-readable units
+  tokenSymbol?: string;          // Token symbol (e.g. "USDC") for stablecoin price fallback
   functionSelector?: string;     // 4-byte selector for send_transaction
+  chainId?: number;              // Chain ID for chain-aware price lookups
 }
 
 export type PolicyVerdict = 'allow' | 'deny' | 'require_approval';
@@ -364,7 +366,7 @@ async function checkApprovalThreshold(
 async function getActionUsdValue(action: PolicyCheckAction): Promise<number | null> {
   try {
     if (action.tokenAddress && action.tokenAmount !== undefined) {
-      return await priceService.tokenToUsd(action.tokenAddress, action.tokenAmount);
+      return await priceService.tokenToUsd(action.tokenAddress, action.tokenAmount, action.chainId, action.tokenSymbol);
     }
     if (action.value !== undefined) {
       return await priceService.ethToUsd(action.value);

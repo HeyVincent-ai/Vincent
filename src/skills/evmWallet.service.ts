@@ -121,6 +121,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   const policyAction: PolicyCheckAction = {
     type: 'transfer',
     to: to.toLowerCase(),
+    chainId,
   };
 
   if (isNativeEth) {
@@ -128,6 +129,12 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   } else {
     policyAction.tokenAddress = token!.toLowerCase();
     policyAction.tokenAmount = parseFloat(amount);
+    // Fetch token symbol for stablecoin price fallback
+    try {
+      policyAction.tokenSymbol = await zerodev.getTokenSymbol(token! as Address, chainId);
+    } catch {
+      // Non-critical — price service will still try other resolution methods
+    }
   }
 
   // Check policies
@@ -295,6 +302,7 @@ export async function executeSendTransaction(
     to: to.toLowerCase(),
     value: value ? parseFloat(value) : 0,
     functionSelector,
+    chainId,
   };
 
   // Check policies
@@ -631,6 +639,7 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
     to: quote.transaction.to.toLowerCase(),
     value: zeroExService.isNativeToken(sellToken) ? parseFloat(sellAmount) : 0,
     functionSelector: quote.transaction.data.slice(0, 10),
+    chainId,
   };
 
   // Also check token allowlists for both sell and buy tokens (as transfer policy)
@@ -640,6 +649,7 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
     to: quote.transaction.to.toLowerCase(),
     tokenAddress: zeroExService.isNativeToken(sellToken) ? undefined : sellToken.toLowerCase(),
     tokenAmount: parseFloat(sellAmount),
+    chainId,
   };
 
   // Check policies - check both the send_transaction policies and transfer token policies

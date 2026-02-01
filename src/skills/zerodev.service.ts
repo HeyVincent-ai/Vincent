@@ -325,3 +325,15 @@ export async function getTokenDecimals(
     functionName: 'decimals',
   });
 }
+
+export async function getTokenSymbol(
+  tokenAddress: Address,
+  chainId: number
+): Promise<string> {
+  const publicClient = getPublicClient(chainId);
+  return publicClient.readContract({
+    address: tokenAddress,
+    abi: ERC20_ABI,
+    functionName: 'symbol',
+  });
+}
