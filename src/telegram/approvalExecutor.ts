@@ -68,16 +68,15 @@ export async function executeApprovedTransaction(
     } else if (txLog.actionType === 'swap') {
       const sellToken = requestData.sellToken as string;
       const buyToken = requestData.buyToken as string;
-      const sellAmount = requestData.sellAmount as string;
       const slippageBps = (requestData.slippageBps as number) ?? 100;
 
       // Re-fetch a fresh quote (0x quotes expire quickly)
-      const sellAmountWei = requestData.sellAmountWei as string;
+      const sellAmount = requestData.sellAmount as string;
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
       const quote = await zeroExService.getQuote({
         sellToken,
         buyToken,
-        sellAmount: sellAmountWei,
+        sellAmount,
         takerAddress,
         chainId,
         slippageBps,
