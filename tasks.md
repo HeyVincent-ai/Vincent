@@ -531,22 +531,24 @@ Phase 12 complete:
 ## Phase 14: Reverse Claim Flow
 
 ### 14.1 Agent Re-linking via New API Key
-- [ ] Create endpoint: `POST /api/secrets/:id/reverse-claim`
-  - [ ] Requires session auth (user must be the owner of the secret)
-  - [ ] Accepts a new API key name
-  - [ ] Generates a new API key for the secret and returns it
-  - [ ] Agent can then use this key to interact with the wallet again
-- [ ] Alternatively, expose existing `POST /api/secrets/:id/api-keys` to agents who present a "re-link token"
-  - [ ] User generates a one-time re-link token from the frontend
-  - [ ] Agent provides re-link token + gets back a new API key
-- [ ] Frontend UI: "Generate Re-link Token" button on secret detail page
-  - [ ] Displays token once with copy-to-clipboard
-  - [ ] Token expires after use or after a time limit
+- [x] Create endpoint: `POST /api/secrets/:id/relink-token`
+  - [x] Requires session auth (user must be the owner of the secret)
+  - [x] Generates a one-time re-link token (10-minute expiry, in-memory storage)
+  - [x] Returns token + expiry timestamp
+- [x] Create endpoint: `POST /api/secrets/relink`
+  - [x] Agent provides re-link token + optional API key name
+  - [x] Validates and consumes re-link token (one-time use)
+  - [x] Creates new API key for the secret and returns it + secret metadata
+- [x] Frontend UI: "Generate Re-link Token" button on secret detail page
+  - [x] Displays token once with copy-to-clipboard
+  - [x] Shows expiry time
+  - [x] Token expires after use or after 10 minutes
+- [x] Audit logging for both token generation and re-link events
 
 ### 14.2 Agent-Side Flow
-- [ ] Agent receives new API key from user
-- [ ] Agent calls `GET /api/secrets/info` with new API key to verify access
-- [ ] Agent confirms it can see the wallet address and metadata
+- [x] Agent receives re-link token from user
+- [x] Agent calls `POST /api/secrets/relink` with token, gets API key + secret metadata
+- [x] Agent calls `GET /api/secrets/info` with new API key to verify access
 
 ---
 

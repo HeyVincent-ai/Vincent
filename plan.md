@@ -870,4 +870,29 @@ All skill executions and admin actions are logged with full input/output data fo
 - `frontend/src/api.ts` - Added getSecretBalances function
 - `frontend/src/pages/SecretDetail.tsx` - Integrated BalancesDisplay component
 
-**Next up: Phase 14 - Reverse Claim Flow**
+### Phase 14: Reverse Claim Flow (COMPLETED)
+
+**Completed: 2026-02-01**
+
+**What was implemented:**
+- Re-link token generation endpoint (`POST /api/secrets/:id/relink-token`) with session auth + ownership
+- Re-link token consumption endpoint (`POST /api/secrets/relink`) - unauthenticated, token is the auth
+- One-time use tokens stored in-memory with 10-minute expiry
+- Agent receives re-link token from user, exchanges it for a new API key + secret metadata
+- Frontend "Generate Re-link Token" button on SecretDetail page with copy-to-clipboard
+- Audit logging for both token generation (`secret.relink_token_generated`) and consumption (`secret.relinked`)
+
+**Key decisions made:**
+- Re-link tokens stored in-memory (same as Telegram linking codes) - sufficient for single-instance; would need Redis for multi-instance
+- `/relink` POST route registered before `/:id` routes to prevent Express treating "relink" as a param
+- Token is one-time use: consumed immediately on successful re-link, preventing replay
+- No auth required on `/relink` endpoint since the token itself serves as authorization (similar to claim tokens)
+- Optional `apiKeyName` parameter lets agent customize the API key name (defaults to "Re-linked API Key")
+
+**Files modified:**
+- `src/services/secret.service.ts` - Added `generateRelinkToken()` and `consumeRelinkToken()` functions
+- `src/api/routes/secrets.routes.ts` - Added `/relink` and `/:id/relink-token` endpoints
+- `frontend/src/api.ts` - Added `generateRelinkToken()` API function
+- `frontend/src/pages/SecretDetail.tsx` - Added re-link token generation UI
+
+**Next up: Phase 15 - Self-Custody (Wallet Ownership Transfer)**

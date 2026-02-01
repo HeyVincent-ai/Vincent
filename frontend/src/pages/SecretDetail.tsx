@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getSecret, deleteSecret } from '../api';
+import { getSecret, deleteSecret, generateRelinkToken } from '../api';
 import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
@@ -21,6 +21,9 @@ export default function SecretDetail() {
   const [secret, setSecret] = useState<SecretData | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<'policies' | 'apikeys' | 'auditlogs'>('policies');
+  const [relinkToken, setRelinkToken] = useState<string | null>(null);
+  const [relinkExpiry, setRelinkExpiry] = useState<string | null>(null);
+  const [relinkLoading, setRelinkLoading] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -37,6 +40,20 @@ export default function SecretDetail() {
       navigate('/dashboard');
     } catch {
       alert('Failed to delete secret');
+    }
+  };
+
+  const handleGenerateRelinkToken = async () => {
+    if (!id) return;
+    setRelinkLoading(true);
+    try {
+      const res = await generateRelinkToken(id);
+      setRelinkToken(res.data.data.relinkToken);
+      setRelinkExpiry(new Date(res.data.data.expiresAt).toLocaleTimeString());
+    } catch {
+      alert('Failed to generate re-link token');
+    } finally {
+      setRelinkLoading(false);
     }
   };
 
@@ -77,6 +94,33 @@ export default function SecretDetail() {
             </div>
           )}
         </dl>
+      </div>
+
+      <div className="bg-white rounded-lg border p-6 mb-6">
+        <h3 className="text-sm font-medium text-gray-700 mb-2">Re-link Agent</h3>
+        <p className="text-xs text-gray-500 mb-3">Generate a one-time token to give an agent access to this secret. The token expires in 10 minutes.</p>
+        {relinkToken ? (
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <code className="bg-gray-100 px-3 py-2 rounded text-sm font-mono flex-1 break-all">{relinkToken}</code>
+              <button
+                onClick={() => { navigator.clipboard.writeText(relinkToken); }}
+                className="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap"
+              >
+                Copy
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">Expires at {relinkExpiry}. One-time use.</p>
+          </div>
+        ) : (
+          <button
+            onClick={handleGenerateRelinkToken}
+            disabled={relinkLoading}
+            className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          >
+            {relinkLoading ? 'Generating...' : 'Generate Re-link Token'}
+          </button>
+        )}
       </div>
 
       <div className="border-b border-gray-200 mb-6">

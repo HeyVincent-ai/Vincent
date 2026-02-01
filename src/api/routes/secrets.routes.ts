@@ -40,6 +40,11 @@ const setSecretValueSchema = z.object({
   value: z.string().min(1),
 });
 
+const relinkSchema = z.object({
+  relinkToken: z.string().min(1),
+  apiKeyName: z.string().max(100).optional(),
+});
+
 /**
  * POST /api/secrets
  * Create a new secret (agent endpoint - no auth required)
@@ -100,6 +105,49 @@ router.get(
     }
 
     sendSuccess(res, { secret });
+  })
+);
+
+/**
+ * POST /api/secrets/relink
+ * Agent provides a re-link token to obtain a new API key for the secret.
+ * No auth required (the re-link token is the auth).
+ */
+router.post(
+  '/relink',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const body = relinkSchema.parse(req.body);
+
+    const secretId = secretService.consumeRelinkToken(body.relinkToken);
+    if (!secretId) {
+      errors.forbidden(res, 'Invalid or expired re-link token');
+      return;
+    }
+
+    const secret = await secretService.getSecretById(secretId);
+    if (!secret) {
+      errors.notFound(res, 'Secret');
+      return;
+    }
+
+    const { apiKey, plainKey } = await apiKeyService.createApiKey({
+      secretId,
+      name: body.apiKeyName || 'Re-linked API Key',
+    });
+
+    auditService.log({
+      secretId,
+      action: 'secret.relinked',
+      inputData: { secretId, apiKeyName: body.apiKeyName },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    sendSuccess(res, {
+      secret,
+      apiKey: { id: apiKey.id, key: plainKey },
+    });
   })
 );
 
@@ -199,6 +247,33 @@ router.get(
 
     const result = await evmWallet.getPortfolioBalances(id, chainIds);
     sendSuccess(res, result);
+  })
+);
+
+/**
+ * POST /api/secrets/:id/relink-token
+ * Generate a one-time re-link token that an agent can use to get a new API key.
+ * Requires: User session + ownership
+ */
+router.post(
+  '/:id/relink-token',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+    const { token, expiresAt } = secretService.generateRelinkToken(id);
+
+    auditService.log({
+      secretId: id,
+      userId: req.user!.id,
+      action: 'secret.relink_token_generated',
+      inputData: { secretId: id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    sendSuccess(res, { relinkToken: token, expiresAt });
   })
 );
 

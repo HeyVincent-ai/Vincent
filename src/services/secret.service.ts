@@ -328,6 +328,39 @@ export async function getSecretByApiKeyId(apiKeyId: string): Promise<Secret | nu
   return apiKey.secret;
 }
 
+// ---- Re-link token management (in-memory, single-instance) ----
+
+interface RelinkToken {
+  secretId: string;
+  expiresAt: Date;
+}
+
+const relinkTokens = new Map<string, RelinkToken>();
+
+const RELINK_TOKEN_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
+
+/**
+ * Generate a one-time re-link token for a secret.
+ * The owner can give this token to an agent so the agent can obtain a new API key.
+ */
+export function generateRelinkToken(secretId: string): { token: string; expiresAt: Date } {
+  const token = randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + RELINK_TOKEN_EXPIRY_MS);
+  relinkTokens.set(token, { secretId, expiresAt });
+  return { token, expiresAt };
+}
+
+/**
+ * Validate and consume a re-link token. Returns the secretId if valid.
+ */
+export function consumeRelinkToken(token: string): string | null {
+  const entry = relinkTokens.get(token);
+  if (!entry) return null;
+  relinkTokens.delete(token); // one-time use
+  if (new Date() > entry.expiresAt) return null;
+  return entry.secretId;
+}
+
 // Helper to convert secret to public data (excludes sensitive value)
 type SecretWithMetadata = Secret & {
   walletMetadata?: { smartAccountAddress: string } | null;

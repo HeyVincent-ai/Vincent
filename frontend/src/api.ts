@@ -44,6 +44,8 @@ export const getSecret = (id: string) => api.get(`/secrets/${id}`);
 export const claimSecret = (id: string, claimToken: string) =>
   api.post(`/secrets/${id}/claim`, { claimToken });
 export const deleteSecret = (id: string) => api.delete(`/secrets/${id}`);
+export const generateRelinkToken = (secretId: string) =>
+  api.post(`/secrets/${secretId}/relink-token`);
 
 // API Keys
 export const listApiKeys = (secretId: string) => api.get(`/secrets/${secretId}/api-keys`);
