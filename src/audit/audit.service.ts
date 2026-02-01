@@ -1,6 +1,12 @@
 import { AuditLogStatus } from '@prisma/client';
 import prisma from '../db/client';
 
+/** Strip ::ffff: prefix from IPv4-mapped IPv6 addresses */
+function normalizeIp(ip?: string): string | undefined {
+  if (!ip) return undefined;
+  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+}
+
 export interface AuditLogEntry {
   secretId?: string;
   apiKeyId?: string;
@@ -40,7 +46,7 @@ export async function log(entry: AuditLogEntry): Promise<string | null> {
         outputData: entry.outputData !== undefined ? (entry.outputData as object) : undefined,
         status: entry.status,
         errorMessage: entry.errorMessage ?? null,
-        ipAddress: entry.ipAddress ?? null,
+        ipAddress: normalizeIp(entry.ipAddress) ?? null,
         userAgent: entry.userAgent ?? null,
         durationMs: entry.durationMs ?? null,
       },

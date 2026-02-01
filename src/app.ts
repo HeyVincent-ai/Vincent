@@ -12,6 +12,9 @@ import apiRouter from './api/routes';
 export function createApp(): Express {
   const app = express();
 
+  // Trust proxy (Railway, etc.) so req.ip returns the real client IP
+  app.set('trust proxy', true);
+
   // Security middleware
   app.use(helmet({
     contentSecurityPolicy: {
