@@ -501,12 +501,12 @@
 - [x] Audit logging for swap preview and execution
 
 ### 13.4 Frontend Swap UI (Optional)
-- [ ] Swap interface on SecretDetail page for EVM_WALLET secrets
-- [ ] Token selector (sell/buy) with common tokens per chain
-- [ ] Amount input with balance display
-- [ ] Preview showing expected output, price impact, route, fees
-- [ ] Execute button with confirmation
-- [ ] Transaction status display
+- [x] Swap interface on SecretDetail page for EVM_WALLET secrets
+- [x] Token selector (sell/buy) with common tokens per chain
+- [x] Amount input with balance display
+- [x] Preview showing expected output, price impact, route, fees
+- [x] Execute button with confirmation
+- [x] Transaction status display
 
 ---
 

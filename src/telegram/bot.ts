@@ -1,8 +1,11 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
+import { type Address } from 'viem';
 import { env } from '../utils/env';
 import prisma from '../db/client';
 import crypto from 'crypto';
 import { executeApprovedTransaction } from './approvalExecutor';
+import * as zerodev from '../skills/zerodev.service';
+import { isNativeToken } from '../skills/zeroEx.service';
 
 let bot: Bot | null = null;
 
@@ -232,6 +235,77 @@ export function generateLinkingCode(userId: string): string {
 }
 
 /**
+ * Resolve a token address to a human-readable label like "USDC" or "ETH".
+ * Falls back to a truncated address if the on-chain lookup fails.
+ */
+async function resolveTokenLabel(token: string | undefined, chainId: number | undefined): Promise<string> {
+  if (!token || token.toUpperCase() === 'ETH') return 'ETH';
+  if (isNativeToken(token)) return 'ETH';
+  if (!chainId) return truncateAddress(token);
+  try {
+    return await zerodev.getTokenSymbol(token as Address, chainId);
+  } catch {
+    return truncateAddress(token);
+  }
+}
+
+function truncateAddress(addr: string): string {
+  if (addr.length <= 12) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function chainLabel(chainId: number | undefined): string {
+  const names: Record<number, string> = {
+    1: 'Ethereum', 11155111: 'Sepolia', 8453: 'Base', 84532: 'Base Sepolia',
+    137: 'Polygon', 42161: 'Arbitrum', 10: 'Optimism', 80001: 'Mumbai',
+  };
+  if (!chainId) return '';
+  return names[chainId] ?? `Chain ${chainId}`;
+}
+
+function formatExpiry(expiresAt: Date): string {
+  const mins = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 60000));
+  return mins > 0 ? `${mins} min` : 'expiring now';
+}
+
+async function formatApprovalMessage(
+  actionType: string,
+  data: Record<string, unknown>,
+  walletAddr: string,
+  chainId: number | undefined,
+  expiresAt: Date,
+): Promise<string> {
+  const chain = chainLabel(chainId);
+  const lines: string[] = ['🔐 *Approval Required*', ''];
+
+  if (actionType === 'transfer') {
+    const tokenLabel = await resolveTokenLabel(data.token as string | undefined, chainId);
+    lines.push(`*Transfer ${data.amount} ${tokenLabel}*`);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
+    lines.push(`To: \`${data.to}\``);
+  } else if (actionType === 'swap') {
+    const sellLabel = await resolveTokenLabel(data.sellToken as string | undefined, chainId);
+    const buyLabel = await resolveTokenLabel(data.buyToken as string | undefined, chainId);
+    lines.push(`*Swap ${data.sellAmount} ${sellLabel} → ${buyLabel}*`);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
+  } else if (actionType === 'send_transaction') {
+    lines.push(`*Contract Call*`);
+    lines.push(`To: \`${data.to}\``);
+    if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
+    if (data.functionSelector) lines.push(`Function: \`${data.functionSelector}\``);
+  } else {
+    lines.push(`*${actionType}*`);
+  }
+
+  lines.push('');
+  if (chain) lines.push(`Network: ${chain}`);
+  lines.push(`Wallet: \`${truncateAddress(walletAddr)}\``);
+  lines.push(`Expires: ${formatExpiry(expiresAt)}`);
+
+  return lines.join('\n');
+}
+
+/**
  * Send an approval request to a user via Telegram
  */
 export async function sendApprovalRequest(approvalId: string): Promise<boolean> {
@@ -256,29 +330,9 @@ export async function sendApprovalRequest(approvalId: string): Promise<boolean> 
   const txLog = approval.transactionLog;
   const requestData = txLog.requestData as Record<string, unknown>;
   const walletAddr = approval.transactionLog.secret.walletMetadata?.smartAccountAddress ?? 'unknown';
+  const chainId = requestData.chainId as number | undefined;
 
-  // Build message
-  let message = `**Approval Required**\n\n`;
-  message += `Action: ${txLog.actionType}\n`;
-  message += `Wallet: \`${walletAddr}\`\n`;
-
-  if (txLog.actionType === 'transfer') {
-    message += `To: \`${requestData.to}\`\n`;
-    message += `Amount: ${requestData.amount} ${requestData.token ?? 'ETH'}\n`;
-    if (requestData.usdValue) {
-      message += `USD Value: ~$${Number(requestData.usdValue).toFixed(2)}\n`;
-    }
-  } else if (txLog.actionType === 'send_transaction') {
-    message += `Contract: \`${requestData.to}\`\n`;
-    if (requestData.value && requestData.value !== '0') {
-      message += `ETH Value: ${requestData.value}\n`;
-    }
-    if (requestData.functionSelector) {
-      message += `Function: \`${requestData.functionSelector}\`\n`;
-    }
-  }
-
-  message += `\nExpires: ${approval.expiresAt.toISOString()}`;
+  const message = await formatApprovalMessage(txLog.actionType, requestData, walletAddr, chainId, approval.expiresAt);
 
   const keyboard = new InlineKeyboard()
     .text('Approve', `approve:${approval.id}`)
