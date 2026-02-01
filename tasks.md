@@ -509,3 +509,96 @@ Phase 12 complete:
 | Unauthorized access | Secrets misused | Comprehensive audit logging, API key revocation |
 | Stripe webhook failure | Billing out of sync | Idempotent handlers, webhook retry, manual reconciliation |
 | Gas cost spikes | Unexpected bills for users | Usage alerts, spending caps, clear pricing display |
+
+---
+
+## Phase 13: Wallet Balances (Alchemy Portfolio API)
+
+### 13.1 Alchemy Integration
+- [ ] Add Alchemy SDK / HTTP client for Portfolio API
+- [ ] Implement `GET /api/skills/evm-wallet/balances` endpoint (API key auth)
+  - [ ] Call Alchemy `getTokenBalancesByAddress` to get all token balances across chains
+  - [ ] Return aggregated balances (native + ERC20) with USD values
+- [ ] Add balance retrieval to agent skill (so agents can query portfolio)
+
+### 13.2 Frontend Balances Display
+- [ ] Show token balances on SecretDetail page for claimed wallets
+- [ ] Display per-chain breakdown with token symbols, amounts, and USD values
+- [ ] Auto-refresh balances periodically or on user action
+
+---
+
+## Phase 14: Reverse Claim Flow
+
+### 14.1 Agent Re-linking via New API Key
+- [ ] Create endpoint: `POST /api/secrets/:id/reverse-claim`
+  - [ ] Requires session auth (user must be the owner of the secret)
+  - [ ] Accepts a new API key name
+  - [ ] Generates a new API key for the secret and returns it
+  - [ ] Agent can then use this key to interact with the wallet again
+- [ ] Alternatively, expose existing `POST /api/secrets/:id/api-keys` to agents who present a "re-link token"
+  - [ ] User generates a one-time re-link token from the frontend
+  - [ ] Agent provides re-link token + gets back a new API key
+- [ ] Frontend UI: "Generate Re-link Token" button on secret detail page
+  - [ ] Displays token once with copy-to-clipboard
+  - [ ] Token expires after use or after a time limit
+
+### 14.2 Agent-Side Flow
+- [ ] Agent receives new API key from user
+- [ ] Agent calls `GET /api/secrets/info` with new API key to verify access
+- [ ] Agent confirms it can see the wallet address and metadata
+
+---
+
+## Phase 15: Self-Custody (Wallet Ownership Transfer)
+
+### 15.1 Session Signer Setup
+- [ ] Add the EOA private key (already in DB) as a session signer with full permissions on the ZeroDev smart account
+  - [ ] Use ZeroDev session keys API: https://v3-docs.zerodev.app/use-wallets/use-session-keys
+  - [ ] This ensures the EOA can still operate the wallet after owner rotation
+
+### 15.2 RainbowKit Integration (Frontend)
+- [ ] Install and configure RainbowKit + wagmi + viem in the frontend
+- [ ] Add "Connect Wallet" button on the secret detail page for claimed EVM wallets
+- [ ] User connects their browser wallet (MetaMask, Rainbow, etc.)
+
+### 15.3 Ownership Transfer Flow
+- [ ] User clicks "Take Ownership" on a claimed wallet
+- [ ] User signs a message with their connected EOA to prove ownership
+- [ ] Backend verifies the signature
+- [ ] Backend rotates the ZeroDev smart account owner to the user's EOA
+  - [ ] Use ZeroDev update wallet owner API: https://v3-docs.zerodev.app/use-wallets/advanced/update-wallet-owner
+- [ ] Update secret metadata to reflect new owner EOA
+- [ ] The original EOA (in DB) continues as a session signer so SafeSkills can still execute policy-gated actions
+
+---
+
+## Phase 16: Polymarket Skill
+
+### 16.1 Polymarket Secret Type & API
+- [ ] Define new secret type: `polymarket_wallet`
+- [ ] Update Prisma schema if needed (PolymarketSecretMetadata or reuse existing patterns)
+- [ ] Implement Polymarket wallet creation:
+  - [ ] Generate EOA for Polymarket interactions
+  - [ ] Create ZeroDev smart account (or use EOA directly if Polymarket requires it)
+  - [ ] Return claim link to user so they can add funds
+- [ ] Implement Polymarket API integration:
+  - [ ] Place bets / buy outcome tokens
+  - [ ] Check positions
+  - [ ] Get market info
+- [ ] Apply EVM wallet-style policies:
+  - [ ] Spending limits (per bet, daily, weekly)
+  - [ ] Human approval for large bets
+  - [ ] Market allowlist (optional)
+
+### 16.2 Polymarket Skill Endpoints
+- [ ] `POST /api/skills/polymarket/bet` - Place a bet on a market
+- [ ] `GET /api/skills/polymarket/positions` - Get current positions
+- [ ] `GET /api/skills/polymarket/markets` - Search/get market info
+- [ ] `GET /api/skills/polymarket/balance` - Get wallet balance
+
+### 16.3 Polymarket Agent Skill Package
+- [ ] Create skill definition in `skills/` folder following existing skill patterns
+- [ ] Include tool definitions for agent consumption (bet, check positions, get markets)
+- [ ] Include setup instructions (create wallet, claim, fund)
+- [ ] Document policy options available for Polymarket wallets
