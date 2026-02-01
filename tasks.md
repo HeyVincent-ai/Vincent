@@ -552,19 +552,83 @@ Phase 12 complete:
 
 ---
 
-## Phase 15: Self-Custody (Wallet Ownership Transfer)
+## Phase 15: 0x Token Swaps
 
-### 15.1 Session Signer Setup
+### 15.1 0x API Integration
+- [ ] Add `ZEROX_API_KEY` to environment validation (`src/utils/env.ts`)
+- [ ] Create `src/skills/zeroEx.service.ts` with 0x Swap API v2 integration (reference: `swarm-vault/packages/server/src/lib/zeroEx.ts`)
+  - [ ] `getPrice()` - Get swap price preview (no tx data) via `/swap/allowance-holder/price`
+  - [ ] `getQuote()` - Get full swap quote with tx data via `/swap/allowance-holder/quote`
+  - [ ] Support all 0x-supported chains via `chainId` parameter:
+    - Ethereum (1), Sepolia (11155111)
+    - Polygon (137)
+    - Arbitrum (42161)
+    - Optimism (10)
+    - Base (8453)
+    - Avalanche (43114)
+    - BNB Chain (56)
+    - Linea (59144)
+    - Scroll (534352)
+    - Blast (81457)
+  - [ ] 0x API v2 headers: `0x-version: v2`, `0x-api-key`
+  - [ ] Slippage parameter in basis points (`slippageBps`)
+  - [ ] Native token detection (`0xEeee...eeee` address)
+  - [ ] ERC20 approval data builder for allowance target
+  - [ ] Type definitions for 0x API responses (price, quote, fees, route, issues)
+- [ ] Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
+
+### 15.2 Swap Skill Implementation
+- [ ] Create swap functions in `src/skills/evmWallet.service.ts` (or new `src/skills/swap.service.ts`)
+  - [ ] `previewSwap()` - Get price quote, check liquidity, return expected amounts
+  - [ ] `executeSwap()` - Full swap execution flow:
+    1. Get quote from 0x API
+    2. Check policies (spending limits, token allowlists, approval thresholds)
+    3. Build transaction array: [ERC20 approval if needed, swap tx]
+    4. Execute via ZeroDev smart account (batched calls)
+    5. Log transaction in TransactionLog
+    6. Record gas usage
+  - [ ] Policy integration: reuse existing policy checkers
+    - Spending limits apply to sell amount (converted to USD)
+    - Token allowlist checks both sell and buy tokens
+    - Address allowlist checks 0x exchange proxy address
+    - Approval threshold / require_approval for large swaps
+  - [ ] Handle native ETH swaps (send value with transaction)
+  - [ ] Handle ERC20 → ERC20 swaps (approve + swap)
+  - [ ] Handle ERC20 → native swaps
+
+### 15.3 Swap API Endpoints
+- [ ] `POST /api/skills/evm-wallet/swap/preview` - Preview swap (API key auth)
+  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [ ] Response: `{ buyAmount, minBuyAmount, route, gasEstimate, fees, liquidityAvailable }`
+- [ ] `POST /api/skills/evm-wallet/swap/execute` - Execute swap (API key auth)
+  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [ ] Response: `{ txHash, status, sellAmount, buyAmount, smartAccountAddress }`
+- [ ] Zod validation on all request bodies
+- [ ] Audit logging for swap preview and execution
+
+### 15.4 Frontend Swap UI (Optional)
+- [ ] Swap interface on SecretDetail page for EVM_WALLET secrets
+- [ ] Token selector (sell/buy) with common tokens per chain
+- [ ] Amount input with balance display
+- [ ] Preview showing expected output, price impact, route, fees
+- [ ] Execute button with confirmation
+- [ ] Transaction status display
+
+---
+
+## Phase 16: Self-Custody (Wallet Ownership Transfer)
+
+### 16.1 Session Signer Setup
 - [ ] Add the EOA private key (already in DB) as a session signer with full permissions on the ZeroDev smart account
   - [ ] Use ZeroDev session keys API: https://v3-docs.zerodev.app/use-wallets/use-session-keys
   - [ ] This ensures the EOA can still operate the wallet after owner rotation
 
-### 15.2 RainbowKit Integration (Frontend)
+### 16.2 RainbowKit Integration (Frontend)
 - [ ] Install and configure RainbowKit + wagmi + viem in the frontend
 - [ ] Add "Connect Wallet" button on the secret detail page for claimed EVM wallets
 - [ ] User connects their browser wallet (MetaMask, Rainbow, etc.)
 
-### 15.3 Ownership Transfer Flow
+### 16.3 Ownership Transfer Flow
 - [ ] User clicks "Take Ownership" on a claimed wallet
 - [ ] User signs a message with their connected EOA to prove ownership
 - [ ] Backend verifies the signature
@@ -575,9 +639,9 @@ Phase 12 complete:
 
 ---
 
-## Phase 16: Polymarket Skill
+## Phase 17: Polymarket Skill
 
-### 16.1 Polymarket Secret Type & API
+### 17.1 Polymarket Secret Type & API
 - [ ] Define new secret type: `polymarket_wallet`
 - [ ] Update Prisma schema if needed (PolymarketSecretMetadata or reuse existing patterns)
 - [ ] Implement Polymarket wallet creation:
@@ -593,13 +657,13 @@ Phase 12 complete:
   - [ ] Human approval for large bets
   - [ ] Market allowlist (optional)
 
-### 16.2 Polymarket Skill Endpoints
+### 17.2 Polymarket Skill Endpoints
 - [ ] `POST /api/skills/polymarket/bet` - Place a bet on a market
 - [ ] `GET /api/skills/polymarket/positions` - Get current positions
 - [ ] `GET /api/skills/polymarket/markets` - Search/get market info
 - [ ] `GET /api/skills/polymarket/balance` - Get wallet balance
 
-### 16.3 Polymarket Agent Skill Package
+### 17.3 Polymarket Agent Skill Package
 - [ ] Create skill definition in `skills/` folder following existing skill patterns
 - [ ] Include tool definitions for agent consumption (bet, check positions, get markets)
 - [ ] Include setup instructions (create wallet, claim, fund)

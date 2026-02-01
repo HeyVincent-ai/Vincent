@@ -895,4 +895,4 @@ All skill executions and admin actions are logged with full input/output data fo
 - `frontend/src/api.ts` - Added `generateRelinkToken()` API function
 - `frontend/src/pages/SecretDetail.tsx` - Added re-link token generation UI
 
-**Next up: Phase 15 - Self-Custody (Wallet Ownership Transfer)**
+**Next up: Phase 15 - 0x Token Swaps**
