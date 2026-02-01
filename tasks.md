@@ -406,27 +406,186 @@
 
 ---
 
-## Phase 11: Deployment & Operations
+## Phase 11: Wallet Balances (Alchemy Portfolio API)
 
-### 11.1 Railway Setup
+### 11.1 Alchemy Integration
+- [x] Add Alchemy SDK / HTTP client for Portfolio API
+- [x] Implement `GET /api/skills/evm-wallet/balances` endpoint (API key auth)
+  - [x] Call Alchemy `getTokenBalancesByAddress` to get all token balances across chains
+  - [x] Return aggregated balances (native + ERC20) with USD values
+- [x] Add balance retrieval to agent skill (so agents can query portfolio)
+
+### 11.2 Frontend Balances Display
+- [x] Show token balances on SecretDetail page for claimed wallets
+- [x] Display per-chain breakdown with token symbols, amounts, and USD values
+- [x] Auto-refresh balances periodically or on user action
+
+---
+
+## Phase 12: Reverse Claim Flow
+
+### 12.1 Agent Re-linking via New API Key
+- [x] Create endpoint: `POST /api/secrets/:id/relink-token`
+  - [x] Requires session auth (user must be the owner of the secret)
+  - [x] Generates a one-time re-link token (10-minute expiry, in-memory storage)
+  - [x] Returns token + expiry timestamp
+- [x] Create endpoint: `POST /api/secrets/relink`
+  - [x] Agent provides re-link token + optional API key name
+  - [x] Validates and consumes re-link token (one-time use)
+  - [x] Creates new API key for the secret and returns it + secret metadata
+- [x] Frontend UI: "Generate Re-link Token" button on secret detail page
+  - [x] Displays token once with copy-to-clipboard
+  - [x] Shows expiry time
+  - [x] Token expires after use or after 10 minutes
+- [x] Audit logging for both token generation and re-link events
+
+### 12.2 Agent-Side Flow
+- [x] Agent receives re-link token from user
+- [x] Agent calls `POST /api/secrets/relink` with token, gets API key + secret metadata
+- [x] Agent calls `GET /api/secrets/info` with new API key to verify access
+
+---
+
+## Phase 13: 0x Token Swaps
+
+### 13.1 0x API Integration
+- [ ] Add `ZEROX_API_KEY` to environment validation (`src/utils/env.ts`)
+- [ ] Create `src/skills/zeroEx.service.ts` with 0x Swap API v2 integration (reference: `swarm-vault/packages/server/src/lib/zeroEx.ts`)
+  - [ ] `getPrice()` - Get swap price preview (no tx data) via `/swap/allowance-holder/price`
+  - [ ] `getQuote()` - Get full swap quote with tx data via `/swap/allowance-holder/quote`
+  - [ ] Support all 0x-supported chains via `chainId` parameter:
+    - Ethereum (1), Sepolia (11155111)
+    - Polygon (137)
+    - Arbitrum (42161)
+    - Optimism (10)
+    - Base (8453)
+    - Avalanche (43114)
+    - BNB Chain (56)
+    - Linea (59144)
+    - Scroll (534352)
+    - Blast (81457)
+  - [ ] 0x API v2 headers: `0x-version: v2`, `0x-api-key`
+  - [ ] Slippage parameter in basis points (`slippageBps`)
+  - [ ] Native token detection (`0xEeee...eeee` address)
+  - [ ] ERC20 approval data builder for allowance target
+  - [ ] Type definitions for 0x API responses (price, quote, fees, route, issues)
+- [ ] Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
+
+### 13.2 Swap Skill Implementation
+- [ ] Create swap functions in `src/skills/evmWallet.service.ts` (or new `src/skills/swap.service.ts`)
+  - [ ] `previewSwap()` - Get price quote, check liquidity, return expected amounts
+  - [ ] `executeSwap()` - Full swap execution flow:
+    1. Get quote from 0x API
+    2. Check policies (spending limits, token allowlists, approval thresholds)
+    3. Build transaction array: [ERC20 approval if needed, swap tx]
+    4. Execute via ZeroDev smart account (batched calls)
+    5. Log transaction in TransactionLog
+    6. Record gas usage
+  - [ ] Policy integration: reuse existing policy checkers
+    - Spending limits apply to sell amount (converted to USD)
+    - Token allowlist checks both sell and buy tokens
+    - Address allowlist checks 0x exchange proxy address
+    - Approval threshold / require_approval for large swaps
+  - [ ] Handle native ETH swaps (send value with transaction)
+  - [ ] Handle ERC20 → ERC20 swaps (approve + swap)
+  - [ ] Handle ERC20 → native swaps
+
+### 13.3 Swap API Endpoints
+- [ ] `POST /api/skills/evm-wallet/swap/preview` - Preview swap (API key auth)
+  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [ ] Response: `{ buyAmount, minBuyAmount, route, gasEstimate, fees, liquidityAvailable }`
+- [ ] `POST /api/skills/evm-wallet/swap/execute` - Execute swap (API key auth)
+  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [ ] Response: `{ txHash, status, sellAmount, buyAmount, smartAccountAddress }`
+- [ ] Zod validation on all request bodies
+- [ ] Audit logging for swap preview and execution
+
+### 13.4 Frontend Swap UI (Optional)
+- [ ] Swap interface on SecretDetail page for EVM_WALLET secrets
+- [ ] Token selector (sell/buy) with common tokens per chain
+- [ ] Amount input with balance display
+- [ ] Preview showing expected output, price impact, route, fees
+- [ ] Execute button with confirmation
+- [ ] Transaction status display
+
+---
+
+## Phase 14: Self-Custody (Wallet Ownership Transfer)
+
+### 14.1 Session Signer Setup
+- [ ] Add the EOA private key (already in DB) as a session signer with full permissions on the ZeroDev smart account
+  - [ ] Use ZeroDev session keys API: https://v3-docs.zerodev.app/use-wallets/use-session-keys
+  - [ ] This ensures the EOA can still operate the wallet after owner rotation
+
+### 14.2 RainbowKit Integration (Frontend)
+- [ ] Install and configure RainbowKit + wagmi + viem in the frontend
+- [ ] Add "Connect Wallet" button on the secret detail page for claimed EVM wallets
+- [ ] User connects their browser wallet (MetaMask, Rainbow, etc.)
+
+### 14.3 Ownership Transfer Flow
+- [ ] User clicks "Take Ownership" on a claimed wallet
+- [ ] User signs a message with their connected EOA to prove ownership
+- [ ] Backend verifies the signature
+- [ ] Backend rotates the ZeroDev smart account owner to the user's EOA
+  - [ ] Use ZeroDev update wallet owner API: https://v3-docs.zerodev.app/use-wallets/advanced/update-wallet-owner
+- [ ] Update secret metadata to reflect new owner EOA
+- [ ] The original EOA (in DB) continues as a session signer so SafeSkills can still execute policy-gated actions
+
+---
+
+## Phase 15: Polymarket Skill
+
+### 15.1 Polymarket Secret Type & API
+- [ ] Define new secret type: `polymarket_wallet`
+- [ ] Update Prisma schema if needed (PolymarketSecretMetadata or reuse existing patterns)
+- [ ] Implement Polymarket wallet creation:
+  - [ ] Generate EOA for Polymarket interactions
+  - [ ] Create ZeroDev smart account (or use EOA directly if Polymarket requires it)
+  - [ ] Return claim link to user so they can add funds
+- [ ] Implement Polymarket API integration:
+  - [ ] Place bets / buy outcome tokens
+  - [ ] Check positions
+  - [ ] Get market info
+- [ ] Apply EVM wallet-style policies:
+  - [ ] Spending limits (per bet, daily, weekly)
+  - [ ] Human approval for large bets
+  - [ ] Market allowlist (optional)
+
+### 15.2 Polymarket Skill Endpoints
+- [ ] `POST /api/skills/polymarket/bet` - Place a bet on a market
+- [ ] `GET /api/skills/polymarket/positions` - Get current positions
+- [ ] `GET /api/skills/polymarket/markets` - Search/get market info
+- [ ] `GET /api/skills/polymarket/balance` - Get wallet balance
+
+### 15.3 Polymarket Agent Skill Package
+- [ ] Create skill definition in `skills/` folder following existing skill patterns
+- [ ] Include tool definitions for agent consumption (bet, check positions, get markets)
+- [ ] Include setup instructions (create wallet, claim, fund)
+- [ ] Document policy options available for Polymarket wallets
+
+---
+
+## Phase 16: Deployment & Operations
+
+### 16.1 Railway Setup
 - [ ] Create Railway project
 - [ ] Add PostgreSQL service
 - [ ] Set up environment variables
 - [ ] Configure build and start commands
 - [ ] Set up custom domain + SSL
 
-### 11.2 CI/CD
+### 16.2 CI/CD
 - [ ] Configure Railway auto-deploy from GitHub
 - [ ] Run tests on PR (GitHub Actions)
 - [ ] Auto-deploy main branch to production
 
-### 11.3 Monitoring
+### 16.3 Monitoring
 - [ ] Set up error tracking (Sentry)
 - [ ] Configure uptime monitoring
 - [ ] Set up alerts for failures
 - [ ] Add metrics/logging dashboard
 
-### 11.4 Security Hardening
+### 16.4 Security Hardening
 - [ ] Verify PostgreSQL encryption at rest is enabled
 - [ ] Penetration testing checklist
 - [ ] Rate limiting tuning
@@ -435,51 +594,23 @@
 
 ---
 
-## Phase 12: Documentation & Polish
+## Phase 17: Documentation & Polish
 
-### 12.1 API Documentation
+### 17.1 API Documentation
 - [ ] OpenAPI/Swagger spec
 - [ ] API reference documentation
 - [ ] Authentication guide
 
-### 12.2 Integration Guides
+### 17.2 Integration Guides
 - [ ] Agent integration guide (how to use as an AI agent)
 - [ ] Policy configuration guide
 - [ ] Telegram setup guide
 - [ ] Billing and subscription guide
 
-### 12.3 Code Quality
+### 17.3 Code Quality
 - [ ] Add comprehensive tests (unit + integration)
 - [ ] Code review and refactoring
 - [ ] Performance optimization
-
----
-
-## Milestones
-
-### MVP (Minimum Viable Product)
-Phases 1-8 complete:
-- Agent can create a wallet and get API key (we generate the secret)
-- Agent can execute transfers and transactions (testnets free, mainnets require subscription)
-- Gas abstraction via ZeroDev paymaster
-- Basic policies work (allowlists, spending limits)
-- Telegram approvals functional
-- Stripe subscription for mainnet access ($10/month)
-- User can claim and configure secrets via API/basic UI
-
-### Beta
-Phases 9-11 complete:
-- Full frontend application with billing UI
-- Comprehensive audit logs viewable by admin
-- Gas usage tracking and monthly invoicing
-- Deployed to Railway
-- Basic monitoring
-
-### 1.0 Release
-Phase 12 complete:
-- Full documentation
-- Comprehensive tests
-- Security audit passed
 
 ---
 
@@ -509,162 +640,3 @@ Phase 12 complete:
 | Unauthorized access | Secrets misused | Comprehensive audit logging, API key revocation |
 | Stripe webhook failure | Billing out of sync | Idempotent handlers, webhook retry, manual reconciliation |
 | Gas cost spikes | Unexpected bills for users | Usage alerts, spending caps, clear pricing display |
-
----
-
-## Phase 13: Wallet Balances (Alchemy Portfolio API)
-
-### 13.1 Alchemy Integration
-- [x] Add Alchemy SDK / HTTP client for Portfolio API
-- [x] Implement `GET /api/skills/evm-wallet/balances` endpoint (API key auth)
-  - [x] Call Alchemy `getTokenBalancesByAddress` to get all token balances across chains
-  - [x] Return aggregated balances (native + ERC20) with USD values
-- [x] Add balance retrieval to agent skill (so agents can query portfolio)
-
-### 13.2 Frontend Balances Display
-- [x] Show token balances on SecretDetail page for claimed wallets
-- [x] Display per-chain breakdown with token symbols, amounts, and USD values
-- [x] Auto-refresh balances periodically or on user action
-
----
-
-## Phase 14: Reverse Claim Flow
-
-### 14.1 Agent Re-linking via New API Key
-- [x] Create endpoint: `POST /api/secrets/:id/relink-token`
-  - [x] Requires session auth (user must be the owner of the secret)
-  - [x] Generates a one-time re-link token (10-minute expiry, in-memory storage)
-  - [x] Returns token + expiry timestamp
-- [x] Create endpoint: `POST /api/secrets/relink`
-  - [x] Agent provides re-link token + optional API key name
-  - [x] Validates and consumes re-link token (one-time use)
-  - [x] Creates new API key for the secret and returns it + secret metadata
-- [x] Frontend UI: "Generate Re-link Token" button on secret detail page
-  - [x] Displays token once with copy-to-clipboard
-  - [x] Shows expiry time
-  - [x] Token expires after use or after 10 minutes
-- [x] Audit logging for both token generation and re-link events
-
-### 14.2 Agent-Side Flow
-- [x] Agent receives re-link token from user
-- [x] Agent calls `POST /api/secrets/relink` with token, gets API key + secret metadata
-- [x] Agent calls `GET /api/secrets/info` with new API key to verify access
-
----
-
-## Phase 15: 0x Token Swaps
-
-### 15.1 0x API Integration
-- [ ] Add `ZEROX_API_KEY` to environment validation (`src/utils/env.ts`)
-- [ ] Create `src/skills/zeroEx.service.ts` with 0x Swap API v2 integration (reference: `swarm-vault/packages/server/src/lib/zeroEx.ts`)
-  - [ ] `getPrice()` - Get swap price preview (no tx data) via `/swap/allowance-holder/price`
-  - [ ] `getQuote()` - Get full swap quote with tx data via `/swap/allowance-holder/quote`
-  - [ ] Support all 0x-supported chains via `chainId` parameter:
-    - Ethereum (1), Sepolia (11155111)
-    - Polygon (137)
-    - Arbitrum (42161)
-    - Optimism (10)
-    - Base (8453)
-    - Avalanche (43114)
-    - BNB Chain (56)
-    - Linea (59144)
-    - Scroll (534352)
-    - Blast (81457)
-  - [ ] 0x API v2 headers: `0x-version: v2`, `0x-api-key`
-  - [ ] Slippage parameter in basis points (`slippageBps`)
-  - [ ] Native token detection (`0xEeee...eeee` address)
-  - [ ] ERC20 approval data builder for allowance target
-  - [ ] Type definitions for 0x API responses (price, quote, fees, route, issues)
-- [ ] Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
-
-### 15.2 Swap Skill Implementation
-- [ ] Create swap functions in `src/skills/evmWallet.service.ts` (or new `src/skills/swap.service.ts`)
-  - [ ] `previewSwap()` - Get price quote, check liquidity, return expected amounts
-  - [ ] `executeSwap()` - Full swap execution flow:
-    1. Get quote from 0x API
-    2. Check policies (spending limits, token allowlists, approval thresholds)
-    3. Build transaction array: [ERC20 approval if needed, swap tx]
-    4. Execute via ZeroDev smart account (batched calls)
-    5. Log transaction in TransactionLog
-    6. Record gas usage
-  - [ ] Policy integration: reuse existing policy checkers
-    - Spending limits apply to sell amount (converted to USD)
-    - Token allowlist checks both sell and buy tokens
-    - Address allowlist checks 0x exchange proxy address
-    - Approval threshold / require_approval for large swaps
-  - [ ] Handle native ETH swaps (send value with transaction)
-  - [ ] Handle ERC20 → ERC20 swaps (approve + swap)
-  - [ ] Handle ERC20 → native swaps
-
-### 15.3 Swap API Endpoints
-- [ ] `POST /api/skills/evm-wallet/swap/preview` - Preview swap (API key auth)
-  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
-  - [ ] Response: `{ buyAmount, minBuyAmount, route, gasEstimate, fees, liquidityAvailable }`
-- [ ] `POST /api/skills/evm-wallet/swap/execute` - Execute swap (API key auth)
-  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
-  - [ ] Response: `{ txHash, status, sellAmount, buyAmount, smartAccountAddress }`
-- [ ] Zod validation on all request bodies
-- [ ] Audit logging for swap preview and execution
-
-### 15.4 Frontend Swap UI (Optional)
-- [ ] Swap interface on SecretDetail page for EVM_WALLET secrets
-- [ ] Token selector (sell/buy) with common tokens per chain
-- [ ] Amount input with balance display
-- [ ] Preview showing expected output, price impact, route, fees
-- [ ] Execute button with confirmation
-- [ ] Transaction status display
-
----
-
-## Phase 16: Self-Custody (Wallet Ownership Transfer)
-
-### 16.1 Session Signer Setup
-- [ ] Add the EOA private key (already in DB) as a session signer with full permissions on the ZeroDev smart account
-  - [ ] Use ZeroDev session keys API: https://v3-docs.zerodev.app/use-wallets/use-session-keys
-  - [ ] This ensures the EOA can still operate the wallet after owner rotation
-
-### 16.2 RainbowKit Integration (Frontend)
-- [ ] Install and configure RainbowKit + wagmi + viem in the frontend
-- [ ] Add "Connect Wallet" button on the secret detail page for claimed EVM wallets
-- [ ] User connects their browser wallet (MetaMask, Rainbow, etc.)
-
-### 16.3 Ownership Transfer Flow
-- [ ] User clicks "Take Ownership" on a claimed wallet
-- [ ] User signs a message with their connected EOA to prove ownership
-- [ ] Backend verifies the signature
-- [ ] Backend rotates the ZeroDev smart account owner to the user's EOA
-  - [ ] Use ZeroDev update wallet owner API: https://v3-docs.zerodev.app/use-wallets/advanced/update-wallet-owner
-- [ ] Update secret metadata to reflect new owner EOA
-- [ ] The original EOA (in DB) continues as a session signer so SafeSkills can still execute policy-gated actions
-
----
-
-## Phase 17: Polymarket Skill
-
-### 17.1 Polymarket Secret Type & API
-- [ ] Define new secret type: `polymarket_wallet`
-- [ ] Update Prisma schema if needed (PolymarketSecretMetadata or reuse existing patterns)
-- [ ] Implement Polymarket wallet creation:
-  - [ ] Generate EOA for Polymarket interactions
-  - [ ] Create ZeroDev smart account (or use EOA directly if Polymarket requires it)
-  - [ ] Return claim link to user so they can add funds
-- [ ] Implement Polymarket API integration:
-  - [ ] Place bets / buy outcome tokens
-  - [ ] Check positions
-  - [ ] Get market info
-- [ ] Apply EVM wallet-style policies:
-  - [ ] Spending limits (per bet, daily, weekly)
-  - [ ] Human approval for large bets
-  - [ ] Market allowlist (optional)
-
-### 17.2 Polymarket Skill Endpoints
-- [ ] `POST /api/skills/polymarket/bet` - Place a bet on a market
-- [ ] `GET /api/skills/polymarket/positions` - Get current positions
-- [ ] `GET /api/skills/polymarket/markets` - Search/get market info
-- [ ] `GET /api/skills/polymarket/balance` - Get wallet balance
-
-### 17.3 Polymarket Agent Skill Package
-- [ ] Create skill definition in `skills/` folder following existing skill patterns
-- [ ] Include tool definitions for agent consumption (bet, check positions, get markets)
-- [ ] Include setup instructions (create wallet, claim, fund)
-- [ ] Document policy options available for Polymarket wallets
