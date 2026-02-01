@@ -5,6 +5,7 @@ import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
 import BalancesDisplay from '../components/BalancesDisplay';
+import SwapInterface from '../components/SwapInterface';
 
 interface SecretData {
   id: string;
@@ -95,6 +96,12 @@ export default function SecretDetail() {
           )}
         </dl>
       </div>
+
+      {secret.type === 'EVM_WALLET' && (
+        <div className="mb-6">
+          <SwapInterface secretId={secret.id} />
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Re-link Agent</h3>

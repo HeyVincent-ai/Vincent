@@ -80,6 +80,12 @@ export const getSecretBalances = (secretId: string, chainIds?: number[]) =>
     params: chainIds ? { chainIds: chainIds.join(',') } : undefined,
   });
 
+// Swap
+export const previewSwap = (secretId: string, data: { sellToken: string; buyToken: string; sellAmount: string; chainId: number; slippageBps?: number }) =>
+  api.post(`/secrets/${secretId}/swap/preview`, data);
+export const executeSwap = (secretId: string, data: { sellToken: string; buyToken: string; sellAmount: string; chainId: number; slippageBps?: number }) =>
+  api.post(`/secrets/${secretId}/swap/execute`, data);
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>

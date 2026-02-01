@@ -1,11 +1,11 @@
 ---
 name: Agent Wallet
-description: The agent's wallet. Use this skill to create a wallet the agent can safely use for EVM chains, without ever exposing the private keys.
+description: The agent's wallet. Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction.
 ---
 
-# Agent Wallet - Give Your Agent a Wallet with Policies
+# Agent Wallet
 
-AgentWallet gives your AI agent its own blockchain wallet -- without ever exposing private keys. You create a wallet, set spending policies, and your agent can transfer tokens and interact with smart contracts within the boundaries you define.
+Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction without ever exposing private keys to the agent. Create a wallet, set spending policies, and your agent can transfer tokens, do swaps, and interact with smart contracts within the boundaries you define.
 
 **The agent never sees the private key.** All transactions are executed server-side through a smart account. The wallet owner controls what the agent can do via configurable policies.
 
