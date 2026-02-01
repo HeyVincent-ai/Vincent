@@ -74,7 +74,7 @@ export async function executeApprovedTransaction(
       const sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
       const sellAmountWei = parseUnits(requestData.sellAmount as string, sellAmountDecimals).toString();
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
-      console.log(`getting quote with data`, { sellToken, buyToken, sellAmount, takerAddress, chainId, slippageBps, sellAmountWei });
+      console.log(`getting quote with data`, { sellToken, buyToken, sellAmountWei, takerAddress, chainId, slippageBps });
       const quote = await zeroExService.getQuote({
         sellToken,
         buyToken,
