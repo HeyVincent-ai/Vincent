@@ -32,7 +32,7 @@ curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}
   -d '{
     "type": "EVM_WALLET",
     "memo": "My agent wallet",
-    "chainId": 11155111
+    "chainId": 84532
   }'
 ```
 
@@ -86,7 +86,43 @@ curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}
   }'
 ```
 
-### 5. Send Arbitrary Transaction
+### 5. Swap Tokens
+
+Swap one token for another using DEX liquidity (powered by 0x).
+
+```bash
+# Preview a swap (no execution, just pricing)
+curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}/api/skills/evm-wallet/swap/preview" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sellToken": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    "buyToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "sellAmount": "0.1",
+    "chainId": 1
+  }'
+
+# Execute a swap
+curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}/api/skills/evm-wallet/swap/execute" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sellToken": "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+    "buyToken": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "sellAmount": "0.1",
+    "chainId": 1,
+    "slippageBps": 100
+  }'
+```
+
+- `sellToken` / `buyToken`: Token contract addresses. Use `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` for native ETH.
+- `sellAmount`: Human-readable amount to sell (e.g. `"0.1"` for 0.1 ETH).
+- `chainId`: The chain to swap on (1 = Ethereum, 137 = Polygon, 42161 = Arbitrum, 10 = Optimism, 8453 = Base, etc.).
+- `slippageBps`: Optional slippage tolerance in basis points (100 = 1%). Defaults to 100.
+
+The preview endpoint returns expected buy amount, route info, and fees without executing. The execute endpoint performs the actual swap through the smart account, handling ERC20 approvals automatically.
+
+### 6. Send Arbitrary Transaction
 
 Interact with any smart contract by sending custom calldata.
 
@@ -123,6 +159,6 @@ If no policies are set, all actions are allowed by default. Once the owner claim
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
 - Always store the API key from wallet creation -- it's the only way to authenticate.
 - Always share the claim URL with the user after creating a wallet.
-- The default chain ID `8453` is Ethereum Sepolia testnet. Adjust as needed.
+- The default chain ID is `84532` (Base Sepolia testnet). Adjust as needed.
 - If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the claim URL.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.

@@ -75,7 +75,7 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     // Use Sepolia for counterfactual address derivation. With ZeroDev, the
     // smart account address is the same on all chains, so the chain used
     // here doesn't matter — the wallet works on any chain.
-    const derivationChainId = 11155111; // Sepolia
+    const derivationChainId = 84532; // Base Sepolia
 
     // Create ZeroDev smart account if configured, otherwise use placeholder
     let smartAccountAddress: string;
