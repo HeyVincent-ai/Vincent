@@ -154,6 +154,32 @@ The wallet owner controls what the agent can do by setting policies via the clai
 
 If no policies are set, all actions are allowed by default. Once the owner claims the wallet and adds policies, the agent operates within those boundaries.
 
+## Re-linking (Recovering API Access)
+
+If the agent loses its API key, the wallet owner can generate a **re-link token** from the frontend. The agent then exchanges this token for a new API key.
+
+**How it works:**
+1. The user generates a re-link token from the wallet detail page in the frontend
+2. The user gives the token to the agent (e.g. by pasting it in chat)
+3. The agent calls the re-link endpoint to exchange the token for a new API key
+
+```bash
+curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}/api/secrets/relink" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "relinkToken": "<TOKEN_FROM_USER>",
+    "apiKeyName": "Re-linked API Key"
+  }'
+```
+
+Response includes:
+- `secret` -- the wallet metadata (id, type, address, chainId, etc.)
+- `apiKey.key` -- the new API key to use as Bearer token for all future requests
+
+**Important:** Re-link tokens are one-time use and expire after 10 minutes. No authentication is required on this endpoint -- the token itself is the authorization.
+
+If a user tells you they have a re-link token, use this endpoint to regain access to the wallet. Store the returned API key and use it for all subsequent requests.
+
 ## Important Notes
 
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
