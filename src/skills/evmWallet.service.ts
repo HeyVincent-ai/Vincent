@@ -789,8 +789,11 @@ async function handlePolicyVerdict(
         sellToken: input.sellToken,
         buyToken: input.buyToken,
         sellAmount: input.sellAmount,
+        sellAmountWei: quote.sellAmount,
         chainId: input.chainId,
+        slippageBps: input.slippageBps,
         usdValue,
+        buyAmount: quote.buyAmount,
       },
       status: policyResult.verdict === 'deny' ? 'DENIED' : 'PENDING',
       responseData: policyResult.verdict === 'deny'
