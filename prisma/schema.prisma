@@ -98,7 +98,7 @@ enum PolicyType {
   SPENDING_LIMIT_DAILY
   SPENDING_LIMIT_WEEKLY
   REQUIRE_APPROVAL
-  APPROVAL_THRESHOLD
+  APPROVAL_THRESHOLD // @deprecated - use spending limit with approvalOverride instead
 }
 
 // Policies for governing secret usage

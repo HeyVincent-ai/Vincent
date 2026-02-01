@@ -117,6 +117,26 @@ async function checkApprovalPolicy(
   }
 }
 
+// ---- Helpers for approval override ----
+
+/**
+ * If a policy has approvalOverride enabled, convert a deny verdict to require_approval.
+ */
+function applyApprovalOverride(
+  config: { approvalOverride?: boolean },
+  result: PolicyCheckResult
+): PolicyCheckResult {
+  if (config.approvalOverride && result.verdict === 'deny') {
+    return {
+      verdict: 'require_approval',
+      triggeredPolicy: result.triggeredPolicy
+        ? { ...result.triggeredPolicy, reason: `${result.triggeredPolicy.reason} (requires approval)` }
+        : undefined,
+    };
+  }
+  return result;
+}
+
 // ---- Address Allowlist ----
 
 function checkAddressAllowlist(
@@ -127,14 +147,14 @@ function checkAddressAllowlist(
   const allowed = config.addresses.map((a) => a.toLowerCase());
 
   if (!allowed.includes(action.to.toLowerCase())) {
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: `Address ${action.to} is not in the allowlist`,
       },
-    };
+    });
   }
   return null;
 }
@@ -152,14 +172,14 @@ function checkFunctionAllowlist(
   const allowed = config.selectors.map((s) => s.toLowerCase());
 
   if (!allowed.includes(action.functionSelector.toLowerCase())) {
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: `Function selector ${action.functionSelector} is not in the allowlist`,
       },
-    };
+    });
   }
   return null;
 }
@@ -177,14 +197,14 @@ function checkTokenAllowlist(
   const allowed = config.tokens.map((t) => t.toLowerCase());
 
   if (!allowed.includes(action.tokenAddress.toLowerCase())) {
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: `Token ${action.tokenAddress} is not in the allowlist`,
       },
-    };
+    });
   }
   return null;
 }
@@ -199,26 +219,26 @@ async function checkSpendingLimitPerTx(
   const usdValue = await getActionUsdValue(action);
 
   if (usdValue === null) {
-    // Can't determine price → deny for safety
-    return {
+    // Can't determine price → deny (or require_approval if override enabled)
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: 'Unable to determine USD value of transaction',
       },
-    };
+    });
   }
 
   if (usdValue > config.maxUsd) {
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: `Transaction value $${usdValue.toFixed(2)} exceeds per-tx limit of $${config.maxUsd.toFixed(2)}`,
       },
-    };
+    });
   }
 
   return null;
@@ -235,14 +255,14 @@ async function checkSpendingLimitWindow(
   const usdValue = await getActionUsdValue(action);
 
   if (usdValue === null) {
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: 'Unable to determine USD value of transaction',
       },
-    };
+    });
   }
 
   // Sum executed transactions in the rolling window
@@ -267,14 +287,14 @@ async function checkSpendingLimitWindow(
 
   if (totalSpent + usdValue > config.maxUsd) {
     const windowLabel = windowMs <= 24 * 60 * 60 * 1000 ? 'daily' : 'weekly';
-    return {
+    return applyApprovalOverride(config, {
       verdict: 'deny',
       triggeredPolicy: {
         id: policy.id,
         type: policy.policyType,
         reason: `Adding $${usdValue.toFixed(2)} would exceed ${windowLabel} limit of $${config.maxUsd.toFixed(2)} (already spent $${totalSpent.toFixed(2)})`,
       },
-    };
+    });
   }
 
   return null;

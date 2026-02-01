@@ -9,24 +9,29 @@ import { AppError } from '../api/middleware/errorHandler';
 
 const addressListSchema = z.object({
   addresses: z.array(z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address')).min(1),
+  approvalOverride: z.boolean().optional().default(false),
 });
 
 const functionListSchema = z.object({
   selectors: z.array(z.string().regex(/^0x[a-fA-F0-9]{8}$/, 'Invalid 4-byte function selector')).min(1),
+  approvalOverride: z.boolean().optional().default(false),
 });
 
 const tokenListSchema = z.object({
   tokens: z.array(z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid token address')).min(1),
+  approvalOverride: z.boolean().optional().default(false),
 });
 
 const spendingLimitSchema = z.object({
   maxUsd: z.number().positive('Spending limit must be positive'),
+  approvalOverride: z.boolean().optional().default(false),
 });
 
 const requireApprovalSchema = z.object({
   enabled: z.boolean(),
 });
 
+// @deprecated - use spending limit policies with approvalOverride instead
 const approvalThresholdSchema = z.object({
   thresholdUsd: z.number().positive('Threshold must be positive'),
 });
@@ -69,11 +74,12 @@ export interface PolicyPublicData {
 }
 
 // Config types for use by checkers
-export interface AddressAllowlistConfig { addresses: string[]; }
-export interface FunctionAllowlistConfig { selectors: string[]; }
-export interface TokenAllowlistConfig { tokens: string[]; }
-export interface SpendingLimitConfig { maxUsd: number; }
+export interface AddressAllowlistConfig { addresses: string[]; approvalOverride?: boolean; }
+export interface FunctionAllowlistConfig { selectors: string[]; approvalOverride?: boolean; }
+export interface TokenAllowlistConfig { tokens: string[]; approvalOverride?: boolean; }
+export interface SpendingLimitConfig { maxUsd: number; approvalOverride?: boolean; }
 export interface RequireApprovalConfig { enabled: boolean; }
+/** @deprecated Use spending limit policies with approvalOverride instead */
 export interface ApprovalThresholdConfig { thresholdUsd: number; }
 
 // ============================================================

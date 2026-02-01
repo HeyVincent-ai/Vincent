@@ -8,16 +8,90 @@ interface Policy {
   createdAt: string;
 }
 
-const POLICY_TYPES = [
-  { value: 'ADDRESS_ALLOWLIST', label: 'Address Allowlist', configFields: [{ key: 'addresses', type: 'array', placeholder: '0x...' }] },
-  { value: 'FUNCTION_ALLOWLIST', label: 'Function Allowlist', configFields: [{ key: 'selectors', type: 'array', placeholder: '0x12345678' }] },
-  { value: 'TOKEN_ALLOWLIST', label: 'Token Allowlist', configFields: [{ key: 'tokens', type: 'array', placeholder: '0x... (token address)' }] },
-  { value: 'SPENDING_LIMIT_PER_TX', label: 'Spending Limit Per Tx', configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per tx' }] },
-  { value: 'SPENDING_LIMIT_DAILY', label: 'Daily Spending Limit', configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per day' }] },
-  { value: 'SPENDING_LIMIT_WEEKLY', label: 'Weekly Spending Limit', configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per week' }] },
-  { value: 'REQUIRE_APPROVAL', label: 'Require Approval', configFields: [{ key: 'enabled', type: 'boolean' }] },
-  { value: 'APPROVAL_THRESHOLD', label: 'Approval Threshold', configFields: [{ key: 'thresholdUsd', type: 'number', placeholder: 'USD threshold' }] },
+interface ConfigField {
+  key: string;
+  type: 'array' | 'number' | 'boolean';
+  placeholder?: string;
+}
+
+interface PolicyTypeDef {
+  value: string;
+  label: string;
+  description: string;
+  configFields: ConfigField[];
+  supportsApprovalOverride: boolean;
+}
+
+const POLICY_TYPES: PolicyTypeDef[] = [
+  {
+    value: 'ADDRESS_ALLOWLIST',
+    label: 'Address Allowlist',
+    description: 'Only allow transactions to specific addresses',
+    configFields: [{ key: 'addresses', type: 'array', placeholder: '0x...' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'FUNCTION_ALLOWLIST',
+    label: 'Function Allowlist',
+    description: 'Only allow specific contract function calls',
+    configFields: [{ key: 'selectors', type: 'array', placeholder: '0x12345678' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'TOKEN_ALLOWLIST',
+    label: 'Token Allowlist',
+    description: 'Only allow transfers of specific tokens',
+    configFields: [{ key: 'tokens', type: 'array', placeholder: '0x... (token address)' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'SPENDING_LIMIT_PER_TX',
+    label: 'Spending Limit Per Tx',
+    description: 'Maximum USD value per transaction',
+    configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per tx' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'SPENDING_LIMIT_DAILY',
+    label: 'Daily Spending Limit',
+    description: 'Maximum USD spent in a rolling 24-hour window',
+    configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per day' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'SPENDING_LIMIT_WEEKLY',
+    label: 'Weekly Spending Limit',
+    description: 'Maximum USD spent in a rolling 7-day window',
+    configFields: [{ key: 'maxUsd', type: 'number', placeholder: 'Max USD per week' }],
+    supportsApprovalOverride: true,
+  },
+  {
+    value: 'REQUIRE_APPROVAL',
+    label: 'Require Human Approval',
+    description: 'All transactions require human approval via Telegram',
+    configFields: [{ key: 'enabled', type: 'boolean' }],
+    supportsApprovalOverride: false,
+  },
 ];
+
+function formatPolicyConfig(policyType: string, config: Record<string, unknown>): string {
+  const typeDef = POLICY_TYPES.find((t) => t.value === policyType);
+  if (!typeDef) return JSON.stringify(config);
+
+  const field = typeDef.configFields[0];
+  const val = config[field.key];
+
+  if (field.type === 'array' && Array.isArray(val)) {
+    return val.join(', ');
+  }
+  if (field.type === 'number' && typeof val === 'number') {
+    return `$${val.toLocaleString()}`;
+  }
+  if (field.type === 'boolean') {
+    return val ? 'Enabled' : 'Disabled';
+  }
+  return JSON.stringify(val);
+}
 
 export default function PolicyManager({ secretId }: { secretId: string }) {
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -25,6 +99,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [selectedType, setSelectedType] = useState(POLICY_TYPES[0].value);
   const [configInput, setConfigInput] = useState('');
+  const [approvalOverride, setApprovalOverride] = useState(false);
 
   const load = () => {
     listPolicies(secretId)
@@ -38,7 +113,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
   const typeDef = POLICY_TYPES.find((t) => t.value === selectedType)!;
 
   const handleCreate = async () => {
-    let config: unknown;
+    let config: Record<string, unknown>;
     const field = typeDef.configFields[0];
 
     if (field.type === 'array') {
@@ -49,10 +124,15 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
       config = { [field.key]: true };
     }
 
+    if (typeDef.supportsApprovalOverride && approvalOverride) {
+      config.approvalOverride = true;
+    }
+
     try {
       await createPolicy(secretId, selectedType, config);
       setShowForm(false);
       setConfigInput('');
+      setApprovalOverride(false);
       load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Failed to create policy';
@@ -70,34 +150,39 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
     }
   };
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
+  // Filter out deprecated APPROVAL_THRESHOLD from display
+  const visiblePolicies = policies.filter((p) => p.policyType !== 'APPROVAL_THRESHOLD');
+
+  if (loading) return <p className="text-gray-500 text-sm">Loading policies...</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">Policies</h2>
+        <h2 className="text-lg font-semibold text-gray-800">Policies</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700"
+          className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition-colors"
         >
           {showForm ? 'Cancel' : 'Add Policy'}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-gray-50 border rounded-lg p-4 mb-4">
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
           <div className="mb-3">
             <label className="block text-sm font-medium text-gray-700 mb-1">Policy Type</label>
             <select
               value={selectedType}
-              onChange={(e) => { setSelectedType(e.target.value); setConfigInput(''); }}
+              onChange={(e) => { setSelectedType(e.target.value); setConfigInput(''); setApprovalOverride(false); }}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
             >
               {POLICY_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">{typeDef.description}</p>
           </div>
+
           {typeDef.configFields[0].type !== 'boolean' && (
             <div className="mb-3">
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -106,30 +191,72 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
               <input
                 value={configInput}
                 onChange={(e) => setConfigInput(e.target.value)}
-                placeholder={'placeholder' in typeDef.configFields[0] ? typeDef.configFields[0].placeholder : ''}
+                placeholder={typeDef.configFields[0].placeholder || ''}
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               />
             </div>
           )}
-          <button onClick={handleCreate} className="text-sm bg-green-600 text-white px-3 py-1.5 rounded hover:bg-green-700">
-            Create
+
+          {typeDef.supportsApprovalOverride && (
+            <div className="mb-3 flex items-start gap-2">
+              <input
+                type="checkbox"
+                id="approvalOverride"
+                checked={approvalOverride}
+                onChange={(e) => setApprovalOverride(e.target.checked)}
+                className="mt-0.5 rounded border-gray-300"
+              />
+              <label htmlFor="approvalOverride" className="text-sm">
+                <span className="font-medium text-gray-700">Approval override</span>
+                <p className="text-xs text-gray-500">
+                  Instead of blocking, require human approval when this policy is violated
+                </p>
+              </label>
+            </div>
+          )}
+
+          <button onClick={handleCreate} className="text-sm bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 transition-colors">
+            Create Policy
           </button>
         </div>
       )}
 
-      {policies.length === 0 ? (
-        <p className="text-gray-500 text-sm">No policies configured. All actions are allowed by default.</p>
+      {visiblePolicies.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <p className="text-gray-500 text-sm">No policies configured. All actions are allowed by default.</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {policies.map((p) => (
-            <div key={p.id} className="bg-white border rounded-lg p-4 flex items-center justify-between">
-              <div>
-                <span className="font-medium text-sm">{POLICY_TYPES.find((t) => t.value === p.policyType)?.label || p.policyType}</span>
-                <pre className="text-xs text-gray-500 mt-1">{JSON.stringify(p.policyConfig, null, 2)}</pre>
+          {visiblePolicies.map((p) => {
+            const pTypeDef = POLICY_TYPES.find((t) => t.value === p.policyType);
+            const hasOverride = p.policyConfig.approvalOverride === true;
+
+            return (
+              <div key={p.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm text-gray-900">
+                      {pTypeDef?.label || p.policyType}
+                    </span>
+                    {hasOverride && (
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
+                        approval override
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {formatPolicyConfig(p.policyType, p.policyConfig)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDelete(p.id)}
+                  className="text-sm text-red-500 hover:text-red-700 ml-4 shrink-0 transition-colors"
+                >
+                  Delete
+                </button>
               </div>
-              <button onClick={() => handleDelete(p.id)} className="text-sm text-red-600 hover:text-red-800">Delete</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
