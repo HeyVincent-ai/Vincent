@@ -26,7 +26,7 @@ export default function SecretDetail() {
     if (!id) return;
     getSecret(id)
       .then((res) => setSecret(res.data.data.secret))
-      .catch(() => navigate('/'))
+      .catch(() => navigate('/dashboard'))
       .finally(() => setLoading(false));
   }, [id, navigate]);
 
@@ -34,7 +34,7 @@ export default function SecretDetail() {
     if (!id || !confirm('Are you sure you want to delete this secret?')) return;
     try {
       await deleteSecret(id);
-      navigate('/');
+      navigate('/dashboard');
     } catch {
       alert('Failed to delete secret');
     }
@@ -47,7 +47,7 @@ export default function SecretDetail() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <button onClick={() => navigate('/')} className="text-sm text-blue-600 hover:text-blue-800 mb-2">&larr; Back</button>
+          <button onClick={() => navigate('/dashboard')} className="text-sm text-blue-600 hover:text-blue-800 mb-2">&larr; Back</button>
           <h1 className="text-2xl font-bold">{secret.memo || 'Unnamed Secret'}</h1>
         </div>
         <button onClick={handleDelete} className="text-sm text-red-600 hover:text-red-800 border border-red-200 px-3 py-1 rounded">

@@ -59,7 +59,7 @@ export default function AuthCallback() {
               localStorage.removeItem('pendingClaim');
             }
           }
-          navigate('/');
+          navigate('/dashboard');
         });
       })
       .catch((err) => {
