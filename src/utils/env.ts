@@ -56,6 +56,14 @@ const envSchema = z.object({
 
   // Alchemy
   ALCHEMY_API_KEY: z.string().optional(),
+
+  // 0x Swap API
+  ZEROX_API_KEY: z.string().optional(),
+  SWAP_FEE_BPS: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 0)),
+  SWAP_FEE_RECIPIENT: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

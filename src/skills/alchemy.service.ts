@@ -18,13 +18,13 @@ export interface TokenBalance {
   network: string;
   address: string;
   tokenAddress: string | null; // null = native token
-  tokenBalance: string;
-  symbol?: string;
-  name?: string;
-  decimals?: number;
-  logo?: string;
-  tokenPrice?: number | null;
-  value?: number | null;
+  tokenBalance: string; // Decimal string (already converted from hex)
+  symbol: string;
+  name: string;
+  decimals: number;
+  logo: string | null;
+  tokenPrice: number | null;
+  value: number | null; // USD value
 }
 
 export interface PortfolioResponse {
@@ -40,8 +40,56 @@ export function getSupportedNetworks(): string[] {
 }
 
 /**
+ * Convert a token balance string (possibly hex) to a decimal string.
+ */
+function normalizeBalance(raw: string): string {
+  if (!raw || raw === '0') return '0';
+  if (raw.startsWith('0x')) {
+    try {
+      return BigInt(raw).toString();
+    } catch {
+      return '0';
+    }
+  }
+  return raw;
+}
+
+/**
+ * Format a raw balance (in smallest units) to a human-readable decimal string.
+ */
+function formatTokenBalance(raw: string, decimals: number): string {
+  if (!raw || raw === '0') return '0';
+
+  const normalized = normalizeBalance(raw);
+  if (normalized === '0') return '0';
+
+  if (decimals === 0) return normalized;
+
+  const padded = normalized.padStart(decimals + 1, '0');
+  const whole = padded.slice(0, padded.length - decimals) || '0';
+  const frac = padded.slice(padded.length - decimals).replace(/0+$/, '');
+
+  if (!frac) return whole;
+  return `${whole}.${frac.slice(0, 8)}`;
+}
+
+// Raw response type from Alchemy Portfolio API
+interface AlchemyRawToken {
+  network: string;
+  address: string;
+  tokenAddress: string | null;
+  tokenBalance: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
+  logo?: string;
+  tokenPrice?: number | null;
+  value?: number | null;
+}
+
+/**
  * Fetch all token balances for an address across specified networks using the Alchemy Portfolio API.
- * If no networks specified, fetches across all supported networks.
+ * Normalizes hex balances to decimal and filters zero balances.
  */
 export async function getTokenBalances(
   address: string,
@@ -56,9 +104,7 @@ export async function getTokenBalances(
     ? networks
     : Object.values(CHAIN_ID_TO_NETWORK);
 
-  // Alchemy limits to 3 address entries and 20 networks per entry.
-  // We use a single address, so just chunk networks into groups of 20.
-  const allTokens: TokenBalance[] = [];
+  const allRawTokens: AlchemyRawToken[] = [];
 
   for (let i = 0; i < targetNetworks.length; i += 20) {
     const networkChunk = targetNetworks.slice(i, i + 20);
@@ -83,10 +129,36 @@ export async function getTokenBalances(
 
     const json = await response.json();
     const tokens = json?.data?.tokens ?? [];
-    allTokens.push(...tokens);
+    allRawTokens.push(...tokens);
   }
 
-  return { tokens: allTokens };
+  // Normalize and filter
+  const tokens: TokenBalance[] = allRawTokens
+    .map((raw): TokenBalance | null => {
+      const decimals = raw.decimals ?? 18;
+      const normalizedBalance = normalizeBalance(raw.tokenBalance);
+
+      if (normalizedBalance === '0') return null;
+
+      const formatted = formatTokenBalance(normalizedBalance, decimals);
+      if (formatted === '0') return null;
+
+      return {
+        network: raw.network,
+        address: raw.address,
+        tokenAddress: raw.tokenAddress,
+        tokenBalance: normalizedBalance,
+        symbol: raw.symbol || (raw.tokenAddress ? 'ERC20' : 'ETH'),
+        name: raw.name || (raw.tokenAddress ? 'Unknown Token' : 'Ether'),
+        decimals,
+        logo: raw.logo || null,
+        tokenPrice: raw.tokenPrice ?? null,
+        value: raw.value ?? null,
+      };
+    })
+    .filter((t): t is TokenBalance => t !== null);
+
+  return { tokens };
 }
 
 /**

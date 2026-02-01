@@ -895,4 +895,57 @@ All skill executions and admin actions are logged with full input/output data fo
 - `frontend/src/api.ts` - Added `generateRelinkToken()` API function
 - `frontend/src/pages/SecretDetail.tsx` - Added re-link token generation UI
 
-**Next up: Phase 15 - 0x Token Swaps**
+### Phase 13: 0x Token Swaps (COMPLETED)
+
+**Completed: 2026-02-01**
+
+**What was implemented:**
+- 0x Swap API v2 integration via `src/skills/zeroEx.service.ts`
+  - `getPrice()` for preview (no tx data) via `/swap/allowance-holder/price`
+  - `getQuote()` for execution (with tx data) via `/swap/allowance-holder/quote`
+  - Multi-chain support via `chainId` parameter (all 0x-supported chains)
+  - `0x-version: v2` and `0x-api-key` headers
+  - Slippage in basis points (`slippageBps`)
+  - Native token detection (`0xEeee...eeee`)
+  - ERC20 approval data builder for allowance target
+  - Full TypeScript types for 0x API responses
+- Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
+- `ZEROX_API_KEY` added to env validation (optional)
+- Swap functions in `src/skills/evmWallet.service.ts`:
+  - `previewSwap()` - price quote with route, fees, liquidity info
+  - `executeSwap()` - full swap flow: quote → policy check → build calls → execute → log
+- Policy integration:
+  - Spending limits apply to sell amount (USD converted)
+  - Token allowlist checks sell token via transfer-type policy
+  - Address/function allowlists check 0x exchange proxy
+  - Approval threshold / require_approval for large swaps
+- Transaction execution via ZeroDev:
+  - Native ETH swaps: single `sendTransaction` call
+  - ERC20 swaps: batched UserOp with approve + swap via `executeBatchTransaction()`
+  - Added `executeBatchTransaction()` to zerodev.service.ts using `calls` array format
+- REST API endpoints (API key authenticated, Zod validated):
+  - `POST /api/skills/evm-wallet/swap/preview`
+  - `POST /api/skills/evm-wallet/swap/execute`
+- Audit logging for both `skill.swap_preview` and `skill.swap_execute`
+- TransactionLog records with `actionType: 'swap'`
+
+**Key decisions made:**
+- Swap endpoints mounted under existing `/skills/evm-wallet/swap/` path (not separate router)
+- ZeroDev SDK's `sendTransaction` accepts `{calls: [...]}` format for batching (via `SendUserOperationParameters`), so no separate `sendTransactions` method needed — used `as any` cast since the overload types are complex
+- Policy checking for swaps uses dual approach: `send_transaction` type for address/function/spending policies, plus a `transfer` type check for token allowlist on sell token
+- Human-readable sell amounts (e.g. "0.1") converted to wei internally via `tokenAmountToWei()` helper
+- Frontend swap UI deferred (marked optional in tasks) — backend API is complete for agent use
+
+**Files created:**
+- `src/skills/zeroEx.service.ts` - 0x Swap API v2 client (getPrice, getQuote, isNativeToken, buildApprovalData)
+
+**Files modified:**
+- `src/utils/env.ts` - Added ZEROX_API_KEY, SWAP_FEE_BPS, SWAP_FEE_RECIPIENT
+- `src/skills/evmWallet.service.ts` - Added previewSwap, executeSwap, tokenAmountToWei, handlePolicyVerdict
+- `src/skills/zerodev.service.ts` - Added executeBatchTransaction for UserOp batching
+- `src/api/routes/evmWallet.routes.ts` - Added swap/preview and swap/execute endpoints
+
+**Deferred items:**
+- Frontend swap UI (optional, can be added later)
+
+**Next up: Phase 14 - Self-Custody (Wallet Ownership Transfer)**

@@ -449,11 +449,11 @@
 ## Phase 13: 0x Token Swaps
 
 ### 13.1 0x API Integration
-- [ ] Add `ZEROX_API_KEY` to environment validation (`src/utils/env.ts`)
-- [ ] Create `src/skills/zeroEx.service.ts` with 0x Swap API v2 integration (reference: `swarm-vault/packages/server/src/lib/zeroEx.ts`)
-  - [ ] `getPrice()` - Get swap price preview (no tx data) via `/swap/allowance-holder/price`
-  - [ ] `getQuote()` - Get full swap quote with tx data via `/swap/allowance-holder/quote`
-  - [ ] Support all 0x-supported chains via `chainId` parameter:
+- [x] Add `ZEROX_API_KEY` to environment validation (`src/utils/env.ts`)
+- [x] Create `src/skills/zeroEx.service.ts` with 0x Swap API v2 integration (reference: `swarm-vault/packages/server/src/lib/zeroEx.ts`)
+  - [x] `getPrice()` - Get swap price preview (no tx data) via `/swap/allowance-holder/price`
+  - [x] `getQuote()` - Get full swap quote with tx data via `/swap/allowance-holder/quote`
+  - [x] Support all 0x-supported chains via `chainId` parameter:
     - Ethereum (1), Sepolia (11155111)
     - Polygon (137)
     - Arbitrum (42161)
@@ -464,41 +464,41 @@
     - Linea (59144)
     - Scroll (534352)
     - Blast (81457)
-  - [ ] 0x API v2 headers: `0x-version: v2`, `0x-api-key`
-  - [ ] Slippage parameter in basis points (`slippageBps`)
-  - [ ] Native token detection (`0xEeee...eeee` address)
-  - [ ] ERC20 approval data builder for allowance target
-  - [ ] Type definitions for 0x API responses (price, quote, fees, route, issues)
-- [ ] Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
+  - [x] 0x API v2 headers: `0x-version: v2`, `0x-api-key`
+  - [x] Slippage parameter in basis points (`slippageBps`)
+  - [x] Native token detection (`0xEeee...eeee` address)
+  - [x] ERC20 approval data builder for allowance target
+  - [x] Type definitions for 0x API responses (price, quote, fees, route, issues)
+- [x] Optional fee collection config (`SWAP_FEE_BPS`, `SWAP_FEE_RECIPIENT` env vars)
 
 ### 13.2 Swap Skill Implementation
-- [ ] Create swap functions in `src/skills/evmWallet.service.ts` (or new `src/skills/swap.service.ts`)
-  - [ ] `previewSwap()` - Get price quote, check liquidity, return expected amounts
-  - [ ] `executeSwap()` - Full swap execution flow:
+- [x] Create swap functions in `src/skills/evmWallet.service.ts` (or new `src/skills/swap.service.ts`)
+  - [x] `previewSwap()` - Get price quote, check liquidity, return expected amounts
+  - [x] `executeSwap()` - Full swap execution flow:
     1. Get quote from 0x API
     2. Check policies (spending limits, token allowlists, approval thresholds)
     3. Build transaction array: [ERC20 approval if needed, swap tx]
     4. Execute via ZeroDev smart account (batched calls)
     5. Log transaction in TransactionLog
     6. Record gas usage
-  - [ ] Policy integration: reuse existing policy checkers
+  - [x] Policy integration: reuse existing policy checkers
     - Spending limits apply to sell amount (converted to USD)
     - Token allowlist checks both sell and buy tokens
     - Address allowlist checks 0x exchange proxy address
     - Approval threshold / require_approval for large swaps
-  - [ ] Handle native ETH swaps (send value with transaction)
-  - [ ] Handle ERC20 → ERC20 swaps (approve + swap)
-  - [ ] Handle ERC20 → native swaps
+  - [x] Handle native ETH swaps (send value with transaction)
+  - [x] Handle ERC20 → ERC20 swaps (approve + swap)
+  - [x] Handle ERC20 → native swaps
 
 ### 13.3 Swap API Endpoints
-- [ ] `POST /api/skills/evm-wallet/swap/preview` - Preview swap (API key auth)
-  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
-  - [ ] Response: `{ buyAmount, minBuyAmount, route, gasEstimate, fees, liquidityAvailable }`
-- [ ] `POST /api/skills/evm-wallet/swap/execute` - Execute swap (API key auth)
-  - [ ] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
-  - [ ] Response: `{ txHash, status, sellAmount, buyAmount, smartAccountAddress }`
-- [ ] Zod validation on all request bodies
-- [ ] Audit logging for swap preview and execution
+- [x] `POST /api/skills/evm-wallet/swap/preview` - Preview swap (API key auth)
+  - [x] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [x] Response: `{ buyAmount, minBuyAmount, route, gasEstimate, fees, liquidityAvailable }`
+- [x] `POST /api/skills/evm-wallet/swap/execute` - Execute swap (API key auth)
+  - [x] Request: `{ sellToken, buyToken, sellAmount, chainId, slippageBps? }`
+  - [x] Response: `{ txHash, status, sellAmount, buyAmount, smartAccountAddress }`
+- [x] Zod validation on all request bodies
+- [x] Audit logging for swap preview and execution
 
 ### 13.4 Frontend Swap UI (Optional)
 - [ ] Swap interface on SecretDetail page for EVM_WALLET secrets

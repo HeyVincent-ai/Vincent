@@ -4,6 +4,7 @@ import { AppError } from '../api/middleware/errorHandler';
 import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
 import * as priceService from '../services/price.service';
 import * as zerodev from './zerodev.service';
+import * as zeroExService from './zeroEx.service';
 import * as gasService from './gas.service';
 import * as alchemyService from './alchemy.service';
 import { sendApprovalRequest } from '../telegram';
@@ -475,4 +476,360 @@ export async function getPortfolioBalances(
     address: wallet.smartAccountAddress,
     tokens: portfolio.tokens,
   };
+}
+
+// ============================================================
+// Swap Types
+// ============================================================
+
+export interface SwapPreviewInput {
+  secretId: string;
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string; // Human-readable amount (e.g. "0.1" for 0.1 ETH)
+  chainId: number;
+  slippageBps?: number;
+}
+
+export interface SwapPreviewOutput {
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string; // In wei
+  buyAmount: string; // In wei
+  minBuyAmount: string;
+  route: Array<{ source: string; proportion: string }>;
+  gasEstimate: string;
+  fees: {
+    integratorFee: string | null;
+    zeroExFee: string | null;
+  };
+  liquidityAvailable: boolean;
+  smartAccountAddress: string;
+}
+
+export interface SwapExecuteInput {
+  secretId: string;
+  apiKeyId?: string;
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string; // Human-readable amount
+  chainId: number;
+  slippageBps?: number;
+}
+
+export interface SwapExecuteOutput {
+  txHash: string | null;
+  status: 'executed' | 'pending_approval' | 'denied';
+  sellToken: string;
+  buyToken: string;
+  sellAmount: string;
+  buyAmount: string;
+  smartAccountAddress: string;
+  reason?: string;
+  transactionLogId: string;
+}
+
+// ============================================================
+// Swap Preview
+// ============================================================
+
+export async function previewSwap(input: SwapPreviewInput): Promise<SwapPreviewOutput> {
+  const { secretId, sellToken, buyToken, sellAmount, chainId, slippageBps } = input;
+  const wallet = await getWalletData(secretId);
+
+  // Convert human-readable amount to wei
+  const sellAmountWei = await tokenAmountToWei(sellToken, sellAmount, chainId);
+
+  const price = await zeroExService.getPrice({
+    sellToken,
+    buyToken,
+    sellAmount: sellAmountWei,
+    takerAddress: wallet.smartAccountAddress,
+    chainId,
+    slippageBps,
+  });
+
+  const route = price.route.fills.map((fill) => ({
+    source: fill.source,
+    proportion: `${(Number(fill.proportionBps) / 100).toFixed(1)}%`,
+  }));
+
+  return {
+    sellToken: price.sellToken,
+    buyToken: price.buyToken,
+    sellAmount: price.sellAmount,
+    buyAmount: price.buyAmount,
+    minBuyAmount: price.minBuyAmount,
+    route,
+    gasEstimate: price.gas,
+    fees: {
+      integratorFee: price.fees?.integratorFee?.amount ?? null,
+      zeroExFee: price.fees?.zeroExFee?.amount ?? null,
+    },
+    liquidityAvailable: price.liquidityAvailable,
+    smartAccountAddress: wallet.smartAccountAddress,
+  };
+}
+
+// ============================================================
+// Swap Execute
+// ============================================================
+
+export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteOutput> {
+  const { secretId, apiKeyId, sellToken, buyToken, sellAmount, chainId, slippageBps } = input;
+  const wallet = await getWalletData(secretId);
+
+  // Check subscription for mainnet
+  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
+  if (!subCheck.allowed) {
+    throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
+  }
+
+  // Convert human-readable amount to wei
+  const sellAmountWei = await tokenAmountToWei(sellToken, sellAmount, chainId);
+
+  // Get quote from 0x
+  const quote = await zeroExService.getQuote({
+    sellToken,
+    buyToken,
+    sellAmount: sellAmountWei,
+    takerAddress: wallet.smartAccountAddress,
+    chainId,
+    slippageBps,
+  });
+
+  if (!quote.liquidityAvailable) {
+    throw new AppError('NO_LIQUIDITY', 'No liquidity available for this swap', 400);
+  }
+
+  if (!quote.transaction) {
+    throw new AppError('NO_TX_DATA', 'No transaction data returned from 0x API', 502);
+  }
+
+  // Compute USD value of the sell side for policy checks
+  let usdValue: number | null = null;
+  try {
+    if (zeroExService.isNativeToken(sellToken)) {
+      usdValue = await priceService.ethToUsd(parseFloat(sellAmount));
+    } else {
+      usdValue = await priceService.tokenToUsd(sellToken, parseFloat(sellAmount));
+    }
+  } catch {
+    // Price unavailable
+  }
+
+  // Build policy check action - swaps are treated as send_transaction
+  // The "to" is the 0x exchange proxy, value is the sell amount
+  const policyAction: PolicyCheckAction = {
+    type: 'send_transaction',
+    to: quote.transaction.to.toLowerCase(),
+    value: zeroExService.isNativeToken(sellToken) ? parseFloat(sellAmount) : 0,
+    functionSelector: quote.transaction.data.slice(0, 10),
+  };
+
+  // Also check token allowlists for both sell and buy tokens (as transfer policy)
+  // We use a transfer-type check for token restrictions
+  const sellTokenPolicyAction: PolicyCheckAction = {
+    type: 'transfer',
+    to: quote.transaction.to.toLowerCase(),
+    tokenAddress: zeroExService.isNativeToken(sellToken) ? undefined : sellToken.toLowerCase(),
+    tokenAmount: parseFloat(sellAmount),
+  };
+
+  // Check policies - check both the send_transaction policies and transfer token policies
+  const policyResult = await checkPolicies(secretId, policyAction);
+  if (policyResult.verdict === 'allow') {
+    // Also check token-level policies if selling an ERC20
+    if (!zeroExService.isNativeToken(sellToken)) {
+      const tokenPolicyResult = await checkPolicies(secretId, sellTokenPolicyAction);
+      if (tokenPolicyResult.verdict !== 'allow') {
+        return handlePolicyVerdict(tokenPolicyResult, wallet, secretId, apiKeyId, input, usdValue, quote);
+      }
+    }
+  }
+  if (policyResult.verdict !== 'allow') {
+    return handlePolicyVerdict(policyResult, wallet, secretId, apiKeyId, input, usdValue, quote);
+  }
+
+  // Create transaction log
+  const txLog = await prisma.transactionLog.create({
+    data: {
+      secretId,
+      apiKeyId,
+      actionType: 'swap',
+      requestData: {
+        sellToken,
+        buyToken,
+        sellAmount,
+        sellAmountWei,
+        chainId,
+        slippageBps,
+        usdValue,
+        buyAmount: quote.buyAmount,
+      },
+      status: 'PENDING',
+    },
+  });
+
+  // Execute the swap
+  try {
+    const isNativeSell = zeroExService.isNativeToken(sellToken);
+
+    // Build call array: [optional ERC20 approval, swap tx]
+    const calls: Array<{ to: Address; data: `0x${string}`; value: bigint }> = [];
+
+    if (!isNativeSell) {
+      // Need ERC20 approval for the allowance target
+      const approvalData = zeroExService.buildApprovalData(
+        sellToken as Address,
+        quote.allowanceTarget as Address
+      );
+      calls.push(approvalData);
+    }
+
+    // Swap transaction
+    calls.push({
+      to: quote.transaction.to as Address,
+      data: quote.transaction.data as `0x${string}`,
+      value: BigInt(quote.transaction.value),
+    });
+
+    let result;
+    if (calls.length === 1) {
+      // Single call (native ETH swap)
+      result = await zerodev.executeSendTransaction({
+        privateKey: wallet.privateKey,
+        chainId,
+        to: calls[0].to,
+        data: calls[0].data,
+        value: calls[0].value,
+      });
+    } else {
+      // Batch call (approval + swap)
+      result = await zerodev.executeBatchTransaction({
+        privateKey: wallet.privateKey,
+        chainId,
+        calls,
+      });
+    }
+
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'EXECUTED',
+        txHash: result.txHash,
+        responseData: {
+          txHash: result.txHash,
+          smartAccountAddress: result.smartAccountAddress,
+          buyAmount: quote.buyAmount,
+        },
+      },
+    });
+
+    return {
+      txHash: result.txHash,
+      status: 'executed',
+      sellToken: quote.sellToken,
+      buyToken: quote.buyToken,
+      sellAmount: quote.sellAmount,
+      buyAmount: quote.buyAmount,
+      smartAccountAddress: result.smartAccountAddress,
+      transactionLogId: txLog.id,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'FAILED',
+        responseData: { error: errorMessage },
+      },
+    });
+
+    throw new AppError('TX_FAILED', `Swap failed: ${errorMessage}`, 500);
+  }
+}
+
+// ============================================================
+// Swap Helpers
+// ============================================================
+
+async function handlePolicyVerdict(
+  policyResult: { verdict: string; triggeredPolicy?: { reason: string } },
+  wallet: { smartAccountAddress: string; privateKey: Hex },
+  secretId: string,
+  apiKeyId: string | undefined,
+  input: SwapExecuteInput,
+  usdValue: number | null,
+  quote: zeroExService.ZeroExQuote
+): Promise<SwapExecuteOutput> {
+  const txLog = await prisma.transactionLog.create({
+    data: {
+      secretId,
+      apiKeyId,
+      actionType: 'swap',
+      requestData: {
+        sellToken: input.sellToken,
+        buyToken: input.buyToken,
+        sellAmount: input.sellAmount,
+        chainId: input.chainId,
+        usdValue,
+      },
+      status: policyResult.verdict === 'deny' ? 'DENIED' : 'PENDING',
+      responseData: policyResult.verdict === 'deny'
+        ? { reason: policyResult.triggeredPolicy?.reason }
+        : undefined,
+    },
+  });
+
+  if (policyResult.verdict === 'require_approval') {
+    const pendingApproval = await prisma.pendingApproval.create({
+      data: {
+        transactionLogId: txLog.id,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    sendApprovalRequest(pendingApproval.id).catch((err) =>
+      console.error('Failed to send approval request:', err)
+    );
+
+    return {
+      txHash: null,
+      status: 'pending_approval',
+      sellToken: quote.sellToken,
+      buyToken: quote.buyToken,
+      sellAmount: quote.sellAmount,
+      buyAmount: quote.buyAmount,
+      smartAccountAddress: wallet.smartAccountAddress,
+      reason: policyResult.triggeredPolicy?.reason,
+      transactionLogId: txLog.id,
+    };
+  }
+
+  // Denied
+  return {
+    txHash: null,
+    status: 'denied',
+    sellToken: quote.sellToken,
+    buyToken: quote.buyToken,
+    sellAmount: quote.sellAmount,
+    buyAmount: quote.buyAmount,
+    smartAccountAddress: wallet.smartAccountAddress,
+    reason: policyResult.triggeredPolicy?.reason,
+    transactionLogId: txLog.id,
+  };
+}
+
+async function tokenAmountToWei(
+  tokenAddress: string,
+  amount: string,
+  chainId: number
+): Promise<string> {
+  if (zeroExService.isNativeToken(tokenAddress) || tokenAddress.toUpperCase() === 'ETH') {
+    return parseEther(amount).toString();
+  }
+
+  const decimals = await zerodev.getTokenDecimals(tokenAddress as Address, chainId);
+  return parseUnits(amount, decimals).toString();
 }

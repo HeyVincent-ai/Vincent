@@ -227,6 +227,42 @@ export async function executeSendTransaction(
   };
 }
 
+export interface BatchSendTransactionParams {
+  privateKey: Hex;
+  chainId: number;
+  calls: Array<{
+    to: Address;
+    data: Hex;
+    value: bigint;
+  }>;
+}
+
+/**
+ * Execute a batch of transactions via ZeroDev smart account (UserOp batching).
+ * Uses sendUserOperation with calls array for atomic batching.
+ */
+export async function executeBatchTransaction(
+  params: BatchSendTransactionParams
+): Promise<SendTransactionResult> {
+  const { privateKey, chainId, calls } = params;
+  const { kernelClient, account } = await getKernelClient(privateKey, chainId);
+
+  // ZeroDev's sendTransaction accepts SendUserOperationParameters with a `calls` array
+  // which batches multiple calls into a single UserOperation
+  const txHash = await kernelClient.sendTransaction({
+    calls: calls.map((c) => ({
+      to: c.to,
+      data: c.data,
+      value: c.value,
+    })),
+  } as any);
+
+  return {
+    txHash,
+    smartAccountAddress: account.address,
+  };
+}
+
 // ============================================================
 // Read-Only Functions
 // ============================================================
