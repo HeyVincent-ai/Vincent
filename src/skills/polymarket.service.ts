@@ -148,6 +148,9 @@ export async function placeLimitOrder(
 ): Promise<any> {
   const client = await buildClient(config);
 
+  // Ensure collateral allowance is set (needed for first-time trading)
+  await ensureCollateralAllowance(config);
+
   const order = await client.createOrder({
     tokenID: params.tokenId,
     side: params.side,
@@ -155,7 +158,9 @@ export async function placeLimitOrder(
     size: params.size,
   });
 
-  return client.postOrder(order, OrderType.GTC);
+  const result = await client.postOrder(order, OrderType.GTC);
+  validateOrderResponse(result);
+  return result;
 }
 
 /**
@@ -171,6 +176,9 @@ export async function placeMarketOrder(
 ): Promise<any> {
   const client = await buildClient(config);
 
+  // Ensure collateral allowance is set (needed for first-time trading)
+  await ensureCollateralAllowance(config);
+
   const userMarketOrder: UserMarketOrder = {
     tokenID: params.tokenId,
     side: params.side,
@@ -178,7 +186,65 @@ export async function placeMarketOrder(
   };
 
   const order = await client.createMarketOrder(userMarketOrder);
-  return client.postOrder(order, OrderType.FOK);
+  const result = await client.postOrder(order, OrderType.FOK);
+  validateOrderResponse(result);
+  return result;
+}
+
+/**
+ * Validate that a CLOB order response is actually successful.
+ * The CLOB client can return error HTML (e.g. Cloudflare blocks) without throwing.
+ */
+function validateOrderResponse(result: any): void {
+  if (!result) {
+    throw new Error('CLOB returned empty response');
+  }
+
+  // If result is a string, it's likely an error (HTML/text error response)
+  if (typeof result === 'string') {
+    throw new Error(`CLOB returned unexpected response: ${result.slice(0, 200)}`);
+  }
+
+  // If it has an error field, it failed
+  if (result.error) {
+    const errMsg = typeof result.error === 'string'
+      ? result.error.slice(0, 200)
+      : JSON.stringify(result.error).slice(0, 200);
+    throw new Error(`CLOB order failed: ${errMsg}`);
+  }
+
+  // A successful order should have an orderID (or success field)
+  if (!result.orderID && !result.success) {
+    throw new Error(`CLOB order response missing orderID: ${JSON.stringify(result).slice(0, 200)}`);
+  }
+}
+
+/**
+ * Ensure USDC collateral allowance is set for trading.
+ * Called lazily before first order placement.
+ */
+const _allowanceCache = new Set<string>();
+async function ensureCollateralAllowance(config: PolymarketClientConfig): Promise<void> {
+  if (_allowanceCache.has(config.secretId)) return;
+
+  try {
+    const client = await buildClient(config);
+    const bal = await client.getBalanceAllowance({
+      asset_type: 'COLLATERAL' as AssetType,
+    });
+
+    // If allowance is 0 or very low, set it
+    if (parseFloat(bal.allowance) < 1000) {
+      await client.updateBalanceAllowance({
+        asset_type: 'COLLATERAL' as AssetType,
+      });
+    }
+
+    _allowanceCache.add(config.secretId);
+  } catch (err) {
+    // Non-fatal — allowance might already be set, or user might not have deposited yet
+    console.warn('Failed to ensure collateral allowance:', err instanceof Error ? err.message : err);
+  }
 }
 
 // ============================================================
