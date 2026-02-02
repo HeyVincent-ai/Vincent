@@ -37,11 +37,13 @@ curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}
 ```
 
 Response includes:
+
 - `apiKey` -- store this securely; use it as the Bearer token for all future requests
 - `claimUrl` -- share this with the user so they can claim the wallet and set policies
 - `address` -- the smart account address
 
 After creating, tell the user:
+
 > "Here is your wallet claim URL: `<claimUrl>`. Use this to claim ownership, set spending policies, and monitor your agent's wallet activity."
 
 ### 2. Get Wallet Address
@@ -141,16 +143,16 @@ curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}
 
 The wallet owner controls what the agent can do by setting policies via the claim URL. If a transaction violates a policy, the API will reject it or require human approval via Telegram.
 
-| Policy | What it does |
-|--------|-------------|
-| **Address allowlist** | Only allow transfers/calls to specific addresses |
-| **Token allowlist** | Only allow transfers of specific ERC-20 tokens |
-| **Function allowlist** | Only allow calling specific contract functions (by 4-byte selector) |
-| **Spending limit (per tx)** | Max USD value per transaction |
-| **Spending limit (daily)** | Max USD value per rolling 24 hours |
-| **Spending limit (weekly)** | Max USD value per rolling 7 days |
-| **Require approval** | Every transaction needs human approval via Telegram |
-| **Approval threshold** | Transactions above a USD amount need human approval |
+| Policy                      | What it does                                                        |
+| --------------------------- | ------------------------------------------------------------------- |
+| **Address allowlist**       | Only allow transfers/calls to specific addresses                    |
+| **Token allowlist**         | Only allow transfers of specific ERC-20 tokens                      |
+| **Function allowlist**      | Only allow calling specific contract functions (by 4-byte selector) |
+| **Spending limit (per tx)** | Max USD value per transaction                                       |
+| **Spending limit (daily)**  | Max USD value per rolling 24 hours                                  |
+| **Spending limit (weekly)** | Max USD value per rolling 7 days                                    |
+| **Require approval**        | Every transaction needs human approval via Telegram                 |
+| **Approval threshold**      | Transactions above a USD amount need human approval                 |
 
 If no policies are set, all actions are allowed by default. Once the owner claims the wallet and adds policies, the agent operates within those boundaries.
 
@@ -159,6 +161,7 @@ If no policies are set, all actions are allowed by default. Once the owner claim
 If the agent loses its API key, the wallet owner can generate a **re-link token** from the frontend. The agent then exchanges this token for a new API key.
 
 **How it works:**
+
 1. The user generates a re-link token from the wallet detail page in the frontend
 2. The user gives the token to the agent (e.g. by pasting it in chat)
 3. The agent calls the re-link endpoint to exchange the token for a new API key
@@ -173,6 +176,7 @@ curl -X POST "${SAFESKILLS_API_URL:-https://safeskill-production.up.railway.app}
 ```
 
 Response includes:
+
 - `secret` -- the wallet metadata (id, type, address, chainId, etc.)
 - `apiKey.key` -- the new API key to use as Bearer token for all future requests
 
@@ -184,8 +188,8 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
 - **No gas needed.** A paymaster is fully set up -- all transaction gas fees are sponsored automatically. The wallet does not need ETH for gas.
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
-- Always store the API key from wallet creation -- it's the only way to authenticate.
+- Always store the API key from wallet creation. If you're a openclaw or clawdbot instance, store it in ~/.openclaw/credentials/<API_KEY_ID>.json`.
+- Always search for the API keys in the credentials folder before using the API. If you're a openclaw or clawdbot instance, search for the API key in `~/.openclaw/credentials/<API_KEY_ID>.json`.
 - Always share the claim URL with the user after creating a wallet.
-- The default chain ID is `84532` (Base Sepolia testnet). Adjust as needed.
-- If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the claim URL.
+- If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the frontend at `https://safeskill-production.up.railway.app/`.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.
