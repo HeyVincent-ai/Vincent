@@ -1,4 +1,5 @@
 import { Wallet } from '@ethersproject/wallet';
+import { JsonRpcProvider } from '@ethersproject/providers';
 import { ClobClient, Side, OrderType, Chain } from '@polymarket/clob-client';
 import { SignatureType } from '@polymarket/order-utils';
 import { RelayClient, RelayerTxType } from '@polymarket/builder-relayer-client';
@@ -49,8 +50,16 @@ function getBuilderConfig(): BuilderConfig | undefined {
 // Relayer Client
 // ============================================================
 
+function getPolygonProvider(): JsonRpcProvider {
+  const alchemyKey = env.ALCHEMY_API_KEY;
+  const rpcUrl = alchemyKey
+    ? `https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`
+    : 'https://polygon-rpc.com';
+  return new JsonRpcProvider(rpcUrl, 137);
+}
+
 function getRelayClient(privateKey: string): RelayClient {
-  const wallet = new Wallet(privateKey);
+  const wallet = new Wallet(privateKey, getPolygonProvider());
   const relayerUrl = env.POLYMARKET_RELAYER_HOST || 'https://relayer-v2.polymarket.com/';
   const builderConfig = getBuilderConfig();
   return new RelayClient(
@@ -72,6 +81,13 @@ function getRelayClient(privateKey: string): RelayClient {
  */
 export async function deploySafe(privateKey: string): Promise<string> {
   const relayClient = getRelayClient(privateKey);
+
+  // First get the expected Safe address before deploying
+  const wallet = new Wallet(privateKey, getPolygonProvider());
+  const relayPayload = await relayClient.getRelayPayload(wallet.address, 'SAFE');
+  const expectedSafeAddress = relayPayload.address;
+  console.log(`Deploying safe ${expectedSafeAddress}...`);
+
   const response = await relayClient.deploy();
 
   // Poll until mined
@@ -87,10 +103,11 @@ export async function deploySafe(privateKey: string): Promise<string> {
     throw new Error('Safe deployment transaction failed or timed out');
   }
 
-  // The Safe address is derived from the EOA. Get it from the relay payload.
-  const wallet = new Wallet(privateKey);
-  const relayPayload = await relayClient.getRelayPayload(wallet.address, 'SAFE');
-  return relayPayload.address;
+  // The deployed Safe address comes from the transaction's proxyAddress field
+  // or from the relay payload address
+  const safeAddress = tx.proxyAddress || expectedSafeAddress;
+  console.log(`Safe deployed at ${safeAddress} (tx: ${tx.transactionHash})`);
+  return safeAddress;
 }
 
 /**
@@ -100,8 +117,10 @@ export async function deploySafe(privateKey: string): Promise<string> {
 export async function approveCollateral(privateKey: string): Promise<void> {
   const relayClient = getRelayClient(privateKey);
 
-  // USDC on Polygon
+  // USDC on Polygon (USDC.e bridged)
   const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+  // Conditional Tokens Framework contract
+  const CTF_CONTRACT = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
   // CTF Exchange address
   const CTF_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
   // Neg Risk CTF Exchange
@@ -111,17 +130,22 @@ export async function approveCollateral(privateKey: string): Promise<void> {
 
   const MAX_ALLOWANCE = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
-  // Encode ERC20 approve calls
   const { Interface } = await import('@ethersproject/abi');
   const erc20Iface = new Interface(['function approve(address spender, uint256 amount)']);
+  const erc1155Iface = new Interface(['function setApprovalForAll(address operator, bool approved)']);
 
-  const approvals = [
+  const txns = [
+    // USDC approvals
     { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
     { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
     { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_ADAPTER, MAX_ALLOWANCE]), value: '0' },
+    // Conditional token operator approvals (ERC1155 setApprovalForAll)
+    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [CTF_EXCHANGE, true]), value: '0' },
+    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_CTF_EXCHANGE, true]), value: '0' },
+    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_ADAPTER, true]), value: '0' },
   ];
 
-  const response = await relayClient.execute(approvals);
+  const response = await relayClient.execute(txns);
 
   const tx = await relayClient.pollUntilState(
     response.transactionID,
@@ -146,7 +170,8 @@ export async function approveCollateral(privateKey: string): Promise<void> {
  */
 async function getOrCreateCredentials(
   privateKey: string,
-  secretId: string
+  secretId: string,
+  safeAddress?: string
 ): Promise<ApiKeyCreds> {
   // Check if credentials already exist
   const existing = await prisma.polymarketCredentials.findUnique({
@@ -165,7 +190,20 @@ async function getOrCreateCredentials(
   const wallet = new Wallet(privateKey);
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
 
-  const l1Client = new ClobClient(host, Chain.POLYGON, wallet);
+  // If using a Safe, derive API key with POLY_GNOSIS_SAFE signature type
+  let l1Client: ClobClient;
+  if (safeAddress) {
+    l1Client = new ClobClient(
+      host,
+      Chain.POLYGON,
+      wallet,
+      undefined, // no creds yet
+      SignatureType.POLY_GNOSIS_SAFE,
+      safeAddress,
+    );
+  } else {
+    l1Client = new ClobClient(host, Chain.POLYGON, wallet);
+  }
   const creds = await l1Client.createOrDeriveApiKey();
 
   // Store credentials in DB
@@ -188,7 +226,7 @@ async function getOrCreateCredentials(
  */
 async function buildClient(config: PolymarketClientConfig): Promise<ClobClient> {
   const wallet = new Wallet(config.privateKey);
-  const creds = await getOrCreateCredentials(config.privateKey, config.secretId);
+  const creds = await getOrCreateCredentials(config.privateKey, config.secretId, config.safeAddress);
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
 
   if (config.safeAddress) {
