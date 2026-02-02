@@ -111,7 +111,8 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   let app: Express;
   let apiKey: string;
   let secretId: string;
-  let testEoaAddress: Address;
+  let testSmartAccountAddress: Address;
+  let testEoaAddress: Address; // actual EOA derived from private key
   let funderAddress: Address;
   let chosenTokenId: string;
   let buyPrice: number;
@@ -138,14 +139,22 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(createRes.body.success).toBe(true);
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
-    testEoaAddress = createRes.body.data.secret.walletAddress;
-    
-    expect(testEoaAddress.length).toBeGreaterThan(0);
+    testSmartAccountAddress = createRes.body.data.secret.walletAddress;
 
-    console.log(`Test wallet EOA: ${testEoaAddress}`);
+    expect(testSmartAccountAddress.length).toBeGreaterThan(0);
+
+    console.log(`Test wallet smart account: ${testSmartAccountAddress}`);
     console.log(`Test wallet secret ID: ${secretId}`);
 
-    // Step 2: Fund the test wallet with USDC
+    // Step 2: Get the EOA address from the balance endpoint
+    const balanceRes = await request(app)
+      .get('/api/skills/polymarket/balance')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+    testEoaAddress = balanceRes.body.data.eoaAddress as Address;
+    console.log(`Test wallet EOA: ${testEoaAddress}`);
+
+    // Step 3: Fund the EOA with USDC (Polymarket uses EOA, not smart account)
     console.log(`Funding test wallet with ${FUND_AMOUNT} USDC...`);
     const fundTxHash = await sendUsdc(funderKey, testEoaAddress, FUND_AMOUNT);
     console.log(`Fund tx: https://polygonscan.com/tx/${fundTxHash}`);
@@ -165,29 +174,41 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
           .catch(() => {});
       }
 
-      // Send remaining USDC back to funder
-      if (testEoaAddress && funderAddress) {
-        const secret = await prisma.secret.findUnique({ where: { id: secretId } });
-        if (secret?.value) {
-          const remainingBalance = await getUsdcBalance(testEoaAddress);
-          console.log(`Remaining USDC in test wallet: ${remainingBalance}`);
+      // Send remaining USDC back to funder via the EVM wallet transfer API
+      // (can't use raw private key because the EOA has no MATIC for gas;
+      //  the wallet API uses the ZeroDev smart account with gas sponsorship)
+      if (apiKey && funderAddress) {
+        const remainingBalance = await getUsdcBalance(testEoaAddress);
+        console.log(`Remaining USDC in test wallet (EOA): ${remainingBalance}`);
 
-          if (parseFloat(remainingBalance) > 0.001) {
-            // The test EOA needs MATIC for the ERC20 transfer back.
-            // Send a tiny bit of MATIC from funder first.
-            const funderKey = getFunderPrivateKey();
-            const funderAccount = privateKeyToAccount(funderKey);
-            const funderClient = createWalletClient({
-              account: funderAccount,
-              chain: polygon,
-              transport: http(getPolygonRpcUrl()),
-            });
+        // Also check smart account balance
+        const smartBalance = await getUsdcBalance(testSmartAccountAddress);
+        console.log(`Remaining USDC in smart account: ${smartBalance}`);
 
-            // Now send USDC back
-            const testKey = secret.value as Hex;
-            const recoveryTx = await sendUsdc(testKey, funderAddress, remainingBalance);
-            console.log(`Recovery tx: https://polygonscan.com/tx/${recoveryTx}`);
+        if (parseFloat(smartBalance) > 0.001) {
+          try {
+            const transferRes = await request(app)
+              .post('/api/skills/evm-wallet/transfer')
+              .set('Authorization', `Bearer ${apiKey}`)
+              .send({
+                to: funderAddress,
+                amount: smartBalance,
+                token: USDC_POLYGON,
+                chainId: POLYGON_CHAIN_ID,
+              });
+            console.log(`Smart account recovery status: ${transferRes.status}`);
+            if (transferRes.body.data?.txHash) {
+              console.log(`Recovery tx: https://polygonscan.com/tx/${transferRes.body.data.txHash}`);
+            }
+          } catch (err) {
+            console.error('Smart account USDC recovery failed:', err);
           }
+        }
+
+        // Note: USDC on the EOA cannot be recovered without MATIC for gas.
+        // For small test amounts this is acceptable.
+        if (parseFloat(remainingBalance) > 0.001) {
+          console.log(`Warning: ${remainingBalance} USDC stranded on EOA ${testEoaAddress} (no MATIC for gas)`);
         }
       }
     } catch (err) {
@@ -237,69 +258,59 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   // ============================================================
 
   it('should browse markets and find a liquid market', async () => {
+    // First verify our markets endpoint works
     const res = await request(app)
       .get('/api/skills/polymarket/markets')
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    const markets = res.body.data.data;
-    expect(markets.length).toBeGreaterThan(0);
+    expect(res.body.data.data.length).toBeGreaterThan(0);
+    console.log(`Markets endpoint returned ${res.body.data.data.length} markets`);
 
-    console.log(`Found ${markets.length} markets`);
+    // Use Gamma API to find a liquid, active market (CLOB simplified markets are mostly closed)
+    const gammaRes = await fetch(
+      'https://gamma-api.polymarket.com/markets?closed=false&active=true&acceptingOrders=true&limit=50&order=liquidityNum&ascending=false'
+    );
+    const gammaMarkets = await gammaRes.json();
+    expect(gammaMarkets.length).toBeGreaterThan(0);
+    console.log(`Gamma API returned ${gammaMarkets.length} active markets`);
 
-    // Find a market with tokens that has reasonable activity
+    // Find a market with good liquidity and reasonable prices
     let foundMarket = null;
-    let foundTokenId = null;
-    let midpoint = 0;
+    let foundTokenId: string | null = null;
 
-    for (const market of markets) {
-      if (!market.tokens || market.tokens.length < 2) continue;
-      if (market.closed || market.archived) continue;
+    for (const market of gammaMarkets) {
+      const tokenIds = market.clobTokenIds ? JSON.parse(market.clobTokenIds) : [];
+      if (tokenIds.length < 2) continue;
 
-      // Try the first token
-      const tokenId = market.tokens[0].token_id;
-      try {
-        const midRes = await request(app)
-          .get(`/api/skills/polymarket/orderbook/${tokenId}`)
-          .set('Authorization', `Bearer ${apiKey}`);
+      const bestBid = parseFloat(market.bestBid || '0');
+      const bestAsk = parseFloat(market.bestAsk || '0');
+      if (bestBid < 0.1 || bestAsk > 0.9 || bestBid === 0 || bestAsk === 0) continue;
+      if (bestAsk - bestBid > 0.1) continue; // skip wide spreads
 
-        if (midRes.status !== 200) continue;
+      // Verify orderbook via our API
+      const tokenId = tokenIds[0];
+      const obRes = await request(app)
+        .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(tokenId)}`)
+        .set('Authorization', `Bearer ${apiKey}`);
 
-        const orderbook = midRes.body.data;
-        if (!orderbook.bids?.length || !orderbook.asks?.length) continue;
+      if (obRes.status !== 200) continue;
+      const orderbook = obRes.body.data;
+      if (!orderbook.bids?.length || !orderbook.asks?.length) continue;
 
-        // Check midpoint is in reasonable range
-        const bestBid = parseFloat(orderbook.bids[0].price);
-        const bestAsk = parseFloat(orderbook.asks[0].price);
-        midpoint = (bestBid + bestAsk) / 2;
+      const obBid = parseFloat(orderbook.bids[0].price);
+      const obAsk = parseFloat(orderbook.asks[0].price);
 
-        if (midpoint < 0.1 || midpoint > 0.9) continue;
+      foundMarket = market;
+      foundTokenId = tokenId;
+      buyPrice = obAsk;
+      sellPrice = obBid;
 
-        // Check there's enough depth (at least $5 on each side)
-        const bidDepth = orderbook.bids.reduce(
-          (sum: number, b: { size: string }) => sum + parseFloat(b.size),
-          0
-        );
-        const askDepth = orderbook.asks.reduce(
-          (sum: number, a: { size: string }) => sum + parseFloat(a.size),
-          0
-        );
-        if (bidDepth < 5 || askDepth < 5) continue;
-
-        foundMarket = market;
-        foundTokenId = tokenId;
-        buyPrice = bestAsk;
-        sellPrice = bestBid;
-
-        console.log(`Selected market: ${market.question || market.condition_id}`);
-        console.log(`Token ID: ${tokenId}`);
-        console.log(`Best bid: ${bestBid}, Best ask: ${bestAsk}, Midpoint: ${midpoint}`);
-        console.log(`Bid depth: ${bidDepth} shares, Ask depth: ${askDepth} shares`);
-        break;
-      } catch {
-        continue;
-      }
+      console.log(`Selected market: ${market.question}`);
+      console.log(`Token ID: ${tokenId}`);
+      console.log(`Best bid: ${obBid}, Best ask: ${obAsk}`);
+      break;
     }
 
     expect(foundMarket).toBeTruthy();
@@ -315,7 +326,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(chosenTokenId).toBeTruthy();
 
     const res = await request(app)
-      .get(`/api/skills/polymarket/orderbook/${chosenTokenId}`)
+      .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(chosenTokenId)}`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
@@ -380,7 +391,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
 
     // Refresh the order book to get current bid
     const obRes = await request(app)
-      .get(`/api/skills/polymarket/orderbook/${chosenTokenId}`)
+      .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(chosenTokenId)}`)
       .set('Authorization', `Bearer ${apiKey}`);
 
     if (obRes.status === 200 && obRes.body.data.bids?.length) {
