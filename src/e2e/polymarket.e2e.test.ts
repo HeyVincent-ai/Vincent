@@ -29,7 +29,6 @@ import { polygon } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createApp } from '../app';
 import prisma from '../db/client';
-import { getEoaAddress } from '../skills/polymarket.service';
 import type { Express } from 'express';
 
 // ============================================================
@@ -37,7 +36,7 @@ import type { Express } from 'express';
 // ============================================================
 
 const POLYGON_CHAIN_ID = 137;
-const USDC_POLYGON: Address = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC.e on Polygon
+const USDC_POLYGON: Address = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // USDC on Polygon
 const USDC_DECIMALS = 6;
 const FUND_AMOUNT = '1'; // $1 USDC
 
@@ -139,16 +138,14 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(createRes.body.success).toBe(true);
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
-
-    // Step 2: Get the EOA address (read private key from DB)
-    const secret = await prisma.secret.findUnique({ where: { id: secretId } });
-    expect(secret?.value).toBeTruthy();
-    testEoaAddress = getEoaAddress(secret!.value!) as Address;
+    testEoaAddress = createRes.body.data.secret.walletAddress;
+    
+    expect(testEoaAddress.length).toBeGreaterThan(0);
 
     console.log(`Test wallet EOA: ${testEoaAddress}`);
     console.log(`Test wallet secret ID: ${secretId}`);
 
-    // Step 3: Fund the test wallet with USDC
+    // Step 2: Fund the test wallet with USDC
     console.log(`Funding test wallet with ${FUND_AMOUNT} USDC...`);
     const fundTxHash = await sendUsdc(funderKey, testEoaAddress, FUND_AMOUNT);
     console.log(`Fund tx: https://polygonscan.com/tx/${fundTxHash}`);
@@ -185,18 +182,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
               chain: polygon,
               transport: http(getPolygonRpcUrl()),
             });
-
-            // Send 0.01 MATIC for gas
-            const maticTx = await funderClient.sendTransaction({
-              to: testEoaAddress,
-              value: parseUnits('0.01', 18),
-            });
-            const publicClient = createPublicClient({
-              chain: polygon,
-              transport: http(getPolygonRpcUrl()),
-            });
-            await publicClient.waitForTransactionReceipt({ hash: maticTx });
-            console.log(`Sent 0.01 MATIC to test wallet for recovery gas`);
 
             // Now send USDC back
             const testKey = secret.value as Hex;
