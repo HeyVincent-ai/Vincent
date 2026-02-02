@@ -22,13 +22,13 @@ export interface BetOutput {
   orderId?: string;
   status: 'executed' | 'pending_approval' | 'denied';
   transactionLogId: string;
-  eoaAddress: string;
+  walletAddress: string;
   reason?: string;
   orderDetails?: any;
 }
 
 export interface PositionsOutput {
-  eoaAddress: string;
+  walletAddress: string;
   openOrders: polymarket.OpenOrder[];
 }
 
@@ -37,7 +37,7 @@ export interface MarketInfoOutput {
 }
 
 export interface PolymarketBalanceOutput {
-  eoaAddress: string;
+  walletAddress: string;
   collateral: { balance: string; allowance: string };
 }
 
@@ -65,7 +65,7 @@ async function getWalletData(secretId: string) {
 
   return {
     privateKey: secret.value as Hex,
-    eoaAddress: polymarket.getEoaAddress(secret.value),
+    walletAddress: secret.walletMetadata?.smartAccountAddress ?? polymarket.getEoaAddress(secret.value),
     userId: secret.userId,
   };
 }
@@ -122,7 +122,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     return {
       status: 'denied',
       transactionLogId: txLog.id,
-      eoaAddress: wallet.eoaAddress,
+      walletAddress: wallet.walletAddress,
       reason: policyResult.triggeredPolicy?.reason,
     };
   }
@@ -143,7 +143,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     return {
       status: 'pending_approval',
       transactionLogId: txLog.id,
-      eoaAddress: wallet.eoaAddress,
+      walletAddress: wallet.walletAddress,
       reason: policyResult.triggeredPolicy?.reason,
     };
   }
@@ -182,7 +182,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
       orderId: orderResult?.orderID,
       status: 'executed',
       transactionLogId: txLog.id,
-      eoaAddress: wallet.eoaAddress,
+      walletAddress: wallet.walletAddress,
       orderDetails: orderResult,
     };
   } catch (error) {
@@ -213,7 +213,7 @@ export async function getPositions(
   const openOrders = await polymarket.getOpenOrders(clientConfig, { market });
 
   return {
-    eoaAddress: wallet.eoaAddress,
+    walletAddress: wallet.walletAddress,
     openOrders,
   };
 }
@@ -250,7 +250,7 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
   const collateral = await polymarket.getCollateralBalance(clientConfig);
 
   return {
-    eoaAddress: wallet.eoaAddress,
+    walletAddress: wallet.walletAddress,
     collateral: {
       balance: collateral.balance,
       allowance: collateral.allowance,

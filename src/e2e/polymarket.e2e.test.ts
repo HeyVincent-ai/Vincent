@@ -111,8 +111,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   let app: Express;
   let apiKey: string;
   let secretId: string;
-  let testSmartAccountAddress: Address;
-  let testEoaAddress: Address; // actual EOA derived from private key
+  let testWalletAddress: Address; // smart account address
   let funderAddress: Address;
   let chosenTokenId: string;
   let buyPrice: number;
@@ -139,27 +138,19 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(createRes.body.success).toBe(true);
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
-    testSmartAccountAddress = createRes.body.data.secret.walletAddress;
+    testWalletAddress = createRes.body.data.secret.walletAddress;
 
-    expect(testSmartAccountAddress.length).toBeGreaterThan(0);
+    expect(testWalletAddress.length).toBeGreaterThan(0);
 
-    console.log(`Test wallet smart account: ${testSmartAccountAddress}`);
+    console.log(`Test wallet address: ${testWalletAddress}`);
     console.log(`Test wallet secret ID: ${secretId}`);
 
-    // Step 2: Get the EOA address from the balance endpoint
-    const balanceRes = await request(app)
-      .get('/api/skills/polymarket/balance')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .expect(200);
-    testEoaAddress = balanceRes.body.data.eoaAddress as Address;
-    console.log(`Test wallet EOA: ${testEoaAddress}`);
-
-    // Step 3: Fund the EOA with USDC (Polymarket uses EOA, not smart account)
+    // Step 2: Fund the test wallet with USDC
     console.log(`Funding test wallet with ${FUND_AMOUNT} USDC...`);
-    const fundTxHash = await sendUsdc(funderKey, testEoaAddress, FUND_AMOUNT);
+    const fundTxHash = await sendUsdc(funderKey, testWalletAddress, FUND_AMOUNT);
     console.log(`Fund tx: https://polygonscan.com/tx/${fundTxHash}`);
 
-    const testBalance = await getUsdcBalance(testEoaAddress);
+    const testBalance = await getUsdcBalance(testWalletAddress);
     console.log(`Test wallet USDC balance: ${testBalance}`);
     expect(parseFloat(testBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
   }, 120_000);
@@ -175,40 +166,29 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
       }
 
       // Send remaining USDC back to funder via the EVM wallet transfer API
-      // (can't use raw private key because the EOA has no MATIC for gas;
-      //  the wallet API uses the ZeroDev smart account with gas sponsorship)
+      // (uses ZeroDev smart account with gas sponsorship)
       if (apiKey && funderAddress) {
-        const remainingBalance = await getUsdcBalance(testEoaAddress);
-        console.log(`Remaining USDC in test wallet (EOA): ${remainingBalance}`);
+        const remainingBalance = await getUsdcBalance(testWalletAddress);
+        console.log(`Remaining USDC in test wallet: ${remainingBalance}`);
 
-        // Also check smart account balance
-        const smartBalance = await getUsdcBalance(testSmartAccountAddress);
-        console.log(`Remaining USDC in smart account: ${smartBalance}`);
-
-        if (parseFloat(smartBalance) > 0.001) {
+        if (parseFloat(remainingBalance) > 0.001) {
           try {
             const transferRes = await request(app)
               .post('/api/skills/evm-wallet/transfer')
               .set('Authorization', `Bearer ${apiKey}`)
               .send({
                 to: funderAddress,
-                amount: smartBalance,
+                amount: remainingBalance,
                 token: USDC_POLYGON,
                 chainId: POLYGON_CHAIN_ID,
               });
-            console.log(`Smart account recovery status: ${transferRes.status}`);
+            console.log(`Recovery status: ${transferRes.status}`);
             if (transferRes.body.data?.txHash) {
               console.log(`Recovery tx: https://polygonscan.com/tx/${transferRes.body.data.txHash}`);
             }
           } catch (err) {
-            console.error('Smart account USDC recovery failed:', err);
+            console.error('USDC recovery failed:', err);
           }
-        }
-
-        // Note: USDC on the EOA cannot be recovered without MATIC for gas.
-        // For small test amounts this is acceptable.
-        if (parseFloat(remainingBalance) > 0.001) {
-          console.log(`Warning: ${remainingBalance} USDC stranded on EOA ${testEoaAddress} (no MATIC for gas)`);
         }
       }
     } catch (err) {
@@ -247,7 +227,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.eoaAddress.toLowerCase()).toBe(testEoaAddress.toLowerCase());
+    expect(res.body.data.walletAddress.toLowerCase()).toBe(testWalletAddress.toLowerCase());
 
     console.log(`Polymarket collateral balance: ${res.body.data.collateral.balance}`);
     console.log(`Polymarket collateral allowance: ${res.body.data.collateral.allowance}`);
@@ -364,7 +344,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
 
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('executed');
-    expect(res.body.data.eoaAddress.toLowerCase()).toBe(testEoaAddress.toLowerCase());
+    expect(res.body.data.walletAddress.toLowerCase()).toBe(testWalletAddress.toLowerCase());
   }, 120_000);
 
   // ============================================================
