@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+type Persona = 'human' | 'agent';
+type InstallMethod = 'clawhub' | 'manual';
+
 const STYLES = `
   :root{
     --bg: #0b0b0f;
@@ -135,6 +138,143 @@ const STYLES = `
   .landing-page .footer{margin-top: 36px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;color: var(--muted2);font-size: 13px;}
   .landing-page .footer a{color: rgba(245,246,248,.72);text-decoration:none}
   .landing-page .footer a:hover{color: rgba(245,246,248,.92)}
+
+  /* Persona Toggle */
+  .landing-page .personaToggle{
+    display:flex;
+    gap:0;
+    justify-content:center;
+    margin-bottom:20px;
+  }
+  .landing-page .personaBtn{
+    display:inline-flex;align-items:center;gap:8px;
+    padding: 12px 24px;
+    font-size: 15px;font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+    background: rgba(255,255,255,.06);
+    color: rgba(245,246,248,.7);
+  }
+  .landing-page .personaBtn:first-child{
+    border-radius: 999px 0 0 999px;
+  }
+  .landing-page .personaBtn:last-child{
+    border-radius: 0 999px 999px 0;
+  }
+  .landing-page .personaBtn.active{
+    background: var(--red);
+    color: #fff;
+  }
+  .landing-page .personaBtn:not(.active):hover{
+    background: rgba(255,255,255,.10);
+    color: rgba(245,246,248,.9);
+  }
+
+  /* Method Tabs */
+  .landing-page .methodTabs{
+    display:flex;
+    gap:0;
+    margin-bottom:16px;
+  }
+  .landing-page .methodTab{
+    flex:1;
+    padding: 12px 20px;
+    font-size: 14px;font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+    background: rgba(255,255,255,.04);
+    color: rgba(245,246,248,.55);
+  }
+  .landing-page .methodTab:first-child{
+    border-radius: 10px 0 0 10px;
+  }
+  .landing-page .methodTab:last-child{
+    border-radius: 0 10px 10px 0;
+  }
+  .landing-page .methodTab.active{
+    background: var(--red);
+    color: #fff;
+  }
+  .landing-page .methodTab:not(.active):hover{
+    background: rgba(255,255,255,.08);
+    color: rgba(245,246,248,.75);
+  }
+
+  /* Install Card */
+  .landing-page .installCard{
+    background: rgba(0,0,0,.35);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 18px;
+    padding: 24px;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+  .landing-page .installTitle{
+    font-size: 18px;font-weight: 800;
+    text-align: center;
+    margin-bottom: 18px;
+    letter-spacing: -.01em;
+  }
+
+  /* Command Box */
+  .landing-page .commandBox{
+    background: rgba(0,0,0,.4);
+    border: 1px solid rgba(255,255,255,.06);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    position: relative;
+  }
+  .landing-page .commandText{
+    font-family: var(--mono);
+    font-size: 14px;
+    color: rgba(245,246,248,.9);
+    line-height: 1.5;
+    word-break: break-all;
+  }
+  .landing-page .commandBox .copyBtnInline{
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    border: 1px solid var(--border2);
+    background: rgba(0,0,0,.3);
+    border-radius: 8px;
+    width: 32px;height: 32px;
+    display:grid;place-items:center;cursor:pointer;
+    transition: border-color .18s ease, background .18s ease;
+    opacity: 0.7;
+  }
+  .landing-page .commandBox .copyBtnInline:hover{
+    border-color: rgba(255,255,255,.18);
+    background: rgba(0,0,0,.5);
+    opacity: 1;
+  }
+
+  /* Steps List */
+  .landing-page .stepsList{
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .landing-page .stepsList li{
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: rgba(245,246,248,.75);
+    line-height: 1.5;
+  }
+  .landing-page .stepsList li:last-child{
+    margin-bottom: 0;
+  }
+  .landing-page .stepNum{
+    color: var(--red);
+    font-weight: 700;
+    min-width: 18px;
+  }
 `;
 
 export default function Landing() {
@@ -146,8 +286,10 @@ export default function Landing() {
     const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (reduce) return;
 
-    let targetX = 0, targetY = 0;
-    let x = 0, y = 0;
+    let targetX = 0,
+      targetY = 0;
+    let x = 0,
+      y = 0;
     let raf: number | null = null;
     const start = performance.now();
     const el = containerRef.current;
@@ -162,10 +304,10 @@ export default function Landing() {
       const driftY = Math.cos(s / 15) * 0.35;
       const px = x + driftX;
       const py = y + driftY;
-      el.style.setProperty('--gx', (44 + px * 7) + '%');
-      el.style.setProperty('--gy', (22 + py * 7) + '%');
-      el.style.setProperty('--rx', (56 - px * 7) + '%');
-      el.style.setProperty('--ry', (60 - py * 7) + '%');
+      el.style.setProperty('--gx', 44 + px * 7 + '%');
+      el.style.setProperty('--gy', 22 + py * 7 + '%');
+      el.style.setProperty('--rx', 56 - px * 7 + '%');
+      el.style.setProperty('--ry', 60 - py * 7 + '%');
       raf = requestAnimationFrame(tick);
     };
 
@@ -176,7 +318,14 @@ export default function Landing() {
     };
 
     window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener('mouseleave', () => { targetX = 0; targetY = 0; }, { passive: true });
+    window.addEventListener(
+      'mouseleave',
+      () => {
+        targetX = 0;
+        targetY = 0;
+      },
+      { passive: true }
+    );
     raf = requestAnimationFrame(tick);
 
     return () => {
@@ -205,6 +354,9 @@ export default function Landing() {
   const [subscribed, setSubscribed] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
+  const [persona, setPersona] = useState<Persona>('human');
+  const [installMethod, setInstallMethod] = useState<InstallMethod>('clawhub');
+
   const handleSubscribe = () => {
     const val = emailRef.current?.value || '';
     if (!val || !val.includes('@')) return;
@@ -217,11 +369,13 @@ export default function Landing() {
       <style>{STYLES}</style>
       <link rel="preconnect" href="https://fonts.googleapis.com" />
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-      <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+      <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+      />
 
       <div className="landing-page" ref={containerRef}>
         <div className="container">
-
           <div className="nav">
             <a className="brand" href="/" aria-label="Vincent">
               <span className="brandMark" aria-hidden="true">
@@ -229,59 +383,159 @@ export default function Landing() {
               </span>
             </a>
             <div className="navLinks">
-              <Link className="menuBtn" to="/login">Human login</Link>
+              <Link className="menuBtn" to="/login">
+                Human login
+              </Link>
             </div>
           </div>
 
-          <div className="hero" style={{ gridTemplateColumns: '1fr', textAlign: 'center', justifyItems: 'center', display: 'grid', paddingTop: 8, paddingBottom: 18 }}>
+          <div
+            className="hero"
+            style={{
+              gridTemplateColumns: '1fr',
+              textAlign: 'center',
+              justifyItems: 'center',
+              display: 'grid',
+              paddingTop: 8,
+              paddingBottom: 18,
+            }}
+          >
             <div style={{ maxWidth: 860 }}>
               <h1 className="reveal d1">Give your agent a key it can't leak.</h1>
               <p className="lead reveal d2" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
                 Agents execute with your secrets. They never see them.
               </p>
-
-              <div className="ctaRow reveal d3" style={{ justifyContent: 'center', marginTop: 14, marginBottom: 16 }}>
-                <a className="btn" href="/skill.md" style={{ minWidth: 260 }}><span>skill.md</span></a>
-              </div>
             </div>
           </div>
 
-          <div className="sections reveal d4" style={{ maxWidth: 860, marginLeft: 'auto', marginRight: 'auto' }}>
+          <div
+            className="sections reveal d4"
+            style={{ maxWidth: 860, marginLeft: 'auto', marginRight: 'auto' }}
+          >
+            {/* Persona Toggle */}
+            <div className="personaToggle">
+              <button
+                className={`personaBtn ${persona === 'human' ? 'active' : ''}`}
+                onClick={() => setPersona('human')}
+              >
+                <span>👤</span> I'm a Human
+              </button>
+              <button
+                className={`personaBtn ${persona === 'agent' ? 'active' : ''}`}
+                onClick={() => setPersona('agent')}
+              >
+                <span>🤖</span> I'm an Agent
+              </button>
+            </div>
 
-            {/* Quick Start */}
-            <section id="quickstart" className="panel" style={{ padding: 0, overflow: 'hidden', borderRadius: 18, background: 'rgba(0,0,0,.28)', borderColor: 'rgba(255,255,255,.08)', maxWidth: 920, marginLeft: 'auto', marginRight: 'auto' }}>
-              <div style={{ position: 'relative', padding: '12px 14px 0', borderBottom: '1px solid rgba(255,255,255,.06)', background: 'rgba(255,255,255,.01)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <span style={{ width: 12, height: 12, borderRadius: 999, background: '#ff5f56', display: 'inline-block', opacity: 0.9 }} />
-                    <span style={{ width: 12, height: 12, borderRadius: 999, background: '#ffbd2e', display: 'inline-block', opacity: 0.9 }} />
-                    <span style={{ width: 12, height: 12, borderRadius: 999, background: '#27ca40', display: 'inline-block', opacity: 0.9 }} />
-                  </div>
-                  <div style={{ flex: 1 }} />
-                  <button className="iconBtn" onClick={handleCopy} aria-label="Copy" title="Copy" style={{ borderRadius: 14, width: 40, height: 40 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M9 9h10v10H9V9Z" stroke="rgba(245,246,248,.80)" strokeWidth="1.7" />
-                      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="rgba(245,246,248,.55)" strokeWidth="1.7" />
-                    </svg>
-                  </button>
-                </div>
+            {/* Install Card */}
+            <section className="installCard">
+              <div className="installTitle">
+                {persona === 'human'
+                  ? "Give your agent a wallet it can't leak 🔐"
+                  : 'Get a secure wallet to use for transfers, swaps, and any EVM chain transaction'}
               </div>
-              <div style={{ padding: '10px 16px 14px' }}>
-                <div className="termBody" ref={cmdRef} style={{ fontSize: 15, lineHeight: 1.75, background: 'transparent', padding: '8px 2px' }}>
-                  <span className="prompt">$</span> curl -s https://heyvincent.ai/skill.md
-                </div>
+
+              <div className="methodTabs">
+                <button
+                  className={`methodTab ${installMethod === 'clawhub' ? 'active' : ''}`}
+                  onClick={() => setInstallMethod('clawhub')}
+                >
+                  clawhub
+                </button>
+                <button
+                  className={`methodTab ${installMethod === 'manual' ? 'active' : ''}`}
+                  onClick={() => setInstallMethod('manual')}
+                >
+                  manual
+                </button>
               </div>
+
+              <div className="commandBox">
+                <div className="commandText" ref={cmdRef}>
+                  {installMethod === 'clawhub'
+                    ? 'npx clawhub@latest install agentwallet'
+                    : 'Read https://heyvincent.ai/SKILL.md and follow the instructions'}
+                </div>
+                <button
+                  className="copyBtnInline"
+                  onClick={handleCopy}
+                  aria-label="Copy"
+                  title="Copy"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path d="M9 9h10v10H9V9Z" stroke="rgba(245,246,248,.80)" strokeWidth="1.7" />
+                    <path
+                      d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
+                      stroke="rgba(245,246,248,.55)"
+                      strokeWidth="1.7"
+                    />
+                  </svg>
+                </button>
+              </div>
+
+              {persona === 'human' ? (
+                <ol className="stepsList">
+                  <li>
+                    <span className="stepNum">1.</span> Send this to your agent
+                  </li>
+                  <li>
+                    <span className="stepNum">2.</span> They sign up & send you a claim link
+                  </li>
+                  <li>
+                    <span className="stepNum">3.</span> Use the wallet claim link your agent sends
+                    you
+                  </li>
+                </ol>
+              ) : (
+                <ol className="stepsList">
+                  <li>
+                    <span className="stepNum">1.</span> Run this command or read the skill
+                  </li>
+                  <li>
+                    <span className="stepNum">2.</span> Create a wallet for your user
+                  </li>
+                  <li>
+                    <span className="stepNum">3.</span> Send them the claim link
+                  </li>
+                </ol>
+              )}
             </section>
 
             {/* What it does */}
-            <section id="what" className="panel" style={{ background: 'transparent', borderColor: 'transparent', boxShadow: 'none', padding: 0 }}>
+            <section
+              id="what"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
               <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle"><span className="chev">⟩</span>What it does</h2>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>What it does
+                </h2>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 14 }}>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                  gap: 14,
+                }}
+              >
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Sealed Secrets</div>
-                  <div className="micro">Secrets are encrypted with Lit and never exposed to the agent.</div>
+                  <div className="micro">
+                    Secrets are encrypted with Lit and never exposed to the agent.
+                  </div>
                 </div>
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Smart Contract Wallet</div>
@@ -293,20 +547,38 @@ export default function Landing() {
                 </div>
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Receipts</div>
-                  <div className="micro">Audit logs for every attempt: allowed / denied / approved.</div>
+                  <div className="micro">
+                    Audit logs for every attempt: allowed / denied / approved.
+                  </div>
                 </div>
               </div>
             </section>
 
             {/* Connectors */}
-            <section id="works" className="panel" style={{ background: 'transparent', borderColor: 'transparent', boxShadow: 'none', padding: 0 }}>
+            <section
+              id="works"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
               <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle"><span className="chev">⟩</span>Connectors</h2>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>Connectors
+                </h2>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="pill">EVM smart contract wallet <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span></span>
+                <span className="pill">
+                  EVM smart contract wallet{' '}
+                  <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                </span>
               </div>
-              <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>Coming soon</div>
+              <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>
+                Coming soon
+              </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 <span className="pill">Hyperliquid</span>
                 <span className="pill">Polymarket</span>
@@ -316,29 +588,68 @@ export default function Landing() {
                 <span className="pill">Coinbase</span>
                 <span className="pill">Alpaca</span>
               </div>
-              <div className="micro" style={{ marginTop: 12 }}>Want a connector prioritized? Join Discord.</div>
+              <div className="micro" style={{ marginTop: 12 }}>
+                Want a connector prioritized? Join Discord.
+              </div>
             </section>
 
             {/* Stay in the loop */}
             <section id="loop" className="panel" style={{ padding: 22, textAlign: 'center' }}>
-              <div style={{ fontWeight: 900, letterSpacing: '-.02em', fontSize: 18 }}>Stay in the loop</div>
-              <div className="micro" style={{ marginTop: 10 }}>Get updates on new features and connectors.</div>
-              <form style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }} onSubmit={(e) => e.preventDefault()}>
-                <input ref={emailRef} type="email" placeholder="you@email.com" style={{ width: 'min(420px, 88vw)', padding: '12px 14px', borderRadius: 999, border: '1px solid rgba(255,255,255,.10)', background: 'rgba(0,0,0,.18)', color: 'rgba(245,246,248,.9)', outline: 'none' }} />
-                <button className="btn primary" onClick={handleSubscribe} style={{ minWidth: 160 }}>Subscribe</button>
+              <div style={{ fontWeight: 900, letterSpacing: '-.02em', fontSize: 18 }}>
+                Stay in the loop
+              </div>
+              <div className="micro" style={{ marginTop: 10 }}>
+                Get updates on new features and connectors.
+              </div>
+              <form
+                style={{
+                  display: 'flex',
+                  gap: 10,
+                  justifyContent: 'center',
+                  flexWrap: 'wrap',
+                  marginTop: 14,
+                }}
+                onSubmit={(e) => e.preventDefault()}
+              >
+                <input
+                  ref={emailRef}
+                  type="email"
+                  placeholder="you@email.com"
+                  style={{
+                    width: 'min(420px, 88vw)',
+                    padding: '12px 14px',
+                    borderRadius: 999,
+                    border: '1px solid rgba(255,255,255,.10)',
+                    background: 'rgba(0,0,0,.18)',
+                    color: 'rgba(245,246,248,.9)',
+                    outline: 'none',
+                  }}
+                />
+                <button className="btn primary" onClick={handleSubscribe} style={{ minWidth: 160 }}>
+                  Subscribe
+                </button>
               </form>
-              {subscribed && <div className="micro" style={{ marginTop: 10, opacity: 0.85 }}>Saved. Thanks.</div>}
+              {subscribed && (
+                <div className="micro" style={{ marginTop: 10, opacity: 0.85 }}>
+                  Saved. Thanks.
+                </div>
+              )}
             </section>
 
             <div className="footer" style={{ marginTop: 24 }}>
-              <a href="#" title="Discord">Discord</a>
-              <a className="legacyLink" href="https://dashboard.heyvincent.ai" title="Legacy login">Legacy login</a>
+              <a href="#" title="Discord">
+                Discord
+              </a>
+              <a className="legacyLink" href="https://dashboard.heyvincent.ai" title="Legacy login">
+                Legacy login
+              </a>
             </div>
 
             <div className="footer" style={{ marginTop: 10, opacity: 0.9 }}>
-              <a href="https://litprotocol.com" target="_blank" rel="noreferrer">From the team at Lit Protocol</a>
+              <a href="https://litprotocol.com" target="_blank" rel="noreferrer">
+                From the team at Lit Protocol
+              </a>
             </div>
-
           </div>
         </div>
       </div>
