@@ -38,7 +38,7 @@ import type { Express } from 'express';
 const POLYGON_CHAIN_ID = 137;
 const USDC_POLYGON: Address = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // USDC on Polygon
 const USDC_DECIMALS = 6;
-const FUND_AMOUNT = '1'; // $1 USDC
+const FUND_AMOUNT = '0.1'; // $1 USDC
 
 // ============================================================
 // Helpers
