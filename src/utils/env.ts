@@ -67,6 +67,12 @@ const envSchema = z.object({
 
   // Polymarket
   POLYMARKET_CLOB_HOST: z.string().optional().default('https://clob.polymarket.com'),
+
+  // Polymarket Builder / Relayer
+  POLY_BUILDER_API_KEY: z.string().optional(),
+  POLY_BUILDER_SECRET: z.string().optional(),
+  POLY_BUILDER_PASSPHRASE: z.string().optional(),
+  POLYMARKET_RELAYER_HOST: z.string().optional().default('https://relayer-v2.polymarket.com/'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -30,6 +30,7 @@ model User {
 // Secret types enum
 enum SecretType {
   EVM_WALLET
+  POLYMARKET_WALLET
   API_KEY
   SSH_KEY
   OAUTH_TOKEN
@@ -48,10 +49,11 @@ model Secret {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  user                  User?                    @relation(fields: [userId], references: [id])
-  walletMetadata        WalletSecretMetadata?
-  polymarketCredentials PolymarketCredentials?
-  apiKeys               ApiKey[]
+  user                      User?                        @relation(fields: [userId], references: [id])
+  walletMetadata            WalletSecretMetadata?
+  polymarketCredentials     PolymarketCredentials?
+  polymarketWalletMetadata  PolymarketWalletMetadata?
+  apiKeys                   ApiKey[]
   policies          Policy[]
   transactionLogs   TransactionLog[]
   auditLogs         AuditLog[]
@@ -74,6 +76,20 @@ model PolymarketCredentials {
   secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 
   @@map("polymarket_credentials")
+}
+
+// Polymarket wallet metadata for POLYMARKET_WALLET secrets (Gnosis Safe based)
+model PolymarketWalletMetadata {
+  id          String   @id @default(cuid())
+  secretId    String   @unique @map("secret_id")
+  eoaAddress  String   @map("eoa_address")
+  safeAddress String?  @map("safe_address")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@map("polymarket_wallet_metadata")
 }
 
 // Wallet-specific metadata for EVM_WALLET secrets

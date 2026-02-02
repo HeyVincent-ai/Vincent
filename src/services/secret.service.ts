@@ -67,6 +67,7 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   const claimToken = generateClaimToken();
   let secretValue: string | null = null;
   let walletMetadata: Prisma.WalletSecretMetadataCreateNestedOneWithoutSecretInput | undefined;
+  let polymarketWalletMetadata: Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput | undefined;
 
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
@@ -92,6 +93,21 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     };
   }
 
+  // For POLYMARKET_WALLET, generate private key and store EOA address.
+  // Safe deployment is lazy (happens on first trade).
+  if (type === SecretType.POLYMARKET_WALLET) {
+    secretValue = generatePrivateKey();
+    const { Wallet } = await import('@ethersproject/wallet');
+    const eoaAddress = new Wallet(secretValue).address;
+
+    polymarketWalletMetadata = {
+      create: {
+        eoaAddress,
+        // safeAddress is null until lazy deployment on first use
+      },
+    };
+  }
+
   const secret = await prisma.secret.create({
     data: {
       type,
@@ -99,9 +115,11 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
       memo,
       claimToken,
       walletMetadata,
+      polymarketWalletMetadata,
     },
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
   });
 
@@ -133,6 +151,7 @@ export async function getSecretById(
     where,
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
   });
 
@@ -166,6 +185,7 @@ export async function getSecretsByUserId(userId: string): Promise<SecretPublicDa
     },
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
     orderBy: {
       createdAt: 'desc',
@@ -217,6 +237,7 @@ export async function claimSecret(input: ClaimSecretInput): Promise<SecretPublic
     },
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
   });
 
@@ -237,6 +258,7 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
     },
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
   });
 
@@ -261,6 +283,7 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
     data: { value },
     include: {
       walletMetadata: true,
+      polymarketWalletMetadata: true,
     },
   });
 
@@ -364,6 +387,7 @@ export function consumeRelinkToken(token: string): string | null {
 // Helper to convert secret to public data (excludes sensitive value)
 type SecretWithMetadata = Secret & {
   walletMetadata?: { smartAccountAddress: string } | null;
+  polymarketWalletMetadata?: { eoaAddress: string; safeAddress: string | null } | null;
 };
 
 function toPublicData(secret: SecretWithMetadata): SecretPublicData {
@@ -378,6 +402,12 @@ function toPublicData(secret: SecretWithMetadata): SecretPublicData {
 
   if (secret.walletMetadata) {
     publicData.walletAddress = secret.walletMetadata.smartAccountAddress;
+  }
+
+  if (secret.polymarketWalletMetadata) {
+    // Use Safe address if deployed, otherwise show EOA address
+    publicData.walletAddress = secret.polymarketWalletMetadata.safeAddress
+      ?? secret.polymarketWalletMetadata.eoaAddress;
   }
 
   return publicData;

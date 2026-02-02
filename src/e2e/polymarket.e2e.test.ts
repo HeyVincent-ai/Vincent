@@ -1,13 +1,17 @@
 /**
- * E2E Test: Polymarket CLOB — real bets with real USDC on Polygon
+ * E2E Test: Polymarket CLOB — gasless bets via Safe wallet + Builder relayer
  *
- * Creates a wallet via the API, funds the EOA with USDC from a funder wallet,
- * places a bet, sells it back, then returns remaining USDC to the funder.
+ * Creates a POLYMARKET_WALLET via the API (gasless Safe-based wallet),
+ * funds the Safe with USDC after lazy deployment, places a bet, sells it back,
+ * then returns remaining USDC to the funder.
  *
  * Required env vars:
- *   E2E_FUNDER_PRIVATE_KEY  - Private key with USDC + MATIC on Polygon
+ *   E2E_FUNDER_PRIVATE_KEY  - Private key with USDC on Polygon
  *   ALCHEMY_API_KEY          - Alchemy API key (for Polygon RPC)
  *   DATABASE_URL             - Real PostgreSQL database
+ *   POLY_BUILDER_API_KEY     - Polymarket builder API key
+ *   POLY_BUILDER_SECRET      - Polymarket builder secret
+ *   POLY_BUILDER_PASSPHRASE  - Polymarket builder passphrase
  *
  * Run:
  *   npm run test:polymarket
@@ -35,8 +39,7 @@ import type { Express } from 'express';
 // Constants
 // ============================================================
 
-const POLYGON_CHAIN_ID = 137;
-const USDC_POLYGON: Address = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359';
+const USDC_POLYGON: Address = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
 const USDC_DECIMALS = 6;
 const FUND_AMOUNT = '0.10'; // $0.10 USDC — enough for a small bet
 
@@ -106,12 +109,11 @@ async function getUsdcBalance(address: Address): Promise<string> {
 // Test Suite
 // ============================================================
 
-describe('Polymarket E2E: Real bets with real USDC', () => {
+describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
   let app: Express;
   let apiKey: string;
   let secretId: string;
-  let testWalletAddress: Address; // smart account (returned by API)
-  let testEoaAddress: Address;   // EOA (internal, used by Polymarket)
+  let safeAddress: Address;
   let funderAddress: Address;
   let chosenTokenId: string;
   let chosenMarketQuestion: string;
@@ -125,9 +127,8 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     buyOrderDetails?: any;
     sellOrderId?: string;
     sellOrderDetails?: any;
-    recoveryTxHash?: string;
     trades?: any[];
-    finalBalances?: { eoa: string; smartAccount: string };
+    finalBalance?: string;
   } = {};
 
   beforeAll(async () => {
@@ -142,40 +143,40 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     console.log(`Funder USDC balance: ${funderBalance}`);
     expect(parseFloat(funderBalance)).toBeGreaterThan(0.5);
 
-    // Step 1: Create wallet via API
+    // Step 1: Create POLYMARKET_WALLET via API
     const createRes = await request(app)
       .post('/api/secrets')
-      .send({ type: 'EVM_WALLET', memo: 'Polymarket E2E test wallet' })
+      .send({ type: 'POLYMARKET_WALLET', memo: 'Polymarket E2E gasless test wallet' })
       .expect(201);
 
     expect(createRes.body.success).toBe(true);
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
-    testWalletAddress = createRes.body.data.secret.walletAddress;
-    expect(testWalletAddress).toBeTruthy();
+    console.log(`Secret ID: ${secretId}`);
+    console.log(`Initial wallet address (EOA, pre-Safe): ${createRes.body.data.secret.walletAddress}`);
 
-    // Step 2: Look up the EOA address from the DB
-    // Polymarket uses the EOA for signing and collateral, not the smart account.
-    // The API doesn't expose the EOA (by design), but the test needs it for funding.
-    const secret = await prisma.secret.findUnique({ where: { id: secretId } });
-    expect(secret?.value).toBeTruthy();
-    testEoaAddress = privateKeyToAccount(secret!.value as Hex).address;
+    // Step 2: Trigger lazy Safe deployment by checking balance
+    // This will deploy the Safe and approve collateral via the relayer (gasless)
+    console.log('Triggering lazy Safe deployment via balance check...');
+    const balRes = await request(app)
+      .get('/api/skills/polymarket/balance')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
 
-    console.log(`Test wallet (smart account): ${testWalletAddress}`);
-    console.log(`Test wallet (EOA, internal): ${testEoaAddress}`);
-    console.log(`Test wallet secret ID: ${secretId}`);
+    safeAddress = balRes.body.data.walletAddress as Address;
+    console.log(`Safe address (deployed): ${safeAddress}`);
+    expect(safeAddress).toBeTruthy();
 
-    // Step 3: Fund the EOA with USDC
-    // Polymarket's CLOB operates on the EOA, so USDC must be there.
-    console.log(`Funding EOA with ${FUND_AMOUNT} USDC...`);
-    const fundTxHash = await sendUsdc(funderKey, testEoaAddress, FUND_AMOUNT);
+    // Step 3: Fund the Safe with USDC
+    console.log(`Funding Safe with ${FUND_AMOUNT} USDC...`);
+    const fundTxHash = await sendUsdc(funderKey, safeAddress, FUND_AMOUNT);
     evidence.fundTxHash = fundTxHash;
     console.log(`Fund tx: https://polygonscan.com/tx/${fundTxHash}`);
 
-    const eoaBalance = await getUsdcBalance(testEoaAddress);
-    console.log(`EOA USDC balance after funding: ${eoaBalance}`);
-    expect(parseFloat(eoaBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
-  }, 120_000);
+    const safeBalance = await getUsdcBalance(safeAddress);
+    console.log(`Safe USDC balance after funding: ${safeBalance}`);
+    expect(parseFloat(safeBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
+  }, 300_000); // 5 min — Safe deployment can take time
 
   afterAll(async () => {
     // ============================================================
@@ -184,8 +185,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     console.log('\n========================================');
     console.log('  POLYMARKET E2E TEST EVIDENCE SUMMARY');
     console.log('========================================');
-    console.log(`Smart account address: ${testWalletAddress}`);
-    console.log(`EOA address (Polymarket): ${testEoaAddress}`);
+    console.log(`Safe address: ${safeAddress}`);
     console.log(`Secret ID: ${secretId}`);
     if (evidence.fundTxHash) {
       console.log(`\nFunding TX: https://polygonscan.com/tx/${evidence.fundTxHash}`);
@@ -204,9 +204,8 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
         console.log(`  - ${t.side} ${t.size} @ ${t.price} (ID: ${t.id || t.tradeId || 'N/A'})`);
       }
     }
-    if (evidence.finalBalances) {
-      console.log(`\nFinal EOA USDC balance: ${evidence.finalBalances.eoa}`);
-      console.log(`Final smart account USDC balance: ${evidence.finalBalances.smartAccount}`);
+    if (evidence.finalBalance) {
+      console.log(`\nFinal Safe USDC balance: ${evidence.finalBalance}`);
     }
     if (chosenMarketQuestion) {
       console.log(`\nMarket: ${chosenMarketQuestion}`);
@@ -228,45 +227,11 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
           .catch(() => {});
       }
 
-      // Record final balances
-      if (testEoaAddress && testWalletAddress) {
-        const eoaBal = await getUsdcBalance(testEoaAddress);
-        const smartBal = await getUsdcBalance(testWalletAddress);
-        evidence.finalBalances = { eoa: eoaBal, smartAccount: smartBal };
-        console.log(`Final EOA USDC: ${eoaBal}`);
-        console.log(`Final smart account USDC: ${smartBal}`);
-      }
-
-      // Try to recover USDC from smart account via transfer API
-      if (apiKey && funderAddress) {
-        const smartBal = await getUsdcBalance(testWalletAddress);
-        if (parseFloat(smartBal) > 0.001) {
-          try {
-            const transferRes = await request(app)
-              .post('/api/skills/evm-wallet/transfer')
-              .set('Authorization', `Bearer ${apiKey}`)
-              .send({
-                to: funderAddress,
-                amount: smartBal,
-                token: USDC_POLYGON,
-                chainId: POLYGON_CHAIN_ID,
-              });
-            if (transferRes.body.data?.txHash) {
-              evidence.recoveryTxHash = transferRes.body.data.txHash;
-              console.log(`Smart account recovery tx: https://polygonscan.com/tx/${transferRes.body.data.txHash}`);
-            }
-          } catch (err) {
-            console.error('Smart account USDC recovery failed:', err);
-          }
-        }
-      }
-
-      // Note: USDC on the EOA can't be recovered without MATIC for gas
-      if (testEoaAddress) {
-        const eoaBal = await getUsdcBalance(testEoaAddress);
-        if (parseFloat(eoaBal) > 0.001) {
-          console.log(`Note: ${eoaBal} USDC remaining on EOA ${testEoaAddress} (needs MATIC for gas to recover)`);
-        }
+      // Record final balance
+      if (safeAddress) {
+        const bal = await getUsdcBalance(safeAddress);
+        evidence.finalBalance = bal;
+        console.log(`Final Safe USDC: ${bal}`);
       }
     } catch (err) {
       console.error('Cleanup failed:', err);
@@ -281,6 +246,7 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
         });
         await prisma.transactionLog.deleteMany({ where: { secretId } });
         await prisma.polymarketCredentials.deleteMany({ where: { secretId } });
+        await prisma.polymarketWalletMetadata.deleteMany({ where: { secretId } });
         await prisma.policy.deleteMany({ where: { secretId } });
         await prisma.apiKey.deleteMany({ where: { secretId } });
         await prisma.walletSecretMetadata.deleteMany({ where: { secretId } });
@@ -311,16 +277,12 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     console.log(`Polymarket collateral balance: ${res.body.data.collateral.balance}`);
     console.log(`Polymarket collateral allowance: ${res.body.data.collateral.allowance}`);
 
-    // The balance should reflect the USDC we funded to the EOA
-    // Polymarket reports balance in USDC units (not wei)
     expect(balance).toBeGreaterThanOrEqual(0);
 
-    // If balance is 0, the USDC might not be deposited to the exchange yet,
-    // which is fine — the CLOB client handles this during order placement.
-    // But the on-chain USDC balance on the EOA should be correct:
-    const eoaOnChainBalance = await getUsdcBalance(testEoaAddress);
-    console.log(`EOA on-chain USDC balance: ${eoaOnChainBalance}`);
-    expect(parseFloat(eoaOnChainBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
+    // Verify Safe has USDC on-chain
+    const safeOnChainBalance = await getUsdcBalance(safeAddress);
+    console.log(`Safe on-chain USDC balance: ${safeOnChainBalance}`);
+    expect(parseFloat(safeOnChainBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
   }, 120_000);
 
   // ============================================================
@@ -328,7 +290,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   // ============================================================
 
   it('should browse markets and find a liquid market', async () => {
-    // Verify our markets endpoint works
     const res = await request(app)
       .get('/api/skills/polymarket/markets')
       .set('Authorization', `Bearer ${apiKey}`)
@@ -349,14 +310,11 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     let foundMarket = null;
     let foundTokenId: string | null = null;
 
-    // Sort by spread (Gamma's lastTradePrice tells us the "fair" price)
-    // Pick a market with a reasonable lastTradePrice (not near 0 or 1)
     const candidates = gammaMarkets
       .filter((m: any) => {
         const tokenIds = m.clobTokenIds ? JSON.parse(m.clobTokenIds) : [];
         if (tokenIds.length < 2) return false;
         const ltp = parseFloat(m.lastTradePrice || '0');
-        // lastTradePrice between 0.15-0.85 means reasonable market
         return (ltp > 0.15 && ltp < 0.85) || (1 - ltp > 0.15 && 1 - ltp < 0.85);
       })
       .slice(0, 15);
@@ -364,7 +322,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
 
     for (const market of candidates) {
       const tokenIds = JSON.parse(market.clobTokenIds);
-      // Pick the token closer to 0.5 fair value
       const ltp = parseFloat(market.lastTradePrice || '0.5');
       const tokenId = (ltp >= 0.15 && ltp <= 0.85) ? tokenIds[0] : tokenIds[1];
 
@@ -417,7 +374,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(res.body.data.bids.length).toBeGreaterThan(0);
     expect(res.body.data.asks.length).toBeGreaterThan(0);
 
-    // Verify bid/ask structure
     const topBid = res.body.data.bids[0];
     const topAsk = res.body.data.asks[0];
     expect(parseFloat(topBid.price)).toBeGreaterThan(0);
@@ -432,10 +388,10 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   }, 60_000);
 
   // ============================================================
-  // Test 4: Place a BUY limit order
+  // Test 4: Place a BUY limit order (gasless!)
   // ============================================================
 
-  it('should place a small BUY bet', async () => {
+  it('should place a small BUY bet (gasless)', async () => {
     expect(chosenTokenId).toBeTruthy();
 
     const res = await request(app)
@@ -451,21 +407,18 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     console.log(`BUY response status: ${res.status}`);
     console.log(`BUY response body:`, JSON.stringify(res.body, null, 2));
 
-    // The bet should succeed (200) — not 500 (error) or 403 (denied)
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('executed');
 
-    // Must have a real order ID from the CLOB
     expect(res.body.data.orderId).toBeTruthy();
     expect(typeof res.body.data.orderId).toBe('string');
     expect(res.body.data.orderId.length).toBeGreaterThan(0);
 
-    // Must have a transaction log ID
     expect(res.body.data.transactionLogId).toBeTruthy();
 
-    // Wallet address should be the smart account
-    expect(res.body.data.walletAddress.toLowerCase()).toBe(testWalletAddress.toLowerCase());
+    // Wallet address should be the Safe address
+    expect(res.body.data.walletAddress.toLowerCase()).toBe(safeAddress.toLowerCase());
 
     evidence.buyOrderId = res.body.data.orderId;
     evidence.buyOrderDetails = res.body.data.orderDetails;
@@ -492,8 +445,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
       console.log('Open orders:', JSON.stringify(openOrders.slice(0, 3), null, 2));
     }
 
-    // After a BUY, we should have at least an open order (if limit) or a fill.
-    // Check trade history too.
     const tradesRes = await request(app)
       .get('/api/skills/polymarket/trades')
       .set('Authorization', `Bearer ${apiKey}`)
@@ -502,7 +453,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     const trades = tradesRes.body.data.trades;
     console.log(`Trades so far: ${trades.length}`);
 
-    // We should see either an open order or a filled trade
     const hasActivity = openOrders.length > 0 || trades.length > 0;
     expect(hasActivity).toBe(true);
   }, 60_000);
@@ -514,7 +464,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
   it('should place a SELL bet to close position', async () => {
     expect(chosenTokenId).toBeTruthy();
 
-    // Refresh the order book to get current bid
     const obRes = await request(app)
       .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(chosenTokenId)}`)
       .set('Authorization', `Bearer ${apiKey}`);
@@ -540,7 +489,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.status).toBe('executed');
 
-    // Must have a real order ID
     expect(res.body.data.orderId).toBeTruthy();
     expect(typeof res.body.data.orderId).toBe('string');
     expect(res.body.data.orderId.length).toBeGreaterThan(0);
@@ -573,9 +521,6 @@ describe('Polymarket E2E: Real bets with real USDC', () => {
       }
     }
 
-    // After BUY + SELL, we expect at least one trade
-    // (limit orders may not fill immediately, so this can be 0 if unfilled)
-    // At minimum the endpoint should work and return an array
     expect(Array.isArray(trades)).toBe(true);
   }, 60_000);
 });

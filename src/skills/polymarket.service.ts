@@ -1,5 +1,8 @@
 import { Wallet } from '@ethersproject/wallet';
 import { ClobClient, Side, OrderType, Chain } from '@polymarket/clob-client';
+import { SignatureType } from '@polymarket/order-utils';
+import { RelayClient, RelayerTxType } from '@polymarket/builder-relayer-client';
+import { BuilderConfig } from '@polymarket/builder-signing-sdk';
 import type {
   ApiKeyCreds,
   OpenOrder,
@@ -22,6 +25,115 @@ export type { ApiKeyCreds, OpenOrder, Trade, OrderBookSummary };
 export interface PolymarketClientConfig {
   privateKey: string;
   secretId: string;
+  safeAddress?: string;
+}
+
+// ============================================================
+// Builder Config
+// ============================================================
+
+function getBuilderConfig(): BuilderConfig | undefined {
+  if (!env.POLY_BUILDER_API_KEY || !env.POLY_BUILDER_SECRET || !env.POLY_BUILDER_PASSPHRASE) {
+    return undefined;
+  }
+  return new BuilderConfig({
+    localBuilderCreds: {
+      key: env.POLY_BUILDER_API_KEY,
+      secret: env.POLY_BUILDER_SECRET,
+      passphrase: env.POLY_BUILDER_PASSPHRASE,
+    },
+  });
+}
+
+// ============================================================
+// Relayer Client
+// ============================================================
+
+function getRelayClient(privateKey: string): RelayClient {
+  const wallet = new Wallet(privateKey);
+  const relayerUrl = env.POLYMARKET_RELAYER_HOST || 'https://relayer-v2.polymarket.com/';
+  const builderConfig = getBuilderConfig();
+  return new RelayClient(
+    relayerUrl,
+    137, // Polygon
+    wallet,
+    builderConfig,
+    RelayerTxType.SAFE,
+  );
+}
+
+// ============================================================
+// Safe Deployment & Approval (gasless via relayer)
+// ============================================================
+
+/**
+ * Deploy a Gnosis Safe via the Polymarket relayer (gasless).
+ * Returns the Safe address.
+ */
+export async function deploySafe(privateKey: string): Promise<string> {
+  const relayClient = getRelayClient(privateKey);
+  const response = await relayClient.deploy();
+
+  // Poll until mined
+  const tx = await relayClient.pollUntilState(
+    response.transactionID,
+    ['STATE_MINED', 'STATE_CONFIRMED'],
+    'STATE_FAILED',
+    60, // maxPolls
+    2000, // pollFrequency ms
+  );
+
+  if (!tx) {
+    throw new Error('Safe deployment transaction failed or timed out');
+  }
+
+  // The Safe address is derived from the EOA. Get it from the relay payload.
+  const wallet = new Wallet(privateKey);
+  const relayPayload = await relayClient.getRelayPayload(wallet.address, 'SAFE');
+  return relayPayload.address;
+}
+
+/**
+ * Approve USDC collateral for trading via the relayer (gasless).
+ * This approves the CTF exchange and Neg Risk CTF exchange to spend USDC from the Safe.
+ */
+export async function approveCollateral(privateKey: string): Promise<void> {
+  const relayClient = getRelayClient(privateKey);
+
+  // USDC on Polygon
+  const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+  // CTF Exchange address
+  const CTF_EXCHANGE = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E';
+  // Neg Risk CTF Exchange
+  const NEG_RISK_CTF_EXCHANGE = '0xC5d563A36AE78145C45a50134d48A1215220f80a';
+  // Neg Risk Adapter
+  const NEG_RISK_ADAPTER = '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296';
+
+  const MAX_ALLOWANCE = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+
+  // Encode ERC20 approve calls
+  const { Interface } = await import('@ethersproject/abi');
+  const erc20Iface = new Interface(['function approve(address spender, uint256 amount)']);
+
+  const approvals = [
+    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
+    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
+    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_ADAPTER, MAX_ALLOWANCE]), value: '0' },
+  ];
+
+  const response = await relayClient.execute(approvals);
+
+  const tx = await relayClient.pollUntilState(
+    response.transactionID,
+    ['STATE_MINED', 'STATE_CONFIRMED'],
+    'STATE_FAILED',
+    60,
+    2000,
+  );
+
+  if (!tx) {
+    throw new Error('Collateral approval transaction failed or timed out');
+  }
 }
 
 // ============================================================
@@ -72,11 +184,27 @@ async function getOrCreateCredentials(
 
 /**
  * Build an authenticated ClobClient for a secret.
+ * If safeAddress is provided, uses POLY_GNOSIS_SAFE signature type with builder config.
  */
 async function buildClient(config: PolymarketClientConfig): Promise<ClobClient> {
   const wallet = new Wallet(config.privateKey);
   const creds = await getOrCreateCredentials(config.privateKey, config.secretId);
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
+
+  if (config.safeAddress) {
+    const builderConfig = getBuilderConfig();
+    return new ClobClient(
+      host,
+      Chain.POLYGON,
+      wallet,
+      creds,
+      SignatureType.POLY_GNOSIS_SAFE,
+      config.safeAddress,
+      undefined, // geoBlockToken
+      undefined, // useServerTime
+      builderConfig,
+    );
+  }
 
   return new ClobClient(host, Chain.POLYGON, wallet, creds);
 }
@@ -148,9 +276,6 @@ export async function placeLimitOrder(
 ): Promise<any> {
   const client = await buildClient(config);
 
-  // Ensure collateral allowance is set (needed for first-time trading)
-  await ensureCollateralAllowance(config);
-
   const order = await client.createOrder({
     tokenID: params.tokenId,
     side: params.side,
@@ -171,13 +296,10 @@ export async function placeMarketOrder(
   params: {
     tokenId: string;
     side: Side;
-    amount: number; // BUY: USD amount to spend, SELL: shares to sell
+    amount: number;
   }
 ): Promise<any> {
   const client = await buildClient(config);
-
-  // Ensure collateral allowance is set (needed for first-time trading)
-  await ensureCollateralAllowance(config);
 
   const userMarketOrder: UserMarketOrder = {
     tokenID: params.tokenId,
@@ -193,19 +315,16 @@ export async function placeMarketOrder(
 
 /**
  * Validate that a CLOB order response is actually successful.
- * The CLOB client can return error HTML (e.g. Cloudflare blocks) without throwing.
  */
 function validateOrderResponse(result: any): void {
   if (!result) {
     throw new Error('CLOB returned empty response');
   }
 
-  // If result is a string, it's likely an error (HTML/text error response)
   if (typeof result === 'string') {
     throw new Error(`CLOB returned unexpected response: ${result.slice(0, 200)}`);
   }
 
-  // If it has an error field, it failed
   if (result.error) {
     const errMsg = typeof result.error === 'string'
       ? result.error.slice(0, 200)
@@ -213,37 +332,8 @@ function validateOrderResponse(result: any): void {
     throw new Error(`CLOB order failed: ${errMsg}`);
   }
 
-  // A successful order should have an orderID (or success field)
   if (!result.orderID && !result.success) {
     throw new Error(`CLOB order response missing orderID: ${JSON.stringify(result).slice(0, 200)}`);
-  }
-}
-
-/**
- * Ensure USDC collateral allowance is set for trading.
- * Called lazily before first order placement.
- */
-const _allowanceCache = new Set<string>();
-async function ensureCollateralAllowance(config: PolymarketClientConfig): Promise<void> {
-  if (_allowanceCache.has(config.secretId)) return;
-
-  try {
-    const client = await buildClient(config);
-    const bal = await client.getBalanceAllowance({
-      asset_type: 'COLLATERAL' as AssetType,
-    });
-
-    // If allowance is 0 or very low, set it
-    if (parseFloat(bal.allowance) < 1000) {
-      await client.updateBalanceAllowance({
-        asset_type: 'COLLATERAL' as AssetType,
-      });
-    }
-
-    _allowanceCache.add(config.secretId);
-  } catch (err) {
-    // Non-fatal — allowance might already be set, or user might not have deposited yet
-    console.warn('Failed to ensure collateral allowance:', err instanceof Error ? err.message : err);
   }
 }
 
