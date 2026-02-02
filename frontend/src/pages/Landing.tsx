@@ -351,18 +351,18 @@ export default function Landing() {
     }
   };
 
-  const [subscribed, setSubscribed] = useState(false);
-  const emailRef = useRef<HTMLInputElement>(null);
+  // const [subscribed, setSubscribed] = useState(false);
+  // const emailRef = useRef<HTMLInputElement>(null);
 
   const [persona, setPersona] = useState<Persona>('human');
   const [installMethod, setInstallMethod] = useState<InstallMethod>('clawhub');
 
-  const handleSubscribe = () => {
-    const val = emailRef.current?.value || '';
-    if (!val || !val.includes('@')) return;
-    setSubscribed(true);
-    if (emailRef.current) emailRef.current.value = '';
-  };
+  // const handleSubscribe = () => {
+  //   const val = emailRef.current?.value || '';
+  //   if (!val || !val.includes('@')) return;
+  //   setSubscribed(true);
+  //   if (emailRef.current) emailRef.current.value = '';
+  // };
 
   return (
     <>
