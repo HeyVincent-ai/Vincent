@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 type Persona = 'human' | 'agent';
-type InstallMethod = 'clawhub' | 'manual';
+type InstallMethod = 'clawhub' | 'manual' | 'other';
 
 const STYLES = `
   :root{
@@ -444,6 +444,12 @@ export default function Landing() {
                   clawhub
                 </button>
                 <button
+                  className={`methodTab ${installMethod === 'other' ? 'active' : ''}`}
+                  onClick={() => setInstallMethod('other')}
+                >
+                  other agents
+                </button>
+                <button
                   className={`methodTab ${installMethod === 'manual' ? 'active' : ''}`}
                   onClick={() => setInstallMethod('manual')}
                 >
@@ -455,7 +461,9 @@ export default function Landing() {
                 <div className="commandText" ref={cmdRef}>
                   {installMethod === 'clawhub'
                     ? 'npx clawhub@latest install agentwallet'
-                    : 'Read https://heyvincent.ai/SKILL.md and follow the instructions'}
+                    : installMethod === 'other'
+                      ? 'npx skills add HeyVincent-ai/agent-skills'
+                      : 'Read https://heyvincent.ai/SKILL.md and follow the instructions'}
                 </div>
                 <button
                   className="copyBtnInline"
@@ -483,7 +491,8 @@ export default function Landing() {
               {persona === 'human' ? (
                 <ol className="stepsList">
                   <li>
-                    <span className="stepNum">1.</span> Send this to your agent
+                    <span className="stepNum">1.</span> Send this to your agent or run the command
+                    on your agent's machine
                   </li>
                   <li>
                     <span className="stepNum">2.</span> They sign up & send you a claim link
@@ -533,13 +542,13 @@ export default function Landing() {
               >
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Sealed Secrets</div>
-                  <div className="micro">
-                    Secrets are encrypted with Lit and never exposed to the agent.
-                  </div>
+                  <div className="micro">Secrets are never exposed to the agent.</div>
                 </div>
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Smart Contract Wallet</div>
-                  <div className="micro">Self-custodial EVM smart accounts for execution.</div>
+                  <div className="micro">
+                    Self-custodial (coming soon) EVM smart accounts for execution.
+                  </div>
                 </div>
                 <div className="panel" style={{ padding: 18 }}>
                   <div style={{ fontWeight: 850 }}>Guardrails</div>
@@ -551,6 +560,62 @@ export default function Landing() {
                     Audit logs for every attempt: allowed / denied / approved.
                   </div>
                 </div>
+              </div>
+            </section>
+
+            {/* EVM Wallet Features */}
+            <section
+              id="features"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
+              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>EVM Wallet Features
+                </h2>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <span className="pill">Transfers</span>
+                <span className="pill">Swaps</span>
+                <span className="pill">Any Transaction</span>
+              </div>
+            </section>
+
+            {/* Supported Chains */}
+            <section
+              id="chains"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
+              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>Supported Chains
+                </h2>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                <span className="pill">Ethereum</span>
+                <span className="pill">Base</span>
+                <span className="pill">Arbitrum</span>
+                <span className="pill">Optimism</span>
+                <span className="pill">Polygon</span>
+                <span className="pill">BNB Chain</span>
+                <span className="pill">Avalanche</span>
+                <span className="pill">Linea</span>
+                <span className="pill">Scroll</span>
+                <span className="pill">Blast</span>
+              </div>
+              <div className="micro" style={{ marginTop: 12 }}>
+                Plus testnets: Sepolia, Base Sepolia, and more.
               </div>
             </section>
 
@@ -588,12 +653,14 @@ export default function Landing() {
                 <span className="pill">Coinbase</span>
                 <span className="pill">Alpaca</span>
               </div>
+              {/*
               <div className="micro" style={{ marginTop: 12 }}>
                 Want a connector prioritized? Join Discord.
               </div>
+              */}
             </section>
 
-            {/* Stay in the loop */}
+            {/* Stay in the loop 
             <section id="loop" className="panel" style={{ padding: 22, textAlign: 'center' }}>
               <div style={{ fontWeight: 900, letterSpacing: '-.02em', fontSize: 18 }}>
                 Stay in the loop
@@ -635,13 +702,20 @@ export default function Landing() {
                 </div>
               )}
             </section>
+            */}
 
             <div className="footer" style={{ marginTop: 24 }}>
+              {/*
               <a href="#" title="Discord">
                 Discord
               </a>
-              <a className="legacyLink" href="https://dashboard.heyvincent.ai" title="Legacy login">
-                Legacy login
+              */}
+              <a
+                className="legacyLink"
+                href="https://dashboard.heyvincent.ai"
+                title="Legacy Vincent login"
+              >
+                Legacy Vincent login
               </a>
             </div>
 
