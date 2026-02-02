@@ -186,13 +186,14 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
   // Execute the bet
   try {
     const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
+    const Side = await polymarket.getSide();
     let orderResult: any;
 
     if (price !== undefined) {
       // Limit order
       orderResult = await polymarket.placeLimitOrder(clientConfig, {
         tokenId,
-        side: side === 'BUY' ? polymarket.Side.BUY : polymarket.Side.SELL,
+        side: side === 'BUY' ? Side.BUY : Side.SELL,
         price,
         size: amount,
       });
@@ -200,7 +201,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
       // Market order
       orderResult = await polymarket.placeMarketOrder(clientConfig, {
         tokenId,
-        side: side === 'BUY' ? polymarket.Side.BUY : polymarket.Side.SELL,
+        side: side === 'BUY' ? Side.BUY : Side.SELL,
         amount,
       });
     }

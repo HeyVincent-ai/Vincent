@@ -1,9 +1,5 @@
 import { Wallet } from '@ethersproject/wallet';
 import { JsonRpcProvider } from '@ethersproject/providers';
-import { ClobClient, Side, OrderType, Chain } from '@polymarket/clob-client';
-import { SignatureType } from '@polymarket/order-utils';
-import { RelayClient, RelayerTxType } from '@polymarket/builder-relayer-client';
-import { BuilderConfig } from '@polymarket/builder-signing-sdk';
 import type {
   ApiKeyCreds,
   OpenOrder,
@@ -12,16 +8,41 @@ import type {
   BalanceAllowanceResponse,
   AssetType,
   UserMarketOrder,
+  Side,
 } from '@polymarket/clob-client';
 import prisma from '../db/client';
 import { env } from '../utils/env';
 
 // ============================================================
+// ESM dynamic imports (these packages are ESM-only)
+// ============================================================
+
+async function loadClobClient() {
+  return import('@polymarket/clob-client');
+}
+
+async function loadOrderUtils() {
+  return import('@polymarket/order-utils');
+}
+
+async function loadRelayerClient() {
+  return import('@polymarket/builder-relayer-client');
+}
+
+async function loadBuilderSdk() {
+  return import('@polymarket/builder-signing-sdk');
+}
+
+// ============================================================
 // Types
 // ============================================================
 
-export { Side, OrderType, Chain };
 export type { ApiKeyCreds, OpenOrder, Trade, OrderBookSummary };
+
+export async function getSide() {
+  const { Side } = await loadClobClient();
+  return Side;
+}
 
 export interface PolymarketClientConfig {
   privateKey: string;
@@ -33,10 +54,11 @@ export interface PolymarketClientConfig {
 // Builder Config
 // ============================================================
 
-function getBuilderConfig(): BuilderConfig | undefined {
+async function getBuilderConfig() {
   if (!env.POLY_BUILDER_API_KEY || !env.POLY_BUILDER_SECRET || !env.POLY_BUILDER_PASSPHRASE) {
     return undefined;
   }
+  const { BuilderConfig } = await loadBuilderSdk();
   return new BuilderConfig({
     localBuilderCreds: {
       key: env.POLY_BUILDER_API_KEY,
@@ -58,10 +80,11 @@ function getPolygonProvider(): JsonRpcProvider {
   return new JsonRpcProvider(rpcUrl, 137);
 }
 
-function getRelayClient(privateKey: string): RelayClient {
+async function getRelayClient(privateKey: string) {
+  const { RelayClient, RelayerTxType } = await loadRelayerClient();
   const wallet = new Wallet(privateKey, getPolygonProvider());
   const relayerUrl = env.POLYMARKET_RELAYER_HOST || 'https://relayer-v2.polymarket.com/';
-  const builderConfig = getBuilderConfig();
+  const builderConfig = await getBuilderConfig();
   return new RelayClient(
     relayerUrl,
     137, // Polygon
@@ -80,7 +103,7 @@ function getRelayClient(privateKey: string): RelayClient {
  * Returns the Safe address.
  */
 export async function deploySafe(privateKey: string): Promise<string> {
-  const relayClient = getRelayClient(privateKey);
+  const relayClient = await getRelayClient(privateKey);
 
   // First get the expected Safe address before deploying
   const wallet = new Wallet(privateKey, getPolygonProvider());
@@ -115,7 +138,7 @@ export async function deploySafe(privateKey: string): Promise<string> {
  * This approves the CTF exchange and Neg Risk CTF exchange to spend USDC from the Safe.
  */
 export async function approveCollateral(privateKey: string): Promise<void> {
-  const relayClient = getRelayClient(privateKey);
+  const relayClient = await getRelayClient(privateKey);
 
   // USDC on Polygon (USDC.e bridged)
   const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
@@ -189,9 +212,11 @@ async function getOrCreateCredentials(
   // Derive credentials via L1 auth
   const wallet = new Wallet(privateKey);
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
+  const { ClobClient, Chain } = await loadClobClient();
+  const { SignatureType } = await loadOrderUtils();
 
   // If using a Safe, derive API key with POLY_GNOSIS_SAFE signature type
-  let l1Client: ClobClient;
+  let l1Client: InstanceType<typeof ClobClient>;
   if (safeAddress) {
     l1Client = new ClobClient(
       host,
@@ -224,13 +249,15 @@ async function getOrCreateCredentials(
  * Build an authenticated ClobClient for a secret.
  * If safeAddress is provided, uses POLY_GNOSIS_SAFE signature type with builder config.
  */
-async function buildClient(config: PolymarketClientConfig): Promise<ClobClient> {
+async function buildClient(config: PolymarketClientConfig) {
   const wallet = new Wallet(config.privateKey);
   const creds = await getOrCreateCredentials(config.privateKey, config.secretId, config.safeAddress);
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
+  const { ClobClient, Chain } = await loadClobClient();
+  const { SignatureType } = await loadOrderUtils();
 
   if (config.safeAddress) {
-    const builderConfig = getBuilderConfig();
+    const builderConfig = await getBuilderConfig();
     return new ClobClient(
       host,
       Chain.POLYGON,
@@ -262,6 +289,7 @@ export function getEoaAddress(privateKey: string): string {
  * Get market info by condition ID.
  */
 export async function getMarket(conditionId: string): Promise<any> {
+  const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getMarket(conditionId);
@@ -273,6 +301,7 @@ export async function getMarket(conditionId: string): Promise<any> {
 export async function getOrderBook(
   tokenId: string
 ): Promise<OrderBookSummary> {
+  const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getOrderBook(tokenId);
@@ -282,6 +311,7 @@ export async function getOrderBook(
  * Get the midpoint price for a token.
  */
 export async function getMidpoint(tokenId: string): Promise<string> {
+  const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getMidpoint(tokenId);
@@ -291,6 +321,7 @@ export async function getMidpoint(tokenId: string): Promise<string> {
  * Browse markets (paginated).
  */
 export async function getMarkets(nextCursor?: string) {
+  const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getSimplifiedMarkets(nextCursor);
@@ -321,6 +352,7 @@ export async function placeLimitOrder(
     size: params.size,
   });
 
+  const { OrderType } = await loadClobClient();
   const result = await client.postOrder(order, OrderType.GTC);
   validateOrderResponse(result);
   return result;
@@ -346,6 +378,7 @@ export async function placeMarketOrder(
   };
 
   const order = await client.createMarketOrder(userMarketOrder);
+  const { OrderType } = await loadClobClient();
   const result = await client.postOrder(order, OrderType.FOK);
   validateOrderResponse(result);
   return result;
