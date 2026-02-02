@@ -510,19 +510,56 @@
 
 ---
 
-## Phase 14: Self-Custody (Wallet Ownership Transfer)
+## Phase 14: Polymarket Skill
 
-### 14.1 Session Signer Setup
+### 14.1 Polymarket Secret Type & API
+- [x] Define new secret type: `polymarket_wallet` (decision: reuse EVM_WALLET with PolymarketCredentials model)
+- [x] Update Prisma schema if needed (PolymarketCredentials model for CLOB API creds)
+- [x] Implement Polymarket wallet creation:
+  - [x] Reuse EVM_WALLET EOA for Polymarket interactions (EOA signs CLOB orders directly)
+  - [x] CLOB API credentials derived lazily on first use via L1 auth
+  - [x] EOA address returned for funding (USDC on Polygon)
+- [x] Implement Polymarket API integration:
+  - [x] Place bets / buy outcome tokens (limit + market orders)
+  - [x] Check positions (open orders)
+  - [x] Get market info
+- [x] Apply EVM wallet-style policies:
+  - [x] Spending limits (per bet, daily, weekly) via existing policy checker
+  - [x] Human approval for large bets via existing approval flow
+  - [ ] Market allowlist (optional - deferred, would need new policy type)
+
+### 14.2 Polymarket Skill Endpoints
+- [x] `POST /api/skills/polymarket/bet` - Place a bet on a market
+- [x] `GET /api/skills/polymarket/positions` - Get current positions
+- [x] `GET /api/skills/polymarket/markets` - Search/get market info
+- [x] `GET /api/skills/polymarket/balance` - Get wallet balance
+- [x] `GET /api/skills/polymarket/market/:conditionId` - Get specific market
+- [x] `GET /api/skills/polymarket/orderbook/:tokenId` - Get order book
+- [x] `GET /api/skills/polymarket/trades` - Get trade history
+- [x] `DELETE /api/skills/polymarket/orders/:orderId` - Cancel order
+- [x] `DELETE /api/skills/polymarket/orders` - Cancel all orders
+
+### 14.3 Polymarket Agent Skill Package
+- [x] Create skill definition in `skills/` folder following existing skill patterns
+- [x] Include tool definitions for agent consumption (bet, check positions, get markets)
+- [ ] Include setup instructions (create wallet, claim, fund)
+- [ ] Document policy options available for Polymarket wallets
+
+---
+
+## Phase 15: Self-Custody (Wallet Ownership Transfer)
+
+### 15.1 Session Signer Setup
 - [ ] Add the EOA private key (already in DB) as a session signer with full permissions on the ZeroDev smart account
   - [ ] Use ZeroDev session keys API: https://v3-docs.zerodev.app/use-wallets/use-session-keys
   - [ ] This ensures the EOA can still operate the wallet after owner rotation
 
-### 14.2 RainbowKit Integration (Frontend)
+### 15.2 RainbowKit Integration (Frontend)
 - [ ] Install and configure RainbowKit + wagmi + viem in the frontend
 - [ ] Add "Connect Wallet" button on the secret detail page for claimed EVM wallets
 - [ ] User connects their browser wallet (MetaMask, Rainbow, etc.)
 
-### 14.3 Ownership Transfer Flow
+### 15.3 Ownership Transfer Flow
 - [ ] User clicks "Take Ownership" on a claimed wallet
 - [ ] User signs a message with their connected EOA to prove ownership
 - [ ] Backend verifies the signature
@@ -530,38 +567,6 @@
   - [ ] Use ZeroDev update wallet owner API: https://v3-docs.zerodev.app/use-wallets/advanced/update-wallet-owner
 - [ ] Update secret metadata to reflect new owner EOA
 - [ ] The original EOA (in DB) continues as a session signer so SafeSkills can still execute policy-gated actions
-
----
-
-## Phase 15: Polymarket Skill
-
-### 15.1 Polymarket Secret Type & API
-- [ ] Define new secret type: `polymarket_wallet`
-- [ ] Update Prisma schema if needed (PolymarketSecretMetadata or reuse existing patterns)
-- [ ] Implement Polymarket wallet creation:
-  - [ ] Generate EOA for Polymarket interactions
-  - [ ] Create ZeroDev smart account (or use EOA directly if Polymarket requires it)
-  - [ ] Return claim link to user so they can add funds
-- [ ] Implement Polymarket API integration:
-  - [ ] Place bets / buy outcome tokens
-  - [ ] Check positions
-  - [ ] Get market info
-- [ ] Apply EVM wallet-style policies:
-  - [ ] Spending limits (per bet, daily, weekly)
-  - [ ] Human approval for large bets
-  - [ ] Market allowlist (optional)
-
-### 15.2 Polymarket Skill Endpoints
-- [ ] `POST /api/skills/polymarket/bet` - Place a bet on a market
-- [ ] `GET /api/skills/polymarket/positions` - Get current positions
-- [ ] `GET /api/skills/polymarket/markets` - Search/get market info
-- [ ] `GET /api/skills/polymarket/balance` - Get wallet balance
-
-### 15.3 Polymarket Agent Skill Package
-- [ ] Create skill definition in `skills/` folder following existing skill patterns
-- [ ] Include tool definitions for agent consumption (bet, check positions, get markets)
-- [ ] Include setup instructions (create wallet, claim, fund)
-- [ ] Document policy options available for Polymarket wallets
 
 ---
 

@@ -948,4 +948,65 @@ All skill executions and admin actions are logged with full input/output data fo
 **Deferred items:**
 - Frontend swap UI (optional, can be added later)
 
-**Next up: Phase 14 - Self-Custody (Wallet Ownership Transfer)**
+### Phase 14: Polymarket Skill (COMPLETED)
+
+**Completed: 2026-02-02**
+
+**What was implemented:**
+- Polymarket CLOB API integration via `@polymarket/clob-client` v5.2.1
+- `PolymarketCredentials` Prisma model to store CLOB API credentials (apiKey, secret, passphrase) per secret
+- Lazy credential derivation: on first Polymarket operation, derives CLOB API creds via L1 auth (EIP-712 signing) and stores them
+- `src/skills/polymarket.service.ts` - Low-level CLOB client wrapper:
+  - Credential management (get-or-create pattern)
+  - Market info, order book, midpoint queries (unauthenticated)
+  - Limit orders (GTC) and market orders (FOK)
+  - Open orders, trade history, order cancellation
+  - Collateral (USDC) and conditional token balance queries
+- `src/skills/polymarketSkill.service.ts` - High-level skill with policy integration:
+  - `placeBet()` with full policy check flow (deny/allow/require_approval)
+  - `getPositions()`, `getBalance()`, `getTrades()`
+  - `getMarketInfo()`, `searchMarkets()`, `getOrderBook()`
+  - `cancelOrder()`, `cancelAllOrders()`
+  - TransactionLog recording for all bets
+  - Telegram approval integration for large bets
+- REST API endpoints at `/api/skills/polymarket/`:
+  - `POST /bet` - Place limit or market order with Zod validation
+  - `GET /positions` - Open orders with optional market filter
+  - `GET /trades` - Trade history
+  - `GET /markets` - Browse markets (paginated)
+  - `GET /market/:conditionId` - Specific market info
+  - `GET /orderbook/:tokenId` - Order book
+  - `GET /balance` - USDC collateral balance
+  - `DELETE /orders/:orderId` - Cancel specific order
+  - `DELETE /orders` - Cancel all orders
+- Audit logging for bet placement and order cancellation
+- All endpoints authenticated via API key middleware
+
+**Key decisions made:**
+- Reused EVM_WALLET secret type instead of creating separate POLYMARKET_WALLET type. Same EOA private key can be used for both EVM transactions and Polymarket CLOB operations.
+- Polymarket requires direct EOA signing (EIP-712), not smart account transactions. The EOA address (not ZeroDev smart account address) is the Polymarket wallet.
+- CLOB API credentials are derived lazily on first use and cached in DB (PolymarketCredentials model). This avoids unnecessary API calls during wallet creation.
+- `@polymarket/clob-client` uses `@ethersproject/wallet` (ethers.js v5) for signing, which is available as a transitive dependency.
+- Policy checks treat Polymarket bets as `transfer` type actions with the USD value of the bet, allowing reuse of existing spending limit policies.
+- For BUY orders, `amount` is USD to spend. For SELL orders, `amount` is shares to sell (USD value approximated using price for policy checks).
+- Chain is always Polygon (137) for Polymarket operations.
+- Market allowlist policy type deferred (would need a new PolicyType enum value).
+
+**Files created:**
+- `src/skills/polymarket.service.ts` - Low-level Polymarket CLOB client wrapper
+- `src/skills/polymarketSkill.service.ts` - High-level skill service with policy integration
+- `src/api/routes/polymarket.routes.ts` - REST API endpoints
+
+**Files modified:**
+- `prisma/schema.prisma` - Added PolymarketCredentials model + relation on Secret
+- `src/utils/env.ts` - Added POLYMARKET_CLOB_HOST env var
+- `src/api/routes/index.ts` - Mounted polymarket routes at `/skills/polymarket`
+- `src/skills/index.ts` - Added polymarket exports
+- `package.json` - Added `@polymarket/clob-client` dependency
+
+**Deferred items:**
+- Market allowlist policy type (would need new PolicyType)
+- Setup/funding documentation for agents
+- Frontend Polymarket UI
+
+**Next up: Phase 15 - Self-Custody (Wallet Ownership Transfer)**

@@ -64,6 +64,9 @@ const envSchema = z.object({
     .optional()
     .transform((val) => (val ? parseInt(val, 10) : 0)),
   SWAP_FEE_RECIPIENT: z.string().optional(),
+
+  // Polymarket
+  POLYMARKET_CLOB_HOST: z.string().optional().default('https://clob.polymarket.com'),
 });
 
 export type Env = z.infer<typeof envSchema>;
