@@ -5,6 +5,11 @@
 
 set -e
 
+# clawhub auth fix
+# re: https://github.com/openclaw/clawhub/issues/99
+# re: https://github.com/openclaw/clawhub/pull/101
+export CLAWHUB_REGISTRY="https://www.clawhub.ai"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
