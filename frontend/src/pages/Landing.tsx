@@ -432,7 +432,7 @@ export default function Landing() {
             <section className="installCard">
               <div className="installTitle">
                 {persona === 'human'
-                  ? "Give your agent a wallet it can't leak 🔐"
+                  ? ''
                   : 'Get a secure wallet to use for transfers, swaps, and any EVM chain transaction'}
               </div>
 
