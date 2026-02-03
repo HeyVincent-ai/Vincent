@@ -43,10 +43,13 @@ export default function Settings() {
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h2 className="text-lg font-semibold mb-4">Telegram Notifications</h2>
         <p className="text-sm text-gray-600 mb-4">
-          Connect your Telegram account to receive approval requests when your agents need authorization to perform actions.
+          Connect your Telegram account to receive approval requests when your agents need
+          authorization to perform actions.
         </p>
 
-        {message && <div className="bg-blue-50 text-blue-700 p-3 rounded mb-4 text-sm">{message}</div>}
+        {message && (
+          <div className="bg-blue-50 text-blue-700 p-3 rounded mb-4 text-sm">{message}</div>
+        )}
 
         <label className="block text-sm font-medium text-gray-700 mb-1">Telegram Username</label>
         <div className="flex gap-2 mb-4">
@@ -66,7 +69,14 @@ export default function Settings() {
         </div>
 
         <div className="text-sm text-gray-600 mb-4">
-          <p>Status: {user?.telegramLinked ? <span className="text-green-600 font-medium">Connected</span> : <span className="text-yellow-600 font-medium">Not linked</span>}</p>
+          <p>
+            Status:{' '}
+            {user?.telegramLinked ? (
+              <span className="text-green-600 font-medium">Connected</span>
+            ) : (
+              <span className="text-yellow-600 font-medium">Not linked</span>
+            )}
+          </p>
         </div>
 
         {user?.telegramUsername && !user.telegramLinked && (
@@ -75,9 +85,23 @@ export default function Settings() {
               <h3 className="text-sm font-semibold text-gray-800 mb-2">How to connect</h3>
               <ol className="text-sm text-gray-600 list-decimal list-inside space-y-1">
                 <li>Click "Generate Linking Code" below</li>
-                <li>Open Telegram and search for <strong>{botUsername || 'the SafeSkills bot'}</strong>{botUsername && (
-                  <> — <a href={`https://t.me/${botUsername}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">t.me/{botUsername}</a></>
-                )}</li>
+                <li>
+                  Open Telegram and search for <strong>{botUsername || 'the Vincent bot'}</strong>
+                  {botUsername && (
+                    <>
+                      {' '}
+                      —{' '}
+                      <a
+                        href={`https://t.me/${botUsername}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:underline"
+                      >
+                        t.me/{botUsername}
+                      </a>
+                    </>
+                  )}
+                </li>
                 <li>Send the bot the linking command shown below</li>
               </ol>
             </div>
@@ -91,7 +115,9 @@ export default function Settings() {
             {linkingCode && (
               <div className="mt-3 bg-gray-50 border rounded p-3 text-sm">
                 <p className="font-medium mb-1">Send this message to the bot:</p>
-                <code className="bg-white px-2 py-1 rounded border text-sm">/start {linkingCode}</code>
+                <code className="bg-white px-2 py-1 rounded border text-sm">
+                  /start {linkingCode}
+                </code>
                 <p className="text-xs text-gray-500 mt-1">Expires in 10 minutes.</p>
               </div>
             )}
