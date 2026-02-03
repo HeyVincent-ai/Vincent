@@ -53,14 +53,16 @@ curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/address" \
 ### 3. Check Balances
 
 ```bash
-# Native balance only
-curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/balance" \
+# Get all token balances across all supported chains (ETH, WETH, USDC, etc.)
+curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/balances" \
   -H "Authorization: Bearer <API_KEY>"
 
-# With ERC-20 tokens
-curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/balance?tokens=0xTokenAddr1,0xTokenAddr2" \
+# Filter to specific chains (comma-separated chain IDs)
+curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/balances?chainIds=1,137,42161" \
   -H "Authorization: Bearer <API_KEY>"
 ```
+
+Returns all ERC-20 tokens and native balances with symbols, decimals, logos, and USD values.
 
 ### 4. Transfer ETH or Tokens
 

@@ -49,7 +49,12 @@ router.post(
       action: 'skill.transfer',
       inputData: { to: body.to, amount: body.amount, token: body.token },
       outputData: result,
-      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
       errorMessage: result.status === 'denied' ? result.reason : undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -68,7 +73,10 @@ router.post(
 const sendTxSchema = z.object({
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
   data: z.string().regex(/^0x[a-fA-F0-9]*$/, 'Invalid hex data'),
-  value: z.string().regex(/^\d+(\.\d+)?$/, 'Value must be a numeric string').optional(),
+  value: z
+    .string()
+    .regex(/^\d+(\.\d+)?$/, 'Value must be a numeric string')
+    .optional(),
   chainId: z.number().int().positive(),
 });
 
@@ -98,7 +106,12 @@ router.post(
       action: 'skill.send_transaction',
       inputData: { to: body.to, data: body.data, value: body.value },
       outputData: result,
-      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
       errorMessage: result.status === 'denied' ? result.reason : undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -107,40 +120,6 @@ router.post(
 
     const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;
     sendSuccess(res, result, statusCode);
-  })
-);
-
-// ============================================================
-// GET /api/skills/evm-wallet/balance
-// ============================================================
-
-router.get(
-  '/balance',
-  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    if (!req.secret) {
-      errors.unauthorized(res, 'No secret associated with API key');
-      return;
-    }
-
-    const chainIdParam = req.query.chainId;
-    if (!chainIdParam || typeof chainIdParam !== 'string') {
-      errors.badRequest(res, 'chainId query parameter is required');
-      return;
-    }
-    const chainId = parseInt(chainIdParam, 10);
-    if (isNaN(chainId) || chainId <= 0) {
-      errors.badRequest(res, 'chainId must be a positive integer');
-      return;
-    }
-
-    // Optional: query param for token addresses (comma-separated)
-    const tokensParam = req.query.tokens;
-    const tokenAddresses = typeof tokensParam === 'string' && tokensParam
-      ? tokensParam.split(',').map((t) => t.trim())
-      : undefined;
-
-    const result = await evmWallet.getBalance(req.secret.id, chainId, tokenAddresses);
-    sendSuccess(res, result);
   })
 );
 
@@ -158,9 +137,13 @@ router.get(
 
     // Optional: comma-separated chain IDs
     const chainIdsParam = req.query.chainIds;
-    const chainIds = typeof chainIdsParam === 'string' && chainIdsParam
-      ? chainIdsParam.split(',').map((id) => parseInt(id.trim(), 10)).filter((id) => !isNaN(id))
-      : undefined;
+    const chainIds =
+      typeof chainIdsParam === 'string' && chainIdsParam
+        ? chainIdsParam
+            .split(',')
+            .map((id) => parseInt(id.trim(), 10))
+            .filter((id) => !isNaN(id))
+        : undefined;
 
     const result = await evmWallet.getPortfolioBalances(req.secret.id, chainIds);
     sendSuccess(res, result);
@@ -254,7 +237,12 @@ router.post(
       action: 'skill.swap_execute',
       inputData: body,
       outputData: result,
-      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
       errorMessage: result.status === 'denied' ? result.reason : undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),

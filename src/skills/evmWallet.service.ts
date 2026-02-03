@@ -50,19 +50,6 @@ export interface SendTransactionOutput {
   explorerUrl?: string;
 }
 
-export interface BalanceOutput {
-  address: string;
-  chainId: number;
-  eth: { balance: string; balanceWei: string };
-  tokens?: Array<{
-    address: string;
-    symbol: string;
-    balance: string;
-    balanceRaw: string;
-    decimals: number;
-  }>;
-}
-
 export interface AddressOutput {
   smartAccountAddress: string;
 }
@@ -110,7 +97,11 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
+  const subCheck = await gasService.checkSubscriptionForChain(
+    wallet.userId,
+    chainId,
+    wallet.createdAt
+  );
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -228,10 +219,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
       });
     } else {
       // Get token decimals for proper amount conversion
-      const decimals = await zerodev.getTokenDecimals(
-        token as Address,
-        chainId
-      );
+      const decimals = await zerodev.getTokenDecimals(token as Address, chainId);
 
       result = await zerodev.executeTransfer({
         privateKey: wallet.privateKey,
@@ -288,7 +276,11 @@ export async function executeSendTransaction(
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
+  const subCheck = await gasService.checkSubscriptionForChain(
+    wallet.userId,
+    chainId,
+    wallet.createdAt
+  );
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -426,43 +418,6 @@ export async function executeSendTransaction(
 // Read-Only Functions
 // ============================================================
 
-export async function getBalance(
-  secretId: string,
-  chainId: number,
-  tokenAddresses?: string[]
-): Promise<BalanceOutput> {
-  const wallet = await getWalletData(secretId);
-
-  const eth = await zerodev.getEthBalance(
-    wallet.smartAccountAddress,
-    chainId
-  );
-
-  const result: BalanceOutput = {
-    address: wallet.smartAccountAddress,
-    chainId: chainId,
-    eth,
-  };
-
-  if (tokenAddresses && tokenAddresses.length > 0) {
-    result.tokens = await Promise.all(
-      tokenAddresses.map(async (addr) => {
-        const tokenBalance = await zerodev.getErc20Balance(
-          wallet.smartAccountAddress,
-          addr as Address,
-          chainId
-        );
-        return {
-          address: addr,
-          ...tokenBalance,
-        };
-      })
-    );
-  }
-
-  return result;
-}
-
 export async function getAddress(secretId: string): Promise<AddressOutput> {
   const wallet = await getWalletData(secretId);
 
@@ -475,15 +430,9 @@ export async function getAddress(secretId: string): Promise<AddressOutput> {
 // Portfolio Balances (Alchemy)
 // ============================================================
 
-export async function getPortfolioBalances(
-  secretId: string,
-  chainIds?: number[]
-) {
+export async function getPortfolioBalances(secretId: string, chainIds?: number[]) {
   const wallet = await getWalletData(secretId);
-  const portfolio = await alchemyService.getPortfolioBalances(
-    wallet.smartAccountAddress,
-    chainIds
-  );
+  const portfolio = await alchemyService.getPortfolioBalances(wallet.smartAccountAddress, chainIds);
 
   return {
     address: wallet.smartAccountAddress,
@@ -594,7 +543,11 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
   const wallet = await getWalletData(secretId);
 
   // Check subscription for mainnet
-  const subCheck = await gasService.checkSubscriptionForChain(wallet.userId, chainId, wallet.createdAt);
+  const subCheck = await gasService.checkSubscriptionForChain(
+    wallet.userId,
+    chainId,
+    wallet.createdAt
+  );
   if (!subCheck.allowed) {
     throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
   }
@@ -659,7 +612,15 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
     if (!zeroExService.isNativeToken(sellToken)) {
       const tokenPolicyResult = await checkPolicies(secretId, sellTokenPolicyAction);
       if (tokenPolicyResult.verdict !== 'allow') {
-        return handlePolicyVerdict(tokenPolicyResult, wallet, secretId, apiKeyId, input, usdValue, quote);
+        return handlePolicyVerdict(
+          tokenPolicyResult,
+          wallet,
+          secretId,
+          apiKeyId,
+          input,
+          usdValue,
+          quote
+        );
       }
     }
   }
@@ -795,9 +756,10 @@ async function handlePolicyVerdict(
         buyAmount: quote.buyAmount,
       },
       status: policyResult.verdict === 'deny' ? 'DENIED' : 'PENDING',
-      responseData: policyResult.verdict === 'deny'
-        ? { reason: policyResult.triggeredPolicy?.reason }
-        : undefined,
+      responseData:
+        policyResult.verdict === 'deny'
+          ? { reason: policyResult.triggeredPolicy?.reason }
+          : undefined,
     },
   });
 
