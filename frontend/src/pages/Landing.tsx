@@ -653,11 +653,13 @@ export default function Landing() {
                 <span className="pill">Coinbase</span>
                 <span className="pill">Alpaca</span>
               </div>
-              {/*
               <div className="micro" style={{ marginTop: 12 }}>
-                Want a connector prioritized? Join Discord.
+                Want a connector prioritized?{' '}
+                <a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">
+                  Join Discord
+                </a>
+                .
               </div>
-              */}
             </section>
 
             {/* Stay in the loop 
@@ -705,11 +707,14 @@ export default function Landing() {
             */}
 
             <div className="footer" style={{ marginTop: 24 }}>
-              {/*
-              <a href="#" title="Discord">
+              <a
+                href="https://discord.gg/FPkF6cZf"
+                target="_blank"
+                rel="noreferrer"
+                title="Discord"
+              >
                 Discord
               </a>
-              */}
               <a
                 className="legacyLink"
                 href="https://dashboard.heyvincent.ai"
