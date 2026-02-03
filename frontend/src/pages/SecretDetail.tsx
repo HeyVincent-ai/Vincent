@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { getSecret, deleteSecret, generateRelinkToken } from '../api';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { getSecret, deleteSecret, generateRelinkToken, getSubscriptionStatus } from '../api';
 import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
@@ -15,6 +15,20 @@ interface SecretData {
   createdAt: string;
 }
 
+interface SubscriptionStatusData {
+  trial: {
+    inTrial: boolean;
+    daysRemaining: number;
+    endsAt: string;
+  };
+  subscription: {
+    status: string;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+  } | null;
+  hasMainnetAccess: boolean;
+}
+
 export default function SecretDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -24,6 +38,7 @@ export default function SecretDetail() {
   const [relinkToken, setRelinkToken] = useState<string | null>(null);
   const [relinkExpiry, setRelinkExpiry] = useState<string | null>(null);
   const [relinkLoading, setRelinkLoading] = useState(false);
+  const [subStatus, setSubStatus] = useState<SubscriptionStatusData | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -31,6 +46,11 @@ export default function SecretDetail() {
       .then((res) => setSecret(res.data.data.secret))
       .catch(() => navigate('/dashboard'))
       .finally(() => setLoading(false));
+
+    // Load subscription status
+    getSubscriptionStatus(id)
+      .then((res) => setSubStatus(res.data.data))
+      .catch(() => {});
   }, [id, navigate]);
 
   const handleDelete = async () => {
@@ -95,6 +115,58 @@ export default function SecretDetail() {
           )}
         </dl>
       </div>
+
+      {/* Mainnet Access Status */}
+      {secret.type === 'EVM_WALLET' && subStatus && (
+        <div className={`rounded-lg border p-4 mb-6 ${
+          subStatus.hasMainnetAccess
+            ? 'bg-green-50 border-green-200'
+            : 'bg-yellow-50 border-yellow-200'
+        }`}>
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className={`font-medium ${
+                subStatus.hasMainnetAccess ? 'text-green-800' : 'text-yellow-800'
+              }`}>
+                Mainnet Access
+              </h3>
+              {subStatus.trial.inTrial && !subStatus.subscription && (
+                <p className="text-sm text-green-700 mt-1">
+                  Free trial active — <span className="font-semibold">{subStatus.trial.daysRemaining} day{subStatus.trial.daysRemaining !== 1 ? 's' : ''}</span> remaining
+                  <span className="text-green-600 ml-1">(ends {new Date(subStatus.trial.endsAt).toLocaleDateString()})</span>
+                </p>
+              )}
+              {subStatus.subscription?.status === 'ACTIVE' && (
+                <p className="text-sm text-green-700 mt-1">
+                  Subscribed — renews {subStatus.subscription.currentPeriodEnd
+                    ? new Date(subStatus.subscription.currentPeriodEnd).toLocaleDateString()
+                    : 'N/A'}
+                </p>
+              )}
+              {!subStatus.hasMainnetAccess && (
+                <p className="text-sm text-yellow-700 mt-1">
+                  Trial expired. Subscribe to continue making mainnet transactions.
+                </p>
+              )}
+            </div>
+            {!subStatus.subscription && (
+              <Link
+                to="/billing"
+                className={`text-sm px-3 py-1.5 rounded font-medium ${
+                  subStatus.hasMainnetAccess
+                    ? 'text-green-700 bg-green-100 hover:bg-green-200'
+                    : 'text-white bg-yellow-600 hover:bg-yellow-700'
+                }`}
+              >
+                {subStatus.hasMainnetAccess ? 'View Plans' : 'Subscribe Now'}
+              </Link>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Testnets are always free. Mainnet requires a subscription ($10/month) after the 3-day trial.
+          </p>
+        </div>
+      )}
 
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Re-link Agent</h3>

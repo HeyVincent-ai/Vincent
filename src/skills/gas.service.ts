@@ -2,6 +2,10 @@ import { Decimal } from '@prisma/client/runtime/library';
 import prisma from '../db/client';
 import * as priceService from '../services/price.service';
 import { TESTNET_CHAIN_IDS } from '../config/chains';
+import { env } from '../utils/env';
+
+// Default frontend URL if not configured
+const BILLING_URL = env.FRONTEND_URL ? `${env.FRONTEND_URL}/billing` : '/billing';
 
 export interface RecordGasInput {
   secretId: string;
@@ -92,6 +96,25 @@ export async function getGasUsageForUser(
 }
 
 /**
+ * Calculate trial status for a secret.
+ * Returns whether still in trial and days remaining.
+ */
+export function calculateTrialStatus(secretCreatedAt: Date): {
+  inTrial: boolean;
+  trialDaysRemaining: number;
+  trialEndsAt: Date;
+} {
+  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+  const trialEnd = new Date(secretCreatedAt.getTime() + threeDaysMs);
+  const now = new Date();
+  const inTrial = now < trialEnd;
+  const msRemaining = Math.max(0, trialEnd.getTime() - now.getTime());
+  const trialDaysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
+
+  return { inTrial, trialDaysRemaining, trialEndsAt: trialEnd };
+}
+
+/**
  * Check if a user has an active subscription (required for mainnet).
  * Returns true if the user has an active subscription or the chain is a testnet.
  */
@@ -99,16 +122,15 @@ export async function checkSubscriptionForChain(
   userId: string | null,
   chainId: number,
   secretCreatedAt: Date
-): Promise<{ allowed: boolean; reason?: string }> {
+): Promise<{ allowed: boolean; reason?: string; subscribeUrl?: string }> {
   // Testnets are always free
   if (TESTNET_CHAIN_IDS.includes(chainId)) {
     return { allowed: true };
   }
 
   // Allow free mainnet usage for the first 3 days after the secret was created
-  const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-  const trialEnd = new Date(secretCreatedAt.getTime() + threeDaysMs);
-  if (new Date() < trialEnd) {
+  const { inTrial } = calculateTrialStatus(secretCreatedAt);
+  if (inTrial) {
     return { allowed: true };
   }
 
@@ -116,7 +138,8 @@ export async function checkSubscriptionForChain(
   if (!userId) {
     return {
       allowed: false,
-      reason: 'Free trial expired. Mainnet transactions require the wallet to be claimed and an active subscription ($10/month).',
+      reason: `Free 3-day trial expired. To continue making mainnet transactions, claim this wallet and subscribe ($10/month). Subscribe at: ${BILLING_URL}`,
+      subscribeUrl: BILLING_URL,
     };
   }
 
@@ -131,7 +154,8 @@ export async function checkSubscriptionForChain(
   if (!subscription) {
     return {
       allowed: false,
-      reason: 'Free trial expired. Mainnet transactions require an active subscription ($10/month). Subscribe at /api/billing/subscribe',
+      reason: `Free 3-day trial expired. Mainnet transactions require an active subscription ($10/month). Subscribe at: ${BILLING_URL}`,
+      subscribeUrl: BILLING_URL,
     };
   }
 

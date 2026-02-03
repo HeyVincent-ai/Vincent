@@ -619,6 +619,54 @@ export default function Landing() {
               </div>
             </section>
 
+            {/* Pricing */}
+            <section
+              id="pricing"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
+              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>Pricing
+                </h2>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                  gap: 14,
+                }}
+              >
+                <div className="panel" style={{ padding: 18 }}>
+                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Free</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>$0</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
+                    <li>Unlimited testnet transactions</li>
+                    <li>All chains supported</li>
+                    <li>Full API access</li>
+                  </ul>
+                </div>
+                <div className="panel" style={{ padding: 18, borderColor: 'rgba(59,130,246,.4)' }}>
+                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Pro</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>$10<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>/month</span></div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
+                    <li><b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet</li>
+                    <li>Mainnet transactions on all chains</li>
+                    <li>Gas costs included</li>
+                    <li>Priority support</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="micro" style={{ marginTop: 12 }}>
+                New wallets get a 3-day free trial for mainnet transactions. After that, subscribe to keep using mainnet.
+              </div>
+            </section>
+
             {/* Connectors */}
             <section
               id="works"
