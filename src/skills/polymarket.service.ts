@@ -90,7 +90,7 @@ async function getRelayClient(privateKey: string) {
     137, // Polygon
     wallet,
     builderConfig,
-    RelayerTxType.SAFE,
+    RelayerTxType.SAFE
   );
 }
 
@@ -119,7 +119,7 @@ export async function deploySafe(privateKey: string): Promise<string> {
     ['STATE_MINED', 'STATE_CONFIRMED'],
     'STATE_FAILED',
     60, // maxPolls
-    2000, // pollFrequency ms
+    2000 // pollFrequency ms
   );
 
   if (!tx) {
@@ -151,21 +151,48 @@ export async function approveCollateral(privateKey: string): Promise<void> {
   // Neg Risk Adapter
   const NEG_RISK_ADAPTER = '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296';
 
-  const MAX_ALLOWANCE = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+  const MAX_ALLOWANCE =
+    '115792089237316195423570985008687907853269984665640564039457584007913129639935';
 
   const { Interface } = await import('@ethersproject/abi');
   const erc20Iface = new Interface(['function approve(address spender, uint256 amount)']);
-  const erc1155Iface = new Interface(['function setApprovalForAll(address operator, bool approved)']);
+  const erc1155Iface = new Interface([
+    'function setApprovalForAll(address operator, bool approved)',
+  ]);
 
   const txns = [
     // USDC approvals
-    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
-    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_CTF_EXCHANGE, MAX_ALLOWANCE]), value: '0' },
-    { to: USDC_ADDRESS, data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_ADAPTER, MAX_ALLOWANCE]), value: '0' },
+    {
+      to: USDC_ADDRESS,
+      data: erc20Iface.encodeFunctionData('approve', [CTF_EXCHANGE, MAX_ALLOWANCE]),
+      value: '0',
+    },
+    {
+      to: USDC_ADDRESS,
+      data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_CTF_EXCHANGE, MAX_ALLOWANCE]),
+      value: '0',
+    },
+    {
+      to: USDC_ADDRESS,
+      data: erc20Iface.encodeFunctionData('approve', [NEG_RISK_ADAPTER, MAX_ALLOWANCE]),
+      value: '0',
+    },
     // Conditional token operator approvals (ERC1155 setApprovalForAll)
-    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [CTF_EXCHANGE, true]), value: '0' },
-    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_CTF_EXCHANGE, true]), value: '0' },
-    { to: CTF_CONTRACT, data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_ADAPTER, true]), value: '0' },
+    {
+      to: CTF_CONTRACT,
+      data: erc1155Iface.encodeFunctionData('setApprovalForAll', [CTF_EXCHANGE, true]),
+      value: '0',
+    },
+    {
+      to: CTF_CONTRACT,
+      data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_CTF_EXCHANGE, true]),
+      value: '0',
+    },
+    {
+      to: CTF_CONTRACT,
+      data: erc1155Iface.encodeFunctionData('setApprovalForAll', [NEG_RISK_ADAPTER, true]),
+      value: '0',
+    },
   ];
 
   const response = await relayClient.execute(txns);
@@ -175,7 +202,7 @@ export async function approveCollateral(privateKey: string): Promise<void> {
     ['STATE_MINED', 'STATE_CONFIRMED'],
     'STATE_FAILED',
     60,
-    2000,
+    2000
   );
 
   if (!tx) {
@@ -224,7 +251,7 @@ async function getOrCreateCredentials(
       wallet,
       undefined, // no creds yet
       SignatureType.POLY_GNOSIS_SAFE,
-      safeAddress,
+      safeAddress
     );
   } else {
     l1Client = new ClobClient(host, Chain.POLYGON, wallet);
@@ -251,7 +278,11 @@ async function getOrCreateCredentials(
  */
 async function buildClient(config: PolymarketClientConfig) {
   const wallet = new Wallet(config.privateKey);
-  const creds = await getOrCreateCredentials(config.privateKey, config.secretId, config.safeAddress);
+  const creds = await getOrCreateCredentials(
+    config.privateKey,
+    config.secretId,
+    config.safeAddress
+  );
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const { ClobClient, Chain } = await loadClobClient();
   const { SignatureType } = await loadOrderUtils();
@@ -267,7 +298,7 @@ async function buildClient(config: PolymarketClientConfig) {
       config.safeAddress,
       undefined, // geoBlockToken
       undefined, // useServerTime
-      builderConfig,
+      builderConfig
     );
   }
 
@@ -298,9 +329,7 @@ export async function getMarket(conditionId: string): Promise<any> {
 /**
  * Get the order book for a token ID.
  */
-export async function getOrderBook(
-  tokenId: string
-): Promise<OrderBookSummary> {
+export async function getOrderBook(tokenId: string): Promise<OrderBookSummary> {
   const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
@@ -385,6 +414,22 @@ export async function placeMarketOrder(
 }
 
 /**
+ * Check if a response looks like a Cloudflare block page (geo-restriction).
+ * Note: Polymarket blocks 33 countries including US, UK, Germany, France, etc.
+ * The builder API key does NOT bypass geo-restrictions - it's for order attribution.
+ * See: https://docs.polymarket.com/developers/CLOB/geoblock
+ */
+function isCloudflareBlock(data: unknown): boolean {
+  if (typeof data !== 'string') return false;
+  return (
+    data.includes('Cloudflare') &&
+    (data.includes('Sorry, you have been blocked') ||
+      data.includes('Attention Required') ||
+      data.includes('cf-error-details'))
+  );
+}
+
+/**
  * Validate that a CLOB order response is actually successful.
  */
 function validateOrderResponse(result: any): void {
@@ -393,13 +438,23 @@ function validateOrderResponse(result: any): void {
   }
 
   if (typeof result === 'string') {
+    // Check for Cloudflare block (geo-restriction)
+    if (isCloudflareBlock(result)) {
+      throw new Error(
+        'CLOB_GEO_BLOCKED: Polymarket blocks order placement from 33 countries including US, UK, Germany, France. ' +
+          'The builder API key does NOT bypass geo-restrictions. ' +
+          'Run from a non-restricted region (VPN/proxy to eu-west-1 recommended). ' +
+          'See: https://docs.polymarket.com/developers/CLOB/geoblock'
+      );
+    }
     throw new Error(`CLOB returned unexpected response: ${result.slice(0, 200)}`);
   }
 
   if (result.error) {
-    const errMsg = typeof result.error === 'string'
-      ? result.error.slice(0, 200)
-      : JSON.stringify(result.error).slice(0, 200);
+    const errMsg =
+      typeof result.error === 'string'
+        ? result.error.slice(0, 200)
+        : JSON.stringify(result.error).slice(0, 200);
     throw new Error(`CLOB order failed: ${errMsg}`);
   }
 
@@ -438,10 +493,7 @@ export async function getTrades(
 /**
  * Cancel a specific order.
  */
-export async function cancelOrder(
-  config: PolymarketClientConfig,
-  orderId: string
-): Promise<any> {
+export async function cancelOrder(config: PolymarketClientConfig, orderId: string): Promise<any> {
   const client = await buildClient(config);
   return client.cancelOrder({ orderID: orderId });
 }
@@ -449,9 +501,7 @@ export async function cancelOrder(
 /**
  * Cancel all open orders.
  */
-export async function cancelAllOrders(
-  config: PolymarketClientConfig
-): Promise<any> {
+export async function cancelAllOrders(config: PolymarketClientConfig): Promise<any> {
   const client = await buildClient(config);
   return client.cancelAll();
 }
@@ -489,9 +539,7 @@ export async function getConditionalBalance(
 /**
  * Update (set max) allowance for USDC collateral on the CTF exchange.
  */
-export async function updateCollateralAllowance(
-  config: PolymarketClientConfig
-): Promise<void> {
+export async function updateCollateralAllowance(config: PolymarketClientConfig): Promise<void> {
   const client = await buildClient(config);
   await client.updateBalanceAllowance({
     asset_type: 'COLLATERAL' as AssetType,

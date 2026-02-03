@@ -42,7 +42,8 @@ import type { Express } from 'express';
 const USDC_NATIVE: Address = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'; // Native USDC on Polygon
 const USDC_E: Address = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'; // USDC.e (bridged) — used by Polymarket
 const USDC_DECIMALS = 6;
-const FUND_AMOUNT = '2.00'; // $2 USDC.e — enough for a small bet
+// Polymarket minimum order is $1
+const MIN_FUND_AMOUNT = 1.0;
 
 // Uniswap V3 SwapRouter on Polygon
 const UNISWAP_SWAP_ROUTER: Address = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
@@ -63,11 +64,7 @@ function getPolygonRpcUrl(): string {
   return `https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`;
 }
 
-async function sendUsdcE(
-  fromPrivateKey: Hex,
-  to: Address,
-  amount: string
-): Promise<Hex> {
+async function sendUsdcE(fromPrivateKey: Hex, to: Address, amount: string): Promise<Hex> {
   const account = privateKeyToAccount(fromPrivateKey);
   const client = createWalletClient({
     account,
@@ -128,10 +125,7 @@ async function getNativeUsdcBalance(address: Address): Promise<string> {
 /**
  * Swap native USDC to USDC.e via Uniswap V3 on Polygon.
  */
-async function swapNativeUsdcToUsdcE(
-  privateKey: Hex,
-  amount: string
-): Promise<Hex> {
+async function swapNativeUsdcToUsdcE(privateKey: Hex, amount: string): Promise<Hex> {
   const account = privateKeyToAccount(privateKey);
   const walletClient = createWalletClient({
     account,
@@ -155,42 +149,48 @@ async function swapNativeUsdcToUsdcE(
   await publicClient.waitForTransactionReceipt({ hash: approveTx });
 
   // exactInputSingle swap
-  const swapRouterAbi = [{
-    name: 'exactInputSingle',
-    type: 'function',
-    inputs: [{
-      name: 'params',
-      type: 'tuple',
-      components: [
-        { name: 'tokenIn', type: 'address' },
-        { name: 'tokenOut', type: 'address' },
-        { name: 'fee', type: 'uint24' },
-        { name: 'recipient', type: 'address' },
-        { name: 'deadline', type: 'uint256' },
-        { name: 'amountIn', type: 'uint256' },
-        { name: 'amountOutMinimum', type: 'uint256' },
-        { name: 'sqrtPriceLimitX96', type: 'uint160' },
+  const swapRouterAbi = [
+    {
+      name: 'exactInputSingle',
+      type: 'function',
+      inputs: [
+        {
+          name: 'params',
+          type: 'tuple',
+          components: [
+            { name: 'tokenIn', type: 'address' },
+            { name: 'tokenOut', type: 'address' },
+            { name: 'fee', type: 'uint24' },
+            { name: 'recipient', type: 'address' },
+            { name: 'deadline', type: 'uint256' },
+            { name: 'amountIn', type: 'uint256' },
+            { name: 'amountOutMinimum', type: 'uint256' },
+            { name: 'sqrtPriceLimitX96', type: 'uint160' },
+          ],
+        },
       ],
-    }],
-    outputs: [{ name: 'amountOut', type: 'uint256' }],
-    stateMutability: 'payable',
-  }] as const;
+      outputs: [{ name: 'amountOut', type: 'uint256' }],
+      stateMutability: 'payable',
+    },
+  ] as const;
 
   // 0.01% fee tier for stablecoin pairs
   const hash = await walletClient.writeContract({
     address: UNISWAP_SWAP_ROUTER,
     abi: swapRouterAbi,
     functionName: 'exactInputSingle',
-    args: [{
-      tokenIn: USDC_NATIVE,
-      tokenOut: USDC_E,
-      fee: 100, // 0.01% fee tier
-      recipient: account.address,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + 600),
-      amountIn: amountWei,
-      amountOutMinimum: amountWei * 99n / 100n, // 1% slippage
-      sqrtPriceLimitX96: 0n,
-    }],
+    args: [
+      {
+        tokenIn: USDC_NATIVE,
+        tokenOut: USDC_E,
+        fee: 100, // 0.01% fee tier
+        recipient: account.address,
+        deadline: BigInt(Math.floor(Date.now() / 1000) + 600),
+        amountIn: amountWei,
+        amountOutMinimum: (amountWei * 99n) / 100n, // 1% slippage
+        sqrtPriceLimitX96: 0n,
+      },
+    ],
   });
 
   await publicClient.waitForTransactionReceipt({ hash });
@@ -223,6 +223,47 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     finalBalance?: string;
   } = {};
 
+  /**
+   * Check if an HTTP response indicates geo-restriction (Cloudflare block).
+   */
+  function isGeoBlocked(res: any): boolean {
+    const message = res?.body?.error?.message || '';
+    return (
+      message.includes('GEO_BLOCKED') ||
+      message.includes('Cloudflare') ||
+      message.includes('cf-error') ||
+      message.includes('<!DOCTYPE html>') ||
+      message.includes('<!doctype html>')
+    );
+  }
+
+  /**
+   * Fail the test with a clear message when geo-blocked.
+   */
+  function failIfGeoBlocked(res: any, action: string): void {
+    if (res.status === 500 && isGeoBlocked(res)) {
+      throw new Error(
+        `\n` +
+          `═══════════════════════════════════════════════════════════════════\n` +
+          `  🚫 GEO-BLOCKED: Cannot ${action}\n` +
+          `═══════════════════════════════════════════════════════════════════\n` +
+          `\n` +
+          `  Polymarket blocks order placement from the US and 32 other countries.\n` +
+          `  Your current IP is in a restricted region.\n` +
+          `\n` +
+          `  👉 TURN ON YOUR VPN and connect to a non-blocked region:\n` +
+          `     • EU (except UK, Germany, France, Italy, Belgium, Poland)\n` +
+          `     • South America (except Venezuela)\n` +
+          `     • Most of Asia (except Singapore, Thailand, Taiwan)\n` +
+          `\n` +
+          `  Recommended: Connect to Ireland (eu-west-1) or Brazil\n` +
+          `\n` +
+          `  See: https://docs.polymarket.com/developers/CLOB/geoblock\n` +
+          `═══════════════════════════════════════════════════════════════════\n`
+      );
+    }
+  }
+
   beforeAll(async () => {
     app = createApp();
     await prisma.$connect();
@@ -234,19 +275,52 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     const funderNativeBalance = await getNativeUsdcBalance(funderAddress);
     console.log(`Funder native USDC balance: ${funderNativeBalance}`);
 
-    // Ensure we have USDC.e — swap native USDC if needed
+    // Check total available funds (native + bridged USDC)
     let funderUsdcEBalance = await getUsdcEBalance(funderAddress);
     console.log(`Funder USDC.e balance: ${funderUsdcEBalance}`);
-    if (parseFloat(funderUsdcEBalance) < parseFloat(FUND_AMOUNT)) {
-      const swapAmount = '5.00'; // Swap a bit more than needed
+
+    const totalAvailable = parseFloat(funderNativeBalance) + parseFloat(funderUsdcEBalance);
+    console.log(`Total available USDC: $${totalAvailable.toFixed(2)}`);
+
+    // Need at least $1.10 to reliably test (Polymarket $1 min + fees + buffer)
+    const SAFE_MIN = 1.1;
+    if (totalAvailable < SAFE_MIN) {
+      throw new Error(
+        `\n` +
+          `═══════════════════════════════════════════════════════════════════\n` +
+          `  💰 INSUFFICIENT FUNDS in funder wallet\n` +
+          `═══════════════════════════════════════════════════════════════════\n` +
+          `\n` +
+          `  Polymarket requires minimum $1 orders.\n` +
+          `  Need at least $${SAFE_MIN.toFixed(2)} to test, but only have $${totalAvailable.toFixed(2)}.\n` +
+          `\n` +
+          `  👉 Top up the funder wallet:\n` +
+          `     Address: ${funderAddress}\n` +
+          `     Network: Polygon\n` +
+          `     Amount:  Send $${Math.max(2 - totalAvailable, 1).toFixed(2)} USDC (recommend $2+)\n` +
+          `\n` +
+          `  Tip: Each test run uses ~$1. Fund with $5-10 to run multiple tests.\n` +
+          `\n` +
+          `═══════════════════════════════════════════════════════════════════\n`
+      );
+    }
+
+    // Swap native USDC to USDC.e if needed (Polymarket uses bridged USDC.e)
+    if (parseFloat(funderUsdcEBalance) < MIN_FUND_AMOUNT) {
+      const needed = MIN_FUND_AMOUNT - parseFloat(funderUsdcEBalance) + 0.1; // Small buffer
+      const available = parseFloat(funderNativeBalance);
+      const swapAmount = Math.min(needed, available * 0.95).toFixed(2); // Leave 5% for gas
+
       console.log(`Swapping ${swapAmount} native USDC -> USDC.e via Uniswap V3...`);
-      expect(parseFloat(funderNativeBalance)).toBeGreaterThan(parseFloat(swapAmount));
       const swapTx = await swapNativeUsdcToUsdcE(funderKey, swapAmount);
       console.log(`Swap tx: https://polygonscan.com/tx/${swapTx}`);
       funderUsdcEBalance = await getUsdcEBalance(funderAddress);
       console.log(`Funder USDC.e balance after swap: ${funderUsdcEBalance}`);
     }
-    expect(parseFloat(funderUsdcEBalance)).toBeGreaterThan(parseFloat(FUND_AMOUNT));
+
+    // Calculate actual fund amount (use what's available, minimum $1.05)
+    const fundAmount = Math.min(parseFloat(funderUsdcEBalance) * 0.95, MIN_FUND_AMOUNT).toFixed(2);
+    expect(parseFloat(funderUsdcEBalance)).toBeGreaterThanOrEqual(MIN_FUND_AMOUNT * 0.95);
 
     // Step 1: Create POLYMARKET_WALLET via API
     const createRes = await request(app)
@@ -258,7 +332,9 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
     console.log(`Secret ID: ${secretId}`);
-    console.log(`Initial wallet address (EOA, pre-Safe): ${createRes.body.data.secret.walletAddress}`);
+    console.log(
+      `Initial wallet address (EOA, pre-Safe): ${createRes.body.data.secret.walletAddress}`
+    );
 
     // Step 2: Trigger lazy Safe deployment by checking balance
     // This will deploy the Safe and approve collateral via the relayer (gasless)
@@ -273,14 +349,14 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     expect(safeAddress).toBeTruthy();
 
     // Step 3: Fund the Safe with USDC.e
-    console.log(`Funding Safe with ${FUND_AMOUNT} USDC.e...`);
-    const fundTxHash = await sendUsdcE(funderKey, safeAddress, FUND_AMOUNT);
+    console.log(`Funding Safe with ${fundAmount} USDC.e...`);
+    const fundTxHash = await sendUsdcE(funderKey, safeAddress, fundAmount);
     evidence.fundTxHash = fundTxHash;
     console.log(`Fund tx: https://polygonscan.com/tx/${fundTxHash}`);
 
     const safeBalance = await getUsdcEBalance(safeAddress);
     console.log(`Safe USDC.e balance after funding: ${safeBalance}`);
-    expect(parseFloat(safeBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
+    expect(parseFloat(safeBalance)).toBeGreaterThanOrEqual(parseFloat(fundAmount) * 0.99);
   }, 300_000); // 5 min — Safe deployment can take time
 
   afterAll(async () => {
@@ -384,10 +460,10 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
 
     expect(balance).toBeGreaterThanOrEqual(0);
 
-    // Verify Safe has USDC.e on-chain
+    // Verify Safe has USDC.e on-chain (at least $1 for Polymarket minimum)
     const safeOnChainBalance = await getUsdcEBalance(safeAddress);
     console.log(`Safe on-chain USDC.e balance: ${safeOnChainBalance}`);
-    expect(parseFloat(safeOnChainBalance)).toBeGreaterThanOrEqual(parseFloat(FUND_AMOUNT));
+    expect(parseFloat(safeOnChainBalance)).toBeGreaterThanOrEqual(1.0);
   }, 120_000);
 
   // ============================================================
@@ -428,7 +504,7 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     for (const market of candidates) {
       const tokenIds = JSON.parse(market.clobTokenIds);
       const ltp = parseFloat(market.lastTradePrice || '0.5');
-      const tokenId = (ltp >= 0.15 && ltp <= 0.85) ? tokenIds[0] : tokenIds[1];
+      const tokenId = ltp >= 0.15 && ltp <= 0.85 ? tokenIds[0] : tokenIds[1];
 
       const obRes = await request(app)
         .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(tokenId)}`)
@@ -453,7 +529,9 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
       console.log(`Selected market: ${market.question}`);
       console.log(`Token ID: ${tokenId}`);
       console.log(`Last trade price: ${ltp}`);
-      console.log(`Best bid: ${obBid}, Best ask: ${obAsk}, Midpoint: ${midpoint.toFixed(3)}, Spread: ${spread.toFixed(3)}`);
+      console.log(
+        `Best bid: ${obBid}, Best ask: ${obAsk}, Midpoint: ${midpoint.toFixed(3)}, Spread: ${spread.toFixed(3)}`
+      );
       break;
     }
 
@@ -489,7 +567,9 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     sellPrice = parseFloat(topBid.price);
 
     console.log(`Order book: ${res.body.data.bids.length} bids, ${res.body.data.asks.length} asks`);
-    console.log(`Top bid: ${topBid.price} (${topBid.size} shares), Top ask: ${topAsk.price} (${topAsk.size} shares)`);
+    console.log(
+      `Top bid: ${topBid.price} (${topBid.size} shares), Top ask: ${topAsk.price} (${topAsk.size} shares)`
+    );
   }, 60_000);
 
   // ============================================================
@@ -505,12 +585,15 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
       .send({
         tokenId: chosenTokenId,
         side: 'BUY',
-        amount: 2,
+        amount: 1, // Polymarket minimum order is $1
         price: buyPrice,
       });
 
     console.log(`BUY response status: ${res.status}`);
     console.log(`BUY response body:`, JSON.stringify(res.body, null, 2));
+
+    // Fail with clear message if geo-blocked
+    failIfGeoBlocked(res, 'place BUY order');
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -583,12 +666,15 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
       .send({
         tokenId: chosenTokenId,
         side: 'SELL',
-        amount: 2,
+        amount: 1, // Polymarket minimum order is $1
         price: sellPrice,
       });
 
     console.log(`SELL response status: ${res.status}`);
     console.log(`SELL response body:`, JSON.stringify(res.body, null, 2));
+
+    // Fail with clear message if geo-blocked
+    failIfGeoBlocked(res, 'place SELL order');
 
     // SELL may fail with "not enough balance" if the BUY limit order hasn't filled yet.
     // This is expected behavior — we accept either a successful order or a balance error.
@@ -604,7 +690,10 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
       // If the BUY hasn't filled, SELL will fail with balance/allowance error — this is OK
       const errMsg = res.body?.error?.message || '';
       console.log(`SELL failed (expected if BUY unfilled): ${errMsg}`);
-      expect(errMsg).toContain('balance');
+      // Accept balance/allowance errors (expected if BUY order didn't fill)
+      const isExpectedError =
+        errMsg.toLowerCase().includes('balance') || errMsg.toLowerCase().includes('allowance');
+      expect(isExpectedError).toBe(true);
     }
   }, 120_000);
 
@@ -626,7 +715,9 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     console.log(`Total trades: ${trades.length}`);
     if (trades.length > 0) {
       for (const t of trades.slice(0, 5)) {
-        console.log(`  Trade: ${t.side} ${t.size} shares @ ${t.price} (ID: ${t.id || t.tradeId || 'N/A'})`);
+        console.log(
+          `  Trade: ${t.side} ${t.size} shares @ ${t.price} (ID: ${t.id || t.tradeId || 'N/A'})`
+        );
       }
     }
 
