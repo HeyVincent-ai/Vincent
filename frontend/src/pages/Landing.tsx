@@ -653,9 +653,16 @@ export default function Landing() {
                 </div>
                 <div className="panel" style={{ padding: 18, borderColor: 'rgba(59,130,246,.4)' }}>
                   <div style={{ fontWeight: 850, marginBottom: 4 }}>Pro</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>$10<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>/month</span></div>
+                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>
+                    $10
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>
+                      /month
+                    </span>
+                  </div>
                   <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
-                    <li><b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet</li>
+                    <li>
+                      <b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet
+                    </li>
                     <li>Mainnet transactions on all chains</li>
                     <li>Gas costs included</li>
                     <li>Priority support</li>
@@ -663,7 +670,8 @@ export default function Landing() {
                 </div>
               </div>
               <div className="micro" style={{ marginTop: 12 }}>
-                New wallets get a 3-day free trial for mainnet transactions. After that, subscribe to keep using mainnet.
+                New wallets get a 3-day free trial for mainnet transactions. After that, subscribe
+                to keep using mainnet.
               </div>
             </section>
 
@@ -762,6 +770,9 @@ export default function Landing() {
                 title="Discord"
               >
                 Discord
+              </a>
+              <a href="mailto:support@litprotocol.com" title="Email support">
+                Support
               </a>
               <a
                 className="legacyLink"
