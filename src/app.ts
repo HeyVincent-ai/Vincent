@@ -3,6 +3,7 @@ import path from 'path';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import * as Sentry from '@sentry/node';
 import { env } from './utils/env';
 import { errorHandler } from './api/middleware/errorHandler';
 import { requestLogger } from './api/middleware/requestLogger';
@@ -103,10 +104,20 @@ export function createApp(): Express {
   if (env.NODE_ENV === 'production') {
     const frontendPath = path.join(__dirname, '..', 'frontend', 'dist');
     app.use(express.static(frontendPath));
-    app.get('/{*splat}', (_req, res) => {
+
+    // SPA catch-all: serve index.html for client-side routing
+    // Skip paths with file extensions - let those 404 if not found by express.static
+    app.get('/{*splat}', (req, res, next) => {
+      if (req.path.match(/\.\w+$/)) {
+        // Path has a file extension - don't serve index.html, let it 404
+        return next();
+      }
       res.sendFile(path.join(frontendPath, 'index.html'));
     });
   }
+
+  // Sentry error handler must be before other error handlers
+  Sentry.setupExpressErrorHandler(app);
 
   // Error handling middleware (must be last)
   app.use(errorHandler);

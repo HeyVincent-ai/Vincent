@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import * as Sentry from '@sentry/node';
 import { errors, sendError } from '../../utils/response';
 
 // Custom error class for application errors
@@ -36,7 +37,7 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     method: req.method,
   });
 
-  // Handle Zod validation errors
+  // Handle Zod validation errors (don't report to Sentry - client error)
   if (err instanceof ZodError) {
     errors.validation(res, err.issues);
     return;
@@ -44,11 +45,18 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
   // Handle custom application errors
   if (err instanceof AppError) {
+    // Only report 5xx errors to Sentry
+    if (err.statusCode >= 500) {
+      Sentry.captureException(err, {
+        extra: { code: err.code, details: err.details },
+        tags: { errorType: 'AppError' },
+      });
+    }
     sendError(res, err.code, err.message, err.statusCode, err.details);
     return;
   }
 
-  // Handle Prisma errors
+  // Handle Prisma errors (don't report constraint violations - client errors)
   if (isPrismaError(err)) {
     if (err.code === 'P2002') {
       errors.conflict(res, `Duplicate entry for ${err.meta?.target?.join(', ') || 'field'}`);
@@ -58,7 +66,17 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
       errors.notFound(res);
       return;
     }
+    // Report unexpected Prisma errors
+    Sentry.captureException(err, {
+      extra: { prismaCode: err.code },
+      tags: { errorType: 'PrismaError' },
+    });
   }
+
+  // Report unexpected errors to Sentry
+  Sentry.captureException(err, {
+    tags: { errorType: 'UnhandledError' },
+  });
 
   // Default to internal server error
   errors.internal(res, process.env.NODE_ENV === 'development' ? err.message : undefined);
