@@ -403,7 +403,7 @@ export default function Landing() {
             <div style={{ maxWidth: 860 }}>
               <h1 className="reveal d1">Give your agent a key it can't leak.</h1>
               <p className="lead reveal d2" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
-                Agents execute with your secrets. They never see them.
+                A wallet for AI agents where you stay in control
               </p>
             </div>
           </div>

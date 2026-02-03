@@ -58,14 +58,13 @@ const USDC_DECIMALS = 6;
 const NATIVE_ETH = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 
 // Test amounts - small to minimize costs
-const ETH_FUND_AMOUNT = '0.002'; // ETH to fund smart account for testing
-const ETH_TRANSFER_AMOUNT = '0.0001'; // Small ETH transfer
-const USDC_FUND_AMOUNT = '2.00'; // USDC to fund smart account
-const USDC_TRANSFER_AMOUNT = '0.50'; // Small USDC transfer
-const SWAP_ETH_AMOUNT = '0.0005'; // ETH to swap for USDC
+const ETH_FUND_AMOUNT = '0.000001'; // ETH to fund smart account for testing
+const ETH_TRANSFER_AMOUNT = '0.0000001'; // Small ETH transfer
+const USDC_FUND_AMOUNT = '0.00001'; // USDC to fund smart account
+const USDC_TRANSFER_AMOUNT = '0.000001'; // Small USDC transfer
+const SWAP_USDC_AMOUNT = '0.000001'; // USDC to swap for ETH
 
-// Burn address for test transfers
-const BURN_ADDRESS: Address = '0x000000000000000000000000000000000000dEaD';
+// Note: Test transfers send funds back to funder address to avoid burning money
 
 // ============================================================
 // Helpers
@@ -81,16 +80,12 @@ function getBaseRpcUrl(): string {
   const alchemyKey = process.env.ALCHEMY_API_KEY;
   if (alchemyKey) {
     return `https://base-mainnet.g.alchemy.com/v2/${alchemyKey}`;
+  } else {
+    throw new Error('ALCHEMY_API_KEY env var is required');
   }
-  // Fallback to public RPC
-  return 'https://mainnet.base.org';
 }
 
-async function sendEth(
-  fromPrivateKey: Hex,
-  to: Address,
-  amount: string
-): Promise<Hex> {
+async function sendEth(fromPrivateKey: Hex, to: Address, amount: string): Promise<Hex> {
   const account = privateKeyToAccount(fromPrivateKey);
   const client = createWalletClient({
     account,
@@ -112,11 +107,7 @@ async function sendEth(
   return hash;
 }
 
-async function sendUsdc(
-  fromPrivateKey: Hex,
-  to: Address,
-  amount: string
-): Promise<Hex> {
+async function sendUsdc(fromPrivateKey: Hex, to: Address, amount: string): Promise<Hex> {
   const account = privateKeyToAccount(fromPrivateKey);
   const client = createWalletClient({
     account,
@@ -413,14 +404,19 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
 
   it('should show zero balance before funding', async () => {
     const res = await request(app)
-      .get(`/api/skills/evm-wallet/balance?chainId=${BASE_MAINNET_CHAIN_ID}`)
+      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.eth.balance).toBe('0');
-    expect(res.body.data.chainId).toBe(BASE_MAINNET_CHAIN_ID);
-    console.log(`Initial ETH balance: ${res.body.data.eth.balance}`);
+    expect(res.body.data.address).toBe(smartAccountAddress);
+    // New account has no tokens (empty array since zero balances are filtered)
+    const tokens = res.body.data.tokens || [];
+    const ethToken = tokens.find(
+      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+    );
+    expect(ethToken).toBeUndefined(); // No ETH token since balance is 0
+    console.log(`Initial tokens: ${tokens.length} (should be 0)`);
   }, 30_000);
 
   // ============================================================
@@ -457,33 +453,50 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   // Test 5: Check balance with tokens
   // ============================================================
 
-  it('should show balance with USDC token', async () => {
+  it('should show balance with ETH and USDC', async () => {
     const res = await request(app)
-      .get(`/api/skills/evm-wallet/balance?chainId=${BASE_MAINNET_CHAIN_ID}&tokens=${USDC_ADDRESS}`)
+      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(parseFloat(res.body.data.eth.balance)).toBeGreaterThan(0);
-    expect(res.body.data.tokens).toBeDefined();
-    expect(res.body.data.tokens.length).toBe(1);
-    expect(res.body.data.tokens[0].symbol).toBe('USDC');
-    expect(parseFloat(res.body.data.tokens[0].balance)).toBeGreaterThan(0);
+    expect(res.body.data.address).toBe(smartAccountAddress);
 
-    console.log(`Balance check - ETH: ${res.body.data.eth.balance}`);
-    console.log(`Balance check - USDC: ${res.body.data.tokens[0].balance}`);
+    const tokens = res.body.data.tokens;
+    expect(tokens).toBeDefined();
+
+    // Find native ETH (tokenAddress is null)
+    const ethToken = tokens.find(
+      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+    );
+    expect(ethToken).toBeDefined();
+    expect(ethToken.symbol).toBe('ETH');
+    const ethBalance = parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals));
+    expect(ethBalance).toBeGreaterThan(0);
+
+    // Find USDC
+    const usdcToken = tokens.find(
+      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+    );
+    expect(usdcToken).toBeDefined();
+    expect(usdcToken.symbol).toBe('USDC');
+    const usdcBalance = parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals));
+    expect(usdcBalance).toBeGreaterThan(0);
+
+    console.log(`Balance check - ETH: ${ethBalance}`);
+    console.log(`Balance check - USDC: ${usdcBalance}`);
   }, 30_000);
 
   // ============================================================
   // Test 6: Transfer ETH
   // ============================================================
 
-  it('should transfer ETH to burn address', async () => {
+  it('should transfer ETH back to funder', async () => {
     const res = await request(app)
       .post('/api/skills/evm-wallet/transfer')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        to: BURN_ADDRESS,
+        to: funderAddress,
         amount: ETH_TRANSFER_AMOUNT,
         chainId: BASE_MAINNET_CHAIN_ID,
       })
@@ -503,12 +516,12 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   // Test 7: Transfer USDC
   // ============================================================
 
-  it('should transfer USDC to burn address', async () => {
+  it('should transfer USDC back to funder', async () => {
     const res = await request(app)
       .post('/api/skills/evm-wallet/transfer')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        to: BURN_ADDRESS,
+        to: funderAddress,
         amount: USDC_TRANSFER_AMOUNT,
         token: USDC_ADDRESS,
         chainId: BASE_MAINNET_CHAIN_ID,
@@ -524,43 +537,45 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   }, 120_000);
 
   // ============================================================
-  // Test 8: Preview swap (ETH → USDC)
+  // Test 8: Preview swap (USDC → ETH)
   // ============================================================
 
-  it('should preview a swap from ETH to USDC', async () => {
+  it('should preview a swap from USDC to ETH', async () => {
     const res = await request(app)
       .post('/api/skills/evm-wallet/swap/preview')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        sellToken: NATIVE_ETH,
-        buyToken: USDC_ADDRESS,
-        sellAmount: SWAP_ETH_AMOUNT,
+        sellToken: USDC_ADDRESS,
+        buyToken: NATIVE_ETH,
+        sellAmount: SWAP_USDC_AMOUNT,
         chainId: BASE_MAINNET_CHAIN_ID,
       })
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.sellToken.toLowerCase()).toBe(NATIVE_ETH.toLowerCase());
-    expect(res.body.data.buyToken.toLowerCase()).toBe(USDC_ADDRESS.toLowerCase());
+    expect(res.body.data.sellToken.toLowerCase()).toBe(USDC_ADDRESS.toLowerCase());
+    expect(res.body.data.buyToken.toLowerCase()).toBe(NATIVE_ETH.toLowerCase());
     expect(res.body.data.liquidityAvailable).toBe(true);
     expect(res.body.data.route.length).toBeGreaterThan(0);
 
-    console.log(`Swap preview: ${SWAP_ETH_AMOUNT} ETH → ~${formatUnits(BigInt(res.body.data.buyAmount), USDC_DECIMALS)} USDC`);
+    console.log(
+      `Swap preview: ${SWAP_USDC_AMOUNT} USDC → ~${formatEther(BigInt(res.body.data.buyAmount))} ETH`
+    );
     console.log(`Route: ${res.body.data.route.map((r: any) => r.source).join(' → ')}`);
   }, 60_000);
 
   // ============================================================
-  // Test 9: Execute swap (ETH → USDC)
+  // Test 9: Execute swap (USDC → ETH)
   // ============================================================
 
-  it('should execute a swap from ETH to USDC', async () => {
+  it('should execute a swap from USDC to ETH', async () => {
     const res = await request(app)
       .post('/api/skills/evm-wallet/swap/execute')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        sellToken: NATIVE_ETH,
-        buyToken: USDC_ADDRESS,
-        sellAmount: SWAP_ETH_AMOUNT,
+        sellToken: USDC_ADDRESS,
+        buyToken: NATIVE_ETH,
+        sellAmount: SWAP_USDC_AMOUNT,
         chainId: BASE_MAINNET_CHAIN_ID,
         slippageBps: 100, // 1% slippage
       })
@@ -572,8 +587,8 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
 
     evidence.swapTxHash = res.body.data.txHash;
     console.log(`Swap executed: ${res.body.data.explorerUrl}`);
-    console.log(`Sold: ${formatEther(BigInt(res.body.data.sellAmount))} ETH`);
-    console.log(`Bought: ${formatUnits(BigInt(res.body.data.buyAmount), USDC_DECIMALS)} USDC`);
+    console.log(`Sold: ${formatUnits(BigInt(res.body.data.sellAmount), USDC_DECIMALS)} USDC`);
+    console.log(`Bought: ${formatEther(BigInt(res.body.data.buyAmount))} ETH`);
   }, 180_000);
 
   // ============================================================
@@ -607,12 +622,27 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
 
   it('should have reduced balances after operations', async () => {
     const res = await request(app)
-      .get(`/api/skills/evm-wallet/balance?chainId=${BASE_MAINNET_CHAIN_ID}&tokens=${USDC_ADDRESS}`)
+      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
-    const ethBalance = parseFloat(res.body.data.eth.balance);
-    const usdcBalance = parseFloat(res.body.data.tokens[0].balance);
+    const tokens = res.body.data.tokens;
+
+    // Find native ETH
+    const ethToken = tokens.find(
+      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+    );
+    const ethBalance = ethToken
+      ? parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals))
+      : 0;
+
+    // Find USDC
+    const usdcToken = tokens.find(
+      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+    );
+    const usdcBalance = usdcToken
+      ? parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals))
+      : 0;
 
     console.log(`Final balances - ETH: ${ethBalance}, USDC: ${usdcBalance}`);
 
