@@ -18,15 +18,15 @@ api.interceptors.response.use(
     const url = err.config?.url || '';
     if (err.response?.status === 401 && !url.startsWith('/auth/')) {
       localStorage.removeItem('sessionToken');
-      window.location.href = '/login';
+      // Don't hard redirect - let React Router handle navigation
+      // This prevents unwanted redirects on public pages like the landing page
     }
     return Promise.reject(err);
   }
 );
 
 // Auth
-export const syncSession = (sessionToken: string) =>
-  api.post('/auth/session', { sessionToken });
+export const syncSession = (sessionToken: string) => api.post('/auth/session', { sessionToken });
 
 export const logout = () => api.post('/auth/logout');
 
@@ -38,8 +38,7 @@ export const updateTelegram = (telegramUsername: string) =>
 export const generateTelegramLink = () => api.post('/user/telegram/link');
 
 // Secrets
-export const createSecret = (type: string, memo?: string) =>
-  api.post('/secrets', { type, memo });
+export const createSecret = (type: string, memo?: string) => api.post('/secrets', { type, memo });
 export const getSecret = (id: string) => api.get(`/secrets/${id}`);
 export const claimSecret = (id: string, claimToken: string) =>
   api.post(`/secrets/${id}/claim`, { claimToken });
@@ -55,8 +54,7 @@ export const revokeApiKey = (secretId: string, keyId: string) =>
   api.delete(`/secrets/${secretId}/api-keys/${keyId}`);
 
 // Policies
-export const listPolicies = (secretId: string) =>
-  api.get(`/secrets/${secretId}/policies`);
+export const listPolicies = (secretId: string) => api.get(`/secrets/${secretId}/policies`);
 export const createPolicy = (secretId: string, policyType: string, policyConfig: unknown) =>
   api.post(`/secrets/${secretId}/policies`, { policyType, policyConfig });
 export const updatePolicy = (secretId: string, policyId: string, policyConfig: unknown) =>
@@ -65,14 +63,23 @@ export const deletePolicy = (secretId: string, policyId: string) =>
   api.delete(`/secrets/${secretId}/policies/${policyId}`);
 
 // Audit Logs
-export const listAuditLogs = (secretId: string, params?: { action?: string; status?: string; page?: number; limit?: number }) =>
-  api.get(`/secrets/${secretId}/audit-logs`, { params });
+export const listAuditLogs = (
+  secretId: string,
+  params?: { action?: string; status?: string; page?: number; limit?: number }
+) => api.get(`/secrets/${secretId}/audit-logs`, { params });
 export const getAuditLog = (secretId: string, logId: string) =>
   api.get(`/secrets/${secretId}/audit-logs/${logId}`);
 export const getAuditLogActions = (secretId: string) =>
   api.get(`/secrets/${secretId}/audit-logs/actions`);
-export const exportAuditLogs = (secretId: string, format: 'json' | 'csv', params?: { action?: string; status?: string }) =>
-  api.get(`/secrets/${secretId}/audit-logs/export`, { params: { ...params, format }, responseType: format === 'csv' ? 'blob' : undefined });
+export const exportAuditLogs = (
+  secretId: string,
+  format: 'json' | 'csv',
+  params?: { action?: string; status?: string }
+) =>
+  api.get(`/secrets/${secretId}/audit-logs/export`, {
+    params: { ...params, format },
+    responseType: format === 'csv' ? 'blob' : undefined,
+  });
 
 // Balances (Alchemy Portfolio)
 export const getSecretBalances = (secretId: string, chainIds?: number[]) =>
@@ -81,10 +88,26 @@ export const getSecretBalances = (secretId: string, chainIds?: number[]) =>
   });
 
 // Swap
-export const previewSwap = (secretId: string, data: { sellToken: string; buyToken: string; sellAmount: string; chainId: number; slippageBps?: number }) =>
-  api.post(`/secrets/${secretId}/swap/preview`, data);
-export const executeSwap = (secretId: string, data: { sellToken: string; buyToken: string; sellAmount: string; chainId: number; slippageBps?: number }) =>
-  api.post(`/secrets/${secretId}/swap/execute`, data);
+export const previewSwap = (
+  secretId: string,
+  data: {
+    sellToken: string;
+    buyToken: string;
+    sellAmount: string;
+    chainId: number;
+    slippageBps?: number;
+  }
+) => api.post(`/secrets/${secretId}/swap/preview`, data);
+export const executeSwap = (
+  secretId: string,
+  data: {
+    sellToken: string;
+    buyToken: string;
+    sellAmount: string;
+    chainId: number;
+    slippageBps?: number;
+  }
+) => api.post(`/secrets/${secretId}/swap/execute`, data);
 
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
