@@ -15,17 +15,29 @@ export function createApp(): Express {
   // Trust proxy (Railway, etc.) so req.ip returns the real client IP
   app.set('trust proxy', true);
 
+  // Redirect www to non-www (bare domain)
+  app.use((req, res, next) => {
+    const host = req.get('host');
+    if (host && host.startsWith('www.')) {
+      const newHost = host.slice(4); // Remove 'www.'
+      return res.redirect(301, `https://${newHost}${req.originalUrl}`);
+    }
+    next();
+  });
+
   // Security middleware
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        connectSrc: ["'self'", "https://api.stytch.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          connectSrc: ["'self'", 'https://api.stytch.com'],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+        },
       },
-    },
-  }));
+    })
+  );
 
   // CORS configuration
   app.use(
