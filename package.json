@@ -22,7 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts"
+    "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
+    "test:base-mainnet": "vitest run src/e2e/baseMainnet.e2e.test.ts --timeout 300000"
   },
   "keywords": [
     "secrets",
