@@ -305,6 +305,27 @@ npm run db:studio
 - **Claim Token Security**: One-time use, expire after 7 days
 - **Secret Isolation**: Agents never see raw secret values
 
+## Publishing Instructions
+
+### Deploying to Production
+
+Pushing to `main` will automatically deploy to Railway.
+
+### Publishing the Skill
+
+To publish the Agent Wallet skill to Clawhub:
+
+```bash
+./scripts/publish_skill.sh
+```
+
+This script will:
+
+1. Bump the patch version in `package.json`
+2. Copy `skills/wallet/SKILL.md` to `frontend/public/SKILL.md`
+3. Copy `skills/wallet/SKILL.md` to `../agent-skills/skills/wallet/SKILL.md`
+4. Publish to Clawhub with the new version
+
 ## License
 
 ISC
