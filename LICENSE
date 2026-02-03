@@ -1,0 +1,70 @@
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab
+
+“Business Source License” is a trademark of MariaDB Corporation Ab.
+
+---
+
+Parameters
+
+Licensor: WorkGraph, Inc
+
+Licensed Work: Vincent / SafeSkills
+
+Additional Use Grant: None
+
+Change Date: 2030-02-03
+
+Change License: Apache License, Version 2.0
+
+---
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-commercial use of the Licensed Work.
+
+The Licensed Work may not be used for Commercial Use except as explicitly
+permitted under a separate commercial license agreement with the Licensor.
+
+To obtain a commercial license, please contact:
+
+    support@litprotocol.com
+
+“Commercial Use” means any use of the Licensed Work that is primarily intended
+for or directed toward commercial advantage or monetary compensation,
+including but not limited to:
+
+- Offering the Licensed Work as part of a paid product or service
+- Using the Licensed Work to provide a hosted or managed service
+- Embedding the Licensed Work in software that is sold or licensed for a fee
+
+Use of the Licensed Work for internal evaluation, development, testing,
+research, or other non-commercial purposes is permitted.
+
+You may make and distribute copies of the Licensed Work, provided that you
+conspicuously include this License and retain all copyright notices.
+
+---
+
+Change License
+
+On the Change Date specified above, this Licensed Work will automatically
+become available under the Change License stated above, and the terms of this
+Business Source License will no longer apply.
+
+---
+
+Disclaimer of Warranty
+
+THE LICENSED WORK IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION
+WITH THE LICENSED WORK OR THE USE OR OTHER DEALINGS IN THE LICENSED WORK.
+
+---
+
+End of Business Source License 1.1
