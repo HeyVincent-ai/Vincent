@@ -1,9 +1,9 @@
 ---
-name: Agent Wallet
-description: The agent's wallet. Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction.
+name: Vincent - A wallet for agents
+description: Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction.  Also supports raw signing and polymarket betting.
 ---
 
-# Agent Wallet
+# Vincent - A wallet for agents
 
 Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction without ever exposing private keys to the agent. Create a wallet, set spending policies, and your agent can transfer tokens, do swaps, and interact with smart contracts within the boundaries you define.
 
@@ -11,24 +11,27 @@ Use this skill to safely create a wallet the agent can use for transfers, swaps,
 
 ## Which Wallet Type to Use
 
-| Type | Use Case | Network | Gas |
-|------|----------|---------|-----|
-| `EVM_WALLET` | Transfers, swaps, DeFi, contract calls | Any EVM chain | Sponsored (free) |
-| `RAW_SIGNER` | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay |
-| `POLYMARKET_WALLET` | Prediction market trading | Polygon only | Sponsored (free) |
+| Type                | Use Case                                  | Network                 | Gas              |
+| ------------------- | ----------------------------------------- | ----------------------- | ---------------- |
+| `EVM_WALLET`        | Transfers, swaps, DeFi, contract calls    | Any EVM chain           | Sponsored (free) |
+| `RAW_SIGNER`        | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay          |
+| `POLYMARKET_WALLET` | Prediction market trading                 | Polygon only            | Sponsored (free) |
 
 **Choose `EVM_WALLET`** (default) for:
+
 - Sending ETH or tokens
 - Swapping tokens on DEXs
 - Interacting with smart contracts
 - Any standard EVM transaction
 
 **Choose `RAW_SIGNER`** only when you need:
+
 - Raw ECDSA/Ed25519 signatures for protocols that don't work with smart accounts
 - To sign transaction hashes you'll broadcast yourself
 - Solana signatures
 
 **Choose `POLYMARKET_WALLET`** only for:
+
 - Betting on Polymarket prediction markets
 - Requires USDC.e on Polygon for funding
 
@@ -279,6 +282,7 @@ curl -X POST "https://heyvincent.ai/api/secrets" \
 ```
 
 Response includes:
+
 - `apiKey` -- use as Bearer token for all Polymarket requests
 - `claimUrl` -- share with the user to claim ownership and set policies
 - `walletAddress` -- the EOA address (Safe is deployed lazily on first use)
@@ -293,6 +297,7 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/balance" \
 ```
 
 Returns:
+
 - `walletAddress` -- the Safe address (deployed on first call if needed)
 - `collateral.balance` -- USDC.e balance available for trading
 - `collateral.allowance` -- approved amount for Polymarket contracts
@@ -345,17 +350,20 @@ curl -X POST "https://heyvincent.ai/api/skills/polymarket/bet" \
 ```
 
 Parameters:
+
 - `tokenId`: The outcome token ID (from market data or order book)
 - `side`: `"BUY"` or `"SELL"`
 - `amount`: For BUY orders, USD amount to spend. For SELL orders, number of shares to sell.
 - `price`: Limit price (0.01 to 0.99). Optional -- omit for market order.
 
 **BUY orders:**
+
 - `amount` is the USD you want to spend (e.g., `5` = $5)
 - You'll receive `amount / price` shares (e.g., $5 at 0.50 = 10 shares)
 - Minimum order is $1
 
 **SELL orders:**
+
 - `amount` is the number of shares to sell
 - You'll receive `amount * price` USD
 - Must own the shares first (from a previous BUY)
@@ -389,11 +397,13 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
 ### Polymarket Workflow Example
 
 1. **Create wallet:**
+
    ```bash
    POST /api/secrets {"type": "POLYMARKET_WALLET", "memo": "Betting wallet"}
    ```
 
 2. **Get Safe address (triggers deployment):**
+
    ```bash
    GET /api/skills/polymarket/balance
    # Returns walletAddress -- give this to user to fund
@@ -402,18 +412,21 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
 3. **User sends USDC.e to the Safe address on Polygon**
 
 4. **Find a market:**
+
    ```bash
    GET /api/skills/polymarket/markets
    # or use Gamma API: https://gamma-api.polymarket.com/markets
    ```
 
 5. **Check order book:**
+
    ```bash
    GET /api/skills/polymarket/orderbook/<TOKEN_ID>
    # Note the bid/ask prices
    ```
 
 6. **Place BUY bet:**
+
    ```bash
    POST /api/skills/polymarket/bet
    {"tokenId": "...", "side": "BUY", "amount": 5, "price": 0.55}
