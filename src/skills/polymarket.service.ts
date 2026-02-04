@@ -12,6 +12,7 @@ import type {
 } from '@polymarket/clob-client';
 import prisma from '../db/client';
 import { env } from '../utils/env';
+import { initializePolymarketProxy } from '../utils/proxy';
 
 // ============================================================
 // ESM dynamic imports (these packages are ESM-only)
@@ -223,6 +224,9 @@ async function getOrCreateCredentials(
   secretId: string,
   safeAddress?: string
 ): Promise<ApiKeyCreds> {
+  // Initialize proxy for geo-restricted regions before API calls
+  await initializePolymarketProxy();
+
   // Check if credentials already exist
   const existing = await prisma.polymarketCredentials.findUnique({
     where: { secretId },
@@ -277,6 +281,9 @@ async function getOrCreateCredentials(
  * If safeAddress is provided, uses POLY_GNOSIS_SAFE signature type with builder config.
  */
 async function buildClient(config: PolymarketClientConfig) {
+  // Initialize proxy for geo-restricted regions (US, etc.)
+  await initializePolymarketProxy();
+
   const wallet = new Wallet(config.privateKey);
   const creds = await getOrCreateCredentials(
     config.privateKey,
