@@ -7,6 +7,7 @@ import { executeApprovedTransaction } from './approvalExecutor';
 import * as zerodev from '../skills/zerodev.service';
 import * as abiDecoder from '../skills/abiDecoder.service';
 import { isNativeToken } from '../skills/zeroEx.service';
+import { getExplorerAddressUrl } from '../config/chains';
 
 let bot: Bot | null = null;
 
@@ -296,7 +297,12 @@ async function formatApprovalMessage(
     const tokenLabel = await resolveTokenLabel(data.token as string | undefined, chainId);
     lines.push(`*Transfer ${data.amount} ${tokenLabel}*`);
     if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
-    lines.push(`To: \`${data.to}\``);
+    const toAddr = data.to as string;
+    const toExplorerUrl = chainId ? getExplorerAddressUrl(chainId, toAddr) : undefined;
+    const toLink = toExplorerUrl
+      ? `[${truncateAddress(toAddr)}](${toExplorerUrl})`
+      : `\`${toAddr}\``;
+    lines.push(`To: ${toLink}`);
   } else if (actionType === 'swap') {
     const sellLabel = await resolveTokenLabel(data.sellToken as string | undefined, chainId);
     const buyLabel = await resolveTokenLabel(data.buyToken as string | undefined, chainId);
@@ -316,10 +322,16 @@ async function formatApprovalMessage(
       }
     }
 
+    // Build contract address link (or fallback to plain text if chain unknown)
+    const explorerUrl = chainId ? getExplorerAddressUrl(chainId, contractAddr) : undefined;
+    const contractLink = explorerUrl
+      ? `[${truncateAddress(contractAddr)}](${explorerUrl})`
+      : `\`${truncateAddress(contractAddr)}\``;
+
     if (decoded) {
       // Show decoded function call
       lines.push(`*Contract Call: ${decoded.functionName}*`);
-      lines.push(`Contract: \`${truncateAddress(contractAddr)}\``);
+      lines.push(`Contract: ${contractLink}`);
       if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
 
       // Show decoded parameters (limit to first 5 for readability)
@@ -343,7 +355,7 @@ async function formatApprovalMessage(
     } else {
       // Fallback to basic display if ABI not available
       lines.push(`*Contract Call*`);
-      lines.push(`To: \`${truncateAddress(contractAddr)}\``);
+      lines.push(`To: ${contractLink}`);
       if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
       if (data.functionSelector) {
         lines.push(`Function: \`${data.functionSelector}\``);
