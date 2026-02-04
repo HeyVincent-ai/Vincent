@@ -1,7 +1,6 @@
 import { type Hex } from 'viem';
 import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
-import { secp256k1 } from '@noble/curves/secp256k1.js';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
 import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
@@ -69,8 +68,12 @@ async function getSignerData(secretId: string) {
 
 /**
  * Sign a message using Ethereum's secp256k1 curve (ECDSA)
+ * Uses dynamic import for @noble/curves since it's ESM-only
  */
-function signWithEthereum(privateKey: Hex, messageHex: string): string {
+async function signWithEthereum(privateKey: Hex, messageHex: string): Promise<string> {
+  // Dynamic import for ESM-only @noble/curves package
+  const { secp256k1 } = await import('@noble/curves/secp256k1.js');
+
   // For raw signing, we sign the message bytes directly
   // The messageHex is the hex-encoded bytes to sign
   const messageBytes = Buffer.from(messageHex.replace(/^0x/, ''), 'hex');
@@ -206,7 +209,7 @@ export async function sign(input: SignInput): Promise<SignOutput> {
   try {
     let signature: string;
     if (curve === 'ethereum') {
-      signature = signWithEthereum(signer.privateKey, message);
+      signature = await signWithEthereum(signer.privateKey, message);
     } else {
       signature = signWithSolana(signer.privateKey, message);
     }
@@ -300,7 +303,7 @@ export async function executeApprovedSign(
 
   let signature: string;
   if (curve === 'ethereum') {
-    signature = signWithEthereum(privateKey, requestData.message);
+    signature = await signWithEthereum(privateKey, requestData.message);
   } else {
     signature = signWithSolana(privateKey, requestData.message);
   }
