@@ -57,6 +57,9 @@ const envSchema = z.object({
   // Alchemy
   ALCHEMY_API_KEY: z.string().optional(),
 
+  // Block Explorer APIs (Etherscan and compatible explorers)
+  ETHERSCAN_API_KEY: z.string().optional(),
+
   // 0x Swap API
   ZEROX_API_KEY: z.string().optional(),
   SWAP_FEE_BPS: z
