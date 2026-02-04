@@ -107,14 +107,16 @@ model WalletSecretMetadata {
   @@map("wallet_secret_metadata")
 }
 
-// Raw signer metadata - stores both Ethereum and Solana addresses
+// Raw signer metadata - stores both Ethereum and Solana addresses and public keys
 model RawSignerMetadata {
-  id            String   @id @default(cuid())
-  secretId      String   @unique @map("secret_id")
-  ethAddress    String   @map("eth_address")
-  solanaAddress String   @map("solana_address")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  secretId        String   @unique @map("secret_id")
+  ethAddress      String   @map("eth_address")
+  solanaAddress   String   @map("solana_address")
+  ethPublicKey    String?  @map("eth_public_key")    // Uncompressed secp256k1 public key (hex)
+  solanaPublicKey String?  @map("solana_public_key") // ed25519 public key (hex)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 

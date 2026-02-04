@@ -142,6 +142,8 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
   let secretId: string;
   let ethAddress: Address;
   let solanaAddress: string;
+  let ethPublicKey: string;
+  let solanaPublicKey: string;
   let funderAddress: Address;
 
   // Evidence collected for verification
@@ -267,7 +269,9 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     console.log('  BASE SEPOLIA E2E TEST EVIDENCE');
     console.log('========================================');
     console.log(`ETH Address: ${ethAddress}`);
+    console.log(`ETH Public Key: ${ethPublicKey?.slice(0, 20)}...`);
     console.log(`Solana Address: ${solanaAddress}`);
+    console.log(`Solana Public Key: ${solanaPublicKey?.slice(0, 20)}...`);
     console.log(`Secret ID: ${secretId}`);
     console.log(`Funder: ${funderAddress}`);
     console.log(`\nInitial funder ETH: ${evidence.initialFunderBalance}`);
@@ -323,6 +327,9 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.secret.ethAddress).toMatch(/^0x[a-fA-F0-9]{40}$/);
     expect(res.body.data.secret.solanaAddress).toBeTruthy();
+    // Verify public keys are returned
+    expect(res.body.data.secret.ethPublicKey).toMatch(/^0x[a-fA-F0-9]{130}$/); // Uncompressed: 65 bytes = 130 hex chars
+    expect(res.body.data.secret.solanaPublicKey).toMatch(/^0x[a-fA-F0-9]{64}$/); // ed25519: 32 bytes = 64 hex chars
     expect(res.body.data.apiKey.key).toMatch(/^ssk_/);
     expect(res.body.data.claimUrl).toBeTruthy();
 
@@ -330,10 +337,14 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     secretId = res.body.data.secret.id;
     ethAddress = res.body.data.secret.ethAddress as Address;
     solanaAddress = res.body.data.secret.solanaAddress;
+    ethPublicKey = res.body.data.secret.ethPublicKey;
+    solanaPublicKey = res.body.data.secret.solanaPublicKey;
 
     console.log(`\nCreated raw signer:`);
     console.log(`  ETH Address: ${ethAddress}`);
+    console.log(`  ETH Public Key: ${ethPublicKey.slice(0, 20)}...`);
     console.log(`  Solana Address: ${solanaAddress}`);
+    console.log(`  Solana Public Key: ${solanaPublicKey.slice(0, 20)}...`);
     console.log(`  Secret ID: ${secretId}`);
     console.log(`  Claim URL: ${res.body.data.claimUrl}`);
   }, 30_000);
@@ -342,7 +353,7 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
   // Test 2: Get addresses via API
   // ============================================================
 
-  it('should get both addresses via API', async () => {
+  it('should get both addresses and public keys via API', async () => {
     const res = await request(app)
       .get('/api/skills/raw-signer/addresses')
       .set('Authorization', `Bearer ${apiKey}`)
@@ -351,10 +362,15 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.ethAddress).toBe(ethAddress);
     expect(res.body.data.solanaAddress).toBe(solanaAddress);
+    // Verify public keys are returned and match
+    expect(res.body.data.ethPublicKey).toBe(ethPublicKey);
+    expect(res.body.data.solanaPublicKey).toBe(solanaPublicKey);
 
     console.log(`Addresses endpoint confirmed:`);
     console.log(`  ETH: ${res.body.data.ethAddress}`);
+    console.log(`  ETH Public Key: ${res.body.data.ethPublicKey.slice(0, 20)}...`);
     console.log(`  Solana: ${res.body.data.solanaAddress}`);
+    console.log(`  Solana Public Key: ${res.body.data.solanaPublicKey.slice(0, 20)}...`);
   }, 30_000);
 
   // ============================================================

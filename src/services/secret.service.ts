@@ -1,7 +1,7 @@
 import { SecretType, Secret, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { type Hex } from 'viem';
-import { privateKeyToAddress } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import prisma from '../db/client';
@@ -31,6 +31,8 @@ export interface SecretPublicData {
   walletAddress?: string;
   ethAddress?: string;
   solanaAddress?: string;
+  ethPublicKey?: string;
+  solanaPublicKey?: string;
 }
 
 export interface ClaimSecretInput {
@@ -72,7 +74,9 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   const claimToken = generateClaimToken();
   let secretValue: string | null = null;
   let walletMetadata: Prisma.WalletSecretMetadataCreateNestedOneWithoutSecretInput | undefined;
-  let polymarketWalletMetadata: Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput | undefined;
+  let polymarketWalletMetadata:
+    | Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput
+    | undefined;
 
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
@@ -122,22 +126,29 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     secretValue = generatePrivateKey();
     const seedBytes = Buffer.from(secretValue.slice(2), 'hex');
 
-    // Derive ETH address using viem
-    const ethAddress = privateKeyToAddress(secretValue as Hex);
+    // Derive ETH address and public key using viem
+    // privateKeyToAccount returns the uncompressed public key (65 bytes: 04 prefix + x + y)
+    const ethAccount = privateKeyToAccount(secretValue as Hex);
+    const ethAddress = ethAccount.address;
+    const ethPublicKey = ethAccount.publicKey;
 
     // Derive Solana keypair from seed using nacl
     // nacl.sign.keyPair.fromSeed expects a 32-byte Uint8Array
     const solanaKeypair = nacl.sign.keyPair.fromSeed(new Uint8Array(seedBytes));
-    // Solana uses base58 encoding for public keys
+    // Solana uses base58 encoding for public keys (address)
     const solanaAddress = new Keypair({
       publicKey: solanaKeypair.publicKey,
       secretKey: solanaKeypair.secretKey,
     }).publicKey.toBase58();
+    // Also store hex-encoded public key for signature verification
+    const solanaPublicKey = '0x' + Buffer.from(solanaKeypair.publicKey).toString('hex');
 
     rawSignerMetadata = {
       create: {
         ethAddress,
         solanaAddress,
+        ethPublicKey,
+        solanaPublicKey,
       },
     };
   }
@@ -429,7 +440,12 @@ export function consumeRelinkToken(token: string): string | null {
 type SecretWithMetadata = Secret & {
   walletMetadata?: { smartAccountAddress: string } | null;
   polymarketWalletMetadata?: { eoaAddress: string; safeAddress: string | null } | null;
-  rawSignerMetadata?: { ethAddress: string; solanaAddress: string } | null;
+  rawSignerMetadata?: {
+    ethAddress: string;
+    solanaAddress: string;
+    ethPublicKey: string | null;
+    solanaPublicKey: string | null;
+  } | null;
 };
 
 function toPublicData(secret: SecretWithMetadata): SecretPublicData {
@@ -448,13 +464,19 @@ function toPublicData(secret: SecretWithMetadata): SecretPublicData {
 
   if (secret.polymarketWalletMetadata) {
     // Use Safe address if deployed, otherwise show EOA address
-    publicData.walletAddress = secret.polymarketWalletMetadata.safeAddress
-      ?? secret.polymarketWalletMetadata.eoaAddress;
+    publicData.walletAddress =
+      secret.polymarketWalletMetadata.safeAddress ?? secret.polymarketWalletMetadata.eoaAddress;
   }
 
   if (secret.rawSignerMetadata) {
     publicData.ethAddress = secret.rawSignerMetadata.ethAddress;
     publicData.solanaAddress = secret.rawSignerMetadata.solanaAddress;
+    if (secret.rawSignerMetadata.ethPublicKey) {
+      publicData.ethPublicKey = secret.rawSignerMetadata.ethPublicKey;
+    }
+    if (secret.rawSignerMetadata.solanaPublicKey) {
+      publicData.solanaPublicKey = secret.rawSignerMetadata.solanaPublicKey;
+    }
   }
 
   return publicData;

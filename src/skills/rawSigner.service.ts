@@ -1,5 +1,4 @@
 import { type Hex } from 'viem';
-import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
@@ -30,6 +29,8 @@ export interface SignOutput {
 export interface AddressesOutput {
   ethAddress: string;
   solanaAddress: string;
+  ethPublicKey: string | null;
+  solanaPublicKey: string | null;
 }
 
 // ============================================================
@@ -62,55 +63,44 @@ async function getSignerData(secretId: string) {
     privateKey: secret.value as Hex,
     ethAddress: secret.rawSignerMetadata.ethAddress,
     solanaAddress: secret.rawSignerMetadata.solanaAddress,
+    ethPublicKey: secret.rawSignerMetadata.ethPublicKey,
+    solanaPublicKey: secret.rawSignerMetadata.solanaPublicKey,
     userId: secret.userId,
   };
 }
 
 /**
- * Helper to do a true dynamic import that bypasses TypeScript's CJS transformation
- */
-async function dynamicImport<T>(modulePath: string): Promise<T> {
-  // Using Function constructor to create a real dynamic import
-  // This prevents TypeScript from transforming it to require()
-  return new Function('modulePath', 'return import(modulePath)')(modulePath) as Promise<T>;
-}
-
-/**
  * Sign a message using Ethereum's secp256k1 curve (ECDSA)
- * Uses dynamic import for @noble/curves since it's ESM-only
+ * Uses viem's built-in signing which wraps @noble/curves internally
+ *
+ * IMPORTANT: The message must be a 32-byte hash (e.g. keccak256 of transaction).
+ * If the message is not 32 bytes, it will be hashed with keccak256 first.
  */
 async function signWithEthereum(privateKey: Hex, messageHex: string): Promise<string> {
-  // Dynamic import for ESM-only @noble/curves package
-  // Must use .js extension to match the package's exports field
-  const { secp256k1 } = await dynamicImport<typeof import('@noble/curves/secp256k1')>(
-    '@noble/curves/secp256k1.js'
-  );
+  // Import viem's signing utilities - viem is already a dependency and handles
+  // the @noble/curves integration internally
+  const { sign } = await import('viem/accounts');
+  const { keccak256, toHex } = await import('viem');
 
-  // For raw signing, we sign the message bytes directly
-  // The messageHex is the hex-encoded bytes to sign
-  const messageBytes = Buffer.from(messageHex.replace(/^0x/, ''), 'hex');
+  // Check if the message is already a 32-byte hash (64 hex chars + 0x prefix = 66 chars)
+  // If not, hash it first with keccak256
+  const messageHash =
+    messageHex.length === 66
+      ? (messageHex as Hex) // Already a 32-byte hash
+      : keccak256(messageHex as Hex); // Hash the message first
 
-  // Use @noble/curves for raw ECDSA signing
-  // viem's signMessage adds Ethereum-specific prefix, so we use raw signing
-  const privateKeyBytes = new Uint8Array(Buffer.from(privateKey.slice(2), 'hex'));
+  // Use viem's sign function which returns signature components
+  const sig = await sign({ hash: messageHash, privateKey });
 
-  // Sign with 'recovered' format to get the recovery byte (65 bytes: r + s + recovery)
-  // prehash: false because we're signing raw message bytes, not a pre-hashed message
-  const signatureBytes = secp256k1.sign(messageBytes, privateKeyBytes, {
-    prehash: false,
-    lowS: true,
-    format: 'recovered',
-  });
+  // Combine r, s, v into a single hex string (65 bytes total)
+  // r (32 bytes) + s (32 bytes) + v (1 byte)
+  const rHex = sig.r.slice(2).padStart(64, '0');
+  const sHex = sig.s.slice(2).padStart(64, '0');
+  // v is either directly provided or derived from yParity (0 -> 27, 1 -> 28)
+  const v = sig.v ?? (sig.yParity === 0 ? 27n : 28n);
+  const vHex = toHex(v).slice(2).padStart(2, '0');
 
-  // Parse the signature using Signature.fromBytes to get r, s, and recovery
-  const sig = secp256k1.Signature.fromBytes(signatureBytes, 'recovered');
-
-  // Return the compact signature (r || s || v) as hex
-  const r = sig.r.toString(16).padStart(64, '0');
-  const s = sig.s.toString(16).padStart(64, '0');
-  const v = (sig.recovery ?? 0) + 27; // Ethereum recovery id
-
-  return '0x' + r + s + v.toString(16).padStart(2, '0');
+  return ('0x' + rHex + sHex + vHex) as Hex;
 }
 
 /**
@@ -269,6 +259,8 @@ export async function getAddresses(secretId: string): Promise<AddressesOutput> {
   return {
     ethAddress: signer.ethAddress,
     solanaAddress: signer.solanaAddress,
+    ethPublicKey: signer.ethPublicKey,
+    solanaPublicKey: signer.solanaPublicKey,
   };
 }
 
