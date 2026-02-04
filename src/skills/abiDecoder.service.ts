@@ -157,10 +157,27 @@ async function fetchFromExplorer(address: Address, chainId: number): Promise<Abi
 
     if (!response.ok) return null;
 
-    const data = (await response.json()) as { status: string; result: string };
+    const data = (await response.json()) as { status?: string; result?: unknown };
 
-    if (data.status === '1' && data.result) {
-      return JSON.parse(data.result) as Abi;
+    // Etherscan-style APIs indicate success with status === '1'
+    if (data.status !== '1') {
+      return null;
+    }
+
+    if (typeof data.result !== 'string') {
+      return null;
+    }
+
+    const abiJson = data.result.trim();
+    if (!abiJson) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(abiJson) as Abi;
+    } catch {
+      // Malformed JSON in explorer response
+      return null;
     }
   } catch {
     // Explorer request failed
