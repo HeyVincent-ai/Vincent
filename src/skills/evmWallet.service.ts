@@ -253,14 +253,29 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
   } catch (error) {
     // Update transaction log with failure
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof AppError ? error.code : 'TX_FAILED';
+    // Safely serialize error details for JSON storage
+    const errorDetails =
+      error instanceof AppError && error.details
+        ? JSON.parse(JSON.stringify(error.details))
+        : undefined;
+
     await prisma.transactionLog.update({
       where: { id: txLog.id },
       data: {
         status: 'FAILED',
-        responseData: { error: errorMessage },
+        responseData: {
+          error: errorMessage,
+          code: errorCode,
+          ...(errorDetails && { details: errorDetails }),
+        },
       },
     });
 
+    // Re-throw AppErrors directly to preserve detailed error info
+    if (error instanceof AppError) {
+      throw error;
+    }
     throw new AppError('TX_FAILED', `Transfer failed: ${errorMessage}`, 500);
   }
 }
@@ -402,14 +417,29 @@ export async function executeSendTransaction(
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof AppError ? error.code : 'TX_FAILED';
+    // Safely serialize error details for JSON storage
+    const errorDetails =
+      error instanceof AppError && error.details
+        ? JSON.parse(JSON.stringify(error.details))
+        : undefined;
+
     await prisma.transactionLog.update({
       where: { id: txLog.id },
       data: {
         status: 'FAILED',
-        responseData: { error: errorMessage },
+        responseData: {
+          error: errorMessage,
+          code: errorCode,
+          ...(errorDetails && { details: errorDetails }),
+        },
       },
     });
 
+    // Re-throw AppErrors directly to preserve detailed error info
+    if (error instanceof AppError) {
+      throw error;
+    }
     throw new AppError('TX_FAILED', `Transaction failed: ${errorMessage}`, 500);
   }
 }
@@ -716,14 +746,29 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof AppError ? error.code : 'TX_FAILED';
+    // Safely serialize error details for JSON storage
+    const errorDetails =
+      error instanceof AppError && error.details
+        ? JSON.parse(JSON.stringify(error.details))
+        : undefined;
+
     await prisma.transactionLog.update({
       where: { id: txLog.id },
       data: {
         status: 'FAILED',
-        responseData: { error: errorMessage },
+        responseData: {
+          error: errorMessage,
+          code: errorCode,
+          ...(errorDetails && { details: errorDetails }),
+        },
       },
     });
 
+    // Re-throw AppErrors directly to preserve detailed error info
+    if (error instanceof AppError) {
+      throw error;
+    }
     throw new AppError('TX_FAILED', `Swap failed: ${errorMessage}`, 500);
   }
 }

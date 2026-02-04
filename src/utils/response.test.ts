@@ -5,6 +5,7 @@ function mockRes() {
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
+    getHeader: vi.fn().mockReturnValue(undefined),
   };
   return res;
 }

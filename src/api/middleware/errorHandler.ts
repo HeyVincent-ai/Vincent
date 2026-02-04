@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import * as Sentry from '@sentry/node';
 import { errors, sendError } from '../../utils/response';
+import { AuthenticatedRequest } from '../../types';
 
 // Custom error class for application errors
 export class AppError extends Error {
@@ -26,16 +27,31 @@ function isPrismaError(err: unknown): err is PrismaError {
   return err instanceof Error && err.name === 'PrismaClientKnownRequestError' && 'code' in err;
 }
 
+/**
+ * Get trace ID from request (set by request logger middleware).
+ */
+function getTraceId(req: Request): string | undefined {
+  return (req as AuthenticatedRequest).traceId;
+}
+
 // Error handler middleware
 export function errorHandler(err: Error, req: Request, res: Response, _next: NextFunction): void {
-  // Log error for debugging
-  console.error('Error:', {
-    name: err.name,
-    message: err.message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
-    path: req.path,
-    method: req.method,
-  });
+  const traceId = getTraceId(req);
+
+  // Log error with trace ID for debugging
+  console.error(
+    '[ERROR]',
+    JSON.stringify({
+      traceId,
+      name: err.name,
+      message: err.message,
+      code: err instanceof AppError ? err.code : undefined,
+      details: err instanceof AppError ? err.details : undefined,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      path: req.path,
+      method: req.method,
+    })
+  );
 
   // Handle Zod validation errors (don't report to Sentry - client error)
   if (err instanceof ZodError) {
@@ -48,11 +64,18 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     // Only report 5xx errors to Sentry
     if (err.statusCode >= 500) {
       Sentry.captureException(err, {
-        extra: { code: err.code, details: err.details },
-        tags: { errorType: 'AppError' },
+        extra: {
+          code: err.code,
+          details: err.details,
+          traceId,
+        },
+        tags: {
+          errorType: 'AppError',
+          traceId: traceId || 'unknown',
+        },
       });
     }
-    sendError(res, err.code, err.message, err.statusCode, err.details);
+    sendError(res, err.code, err.message, err.statusCode, err.details, traceId);
     return;
   }
 
@@ -68,18 +91,35 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     }
     // Report unexpected Prisma errors
     Sentry.captureException(err, {
-      extra: { prismaCode: err.code },
-      tags: { errorType: 'PrismaError' },
+      extra: {
+        prismaCode: err.code,
+        traceId,
+      },
+      tags: {
+        errorType: 'PrismaError',
+        traceId: traceId || 'unknown',
+      },
     });
   }
 
-  // Report unexpected errors to Sentry
+  // Report unexpected errors to Sentry with trace ID
   Sentry.captureException(err, {
-    tags: { errorType: 'UnhandledError' },
+    extra: { traceId },
+    tags: {
+      errorType: 'UnhandledError',
+      traceId: traceId || 'unknown',
+    },
   });
 
-  // Default to internal server error
-  errors.internal(res, process.env.NODE_ENV === 'development' ? err.message : undefined);
+  // Default to internal server error - include trace ID
+  sendError(
+    res,
+    'INTERNAL_ERROR',
+    process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
+    500,
+    undefined,
+    traceId
+  );
 }
 
 // Async handler wrapper to catch async errors
