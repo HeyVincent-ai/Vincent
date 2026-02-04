@@ -183,19 +183,54 @@ async function sendUsdcEFromSafe(
 
     const domainSeparator = await publicClient.readContract({
       address: safeAddress,
-      abi: [{ name: 'domainSeparator', type: 'function', inputs: [], outputs: [{ type: 'bytes32' }], stateMutability: 'view' }],
+      abi: [
+        {
+          name: 'domainSeparator',
+          type: 'function',
+          inputs: [],
+          outputs: [{ type: 'bytes32' }],
+          stateMutability: 'view',
+        },
+      ],
       functionName: 'domainSeparator',
     });
 
     const safeTxHash = keccak256(
       encodeAbiParameters(
-        [{ type: 'bytes32' }, { type: 'address' }, { type: 'uint256' }, { type: 'bytes32' }, { type: 'uint8' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'address' }, { type: 'address' }, { type: 'uint256' }],
-        [SAFE_TX_TYPEHASH, safeTxData.to, safeTxData.value, keccak256(safeTxData.data), safeTxData.operation, safeTxData.safeTxGas, safeTxData.baseGas, safeTxData.gasPrice, safeTxData.gasToken, safeTxData.refundReceiver, safeTxData.nonce]
+        [
+          { type: 'bytes32' },
+          { type: 'address' },
+          { type: 'uint256' },
+          { type: 'bytes32' },
+          { type: 'uint8' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'uint256' },
+        ],
+        [
+          SAFE_TX_TYPEHASH,
+          safeTxData.to,
+          safeTxData.value,
+          keccak256(safeTxData.data),
+          safeTxData.operation,
+          safeTxData.safeTxGas,
+          safeTxData.baseGas,
+          safeTxData.gasPrice,
+          safeTxData.gasToken,
+          safeTxData.refundReceiver,
+          safeTxData.nonce,
+        ]
       )
     );
 
     const txHash = keccak256(
-      encodePacked(['bytes1', 'bytes1', 'bytes32', 'bytes32'], ['0x19', '0x01', domainSeparator, safeTxHash])
+      encodePacked(
+        ['bytes1', 'bytes1', 'bytes32', 'bytes32'],
+        ['0x19', '0x01', domainSeparator, safeTxHash]
+      )
     );
 
     // Sign the hash
@@ -274,13 +309,7 @@ async function sendUsdcEFromSafeViaRelayer(
       },
     });
 
-    const relayClient = new RelayClient(
-      relayerUrl,
-      137,
-      wallet,
-      builderConfig,
-      RelayerTxType.SAFE
-    );
+    const relayClient = new RelayClient(relayerUrl, 137, wallet, builderConfig, RelayerTxType.SAFE);
 
     const erc20Iface = new Interface(['function transfer(address to, uint256 amount)']);
     const amountWei = parseUnits(amount, USDC_DECIMALS);
@@ -603,15 +632,20 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
 
           // Only return if there's a meaningful on-chain balance (> $0.10)
           // Note: Some funds may be locked in Polymarket positions
-          if (balanceNum > 0.10) {
+          if (balanceNum > 0.1) {
             // Return 90% of balance to account for any locked funds or fees
-            const returnAmount = (balanceNum * 0.90).toFixed(6);
+            const returnAmount = (balanceNum * 0.9).toFixed(6);
             const privateKey = secret.value.startsWith('0x')
               ? (secret.value as Hex)
               : (`0x${secret.value}` as Hex);
 
             console.log(`Attempting to return ${returnAmount} USDC.e to funder...`);
-            returnTxHash = await sendUsdcEFromSafe(privateKey, funderAddress, returnAmount, safeAddress);
+            returnTxHash = await sendUsdcEFromSafe(
+              privateKey,
+              funderAddress,
+              returnAmount,
+              safeAddress
+            );
 
             if (returnTxHash) {
               const newBalance = await getUsdcEBalance(safeAddress);
@@ -927,13 +961,50 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
   it('should place a SELL bet to close position', async () => {
     expect(chosenTokenId).toBeTruthy();
 
+    // Wait for the BUY trade to settle and shares to be credited
+    console.log('Waiting for BUY trade to settle...');
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
+    // Get the current orderbook for fresh prices
     const obRes = await request(app)
       .get(`/api/skills/polymarket/orderbook/${encodeURIComponent(chosenTokenId)}`)
       .set('Authorization', `Bearer ${apiKey}`);
 
     if (obRes.status === 200 && obRes.body.data.bids?.length) {
       sellPrice = parseFloat(obRes.body.data.bids[0].price);
+      console.log(`Current bid price: ${sellPrice}`);
     }
+
+    // Get our share balance for this token
+    const tradesRes = await request(app)
+      .get('/api/skills/polymarket/trades')
+      .set('Authorization', `Bearer ${apiKey}`);
+
+    let sharesToSell = 1; // default
+    if (tradesRes.body?.data?.trades?.length > 0) {
+      // Find our BUY trade and see how many shares we got
+      const buyTrade = tradesRes.body.data.trades.find(
+        (t: any) => t.side === 'BUY' && t.asset_id === chosenTokenId
+      );
+      if (buyTrade) {
+        sharesToSell = parseFloat(buyTrade.size);
+        console.log(`Shares from BUY trade: ${sharesToSell}`);
+      }
+    }
+
+    // Use the shares we bought from the BUY order details
+    if (evidence.buyOrderDetails?.takingAmount) {
+      const takenShares = parseFloat(evidence.buyOrderDetails.takingAmount);
+      if (takenShares > 0) {
+        sharesToSell = takenShares;
+        console.log(`Shares from order details: ${sharesToSell}`);
+      }
+    }
+
+    // Sell at the bid price (should fill against existing buy orders)
+    // Round down to avoid "not enough balance" errors
+    const sellAmount = Math.floor(sharesToSell * 100) / 100;
+    console.log(`Attempting to sell ${sellAmount} shares at ${sellPrice}`);
 
     const res = await request(app)
       .post('/api/skills/polymarket/bet')
@@ -941,7 +1012,7 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
       .send({
         tokenId: chosenTokenId,
         side: 'SELL',
-        amount: 1, // Polymarket minimum order is $1
+        amount: sellAmount,
         price: sellPrice,
       });
 
@@ -951,25 +1022,15 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     // Fail with clear message if geo-blocked
     failIfGeoBlocked(res, 'place SELL order');
 
-    // SELL may fail with "not enough balance" if the BUY limit order hasn't filled yet.
-    // This is expected behavior — we accept either a successful order or a balance error.
-    if (res.status === 200) {
-      expect(res.body.success).toBe(true);
-      expect(res.body.data.status).toBe('executed');
-      expect(res.body.data.orderId).toBeTruthy();
+    // SELL should succeed now that we've waited for settlement
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.status).toBe('executed');
+    expect(res.body.data.orderId).toBeTruthy();
 
-      evidence.sellOrderId = res.body.data.orderId;
-      evidence.sellOrderDetails = res.body.data.orderDetails;
-      console.log(`SELL Order ID: ${res.body.data.orderId}`);
-    } else {
-      // If the BUY hasn't filled, SELL will fail with balance/allowance error — this is OK
-      const errMsg = res.body?.error?.message || '';
-      console.log(`SELL failed (expected if BUY unfilled): ${errMsg}`);
-      // Accept balance/allowance errors (expected if BUY order didn't fill)
-      const isExpectedError =
-        errMsg.toLowerCase().includes('balance') || errMsg.toLowerCase().includes('allowance');
-      expect(isExpectedError).toBe(true);
-    }
+    evidence.sellOrderId = res.body.data.orderId;
+    evidence.sellOrderDetails = res.body.data.orderDetails;
+    console.log(`SELL Order ID: ${res.body.data.orderId}`);
   }, 120_000);
 
   // ============================================================
