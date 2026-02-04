@@ -1,7 +1,7 @@
 import { type Hex } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
 import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
+import { secp256k1 } from '@noble/curves/secp256k1.js';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
 import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
@@ -71,21 +71,29 @@ async function getSignerData(secretId: string) {
  * Sign a message using Ethereum's secp256k1 curve (ECDSA)
  */
 function signWithEthereum(privateKey: Hex, messageHex: string): string {
-  const account = privateKeyToAccount(privateKey);
   // For raw signing, we sign the message bytes directly
   // The messageHex is the hex-encoded bytes to sign
   const messageBytes = Buffer.from(messageHex.replace(/^0x/, ''), 'hex');
 
-  // Use nacl-like signing for raw ECDSA
+  // Use @noble/curves for raw ECDSA signing
   // viem's signMessage adds Ethereum-specific prefix, so we use raw signing
-  const { secp256k1 } = require('@noble/curves/secp256k1');
-  const privateKeyBytes = Buffer.from(privateKey.slice(2), 'hex');
-  const signature = secp256k1.sign(messageBytes, privateKeyBytes);
+  const privateKeyBytes = new Uint8Array(Buffer.from(privateKey.slice(2), 'hex'));
 
-  // Return the compact signature (r || s) as hex
-  const r = signature.r.toString(16).padStart(64, '0');
-  const s = signature.s.toString(16).padStart(64, '0');
-  const v = signature.recovery + 27; // Ethereum recovery id
+  // Sign with 'recovered' format to get the recovery byte (65 bytes: r + s + recovery)
+  // prehash: false because we're signing raw message bytes, not a pre-hashed message
+  const signatureBytes = secp256k1.sign(messageBytes, privateKeyBytes, {
+    prehash: false,
+    lowS: true,
+    format: 'recovered',
+  });
+
+  // Parse the signature using Signature.fromBytes to get r, s, and recovery
+  const sig = secp256k1.Signature.fromBytes(signatureBytes, 'recovered');
+
+  // Return the compact signature (r || s || v) as hex
+  const r = sig.r.toString(16).padStart(64, '0');
+  const s = sig.s.toString(16).padStart(64, '0');
+  const v = (sig.recovery ?? 0) + 27; // Ethereum recovery id
 
   return '0x' + r + s + v.toString(16).padStart(2, '0');
 }
@@ -285,9 +293,10 @@ export async function executeApprovedSign(
 
   const privateKey = secret.value as Hex;
   const curve = requestData.curve;
-  const publicKey = curve === 'ethereum'
-    ? secret.rawSignerMetadata.ethAddress
-    : secret.rawSignerMetadata.solanaAddress;
+  const publicKey =
+    curve === 'ethereum'
+      ? secret.rawSignerMetadata.ethAddress
+      : secret.rawSignerMetadata.solanaAddress;
 
   let signature: string;
   if (curve === 'ethereum') {
