@@ -81,8 +81,10 @@ async function dynamicImport<T>(modulePath: string): Promise<T> {
  */
 async function signWithEthereum(privateKey: Hex, messageHex: string): Promise<string> {
   // Dynamic import for ESM-only @noble/curves package
-  const { secp256k1 } =
-    await dynamicImport<typeof import('@noble/curves/secp256k1')>('@noble/curves/secp256k1');
+  // Must use .js extension to match the package's exports field
+  const { secp256k1 } = await dynamicImport<typeof import('@noble/curves/secp256k1')>(
+    '@noble/curves/secp256k1.js'
+  );
 
   // For raw signing, we sign the message bytes directly
   // The messageHex is the hex-encoded bytes to sign
