@@ -11,6 +11,8 @@ import * as secretService from '../../services/secret.service';
 import * as apiKeyService from '../../services/apiKey.service';
 import * as evmWallet from '../../skills/evmWallet.service';
 import { auditService } from '../../audit';
+import { calculateTrialStatus } from '../../skills/gas.service';
+import prisma from '../../db/client';
 
 const router = Router();
 
@@ -170,6 +172,67 @@ router.get(
     }
 
     sendSuccess(res, { secret });
+  })
+);
+
+/**
+ * GET /api/secrets/:id/subscription-status
+ * Get trial/subscription status for mainnet access
+ * Requires: User session + ownership
+ */
+router.get(
+  '/:id/subscription-status',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+
+    const secret = await prisma.secret.findUnique({
+      where: { id },
+      select: { createdAt: true, userId: true },
+    });
+
+    if (!secret) {
+      errors.notFound(res, 'Secret');
+      return;
+    }
+
+    // Calculate trial status
+    const trialStatus = calculateTrialStatus(secret.createdAt);
+
+    // Check subscription status
+    let subscription = null;
+    if (secret.userId) {
+      subscription = await prisma.subscription.findFirst({
+        where: {
+          userId: secret.userId,
+          status: 'ACTIVE',
+          currentPeriodEnd: { gte: new Date() },
+        },
+        select: {
+          status: true,
+          currentPeriodStart: true,
+          currentPeriodEnd: true,
+        },
+      });
+    }
+
+    // Determine mainnet access
+    const hasMainnetAccess = trialStatus.inTrial || !!subscription;
+
+    sendSuccess(res, {
+      trial: {
+        inTrial: trialStatus.inTrial,
+        daysRemaining: trialStatus.trialDaysRemaining,
+        endsAt: trialStatus.trialEndsAt.toISOString(),
+      },
+      subscription: subscription ? {
+        status: subscription.status,
+        currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
+        currentPeriodEnd: subscription.currentPeriodEnd?.toISOString(),
+      } : null,
+      hasMainnetAccess,
+    });
   })
 );
 

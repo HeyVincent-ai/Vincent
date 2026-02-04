@@ -20,9 +20,220 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { type Chain } from 'viem/chains';
 import * as chains from 'viem/chains';
 import { env } from '../utils/env';
+import { AppError } from '../api/middleware/errorHandler';
 
 const entryPoint = constants.getEntryPoint('0.7');
 const kernelVersion = constants.KERNEL_V3_1;
+
+// ============================================================
+// Error Handling
+// ============================================================
+
+/**
+ * Error codes for transaction failures that can help with debugging.
+ */
+export const TX_ERROR_CODES = {
+  SIMULATION_FAILED: 'TX_SIMULATION_FAILED',
+  PAYMASTER_FAILED: 'PAYMASTER_FAILED',
+  BUNDLER_FAILED: 'BUNDLER_FAILED',
+  USER_OP_FAILED: 'USER_OP_FAILED',
+  INSUFFICIENT_FUNDS: 'INSUFFICIENT_FUNDS',
+  UNKNOWN: 'TX_UNKNOWN_ERROR',
+} as const;
+
+/**
+ * Extract the clean, human-readable error reason from verbose RPC/bundler errors.
+ * These errors often contain lots of noise (URLs, request bodies, etc.) but the
+ * actual reason is typically in a "Details:" or "reason:" section.
+ */
+function extractCleanErrorReason(errorMessage: string): string | null {
+  // Pattern 1: "Details: ... with reason: <actual error>"
+  // e.g., "Details: UserOperation reverted during simulation with reason: ERC20: transfer amount exceeds allowance"
+  const detailsReasonMatch = errorMessage.match(
+    /Details:\s*(?:UserOperation\s+)?(?:reverted\s+)?(?:during\s+simulation\s+)?with\s+reason:\s*([^\n]+)/i
+  );
+  if (detailsReasonMatch) {
+    return detailsReasonMatch[1].trim();
+  }
+
+  // Pattern 2: "reason: <actual error>" (generic)
+  const reasonMatch = errorMessage.match(/reason:\s*([^\n"']+)/i);
+  if (reasonMatch) {
+    const reason = reasonMatch[1].trim();
+    // Don't return if it's just a continuation of other text
+    if (reason.length > 3 && !reason.startsWith('http')) {
+      return reason;
+    }
+  }
+
+  // Pattern 3: "reverted with: <actual error>" or "revert <actual error>"
+  const revertMatch = errorMessage.match(/revert(?:ed)?(?:\s+with)?[:\s]+([^"\n]+?)(?:\n|$)/i);
+  if (revertMatch) {
+    const reason = revertMatch[1].trim();
+    // Filter out noise like "during simulation" without an actual reason
+    if (reason.length > 5 && !reason.toLowerCase().startsWith('during simulation')) {
+      return reason;
+    }
+  }
+
+  // Pattern 4: Common ERC20/ERC721 errors that might appear anywhere
+  const commonErrors = [
+    /ERC20:\s*([^\n"']+)/i,
+    /ERC721:\s*([^\n"']+)/i,
+    /Ownable:\s*([^\n"']+)/i,
+    /SafeMath:\s*([^\n"']+)/i,
+    /execution reverted:\s*([^\n"']+)/i,
+  ];
+  for (const pattern of commonErrors) {
+    const match = errorMessage.match(pattern);
+    if (match) {
+      return match[0].trim(); // Return the full match including prefix (e.g., "ERC20: ...")
+    }
+  }
+
+  // Pattern 5: AA (Account Abstraction) error codes with description
+  const aaMatch = errorMessage.match(/AA(\d+)\s*([^\n"']*)/);
+  if (aaMatch) {
+    return `AA${aaMatch[1]}${aaMatch[2] ? ': ' + aaMatch[2].trim() : ''}`;
+  }
+
+  return null;
+}
+
+/**
+ * Parse ZeroDev/bundler errors to extract meaningful information.
+ * Prioritizes extracting the actual error reason over categorizing by error source.
+ */
+function parseTransactionError(error: unknown): {
+  code: string;
+  message: string;
+  details: Record<string, unknown>;
+} {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorString = errorMessage.toLowerCase();
+
+  // Common error patterns from bundlers and paymasters
+  const details: Record<string, unknown> = {
+    originalError: errorMessage,
+  };
+
+  // First, try to extract the clean error reason from verbose messages
+  const cleanReason = extractCleanErrorReason(errorMessage);
+  if (cleanReason) {
+    details.revertReason = cleanReason;
+  }
+
+  // Check for simulation/revert failures FIRST (most common case)
+  // These often appear in paymaster responses but the root cause is contract revert
+  if (
+    errorString.includes('reverted') ||
+    errorString.includes('revert') ||
+    errorString.includes('simulation') ||
+    errorString.includes('execution failed')
+  ) {
+    // If we found a clean reason, use it; otherwise provide generic message
+    const userMessage = cleanReason || 'execution would revert';
+
+    return {
+      code: TX_ERROR_CODES.SIMULATION_FAILED,
+      message: `Transaction reverted: ${userMessage}`,
+      details,
+    };
+  }
+
+  // Insufficient funds (check before paymaster since paymaster errors might mention balance)
+  if (
+    errorString.includes('insufficient') ||
+    (errorString.includes('balance') && !errorString.includes('allowance'))
+  ) {
+    return {
+      code: TX_ERROR_CODES.INSUFFICIENT_FUNDS,
+      message: cleanReason
+        ? `Insufficient funds: ${cleanReason}`
+        : 'Insufficient funds for transaction',
+      details,
+    };
+  }
+
+  // True paymaster errors (not containing revert reasons)
+  // Only classify as paymaster error if there's no revert reason extracted
+  if (
+    !cleanReason &&
+    (errorString.includes('paymaster') ||
+      errorString.includes('sponsor') ||
+      errorString.includes('gas policy'))
+  ) {
+    return {
+      code: TX_ERROR_CODES.PAYMASTER_FAILED,
+      message: 'Paymaster rejected transaction (may be out of gas credits or unsupported chain)',
+      details,
+    };
+  }
+
+  // Bundler errors (only if no specific reason found)
+  if (!cleanReason && (errorString.includes('bundler') || errorString.includes('userop'))) {
+    return {
+      code: TX_ERROR_CODES.BUNDLER_FAILED,
+      message: 'Bundler rejected user operation',
+      details,
+    };
+  }
+
+  // AA (Account Abstraction) errors with specific codes
+  const aaErrorMatch = errorMessage.match(/AA(\d+)/);
+  if (aaErrorMatch) {
+    details.aaErrorCode = `AA${aaErrorMatch[1]}`;
+    const aaMessage = cleanReason || `AA${aaErrorMatch[1]} error`;
+    return {
+      code: TX_ERROR_CODES.USER_OP_FAILED,
+      message: `User operation failed: ${aaMessage}`,
+      details,
+    };
+  }
+
+  // Default: use clean reason if found, otherwise truncate the verbose message
+  return {
+    code: TX_ERROR_CODES.UNKNOWN,
+    message: cleanReason
+      ? `Transaction failed: ${cleanReason}`
+      : 'Transaction failed (unknown error)',
+    details,
+  };
+}
+
+/**
+ * Wrap transaction execution with enhanced error handling.
+ */
+async function executeWithEnhancedErrors<T>(
+  operation: () => Promise<T>,
+  context: { chainId: number; to?: Address; value?: bigint }
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    const parsed = parseTransactionError(error);
+
+    // Log detailed error for debugging
+    console.error(
+      '[TX_ERROR]',
+      JSON.stringify({
+        code: parsed.code,
+        message: parsed.message,
+        chainId: context.chainId,
+        to: context.to,
+        value: context.value?.toString(),
+        details: parsed.details,
+      })
+    );
+
+    throw new AppError(parsed.code, parsed.message, 500, {
+      ...parsed.details,
+      chainId: context.chainId,
+      to: context.to,
+      value: context.value?.toString(),
+    });
+  }
+}
 
 // Build chain lookup from all viem chains
 const CHAIN_MAP: Record<number, Chain> = {};
@@ -71,10 +282,7 @@ const ERC20_ABI = parseAbi([
  * Create a ZeroDev smart account from an EOA private key.
  * Returns the smart account address.
  */
-export async function createSmartAccount(
-  privateKey: Hex,
-  chainId: number
-): Promise<Address> {
+export async function createSmartAccount(privateKey: Hex, chainId: number): Promise<Address> {
   const projectId = env.ZERODEV_PROJECT_ID;
   if (!projectId) {
     throw new Error('ZERODEV_PROJECT_ID is not configured');
@@ -163,29 +371,32 @@ export async function executeTransfer(params: TransferParams): Promise<TransferR
   const { privateKey, chainId, to, value, tokenAddress, tokenAmount } = params;
   const { kernelClient, account } = await getKernelClient(privateKey, chainId);
 
-  let txHash: Hash;
+  const txHash = await executeWithEnhancedErrors(
+    async () => {
+      if (tokenAddress && tokenAmount !== undefined) {
+        // ERC20 transfer
+        const callData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: 'transfer',
+          args: [to, tokenAmount],
+        });
 
-  if (tokenAddress && tokenAmount !== undefined) {
-    // ERC20 transfer
-    const callData = encodeFunctionData({
-      abi: ERC20_ABI,
-      functionName: 'transfer',
-      args: [to, tokenAmount],
-    });
-
-    txHash = await kernelClient.sendTransaction({
-      to: tokenAddress,
-      data: callData,
-      value: 0n,
-    });
-  } else {
-    // Native ETH transfer
-    txHash = await kernelClient.sendTransaction({
-      to,
-      value: value ?? 0n,
-      data: '0x',
-    });
-  }
+        return kernelClient.sendTransaction({
+          to: tokenAddress,
+          data: callData,
+          value: 0n,
+        });
+      } else {
+        // Native ETH transfer
+        return kernelClient.sendTransaction({
+          to,
+          value: value ?? 0n,
+          data: '0x',
+        });
+      }
+    },
+    { chainId, to: tokenAddress ?? to, value: value ?? tokenAmount }
+  );
 
   return {
     txHash,
@@ -215,11 +426,15 @@ export async function executeSendTransaction(
   const { privateKey, chainId, to, data, value } = params;
   const { kernelClient, account } = await getKernelClient(privateKey, chainId);
 
-  const txHash = await kernelClient.sendTransaction({
-    to,
-    data,
-    value: value ?? 0n,
-  });
+  const txHash = await executeWithEnhancedErrors(
+    async () =>
+      kernelClient.sendTransaction({
+        to,
+        data,
+        value: value ?? 0n,
+      }),
+    { chainId, to, value }
+  );
 
   return {
     txHash,
@@ -247,15 +462,24 @@ export async function executeBatchTransaction(
   const { privateKey, chainId, calls } = params;
   const { kernelClient, account } = await getKernelClient(privateKey, chainId);
 
-  // ZeroDev's sendTransaction accepts SendUserOperationParameters with a `calls` array
-  // which batches multiple calls into a single UserOperation
-  const txHash = await kernelClient.sendTransaction({
-    calls: calls.map((c) => ({
-      to: c.to,
-      data: c.data,
-      value: c.value,
-    })),
-  } as any);
+  const txHash = await executeWithEnhancedErrors(
+    async () => {
+      // ZeroDev's sendTransaction accepts SendUserOperationParameters with a `calls` array
+      // which batches multiple calls into a single UserOperation
+      return kernelClient.sendTransaction({
+        calls: calls.map((c) => ({
+          to: c.to,
+          data: c.data,
+          value: c.value,
+        })),
+      } as any);
+    },
+    {
+      chainId,
+      to: calls[0]?.to,
+      value: calls.reduce((sum, c) => sum + c.value, 0n),
+    }
+  );
 
   return {
     txHash,
@@ -314,10 +538,7 @@ export async function getErc20Balance(
   };
 }
 
-export async function getTokenDecimals(
-  tokenAddress: Address,
-  chainId: number
-): Promise<number> {
+export async function getTokenDecimals(tokenAddress: Address, chainId: number): Promise<number> {
   const publicClient = getPublicClient(chainId);
   return publicClient.readContract({
     address: tokenAddress,
@@ -326,10 +547,7 @@ export async function getTokenDecimals(
   });
 }
 
-export async function getTokenSymbol(
-  tokenAddress: Address,
-  chainId: number
-): Promise<string> {
+export async function getTokenSymbol(tokenAddress: Address, chainId: number): Promise<string> {
   const publicClient = getPublicClient(chainId);
   return publicClient.readContract({
     address: tokenAddress,

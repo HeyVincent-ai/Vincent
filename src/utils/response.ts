@@ -19,14 +19,22 @@ export function sendSuccess<T>(
   res.status(statusCode).json(response);
 }
 
+/**
+ * Send an error response with trace ID for debugging.
+ * The trace ID can be used to look up the request in logs or Sentry.
+ */
 export function sendError(
   res: Response,
   code: string,
   message: string,
   statusCode = 400,
-  details?: unknown
+  details?: unknown,
+  traceId?: string
 ): void {
-  const response: ApiResponse = {
+  // Get trace ID from response header if not provided (set by request logger)
+  const resolvedTraceId = traceId || (res.getHeader('X-Trace-Id') as string | undefined);
+
+  const response: ApiResponse & { traceId?: string } = {
     success: false,
     error: {
       code,
@@ -34,6 +42,11 @@ export function sendError(
       details,
     },
   };
+
+  // Include trace ID in error responses for user debugging
+  if (resolvedTraceId) {
+    response.traceId = resolvedTraceId;
+  }
 
   res.status(statusCode).json(response);
 }

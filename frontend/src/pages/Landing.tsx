@@ -139,6 +139,56 @@ const STYLES = `
   .landing-page .footer a{color: rgba(245,246,248,.72);text-decoration:none}
   .landing-page .footer a:hover{color: rgba(245,246,248,.92)}
 
+  /* Tooltip */
+  .landing-page .tooltip-wrapper{
+    position: relative;
+    display: inline-flex;
+  }
+  .landing-page .tooltip-wrapper .tooltip-text{
+    visibility: hidden;
+    opacity: 0;
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,25,.95);
+    border: 1px solid rgba(255,255,255,.15);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(245,246,248,.85);
+    line-height: 1.45;
+    width: max-content;
+    max-width: 280px;
+    text-align: center;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    z-index: 100;
+    transition: opacity .18s ease, visibility .18s ease;
+    pointer-events: none;
+  }
+  .landing-page .tooltip-wrapper .tooltip-text::after{
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(20,20,25,.95);
+  }
+  .landing-page .tooltip-wrapper:hover .tooltip-text{
+    visibility: visible;
+    opacity: 1;
+  }
+  .landing-page .pill.hoverable{
+    cursor: help;
+    transition: border-color .18s ease, background .18s ease;
+  }
+  .landing-page .pill.hoverable:hover{
+    border-color: rgba(59,130,246,.45);
+    background: rgba(59,130,246,.08);
+  }
+
   /* Persona Toggle */
   .landing-page .personaToggle{
     display:flex;
@@ -619,6 +669,62 @@ export default function Landing() {
               </div>
             </section>
 
+            {/* Pricing */}
+            <section
+              id="pricing"
+              className="panel"
+              style={{
+                background: 'transparent',
+                borderColor: 'transparent',
+                boxShadow: 'none',
+                padding: 0,
+              }}
+            >
+              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
+                <h2 className="panelTitle">
+                  <span className="chev">⟩</span>Pricing
+                </h2>
+              </div>
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
+                  gap: 14,
+                }}
+              >
+                <div className="panel" style={{ padding: 18 }}>
+                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Free</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>$0</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
+                    <li>Unlimited testnet transactions</li>
+                    <li>All chains supported</li>
+                    <li>Full API access</li>
+                  </ul>
+                </div>
+                <div className="panel" style={{ padding: 18, borderColor: 'rgba(59,130,246,.4)' }}>
+                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Pro</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>
+                    $10
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>
+                      /month
+                    </span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
+                    <li>
+                      <b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet
+                    </li>
+                    <li>Mainnet transactions on all chains</li>
+                    <li>Gas costs included</li>
+                    <li>Priority support</li>
+                  </ul>
+                </div>
+              </div>
+              <div className="micro" style={{ marginTop: 12 }}>
+                New wallets get a 3-day free trial for mainnet transactions. After that, subscribe
+                to keep using mainnet.
+              </div>
+            </section>
+
             {/* Connectors */}
             <section
               id="works"
@@ -636,9 +742,25 @@ export default function Landing() {
                 </h2>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="pill">
-                  EVM smart contract wallet{' '}
-                  <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                <span className="tooltip-wrapper">
+                  <span className="pill hoverable">
+                    EVM smart contract wallet{' '}
+                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                  </span>
+                  <span className="tooltip-text">
+                    Smart contract accounts with gas abstraction. Supports transfers, swaps, and
+                    arbitrary transactions on all major EVM chains.
+                  </span>
+                </span>
+                <span className="tooltip-wrapper">
+                  <span className="pill hoverable">
+                    Raw Ethereum &amp; Solana signing{' '}
+                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                  </span>
+                  <span className="tooltip-text">
+                    Direct message and transaction signing for Ethereum EOAs and Solana wallets.
+                    Ideal for dApps requiring raw signatures.
+                  </span>
                 </span>
               </div>
               <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>
@@ -714,6 +836,9 @@ export default function Landing() {
                 title="Discord"
               >
                 Discord
+              </a>
+              <a href="mailto:support@litprotocol.com" title="Email support">
+                Support
               </a>
               <a
                 className="legacyLink"

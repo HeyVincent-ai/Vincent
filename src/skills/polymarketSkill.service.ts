@@ -99,7 +99,8 @@ async function getWalletData(secretId: string) {
   // For EVM_WALLET: legacy behavior
   return {
     privateKey: secret.value as Hex,
-    walletAddress: secret.walletMetadata?.smartAccountAddress ?? polymarket.getEoaAddress(secret.value),
+    walletAddress:
+      secret.walletMetadata?.smartAccountAddress ?? polymarket.getEoaAddress(secret.value),
     safeAddress: undefined as string | undefined,
     userId: secret.userId,
   };
@@ -185,7 +186,11 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
 
   // Execute the bet
   try {
-    const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
+    const clientConfig = {
+      privateKey: wallet.privateKey,
+      secretId,
+      safeAddress: wallet.safeAddress,
+    };
     const Side = await polymarket.getSide();
     let orderResult: any;
 
@@ -223,14 +228,29 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof AppError ? error.code : 'BET_FAILED';
+    // Safely serialize error details for JSON storage
+    const errorDetails =
+      error instanceof AppError && error.details
+        ? JSON.parse(JSON.stringify(error.details))
+        : undefined;
+
     await prisma.transactionLog.update({
       where: { id: txLog.id },
       data: {
         status: 'FAILED',
-        responseData: { error: errorMessage },
+        responseData: {
+          error: errorMessage,
+          code: errorCode,
+          ...(errorDetails && { details: errorDetails }),
+        },
       },
     });
 
+    // Re-throw AppErrors directly to preserve detailed error info
+    if (error instanceof AppError) {
+      throw error;
+    }
     throw new AppError('BET_FAILED', `Polymarket bet failed: ${errorMessage}`, 500);
   }
 }
@@ -239,10 +259,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
 // Positions
 // ============================================================
 
-export async function getPositions(
-  secretId: string,
-  market?: string
-): Promise<PositionsOutput> {
+export async function getPositions(secretId: string, market?: string): Promise<PositionsOutput> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
 
@@ -298,10 +315,7 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 // Order Management
 // ============================================================
 
-export async function cancelOrder(
-  secretId: string,
-  orderId: string
-): Promise<any> {
+export async function cancelOrder(secretId: string, orderId: string): Promise<any> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.cancelOrder(clientConfig, orderId);
@@ -317,10 +331,7 @@ export async function cancelAllOrders(secretId: string): Promise<any> {
 // Trades History
 // ============================================================
 
-export async function getTrades(
-  secretId: string,
-  market?: string
-): Promise<polymarket.Trade[]> {
+export async function getTrades(secretId: string, market?: string): Promise<polymarket.Trade[]> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.getTrades(clientConfig, { market });

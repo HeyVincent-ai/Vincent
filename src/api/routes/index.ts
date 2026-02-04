@@ -6,6 +6,7 @@ import authRouter from './auth.routes';
 import userRouter from './user.routes';
 import evmWalletRouter from './evmWallet.routes';
 import polymarketRouter from './polymarket.routes';
+import rawSignerRouter from './rawSigner.routes';
 import billingRouter from './billing.routes';
 import auditLogsRouter from './auditLogs.routes';
 
@@ -20,6 +21,7 @@ router.use('/secrets/:secretId/policies', policiesRouter); // Policy routes nest
 router.use('/secrets/:secretId/audit-logs', auditLogsRouter); // Audit log routes
 router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
+router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
 router.use('/billing', billingRouter); // Billing & subscription endpoints
 
 export default router;

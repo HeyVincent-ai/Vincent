@@ -5,7 +5,9 @@ import prisma from '../db/client';
 import crypto from 'crypto';
 import { executeApprovedTransaction } from './approvalExecutor';
 import * as zerodev from '../skills/zerodev.service';
+import * as abiDecoder from '../skills/abiDecoder.service';
 import { isNativeToken } from '../skills/zeroEx.service';
+import { getExplorerAddressUrl } from '../config/chains';
 
 let bot: Bot | null = null;
 
@@ -35,7 +37,7 @@ export async function startBot(): Promise<void> {
     } else {
       await ctx.reply(
         'Welcome to SafeSkills! To link your Telegram account, use the linking code from the SafeSkills dashboard.\n\n' +
-        'Send /start <linking_code> to link your account.'
+          'Send /start <linking_code> to link your account.'
       );
     }
   });
@@ -195,7 +197,9 @@ async function handleLinkCommand(ctx: Context, code: string): Promise<void> {
   const entry = linkingCodes.get(code);
 
   if (!entry) {
-    await ctx.reply('Invalid or expired linking code. Please generate a new one from the SafeSkills dashboard.');
+    await ctx.reply(
+      'Invalid or expired linking code. Please generate a new one from the SafeSkills dashboard.'
+    );
     return;
   }
 
@@ -219,7 +223,9 @@ async function handleLinkCommand(ctx: Context, code: string): Promise<void> {
 
   linkingCodes.delete(code);
 
-  await ctx.reply('Your Telegram account has been linked to SafeSkills! You will now receive approval requests here.');
+  await ctx.reply(
+    'Your Telegram account has been linked to SafeSkills! You will now receive approval requests here.'
+  );
 }
 
 /**
@@ -238,7 +244,10 @@ export function generateLinkingCode(userId: string): string {
  * Resolve a token address to a human-readable label like "USDC" or "ETH".
  * Falls back to a truncated address if the on-chain lookup fails.
  */
-async function resolveTokenLabel(token: string | undefined, chainId: number | undefined): Promise<string> {
+async function resolveTokenLabel(
+  token: string | undefined,
+  chainId: number | undefined
+): Promise<string> {
   if (!token || token.toUpperCase() === 'ETH') return 'ETH';
   if (isNativeToken(token)) return 'ETH';
   if (!chainId) return truncateAddress(token);
@@ -256,8 +265,14 @@ function truncateAddress(addr: string): string {
 
 function chainLabel(chainId: number | undefined): string {
   const names: Record<number, string> = {
-    1: 'Ethereum', 11155111: 'Sepolia', 8453: 'Base', 84532: 'Base Sepolia',
-    137: 'Polygon', 42161: 'Arbitrum', 10: 'Optimism', 80001: 'Mumbai',
+    1: 'Ethereum',
+    11155111: 'Sepolia',
+    8453: 'Base',
+    84532: 'Base Sepolia',
+    137: 'Polygon',
+    42161: 'Arbitrum',
+    10: 'Optimism',
+    80001: 'Mumbai',
   };
   if (!chainId) return '';
   return names[chainId] ?? `Chain ${chainId}`;
@@ -273,7 +288,7 @@ async function formatApprovalMessage(
   data: Record<string, unknown>,
   walletAddr: string,
   chainId: number | undefined,
-  expiresAt: Date,
+  expiresAt: Date
 ): Promise<string> {
   const chain = chainLabel(chainId);
   const lines: string[] = ['🔐 *Approval Required*', ''];
@@ -281,18 +296,60 @@ async function formatApprovalMessage(
   if (actionType === 'transfer') {
     const tokenLabel = await resolveTokenLabel(data.token as string | undefined, chainId);
     lines.push(`*Transfer ${data.amount} ${tokenLabel}*`);
-    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
-    lines.push(`To: \`${data.to}\``);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)} USD`);
+    const toAddr = data.to as string;
+    const toExplorerUrl = chainId ? getExplorerAddressUrl(chainId, toAddr) : undefined;
+    const toLink = toExplorerUrl
+      ? `[${truncateAddress(toAddr)}](${toExplorerUrl})`
+      : `\`${toAddr}\``;
+    lines.push(`To: ${toLink}`);
   } else if (actionType === 'swap') {
     const sellLabel = await resolveTokenLabel(data.sellToken as string | undefined, chainId);
     const buyLabel = await resolveTokenLabel(data.buyToken as string | undefined, chainId);
     lines.push(`*Swap ${data.sellAmount} ${sellLabel} → ${buyLabel}*`);
-    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)} USD`);
   } else if (actionType === 'send_transaction') {
-    lines.push(`*Contract Call*`);
-    lines.push(`To: \`${data.to}\``);
-    if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
-    if (data.functionSelector) lines.push(`Function: \`${data.functionSelector}\``);
+    // Try to decode the transaction using ABI
+    const contractAddr = data.to as string;
+    const calldata = data.data as string | undefined;
+
+    let decoded: abiDecoder.DecodedTransaction | null = null;
+    if (calldata && chainId) {
+      try {
+        decoded = await abiDecoder.decodeTransaction(contractAddr as Address, calldata, chainId);
+      } catch {
+        // Decoding failed, fall back to basic display
+      }
+    }
+
+    // Build contract address link (or fallback to plain text if chain unknown)
+    const explorerUrl = chainId ? getExplorerAddressUrl(chainId, contractAddr) : undefined;
+    const contractLink = explorerUrl
+      ? `[${truncateAddress(contractAddr)}](${explorerUrl})`
+      : `\`${truncateAddress(contractAddr)}\``;
+
+    if (decoded) {
+      // Show decoded function call
+      lines.push(`*Contract Call: ${decoded.functionName}*`);
+      lines.push(`Contract: ${contractLink}`);
+      if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
+
+      // Show decoded parameters using the utility function
+      const paramLines = abiDecoder.formatDecodedTxForTelegram(decoded);
+      if (paramLines.length > 0) {
+        lines.push('');
+        lines.push(...paramLines);
+      }
+    } else {
+      // Fallback to basic display if ABI not available
+      lines.push(`*Contract Call*`);
+      lines.push(`To: ${contractLink}`);
+      if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
+      if (data.functionSelector) {
+        lines.push(`Function: \`${data.functionSelector}\``);
+        lines.push(`_(ABI not available for decoding)_`);
+      }
+    }
   } else {
     lines.push(`*${actionType}*`);
   }
@@ -329,10 +386,17 @@ export async function sendApprovalRequest(approvalId: string): Promise<boolean> 
 
   const txLog = approval.transactionLog;
   const requestData = txLog.requestData as Record<string, unknown>;
-  const walletAddr = approval.transactionLog.secret.walletMetadata?.smartAccountAddress ?? 'unknown';
+  const walletAddr =
+    approval.transactionLog.secret.walletMetadata?.smartAccountAddress ?? 'unknown';
   const chainId = requestData.chainId as number | undefined;
 
-  const message = await formatApprovalMessage(txLog.actionType, requestData, walletAddr, chainId, approval.expiresAt);
+  const message = await formatApprovalMessage(
+    txLog.actionType,
+    requestData,
+    walletAddr,
+    chainId,
+    approval.expiresAt
+  );
 
   const keyboard = new InlineKeyboard()
     .text('Approve', `approve:${approval.id}`)

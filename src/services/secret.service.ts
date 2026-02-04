@@ -1,6 +1,9 @@
 import { SecretType, Secret, Prisma } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { type Hex } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { Keypair } from '@solana/web3.js';
+import nacl from 'tweetnacl';
 import prisma from '../db/client';
 import { AppError } from '../api/middleware/errorHandler';
 import { env } from '../utils/env';
@@ -26,6 +29,10 @@ export interface SecretPublicData {
   claimedAt: Date | null;
   createdAt: Date;
   walletAddress?: string;
+  ethAddress?: string;
+  solanaAddress?: string;
+  ethPublicKey?: string;
+  solanaPublicKey?: string;
 }
 
 export interface ClaimSecretInput {
@@ -67,7 +74,9 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   const claimToken = generateClaimToken();
   let secretValue: string | null = null;
   let walletMetadata: Prisma.WalletSecretMetadataCreateNestedOneWithoutSecretInput | undefined;
-  let polymarketWalletMetadata: Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput | undefined;
+  let polymarketWalletMetadata:
+    | Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput
+    | undefined;
 
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
@@ -108,6 +117,42 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     };
   }
 
+  // For RAW_SIGNER, generate a 32-byte seed that can derive both ETH and Solana addresses
+  let rawSignerMetadata: Prisma.RawSignerMetadataCreateNestedOneWithoutSecretInput | undefined;
+  if (type === SecretType.RAW_SIGNER) {
+    // Generate a 32-byte seed - this will be used as:
+    // - ETH private key (secp256k1) directly
+    // - Solana seed to derive ed25519 keypair
+    secretValue = generatePrivateKey();
+    const seedBytes = Buffer.from(secretValue.slice(2), 'hex');
+
+    // Derive ETH address and public key using viem
+    // privateKeyToAccount returns the uncompressed public key (65 bytes: 04 prefix + x + y)
+    const ethAccount = privateKeyToAccount(secretValue as Hex);
+    const ethAddress = ethAccount.address;
+    const ethPublicKey = ethAccount.publicKey;
+
+    // Derive Solana keypair from seed using nacl
+    // nacl.sign.keyPair.fromSeed expects a 32-byte Uint8Array
+    const solanaKeypair = nacl.sign.keyPair.fromSeed(new Uint8Array(seedBytes));
+    // Solana uses base58 encoding for public keys (address)
+    const solanaAddress = new Keypair({
+      publicKey: solanaKeypair.publicKey,
+      secretKey: solanaKeypair.secretKey,
+    }).publicKey.toBase58();
+    // Also store hex-encoded public key for signature verification
+    const solanaPublicKey = '0x' + Buffer.from(solanaKeypair.publicKey).toString('hex');
+
+    rawSignerMetadata = {
+      create: {
+        ethAddress,
+        solanaAddress,
+        ethPublicKey,
+        solanaPublicKey,
+      },
+    };
+  }
+
   const secret = await prisma.secret.create({
     data: {
       type,
@@ -116,10 +161,12 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
       claimToken,
       walletMetadata,
       polymarketWalletMetadata,
+      rawSignerMetadata,
     },
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
   });
 
@@ -152,6 +199,7 @@ export async function getSecretById(
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
   });
 
@@ -186,6 +234,7 @@ export async function getSecretsByUserId(userId: string): Promise<SecretPublicDa
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
     orderBy: {
       createdAt: 'desc',
@@ -238,6 +287,7 @@ export async function claimSecret(input: ClaimSecretInput): Promise<SecretPublic
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
   });
 
@@ -259,6 +309,7 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
   });
 
@@ -284,6 +335,7 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
     },
   });
 
@@ -388,6 +440,12 @@ export function consumeRelinkToken(token: string): string | null {
 type SecretWithMetadata = Secret & {
   walletMetadata?: { smartAccountAddress: string } | null;
   polymarketWalletMetadata?: { eoaAddress: string; safeAddress: string | null } | null;
+  rawSignerMetadata?: {
+    ethAddress: string;
+    solanaAddress: string;
+    ethPublicKey: string | null;
+    solanaPublicKey: string | null;
+  } | null;
 };
 
 function toPublicData(secret: SecretWithMetadata): SecretPublicData {
@@ -406,8 +464,19 @@ function toPublicData(secret: SecretWithMetadata): SecretPublicData {
 
   if (secret.polymarketWalletMetadata) {
     // Use Safe address if deployed, otherwise show EOA address
-    publicData.walletAddress = secret.polymarketWalletMetadata.safeAddress
-      ?? secret.polymarketWalletMetadata.eoaAddress;
+    publicData.walletAddress =
+      secret.polymarketWalletMetadata.safeAddress ?? secret.polymarketWalletMetadata.eoaAddress;
+  }
+
+  if (secret.rawSignerMetadata) {
+    publicData.ethAddress = secret.rawSignerMetadata.ethAddress;
+    publicData.solanaAddress = secret.rawSignerMetadata.solanaAddress;
+    if (secret.rawSignerMetadata.ethPublicKey) {
+      publicData.ethPublicKey = secret.rawSignerMetadata.ethPublicKey;
+    }
+    if (secret.rawSignerMetadata.solanaPublicKey) {
+      publicData.solanaPublicKey = secret.rawSignerMetadata.solanaPublicKey;
+    }
   }
 
   return publicData;

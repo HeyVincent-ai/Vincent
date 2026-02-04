@@ -3,10 +3,11 @@ import { AppError, errorHandler, asyncHandler } from './errorHandler';
 import { ZodError, ZodIssue } from 'zod';
 
 function mockReqRes() {
-  const req: any = { path: '/test', method: 'GET' };
+  const req: any = { path: '/test', method: 'GET', traceId: undefined };
   const res: any = {
     status: vi.fn().mockReturnThis(),
     json: vi.fn().mockReturnThis(),
+    getHeader: vi.fn().mockReturnValue(undefined),
   };
   const next = vi.fn();
   return { req, res, next };
@@ -45,7 +46,13 @@ describe('errorHandler', () => {
   it('handles ZodError', () => {
     const { req, res, next } = mockReqRes();
     const issues: ZodIssue[] = [
-      { code: 'invalid_type', expected: 'string', received: 'number', path: ['name'], message: 'Expected string' },
+      {
+        code: 'invalid_type',
+        expected: 'string',
+        received: 'number',
+        path: ['name'],
+        message: 'Expected string',
+      },
     ];
     const err = new ZodError(issues);
     errorHandler(err, req, res, next);
