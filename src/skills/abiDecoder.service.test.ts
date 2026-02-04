@@ -150,9 +150,7 @@ describe('abiDecoder.service', () => {
     it('respects custom maxValueLength option', () => {
       const decoded: DecodedTransaction = {
         functionName: 'test',
-        args: [
-          { name: 'data', type: 'bytes', value: '0x1234567890abcdef' },
-        ],
+        args: [{ name: 'data', type: 'bytes', value: '0x1234567890abcdef' }],
       };
 
       const lines = formatDecodedTxForTelegram(decoded, { maxValueLength: 10 });
@@ -164,11 +162,7 @@ describe('abiDecoder.service', () => {
 
   describe('decodeTransaction', () => {
     it('returns null for empty calldata', async () => {
-      const result = await decodeTransaction(
-        '0x1234567890123456789012345678901234567890',
-        '0x',
-        1
-      );
+      const result = await decodeTransaction('0x1234567890123456789012345678901234567890', '0x', 1);
       expect(result).toBeNull();
     });
 
