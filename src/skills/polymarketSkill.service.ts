@@ -196,11 +196,26 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
 
     if (price !== undefined) {
       // Limit order
+      // For BUY orders: amount is USD to spend, so size = amount / price
+      // For SELL orders: amount is shares to sell, so size = amount
+      let size: number;
+      if (side === 'BUY') {
+        // Add 1% buffer to amount to ensure we meet Polymarket's $1 minimum
+        // after their internal rounding. This means we'll spend slightly more
+        // than requested, but it ensures the order is accepted.
+        const bufferedAmount = amount * 1.01;
+        const rawSize = bufferedAmount / price;
+        // Round up to 2 decimal places (Polymarket's tick size)
+        size = Math.ceil(rawSize * 100) / 100;
+      } else {
+        size = amount;
+      }
+
       orderResult = await polymarket.placeLimitOrder(clientConfig, {
         tokenId,
         side: side === 'BUY' ? Side.BUY : Side.SELL,
         price,
-        size: amount,
+        size,
       });
     } else {
       // Market order

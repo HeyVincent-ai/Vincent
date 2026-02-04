@@ -76,6 +76,9 @@ const envSchema = z.object({
   POLY_BUILDER_SECRET: z.string().optional(),
   POLY_BUILDER_PASSPHRASE: z.string().optional(),
   POLYMARKET_RELAYER_HOST: z.string().optional().default('https://relayer-v2.polymarket.com/'),
+
+  // Webshare Proxy (for geo-restricted API calls like Polymarket)
+  WEBSHARE_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
