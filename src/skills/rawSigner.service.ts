@@ -67,14 +67,22 @@ async function getSignerData(secretId: string) {
 }
 
 /**
+ * Helper to do a true dynamic import that bypasses TypeScript's CJS transformation
+ */
+async function dynamicImport<T>(modulePath: string): Promise<T> {
+  // Using Function constructor to create a real dynamic import
+  // This prevents TypeScript from transforming it to require()
+  return new Function('modulePath', 'return import(modulePath)')(modulePath) as Promise<T>;
+}
+
+/**
  * Sign a message using Ethereum's secp256k1 curve (ECDSA)
  * Uses dynamic import for @noble/curves since it's ESM-only
  */
 async function signWithEthereum(privateKey: Hex, messageHex: string): Promise<string> {
   // Dynamic import for ESM-only @noble/curves package
-  // Using non-literal path to prevent TypeScript from converting to require()
-  const modulePath = '@noble/curves/secp256k1';
-  const { secp256k1 } = await import(/* webpackIgnore: true */ modulePath);
+  const { secp256k1 } =
+    await dynamicImport<typeof import('@noble/curves/secp256k1')>('@noble/curves/secp256k1');
 
   // For raw signing, we sign the message bytes directly
   // The messageHex is the hex-encoded bytes to sign
