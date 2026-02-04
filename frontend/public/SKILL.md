@@ -192,3 +192,63 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 - Always share the claim URL with the user after creating a wallet.
 - If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the frontend at `https://heyvincent.ai`.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.
+
+---
+
+## Raw Signer (Advanced)
+
+**Only use this if you specifically need raw cryptographic signing.** For transfers, swaps, and regular EVM transactions, use `EVM_WALLET` above -- it's simpler, has gas sponsorship, and doesn't require you to manage transaction construction.
+
+Use `RAW_SIGNER` when you need to:
+
+- Sign arbitrary messages for protocols that require raw ECDSA/Ed25519 signatures
+- Sign transaction hashes that you'll broadcast yourself
+- Interact with protocols that don't work with smart accounts
+
+### Create a Raw Signer
+
+```bash
+curl -X POST "https://heyvincent.ai/api/secrets" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "RAW_SIGNER",
+    "memo": "My raw signer"
+  }'
+```
+
+Response includes both Ethereum (secp256k1) and Solana (ed25519) addresses derived from the same seed.
+
+### Get Addresses
+
+```bash
+curl -X GET "https://heyvincent.ai/api/skills/raw-signer/addresses" \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+Returns `ethAddress` and `solanaAddress`.
+
+### Sign a Message
+
+```bash
+curl -X POST "https://heyvincent.ai/api/skills/raw-signer/sign" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "0x<hex-encoded-bytes>",
+    "curve": "ethereum"
+  }'
+```
+
+- `message`: Hex-encoded bytes to sign (must start with `0x`)
+- `curve`: `"ethereum"` for secp256k1 ECDSA, `"solana"` for ed25519
+
+Returns a hex-encoded signature. For Ethereum, this is `r || s || v` (65 bytes). For Solana, it's a 64-byte ed25519 signature.
+
+### Key Differences from EVM_WALLET
+
+|                       | EVM_WALLET                       | RAW_SIGNER                        |
+| --------------------- | -------------------------------- | --------------------------------- |
+| Gas sponsorship       | Yes (paymaster)                  | No -- you pay gas                 |
+| Transaction execution | Server handles it                | You broadcast manually            |
+| Use case              | Transfers, swaps, contract calls | Raw signing for special protocols |
+| Address type          | Smart account                    | EOA (Ethereum) + Solana keypair   |
