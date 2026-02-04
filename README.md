@@ -1,6 +1,6 @@
-# SafeSkills
+# Vincent
 
-A secure secret management service designed specifically for AI agents. SafeSkills stores secrets on behalf of users and executes actions using those secrets when requested by authorized agents—the agent never sees the actual secret value.
+A secure secret management service designed specifically for AI agents. Vincent stores secrets on behalf of users and executes actions using those secrets when requested by authorized agents—the agent never sees the actual secret value.
 
 **🔗 Try it live: [heyvincent.ai](https://heyvincent.ai)**
 
@@ -11,7 +11,7 @@ AI agents increasingly need to perform sensitive operations that require secrets
 1. **Give agents direct access to secrets** — risky, agents could leak or misuse them
 2. **Require manual approval for every action** — slow, poor UX
 
-SafeSkills provides a middle ground: agents can request actions that use secrets, but policies control what actions are allowed, and humans can approve when needed.
+Vincent provides a middle ground: agents can request actions that use secrets, but policies control what actions are allowed, and humans can approve when needed.
 
 ## Features
 
@@ -28,7 +28,7 @@ SafeSkills provides a middle ground: agents can request actions that use secrets
 
 ```
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   AI Agent      │────▶│  SafeSkills API │────▶│   PostgreSQL    │
+│   AI Agent      │────▶│  Vincent API ──▶│   PostgreSQL          │
 │                 │     │   (Backend)     │     │   (Secrets DB)  │
 └─────────────────┘     └────────┬────────┘     └─────────────────┘
                                 │
@@ -131,7 +131,7 @@ NODE_ENV=development
 PORT=3000
 
 # Database
-DATABASE_URL=postgresql://user:pass@localhost:5432/safeskills
+DATABASE_URL=postgresql://user:pass@localhost:5432/Vincent
 
 # Stytch Authentication
 STYTCH_PROJECT_ID=
@@ -248,7 +248,7 @@ npm start
 ### 3. Human Approval via Telegram
 
 1. User configures Telegram in the frontend
-2. User starts conversation with SafeSkills bot
+2. User starts conversation with Vincent bot
 3. When approval needed, bot sends message with action details
 4. User taps Approve or Deny
 5. Action executes or fails accordingly
