@@ -334,23 +334,11 @@ async function formatApprovalMessage(
       lines.push(`Contract: ${contractLink}`);
       if (data.value && data.value !== '0') lines.push(`Value: ${data.value} ETH`);
 
-      // Show decoded parameters (limit to first 5 for readability)
-      if (decoded.args.length > 0) {
+      // Show decoded parameters using the utility function
+      const paramLines = abiDecoder.formatDecodedTxForTelegram(decoded);
+      if (paramLines.length > 0) {
         lines.push('');
-        lines.push('*Parameters:*');
-        const displayArgs = decoded.args.slice(0, 5);
-        for (const arg of displayArgs) {
-          const argName = arg.name || 'unnamed';
-          let argValue = arg.value;
-          // Truncate long values
-          if (argValue.length > 40) {
-            argValue = argValue.slice(0, 37) + '...';
-          }
-          lines.push(`  ${argName}: \`${argValue}\``);
-        }
-        if (decoded.args.length > 5) {
-          lines.push(`  ... and ${decoded.args.length - 5} more`);
-        }
+        lines.push(...paramLines);
       }
     } else {
       // Fallback to basic display if ABI not available

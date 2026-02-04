@@ -84,24 +84,23 @@ describe('abiDecoder.service', () => {
         signature: 'transfer(address,uint256)',
       };
 
-      const formatted = formatDecodedTxForTelegram(decoded);
+      const lines = formatDecodedTxForTelegram(decoded);
+      const formatted = lines.join('\n');
 
-      expect(formatted).toContain('Function: `transfer`');
-      expect(formatted).toContain('Parameters:');
+      expect(formatted).toContain('*Parameters:*');
       expect(formatted).toContain('to:');
       expect(formatted).toContain('amount:');
     });
 
-    it('handles empty args', () => {
+    it('returns empty array for empty args', () => {
       const decoded: DecodedTransaction = {
         functionName: 'pause',
         args: [],
       };
 
-      const formatted = formatDecodedTxForTelegram(decoded);
+      const lines = formatDecodedTxForTelegram(decoded);
 
-      expect(formatted).toContain('Function: `pause`');
-      expect(formatted).not.toContain('Parameters:');
+      expect(lines).toHaveLength(0);
     });
 
     it('truncates long argument values', () => {
@@ -116,11 +115,50 @@ describe('abiDecoder.service', () => {
         ],
       };
 
-      const formatted = formatDecodedTxForTelegram(decoded);
+      const lines = formatDecodedTxForTelegram(decoded);
+      const formatted = lines.join('\n');
 
       // Should be truncated with "..."
-      expect(formatted.length).toBeLessThan(300);
+      expect(formatted.length).toBeLessThan(100);
       expect(formatted).toContain('...');
+    });
+
+    it('limits args to maxArgs option', () => {
+      const decoded: DecodedTransaction = {
+        functionName: 'multiCall',
+        args: [
+          { name: 'arg1', type: 'uint256', value: '1' },
+          { name: 'arg2', type: 'uint256', value: '2' },
+          { name: 'arg3', type: 'uint256', value: '3' },
+          { name: 'arg4', type: 'uint256', value: '4' },
+          { name: 'arg5', type: 'uint256', value: '5' },
+          { name: 'arg6', type: 'uint256', value: '6' },
+          { name: 'arg7', type: 'uint256', value: '7' },
+        ],
+      };
+
+      const lines = formatDecodedTxForTelegram(decoded, { maxArgs: 3 });
+      const formatted = lines.join('\n');
+
+      expect(formatted).toContain('arg1');
+      expect(formatted).toContain('arg2');
+      expect(formatted).toContain('arg3');
+      expect(formatted).not.toContain('arg4');
+      expect(formatted).toContain('... and 4 more');
+    });
+
+    it('respects custom maxValueLength option', () => {
+      const decoded: DecodedTransaction = {
+        functionName: 'test',
+        args: [
+          { name: 'data', type: 'bytes', value: '0x1234567890abcdef' },
+        ],
+      };
+
+      const lines = formatDecodedTxForTelegram(decoded, { maxValueLength: 10 });
+      const formatted = lines.join('\n');
+
+      expect(formatted).toContain('0x12345...');
     });
   });
 

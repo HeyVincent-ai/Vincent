@@ -297,30 +297,50 @@ function formatArgValue(value: unknown, type?: string): string {
 // Utility Functions
 // ============================================================
 
+export interface FormatOptions {
+  /** Maximum number of arguments to display (default: 5) */
+  maxArgs?: number;
+  /** Maximum length for argument values before truncation (default: 40) */
+  maxValueLength?: number;
+  /** Whether to include the *Parameters:* header (default: true) */
+  includeHeader?: boolean;
+}
+
 /**
- * Format a decoded transaction for display in Telegram messages.
+ * Format decoded transaction parameters for display in Telegram messages.
+ * Returns an array of lines to be joined with the caller's message.
  */
-export function formatDecodedTxForTelegram(decoded: DecodedTransaction): string {
+export function formatDecodedTxForTelegram(
+  decoded: DecodedTransaction,
+  options: FormatOptions = {}
+): string[] {
+  const { maxArgs = 5, maxValueLength = 40, includeHeader = true } = options;
   const lines: string[] = [];
 
-  // Function name with backticks for monospace
-  lines.push(`Function: \`${decoded.functionName}\``);
-
-  // Parameters
-  if (decoded.args.length > 0) {
-    lines.push('Parameters:');
-    for (const arg of decoded.args) {
-      const name = arg.name || 'unnamed';
-      // Truncate long values for readability
-      let displayValue = arg.value;
-      if (displayValue.length > 60) {
-        displayValue = displayValue.slice(0, 57) + '...';
-      }
-      lines.push(`  • ${name}: \`${displayValue}\``);
-    }
+  if (decoded.args.length === 0) {
+    return lines;
   }
 
-  return lines.join('\n');
+  if (includeHeader) {
+    lines.push('*Parameters:*');
+  }
+
+  const displayArgs = decoded.args.slice(0, maxArgs);
+  for (const arg of displayArgs) {
+    const name = arg.name || 'unnamed';
+    let displayValue = arg.value;
+    // Truncate long values for readability
+    if (displayValue.length > maxValueLength) {
+      displayValue = displayValue.slice(0, maxValueLength - 3) + '...';
+    }
+    lines.push(`  ${name}: \`${displayValue}\``);
+  }
+
+  if (decoded.args.length > maxArgs) {
+    lines.push(`  ... and ${decoded.args.length - maxArgs} more`);
+  }
+
+  return lines;
 }
 
 /**
