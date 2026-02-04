@@ -296,7 +296,7 @@ async function formatApprovalMessage(
   if (actionType === 'transfer') {
     const tokenLabel = await resolveTokenLabel(data.token as string | undefined, chainId);
     lines.push(`*Transfer ${data.amount} ${tokenLabel}*`);
-    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)} USD`);
     const toAddr = data.to as string;
     const toExplorerUrl = chainId ? getExplorerAddressUrl(chainId, toAddr) : undefined;
     const toLink = toExplorerUrl
@@ -307,7 +307,7 @@ async function formatApprovalMessage(
     const sellLabel = await resolveTokenLabel(data.sellToken as string | undefined, chainId);
     const buyLabel = await resolveTokenLabel(data.buyToken as string | undefined, chainId);
     lines.push(`*Swap ${data.sellAmount} ${sellLabel} → ${buyLabel}*`);
-    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)}`);
+    if (data.usdValue) lines.push(`≈ $${Number(data.usdValue).toFixed(2)} USD`);
   } else if (actionType === 'send_transaction') {
     // Try to decode the transaction using ABI
     const contractAddr = data.to as string;
