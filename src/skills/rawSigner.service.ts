@@ -72,7 +72,9 @@ async function getSignerData(secretId: string) {
  */
 async function signWithEthereum(privateKey: Hex, messageHex: string): Promise<string> {
   // Dynamic import for ESM-only @noble/curves package
-  const { secp256k1 } = await import('@noble/curves/secp256k1.js');
+  // Using non-literal path to prevent TypeScript from converting to require()
+  const modulePath = '@noble/curves/secp256k1';
+  const { secp256k1 } = await import(/* webpackIgnore: true */ modulePath);
 
   // For raw signing, we sign the message bytes directly
   // The messageHex is the hex-encoded bytes to sign
