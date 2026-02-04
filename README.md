@@ -2,6 +2,8 @@
 
 A secure secret management service designed specifically for AI agents. SafeSkills stores secrets on behalf of users and executes actions using those secrets when requested by authorized agents—the agent never sees the actual secret value.
 
+**🔗 Try it live: [heyvincent.ai](https://heyvincent.ai)**
+
 ## Problem
 
 AI agents increasingly need to perform sensitive operations that require secrets (wallet keys, API keys, credentials). Current approaches either:
@@ -309,7 +311,7 @@ npm run db:studio
 
 ### Deploying to Production
 
-Pushing to `main` will automatically deploy to Railway.
+Pushing to `main` will automatically deploy to Railway at [heyvincent.ai](https://heyvincent.ai).
 
 ### Publishing the Skill
 

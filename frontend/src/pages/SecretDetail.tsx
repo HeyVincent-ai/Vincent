@@ -11,6 +11,8 @@ interface SecretData {
   type: string;
   memo: string | null;
   walletAddress?: string;
+  ethAddress?: string;
+  solanaAddress?: string;
   claimedAt: string | null;
   createdAt: string;
 }
@@ -106,6 +108,18 @@ export default function SecretDetail() {
             <div className="col-span-2">
               <dt className="text-gray-500">Wallet Address</dt>
               <dd className="font-mono text-sm">{secret.walletAddress}</dd>
+            </div>
+          )}
+          {secret.ethAddress && (
+            <div className="col-span-2">
+              <dt className="text-gray-500">Ethereum Address</dt>
+              <dd className="font-mono text-sm">{secret.ethAddress}</dd>
+            </div>
+          )}
+          {secret.solanaAddress && (
+            <div className="col-span-2">
+              <dt className="text-gray-500">Solana Address</dt>
+              <dd className="font-mono text-sm">{secret.solanaAddress}</dd>
             </div>
           )}
           {secret.type === 'EVM_WALLET' && (
