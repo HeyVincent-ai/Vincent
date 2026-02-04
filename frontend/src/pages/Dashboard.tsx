@@ -7,6 +7,8 @@ interface Secret {
   type: string;
   memo: string | null;
   walletAddress?: string;
+  ethAddress?: string;
+  solanaAddress?: string;
   createdAt: string;
 }
 
@@ -116,6 +118,7 @@ export default function Dashboard() {
                     className="border rounded px-3 py-1.5 text-sm"
                   >
                     <option value="EVM_WALLET">EVM Wallet</option>
+                    <option value="RAW_SIGNER">Raw Signer</option>
                   </select>
                 </div>
                 <div className="flex-1">
@@ -175,6 +178,12 @@ export default function Dashboard() {
               </div>
               {s.walletAddress && (
                 <p className="text-sm text-gray-500 mt-1 font-mono">{s.walletAddress}</p>
+              )}
+              {s.ethAddress && (
+                <p className="text-sm text-gray-500 mt-1 font-mono">ETH: {s.ethAddress}</p>
+              )}
+              {s.solanaAddress && (
+                <p className="text-sm text-gray-500 mt-1 font-mono">SOL: {s.solanaAddress}</p>
               )}
             </Link>
           ))}
