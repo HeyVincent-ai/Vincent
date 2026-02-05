@@ -354,13 +354,148 @@ export async function getMidpoint(tokenId: string): Promise<string> {
 }
 
 /**
- * Browse markets (paginated).
+ * Browse markets (paginated) from CLOB API.
+ * Note: CLOB API doesn't support search - use searchMarketsGamma for search.
  */
 export async function getMarkets(nextCursor?: string) {
   const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getSimplifiedMarkets(nextCursor);
+}
+
+// ============================================================
+// Gamma API (for search and richer market data)
+// ============================================================
+
+export interface GammaMarket {
+  id: string;
+  question: string;
+  conditionId: string;
+  slug: string;
+  outcomes: string; // JSON string array like '["Yes", "No"]'
+  outcomePrices: string; // JSON string array like '["0.55", "0.45"]'
+  clobTokenIds: string; // JSON string array of token IDs
+  active: boolean;
+  closed: boolean;
+  acceptingOrders: boolean;
+  endDate: string;
+  volume: string;
+  liquidity: string;
+  bestBid?: number;
+  bestAsk?: number;
+  lastTradePrice?: number;
+  description?: string;
+  image?: string;
+  negRisk?: boolean;
+}
+
+export interface GammaSearchResult {
+  markets: Array<{
+    id: string;
+    question: string;
+    conditionId: string;
+    slug: string;
+    outcomes: string[];
+    outcomePrices: string[];
+    tokenIds: string[];
+    active: boolean;
+    closed: boolean;
+    acceptingOrders: boolean;
+    endDate: string;
+    volume: string;
+    liquidity: string;
+    bestBid?: number;
+    bestAsk?: number;
+    lastTradePrice?: number;
+    description?: string;
+  }>;
+  hasMore: boolean;
+}
+
+/**
+ * Search markets via Gamma API.
+ * Supports text search and filtering for active/accepting orders.
+ */
+export async function searchMarketsGamma(params: {
+  query?: string;
+  active?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<GammaSearchResult> {
+  const { query, active = true, limit = 50, offset = 0 } = params;
+
+  const url = new URL('https://gamma-api.polymarket.com/markets');
+
+  // Text search
+  if (query) {
+    url.searchParams.set('_q', query);
+  }
+
+  // Filter for active/open markets
+  if (active) {
+    url.searchParams.set('active', 'true');
+    url.searchParams.set('closed', 'false');
+  }
+
+  url.searchParams.set('_limit', String(limit));
+  url.searchParams.set('_offset', String(offset));
+
+  // Sort by volume for relevance
+  url.searchParams.set('_order', 'volumeNum:desc');
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as GammaMarket[];
+
+  // Transform to cleaner format with parsed JSON fields
+  const markets = data
+    .filter(m => !active || m.acceptingOrders) // Double-check accepting orders
+    .map(m => {
+      let outcomes: string[] = [];
+      let outcomePrices: string[] = [];
+      let tokenIds: string[] = [];
+
+      try {
+        outcomes = JSON.parse(m.outcomes || '[]');
+      } catch { /* ignore */ }
+
+      try {
+        outcomePrices = JSON.parse(m.outcomePrices || '[]');
+      } catch { /* ignore */ }
+
+      try {
+        tokenIds = JSON.parse(m.clobTokenIds || '[]');
+      } catch { /* ignore */ }
+
+      return {
+        id: m.id,
+        question: m.question,
+        conditionId: m.conditionId,
+        slug: m.slug,
+        outcomes,
+        outcomePrices,
+        tokenIds,
+        active: m.active,
+        closed: m.closed,
+        acceptingOrders: m.acceptingOrders,
+        endDate: m.endDate,
+        volume: m.volume,
+        liquidity: m.liquidity,
+        bestBid: m.bestBid,
+        bestAsk: m.bestAsk,
+        lastTradePrice: m.lastTradePrice,
+        description: m.description,
+      };
+    });
+
+  return {
+    markets,
+    hasMore: data.length === limit,
+  };
 }
 
 // ============================================================

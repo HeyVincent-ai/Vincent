@@ -99,6 +99,7 @@ router.get(
 
 // ============================================================
 // GET /api/skills/polymarket/markets
+// Supports: ?query=text&active=true&limit=50&next_cursor=xyz
 // ============================================================
 
 router.get(
@@ -109,8 +110,14 @@ router.get(
       return;
     }
 
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    const activeParam = req.query.active;
+    const active = activeParam === 'false' ? false : true; // Default to true
+    const limitParam = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+    const limit = limitParam && !isNaN(limitParam) ? Math.min(limitParam, 100) : 50;
     const nextCursor = typeof req.query.next_cursor === 'string' ? req.query.next_cursor : undefined;
-    const result = await polymarketSkill.searchMarkets(nextCursor);
+
+    const result = await polymarketSkill.searchMarkets({ query, active, limit, nextCursor });
     sendSuccess(res, result);
   })
 );

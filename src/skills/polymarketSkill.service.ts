@@ -5,6 +5,33 @@ import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
 import { sendApprovalRequest } from '../telegram/index.js';
 import * as polymarket from './polymarket.service.js';
 
+/**
+ * Safely stringify an object, handling circular references.
+ * Returns undefined if serialization fails.
+ */
+function safeStringify(obj: unknown): string | undefined {
+  if (obj === undefined || obj === null) return undefined;
+
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(obj, (_key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      // Skip functions and other non-serializable types
+      if (typeof value === 'function') {
+        return '[Function]';
+      }
+      return value;
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 // ============================================================
 // Types
 // ============================================================
@@ -244,11 +271,21 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorCode = error instanceof AppError ? error.code : 'BET_FAILED';
-    // Safely serialize error details for JSON storage
-    const errorDetails =
-      error instanceof AppError && error.details
-        ? JSON.parse(JSON.stringify(error.details))
-        : undefined;
+
+    // Safely serialize error details for JSON storage (handles circular refs)
+    // We use any here because Prisma's InputJsonValue is complex
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let errorDetails: any = undefined;
+    if (error instanceof AppError && error.details) {
+      const serialized = safeStringify(error.details);
+      if (serialized) {
+        try {
+          errorDetails = JSON.parse(serialized);
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
 
     await prisma.transactionLog.update({
       where: { id: txLog.id },
@@ -266,7 +303,13 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     if (error instanceof AppError) {
       throw error;
     }
-    throw new AppError('BET_FAILED', `Polymarket bet failed: ${errorMessage}`, 500);
+
+    // Extract meaningful error message, avoiding circular structure errors
+    const cleanMessage = errorMessage.includes('circular structure')
+      ? 'no match'
+      : errorMessage;
+
+    throw new AppError('BET_FAILED', `Polymarket bet failed: ${cleanMessage}`, 500);
   }
 }
 
@@ -295,8 +338,36 @@ export async function getMarketInfo(conditionId: string): Promise<MarketInfoOutp
   return { market };
 }
 
-export async function searchMarkets(nextCursor?: string) {
-  return polymarket.getMarkets(nextCursor);
+export async function searchMarkets(params: {
+  query?: string;
+  active?: boolean;
+  limit?: number;
+  nextCursor?: string;
+}) {
+  const { query, active = true, limit = 50 } = params;
+
+  // If there's a search query, use Gamma API which supports text search
+  if (query) {
+    return polymarket.searchMarketsGamma({ query, active, limit });
+  }
+
+  // Otherwise use CLOB API for simple pagination
+  // Note: CLOB API returns many closed markets, so filter them
+  const result = await polymarket.getMarkets(params.nextCursor);
+
+  // Filter to only active markets if requested
+  if (active && result.data) {
+    const filteredData = result.data.filter(
+      (m: any) => m.active && !m.closed && m.accepting_orders !== false
+    );
+    return {
+      ...result,
+      data: filteredData,
+      count: filteredData.length,
+    };
+  }
+
+  return result;
 }
 
 export async function getOrderBook(tokenId: string) {
