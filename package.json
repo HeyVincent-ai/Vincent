@@ -1,6 +1,6 @@
 {
   "name": "safeskills",
-  "version": "1.0.26",
+  "version": "1.0.27",
   "description": "Secure secret management service for AI agents",
   "type": "module",
   "main": "dist/index.js",
