@@ -2,17 +2,17 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 import { SecretType } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
-import { asyncHandler } from '../middleware/errorHandler';
-import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth';
-import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth';
-import { AuthenticatedRequest } from '../../types';
-import { sendSuccess, errors } from '../../utils/response';
-import * as secretService from '../../services/secret.service';
-import * as apiKeyService from '../../services/apiKey.service';
-import * as evmWallet from '../../skills/evmWallet.service';
-import { auditService } from '../../audit';
-import { calculateTrialStatus } from '../../skills/gas.service';
-import prisma from '../../db/client';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
+import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import * as secretService from '../../services/secret.service.js';
+import * as apiKeyService from '../../services/apiKey.service.js';
+import * as evmWallet from '../../skills/evmWallet.service.js';
+import { auditService } from '../../audit/index.js';
+import { calculateTrialStatus } from '../../skills/gas.service.js';
+import prisma from '../../db/client.js';
 
 const router = Router();
 

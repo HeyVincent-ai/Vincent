@@ -1,13 +1,13 @@
 import { Bot, InlineKeyboard, type Context } from 'grammy';
 import { type Address } from 'viem';
-import { env } from '../utils/env';
-import prisma from '../db/client';
+import { env } from '../utils/env.js';
+import prisma from '../db/client.js';
 import crypto from 'crypto';
-import { executeApprovedTransaction } from './approvalExecutor';
-import * as zerodev from '../skills/zerodev.service';
-import * as abiDecoder from '../skills/abiDecoder.service';
-import { isNativeToken } from '../skills/zeroEx.service';
-import { getExplorerAddressUrl } from '../config/chains';
+import { executeApprovedTransaction } from './approvalExecutor.js';
+import * as zerodev from '../skills/zerodev.service.js';
+import * as abiDecoder from '../skills/abiDecoder.service.js';
+import { isNativeToken } from '../skills/zeroEx.service.js';
+import { getExplorerAddressUrl } from '../config/chains.js';
 
 let bot: Bot | null = null;
 

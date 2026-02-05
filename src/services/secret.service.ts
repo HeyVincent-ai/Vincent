@@ -4,10 +4,10 @@ import { type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { Keypair } from '@solana/web3.js';
 import nacl from 'tweetnacl';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
-import { env } from '../utils/env';
-import * as zerodev from '../skills/zerodev.service';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
+import { env } from '../utils/env.js';
+import * as zerodev from '../skills/zerodev.service.js';
 
 // Types for secret operations
 export interface CreateSecretInput {

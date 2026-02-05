@@ -1,5 +1,5 @@
-import prisma from '../db/client';
-import { sendNotification } from './bot';
+import prisma from '../db/client.js';
+import { sendNotification } from './bot.js';
 
 let intervalId: ReturnType<typeof setInterval> | null = null;
 

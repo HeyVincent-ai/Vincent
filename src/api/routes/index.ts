@@ -1,14 +1,14 @@
 import { Router } from 'express';
-import secretsRouter from './secrets.routes';
-import apiKeysRouter from './apiKeys.routes';
-import policiesRouter from './policies.routes';
-import authRouter from './auth.routes';
-import userRouter from './user.routes';
-import evmWalletRouter from './evmWallet.routes';
-import polymarketRouter from './polymarket.routes';
-import rawSignerRouter from './rawSigner.routes';
-import billingRouter from './billing.routes';
-import auditLogsRouter from './auditLogs.routes';
+import secretsRouter from './secrets.routes.js';
+import apiKeysRouter from './apiKeys.routes.js';
+import policiesRouter from './policies.routes.js';
+import authRouter from './auth.routes.js';
+import userRouter from './user.routes.js';
+import evmWalletRouter from './evmWallet.routes.js';
+import polymarketRouter from './polymarket.routes.js';
+import rawSignerRouter from './rawSigner.routes.js';
+import billingRouter from './billing.routes.js';
+import auditLogsRouter from './auditLogs.routes.js';
 
 const router = Router();
 

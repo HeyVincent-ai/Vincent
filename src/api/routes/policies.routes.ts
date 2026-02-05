@@ -1,12 +1,12 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { PolicyType } from '@prisma/client';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth';
-import { AuthenticatedRequest } from '../../types';
-import { sendSuccess, errors } from '../../utils/response';
-import * as policyService from '../../services/policy.service';
-import { auditService } from '../../audit';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import * as policyService from '../../services/policy.service.js';
+import { auditService } from '../../audit/index.js';
 
 const router = Router({ mergeParams: true });
 

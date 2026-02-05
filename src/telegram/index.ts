@@ -5,6 +5,6 @@ export {
   generateLinkingCode,
   sendApprovalRequest,
   sendNotification,
-} from './bot';
-export { executeApprovedTransaction } from './approvalExecutor';
-export { startTimeoutChecker, stopTimeoutChecker } from './timeoutChecker';
+} from './bot.js';
+export { executeApprovedTransaction } from './approvalExecutor.js';
+export { startTimeoutChecker, stopTimeoutChecker } from './timeoutChecker.js';

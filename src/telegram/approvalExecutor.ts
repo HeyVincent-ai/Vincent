@@ -1,7 +1,7 @@
 import { type Hex, type Address, parseEther, parseUnits } from 'viem';
-import prisma from '../db/client';
-import * as zerodev from '../skills/zerodev.service';
-import * as zeroExService from '../skills/zeroEx.service';
+import prisma from '../db/client.js';
+import * as zerodev from '../skills/zerodev.service.js';
+import * as zeroExService from '../skills/zeroEx.service.js';
 
 /**
  * Execute a transaction that has been approved via Telegram.

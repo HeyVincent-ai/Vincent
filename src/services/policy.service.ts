@@ -1,7 +1,7 @@
 import { PolicyType, Policy, Prisma } from '@prisma/client';
 import { z } from 'zod';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
 
 // ============================================================
 // Policy Configuration Schemas (Zod)

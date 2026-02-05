@@ -4,11 +4,11 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import * as Sentry from '@sentry/node';
-import { env } from './utils/env';
-import { errorHandler } from './api/middleware/errorHandler';
-import { requestLogger } from './api/middleware/requestLogger';
-import { sendSuccess } from './utils/response';
-import apiRouter from './api/routes';
+import { env } from './utils/env.js';
+import { errorHandler } from './api/middleware/errorHandler.js';
+import { requestLogger } from './api/middleware/requestLogger.js';
+import { sendSuccess } from './utils/response.js';
+import apiRouter from './api/routes/index.js';
 
 export function createApp(): Express {
   const app = express();

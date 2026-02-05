@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import * as Sentry from '@sentry/node';
-import { errors, sendError } from '../../utils/response';
-import { AuthenticatedRequest } from '../../types';
+import { errors, sendError } from '../../utils/response.js';
+import { AuthenticatedRequest } from '../../types/index.js';
 
 // Custom error class for application errors
 export class AppError extends Error {

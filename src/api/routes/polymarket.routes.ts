@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest } from '../../types';
-import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sendSuccess, errors } from '../../utils/response';
-import * as polymarketSkill from '../../skills/polymarketSkill.service';
-import { auditService } from '../../audit';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import * as polymarketSkill from '../../skills/polymarketSkill.service.js';
+import { auditService } from '../../audit/index.js';
 
 const router = Router();
 

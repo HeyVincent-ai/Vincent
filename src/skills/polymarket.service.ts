@@ -10,9 +10,9 @@ import type {
   UserMarketOrder,
   Side,
 } from '@polymarket/clob-client';
-import prisma from '../db/client';
-import { env } from '../utils/env';
-import { initializePolymarketProxy } from '../utils/proxy';
+import prisma from '../db/client.js';
+import { env } from '../utils/env.js';
+import { initializePolymarketProxy } from '../utils/proxy.js';
 
 // ============================================================
 // ESM dynamic imports (these packages are ESM-only)

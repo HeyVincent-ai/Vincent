@@ -6,7 +6,7 @@
  */
 
 import { type Abi, type Address, decodeFunctionData, formatUnits } from 'viem';
-import { env } from '../utils/env';
+import { env } from '../utils/env.js';
 
 // ============================================================
 // Types

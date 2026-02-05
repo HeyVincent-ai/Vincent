@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sessionAuthMiddleware } from '../middleware/sessionAuth';
-import { AuthenticatedRequest } from '../../types';
-import { sendSuccess, errors } from '../../utils/response';
-import * as authService from '../../services/auth.service';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import * as authService from '../../services/auth.service.js';
 
 const router = Router();
 

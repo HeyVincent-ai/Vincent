@@ -1,8 +1,8 @@
 import * as stytch from 'stytch';
-import { env } from '../utils/env';
-import prisma from '../db/client';
+import { env } from '../utils/env.js';
+import prisma from '../db/client.js';
 import { User } from '@prisma/client';
-import { AppError } from '../api/middleware/errorHandler';
+import { AppError } from '../api/middleware/errorHandler.js';
 
 // Initialize Stytch client
 let stytchClient: stytch.Client | null = null;

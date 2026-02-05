@@ -1,13 +1,13 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sessionAuthMiddleware } from '../middleware/sessionAuth';
-import { AuthenticatedRequest } from '../../types';
-import { sendSuccess, errors } from '../../utils/response';
-import prisma from '../../db/client';
-import * as secretService from '../../services/secret.service';
-import { generateLinkingCode } from '../../telegram';
-import { env } from '../../utils/env';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import prisma from '../../db/client.js';
+import * as secretService from '../../services/secret.service.js';
+import { generateLinkingCode } from '../../telegram/index.js';
+import { env } from '../../utils/env.js';
 
 const router = Router();
 

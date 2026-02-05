@@ -1,6 +1,6 @@
 import { type Address } from 'viem';
-import { env } from '../utils/env';
-import { AppError } from '../api/middleware/errorHandler';
+import { env } from '../utils/env.js';
+import { AppError } from '../api/middleware/errorHandler.js';
 
 // 0x API base URL (unified for all chains in v2)
 const ZEROX_API_BASE = 'https://api.0x.org';

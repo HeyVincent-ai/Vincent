@@ -1,10 +1,10 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest } from '../../types';
-import { sessionAuthMiddleware } from '../middleware/sessionAuth';
-import { sendSuccess, sendError, errors } from '../../utils/response';
-import * as stripeService from '../../billing/stripe.service';
-import * as gasAggregation from '../../billing/gasAggregation.service';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
+import { sendSuccess, sendError, errors } from '../../utils/response.js';
+import * as stripeService from '../../billing/stripe.service.js';
+import * as gasAggregation from '../../billing/gasAggregation.service.js';
 
 const router = Router();
 

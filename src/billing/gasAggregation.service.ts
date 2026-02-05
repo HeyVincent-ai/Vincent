@@ -1,5 +1,5 @@
 import { Decimal } from '@prisma/client/runtime/library';
-import prisma from '../db/client';
+import prisma from '../db/client.js';
 
 /**
  * Get current month string in YYYY-MM format.

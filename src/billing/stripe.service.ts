@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
-import { env } from '../utils/env';
-import prisma from '../db/client';
+import { env } from '../utils/env.js';
+import prisma from '../db/client.js';
 
 let stripeClient: Stripe | null = null;
 

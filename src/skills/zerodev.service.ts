@@ -19,8 +19,8 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { type Chain } from 'viem/chains';
 import * as chains from 'viem/chains';
-import { env } from '../utils/env';
-import { AppError } from '../api/middleware/errorHandler';
+import { env } from '../utils/env.js';
+import { AppError } from '../api/middleware/errorHandler.js';
 
 const entryPoint = constants.getEntryPoint('0.7');
 const kernelVersion = constants.KERNEL_V3_1;
