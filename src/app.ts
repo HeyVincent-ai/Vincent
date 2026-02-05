@@ -1,5 +1,6 @@
 import express, { Express, Request } from 'express';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
@@ -9,6 +10,9 @@ import { errorHandler } from './api/middleware/errorHandler.js';
 import { requestLogger } from './api/middleware/requestLogger.js';
 import { sendSuccess } from './utils/response.js';
 import apiRouter from './api/routes/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export function createApp(): Express {
   const app = express();
