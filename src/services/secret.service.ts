@@ -82,15 +82,19 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
 
-    // Use Sepolia for counterfactual address derivation. With ZeroDev, the
+    // Use Base Sepolia for counterfactual address derivation. With ZeroDev, the
     // smart account address is the same on all chains, so the chain used
     // here doesn't matter — the wallet works on any chain.
     const derivationChainId = 84532; // Base Sepolia
 
-    // Create ZeroDev smart account if configured, otherwise use placeholder
+    // Create ZeroDev smart account with recovery guardian enabled
+    // This sets up the backend EOA as both sudo (owner) and guardian
     let smartAccountAddress: string;
     if (env.ZERODEV_PROJECT_ID) {
-      smartAccountAddress = await zerodev.createSmartAccount(secretValue as Hex, derivationChainId);
+      smartAccountAddress = await zerodev.createSmartAccountWithRecovery(
+        secretValue as Hex,
+        derivationChainId
+      );
     } else {
       smartAccountAddress = generatePlaceholderAddress();
     }
@@ -98,6 +102,8 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     walletMetadata = {
       create: {
         smartAccountAddress,
+        ownershipTransferred: false,
+        chainsUsed: [], // Will be populated as transactions are made
       },
     };
   }

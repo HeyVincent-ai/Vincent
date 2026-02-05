@@ -120,4 +120,12 @@ export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
 
+// Ownership
+export const requestOwnershipChallenge = (secretId: string, address: string) =>
+  api.post(`/secrets/${secretId}/take-ownership/challenge`, { address });
+export const verifyOwnershipSignature = (secretId: string, address: string, signature: string) =>
+  api.post(`/secrets/${secretId}/take-ownership/verify`, { address, signature });
+export const getOwnershipStatus = (secretId: string) =>
+  api.get(`/secrets/${secretId}/take-ownership/status`);
+
 export default api;
