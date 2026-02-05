@@ -314,17 +314,35 @@ Before placing bets, the user must send USDC.e to the Safe address:
 
 **Do not send native USDC** (`0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`). Polymarket only accepts bridged USDC.e.
 
-### Browse Markets
+### Browse & Search Markets
 
 ```bash
-# Get paginated list of markets
-curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets" \
+# Search markets by keyword (recommended)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?query=bitcoin&limit=20" \
+  -H "Authorization: Bearer <API_KEY>"
+
+# Get all active markets (paginated)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?active=true&limit=50" \
   -H "Authorization: Bearer <API_KEY>"
 
 # Get specific market by condition ID
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/market/<CONDITION_ID>" \
   -H "Authorization: Bearer <API_KEY>"
 ```
+
+**Market response includes:**
+
+- `question`: The market question
+- `outcomes`: Array like `["Yes", "No"]` or `["Team A", "Team B"]`
+- `outcomePrices`: Current prices for each outcome
+- `tokenIds`: **Array of token IDs for each outcome** - use these for placing bets
+- `acceptingOrders`: Whether the market is open for trading
+- `closed`: Whether the market has resolved
+
+**Important:** Always use the `tokenIds` array from the market response. Each outcome has a corresponding token ID at the same index. For a "Yes/No" market:
+
+- `tokenIds[0]` = "Yes" token ID
+- `tokenIds[1]` = "No" token ID
 
 ### Get Order Book
 
@@ -411,25 +429,43 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
 
 3. **User sends USDC.e to the Safe address on Polygon**
 
-4. **Find a market:**
+4. **Search for a market:**
 
    ```bash
-   GET /api/skills/polymarket/markets
-   # or use Gamma API: https://gamma-api.polymarket.com/markets
+   # Search by keyword - returns only active, tradeable markets
+   GET /api/skills/polymarket/markets?query=bitcoin&active=true
    ```
 
-5. **Check order book:**
+   Response example:
+
+   ```json
+   {
+     "markets": [
+       {
+         "question": "Will Bitcoin hit $100k by end of 2025?",
+         "outcomes": ["Yes", "No"],
+         "outcomePrices": ["0.65", "0.35"],
+         "tokenIds": ["123456...", "789012..."],
+         "acceptingOrders": true
+       }
+     ]
+   }
+   ```
+
+5. **Check order book for the outcome you want:**
 
    ```bash
-   GET /api/skills/polymarket/orderbook/<TOKEN_ID>
+   # Use the tokenId from the market response
+   GET /api/skills/polymarket/orderbook/123456...
    # Note the bid/ask prices
    ```
 
-6. **Place BUY bet:**
+6. **Place BUY bet using the correct token ID:**
 
    ```bash
+   # tokenId must be from the tokenIds array, NOT the conditionId
    POST /api/skills/polymarket/bet
-   {"tokenId": "...", "side": "BUY", "amount": 5, "price": 0.55}
+   {"tokenId": "123456...", "side": "BUY", "amount": 5, "price": 0.55}
    ```
 
 7. **Wait for settlement** (a few seconds)
@@ -437,5 +473,12 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
 8. **Sell position:**
    ```bash
    POST /api/skills/polymarket/bet
-   {"tokenId": "...", "side": "SELL", "amount": 9.09, "price": 0.54}
+   {"tokenId": "123456...", "side": "SELL", "amount": 9.09, "price": 0.54}
    ```
+
+**Common Errors:**
+
+- `"No orderbook exists for the requested token id"` - The market is closed or you're using the wrong ID. Make sure:
+  - The market has `acceptingOrders: true`
+  - You're using a `tokenId` from the `tokenIds` array, not the `conditionId`
+  - The market hasn't already resolved
