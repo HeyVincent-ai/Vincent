@@ -85,7 +85,28 @@ async function getWalletData(secretId: string) {
     smartAccountAddress: secret.walletMetadata.smartAccountAddress as Address,
     userId: secret.userId,
     createdAt: secret.createdAt,
+    ownershipTransferred: secret.walletMetadata.ownershipTransferred,
   };
+}
+
+/**
+ * Track which chains have been used for transactions.
+ * This is needed for ownership transfer - we need to execute recovery on all chains
+ * where the wallet has been deployed/used.
+ */
+async function trackChainUsage(secretId: string, chainId: number): Promise<void> {
+  const metadata = await prisma.walletSecretMetadata.findUnique({
+    where: { secretId },
+  });
+
+  if (metadata && !metadata.chainsUsed.includes(chainId)) {
+    await prisma.walletSecretMetadata.update({
+      where: { secretId },
+      data: {
+        chainsUsed: [...metadata.chainsUsed, chainId],
+      },
+    });
+  }
 }
 
 // ============================================================
@@ -216,6 +237,8 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         chainId: chainId,
         to: to as Address,
         value: parseEther(amount),
+        useGuardian: wallet.ownershipTransferred,
+        smartAccountAddress: wallet.smartAccountAddress,
       });
     } else {
       // Get token decimals for proper amount conversion
@@ -227,6 +250,8 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         to: to as Address,
         tokenAddress: token as Address,
         tokenAmount: parseUnits(amount, decimals),
+        useGuardian: wallet.ownershipTransferred,
+        smartAccountAddress: wallet.smartAccountAddress,
       });
     }
 
@@ -242,6 +267,9 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,
@@ -394,6 +422,8 @@ export async function executeSendTransaction(
       to: to as Address,
       data: data as Hex,
       value: value ? parseEther(value) : 0n,
+      useGuardian: wallet.ownershipTransferred,
+      smartAccountAddress: wallet.smartAccountAddress,
     });
 
     await prisma.transactionLog.update({
@@ -407,6 +437,9 @@ export async function executeSendTransaction(
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,
@@ -710,6 +743,8 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         to: calls[0].to,
         data: calls[0].data,
         value: calls[0].value,
+        useGuardian: wallet.ownershipTransferred,
+        smartAccountAddress: wallet.smartAccountAddress,
       });
     } else {
       // Batch call (approval + swap)
@@ -717,6 +752,8 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         privateKey: wallet.privateKey,
         chainId,
         calls,
+        useGuardian: wallet.ownershipTransferred,
+        smartAccountAddress: wallet.smartAccountAddress,
       });
     }
 
@@ -732,6 +769,9 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,

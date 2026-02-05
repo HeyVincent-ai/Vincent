@@ -1009,4 +1009,72 @@ All skill executions and admin actions are logged with full input/output data fo
 - Setup/funding documentation for agents
 - Frontend Polymarket UI
 
-**Next up: Phase 15 - Self-Custody (Wallet Ownership Transfer)**
+### Phase 15: Self-Custody - Wallet Ownership Transfer (COMPLETED)
+
+**Completed: 2026-02-04**
+
+**What was implemented:**
+- ZeroDev weighted ECDSA validator integration for recovery/guardian functionality
+- Wallet creation now sets up backend EOA as both sudo validator AND weighted ECDSA guardian
+- Chain usage tracking (`chainsUsed` array in WalletSecretMetadata) to know where to execute recovery
+- Ownership transfer service with challenge-response verification flow:
+  - `requestOwnershipChallenge()` - generates signed message for user to sign
+  - `verifyAndTransferOwnership()` - verifies signature and executes recovery on all used chains
+  - `getOwnershipStatus()` - returns current ownership state
+- REST API endpoints at `/api/secrets/:secretId/take-ownership/`:
+  - `POST /challenge` - request challenge message
+  - `POST /verify` - submit signature and execute transfer
+  - `GET /status` - get ownership status
+- Transaction execution now checks `ownershipTransferred` flag and uses guardian validator after transfer
+- Frontend integration with RainbowKit + wagmi for wallet connection
+- TakeOwnership component with:
+  - Wallet connection via ConnectButton
+  - Message signing via wagmi's `useSignMessage`
+  - Progress states (loading, connect, ready, signing, processing, success, error)
+  - Display of transfer transaction hashes per chain
+- Component integrated into SecretDetail page for EVM_WALLET secrets
+
+**Key decisions made:**
+- Used `@zerodev/weighted-ecdsa-validator` package for guardian functionality
+- Guardian validator has weight 100 with threshold 100 (single signer can execute recovery)
+- Challenge messages include secretId, wallet address, user address, timestamp, and nonce for replay protection
+- Challenges stored in-memory with 10-minute expiry (same pattern as Telegram linking codes)
+- Recovery is executed on all chains where the wallet has been used (tracked via `chainsUsed`)
+- After ownership transfer, backend continues to operate using guardian validator (regular validator mode)
+- ZeroDev transaction functions (`executeTransfer`, `executeSendTransaction`, `executeBatchTransaction`) extended with `useGuardian` and `smartAccountAddress` parameters
+
+**Files created:**
+- `src/services/ownership.service.ts` - Ownership challenge and transfer logic
+- `src/api/routes/ownership.routes.ts` - REST API endpoints
+- `frontend/src/wagmi.ts` - Wagmi configuration for wallet connection
+- `frontend/src/components/TakeOwnership.tsx` - Ownership transfer UI component
+
+**Files modified:**
+- `prisma/schema.prisma` - Added `ownershipTransferred`, `ownerAddress`, `chainsUsed`, `transferredAt`, `transferTxHash` to WalletSecretMetadata
+- `src/skills/zerodev.service.ts` - Added `createSmartAccountWithRecovery()`, `executeRecovery()`, `getGuardianKernelClient()`, and guardian mode support in transaction functions
+- `src/services/secret.service.ts` - Updated wallet creation to use recovery-enabled account
+- `src/skills/evmWallet.service.ts` - Added chain usage tracking and guardian mode for transactions
+- `src/api/routes/index.ts` - Mounted ownership routes
+- `src/services/index.ts` - Added ownership service export
+- `frontend/src/main.tsx` - Added WagmiProvider, QueryClientProvider, RainbowKitProvider
+- `frontend/src/api.ts` - Added ownership API functions
+- `frontend/src/pages/SecretDetail.tsx` - Integrated TakeOwnership component
+- `package.json` - Added `@zerodev/weighted-ecdsa-validator` dependency
+- `frontend/package.json` - Added `@rainbow-me/rainbowkit`, `wagmi`, `@tanstack/react-query`
+
+**Environment variables needed:**
+- `VITE_WALLETCONNECT_PROJECT_ID` - WalletConnect project ID for RainbowKit (frontend)
+
+**How ownership transfer works:**
+1. User connects their personal wallet via RainbowKit
+2. Frontend requests a challenge message from backend
+3. User signs the challenge with their wallet
+4. Backend verifies signature and calls `executeRecovery()` on each chain in `chainsUsed`
+5. `doRecovery()` UserOp is sent via guardian validator to change sudo validator to user's address
+6. Database updated with `ownershipTransferred: true` and `ownerAddress`
+7. Future transactions use `getGuardianKernelClient()` instead of regular ECDSA client
+
+**Deferred items:**
+- E2E test for full ownership transfer flow (requires test EOA and chain interaction)
+- Multi-signature guardian support (currently single backend EOA)
+- Recovery delay period (currently instant)

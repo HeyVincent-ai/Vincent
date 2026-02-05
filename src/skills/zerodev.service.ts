@@ -4,7 +4,11 @@ import {
   createZeroDevPaymasterClient,
   constants,
 } from '@zerodev/sdk';
-import { signerToEcdsaValidator } from '@zerodev/ecdsa-validator';
+import { signerToEcdsaValidator, getValidatorAddress as getEcdsaValidatorAddress } from '@zerodev/ecdsa-validator';
+import {
+  createWeightedECDSAValidator,
+  getRecoveryAction,
+} from '@zerodev/weighted-ecdsa-validator';
 import {
   http,
   createPublicClient,
@@ -357,6 +361,10 @@ export interface TransferParams {
   value?: bigint;
   tokenAddress?: Address;
   tokenAmount?: bigint;
+  /** If true, use guardian validator instead of sudo. Requires smartAccountAddress. */
+  useGuardian?: boolean;
+  /** Required when useGuardian is true. The existing smart account address. */
+  smartAccountAddress?: Address;
 }
 
 export interface TransferResult {
@@ -366,10 +374,15 @@ export interface TransferResult {
 
 /**
  * Execute a transfer (ETH or ERC20) via ZeroDev smart account.
+ * If useGuardian is true, uses the guardian validator (for after ownership transfer).
  */
 export async function executeTransfer(params: TransferParams): Promise<TransferResult> {
-  const { privateKey, chainId, to, value, tokenAddress, tokenAmount } = params;
-  const { kernelClient, account } = await getKernelClient(privateKey, chainId);
+  const { privateKey, chainId, to, value, tokenAddress, tokenAmount, useGuardian, smartAccountAddress } = params;
+
+  // Get appropriate kernel client based on mode
+  const { kernelClient, account } = useGuardian && smartAccountAddress
+    ? await getGuardianKernelClient(privateKey, chainId, smartAccountAddress)
+    : await getKernelClient(privateKey, chainId);
 
   const txHash = await executeWithEnhancedErrors(
     async () => {
@@ -410,6 +423,10 @@ export interface SendTransactionParams {
   to: Address;
   data: Hex;
   value?: bigint;
+  /** If true, use guardian validator instead of sudo. Requires smartAccountAddress. */
+  useGuardian?: boolean;
+  /** Required when useGuardian is true. The existing smart account address. */
+  smartAccountAddress?: Address;
 }
 
 export interface SendTransactionResult {
@@ -419,12 +436,17 @@ export interface SendTransactionResult {
 
 /**
  * Execute an arbitrary transaction via ZeroDev smart account.
+ * If useGuardian is true, uses the guardian validator (for after ownership transfer).
  */
 export async function executeSendTransaction(
   params: SendTransactionParams
 ): Promise<SendTransactionResult> {
-  const { privateKey, chainId, to, data, value } = params;
-  const { kernelClient, account } = await getKernelClient(privateKey, chainId);
+  const { privateKey, chainId, to, data, value, useGuardian, smartAccountAddress } = params;
+
+  // Get appropriate kernel client based on mode
+  const { kernelClient, account } = useGuardian && smartAccountAddress
+    ? await getGuardianKernelClient(privateKey, chainId, smartAccountAddress)
+    : await getKernelClient(privateKey, chainId);
 
   const txHash = await executeWithEnhancedErrors(
     async () =>
@@ -450,17 +472,26 @@ export interface BatchSendTransactionParams {
     data: Hex;
     value: bigint;
   }>;
+  /** If true, use guardian validator instead of sudo. Requires smartAccountAddress. */
+  useGuardian?: boolean;
+  /** Required when useGuardian is true. The existing smart account address. */
+  smartAccountAddress?: Address;
 }
 
 /**
  * Execute a batch of transactions via ZeroDev smart account (UserOp batching).
  * Uses sendUserOperation with calls array for atomic batching.
+ * If useGuardian is true, uses the guardian validator (for after ownership transfer).
  */
 export async function executeBatchTransaction(
   params: BatchSendTransactionParams
 ): Promise<SendTransactionResult> {
-  const { privateKey, chainId, calls } = params;
-  const { kernelClient, account } = await getKernelClient(privateKey, chainId);
+  const { privateKey, chainId, calls, useGuardian, smartAccountAddress } = params;
+
+  // Get appropriate kernel client based on mode
+  const { kernelClient, account } = useGuardian && smartAccountAddress
+    ? await getGuardianKernelClient(privateKey, chainId, smartAccountAddress)
+    : await getKernelClient(privateKey, chainId);
 
   const txHash = await executeWithEnhancedErrors(
     async () => {
@@ -554,4 +585,214 @@ export async function getTokenSymbol(tokenAddress: Address, chainId: number): Pr
     abi: ERC20_ABI,
     functionName: 'symbol',
   });
+}
+
+// ============================================================
+// Recovery-Enabled Wallet Functions
+// ============================================================
+
+/**
+ * Create a ZeroDev smart account with recovery guardian enabled.
+ * The backend EOA is set up as both:
+ * - Sudo validator (initial owner) via ECDSA validator
+ * - Weighted ECDSA guardian (can execute recovery and sign after transfer)
+ *
+ * This enables ownership transfer where the backend EOA can later execute
+ * doRecovery() to change the sudo validator to a user's EOA, while the
+ * backend continues to operate as a regular validator (guardian).
+ */
+export async function createSmartAccountWithRecovery(
+  privateKey: Hex,
+  chainId: number
+): Promise<Address> {
+  const projectId = env.ZERODEV_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('ZERODEV_PROJECT_ID is not configured');
+  }
+
+  const publicClient = getPublicClient(chainId);
+  const signer = privateKeyToAccount(privateKey);
+
+  // 1. Create ECDSA validator for sudo (initial owner)
+  const ecdsaValidator = await signerToEcdsaValidator(publicClient, {
+    signer,
+    entryPoint,
+    kernelVersion,
+  });
+
+  // 2. Create weighted ECDSA validator for guardian (backend EOA)
+  // Weight 100 with threshold 100 means this single guardian can execute recovery
+  const guardianValidator = await createWeightedECDSAValidator(publicClient, {
+    entryPoint,
+    kernelVersion,
+    config: {
+      threshold: 100,
+      signers: [{ address: signer.address, weight: 100 }],
+    },
+    signers: [signer],
+  });
+
+  // 3. Create kernel account with sudo, guardian, and recovery action
+  const account = await createKernelAccount(publicClient, {
+    entryPoint,
+    kernelVersion,
+    plugins: {
+      sudo: ecdsaValidator,
+      regular: guardianValidator,
+      action: getRecoveryAction(entryPoint.version),
+    },
+  });
+
+  return account.address;
+}
+
+/**
+ * Execute recovery to transfer ownership to a new address.
+ * Called by the guardian (backend EOA) to rotate the sudo validator.
+ *
+ * This uses the weighted ECDSA guardian validator to call doRecovery(),
+ * which changes the sudo validator to be controlled by the new owner's address.
+ */
+export async function executeRecovery(
+  privateKey: Hex, // Backend EOA (guardian)
+  chainId: number,
+  smartAccountAddress: Address,
+  newOwnerAddress: Address
+): Promise<Hash> {
+  const projectId = env.ZERODEV_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('ZERODEV_PROJECT_ID is not configured');
+  }
+
+  const chain = getChain(chainId);
+  const publicClient = getPublicClient(chainId);
+  const signer = privateKeyToAccount(privateKey);
+
+  // Create the guardian validator (same as during account creation)
+  const guardianValidator = await createWeightedECDSAValidator(publicClient, {
+    entryPoint,
+    kernelVersion,
+    config: {
+      threshold: 100,
+      signers: [{ address: signer.address, weight: 100 }],
+    },
+    signers: [signer],
+  });
+
+  // Create account instance with guardian as the active validator
+  // and the recovery action enabled so we can call doRecovery
+  const account = await createKernelAccount(publicClient, {
+    address: smartAccountAddress,
+    entryPoint,
+    kernelVersion,
+    plugins: {
+      sudo: guardianValidator, // Guardian is signing this recovery UserOp
+      regular: guardianValidator,
+      action: getRecoveryAction(entryPoint.version),
+    },
+  });
+
+  const paymasterClient = createZeroDevPaymasterClient({
+    chain,
+    transport: http(getPaymasterUrl(projectId, chainId)),
+  });
+
+  const kernelClient = createKernelAccountClient({
+    account,
+    chain,
+    bundlerTransport: http(getBundlerUrl(projectId, chainId)),
+    paymaster: paymasterClient,
+  });
+
+  // Execute the recovery - this changes the sudo validator to the new owner
+  // The doRecovery function takes (validatorAddress, newOwnerData) where:
+  // - validatorAddress: the address of the validator type (ECDSA validator)
+  // - newOwnerData: the new owner's address encoded as bytes
+  const recoveryExecutorAbi = parseAbi([
+    'function doRecovery(address _validator, bytes calldata _data)',
+  ]);
+
+  // Get the ECDSA validator address that the new owner will use
+  const ecdsaValidatorAddress = getEcdsaValidatorAddress(entryPoint, kernelVersion);
+
+  const userOpHash = await kernelClient.sendUserOperation({
+    callData: encodeFunctionData({
+      abi: recoveryExecutorAbi,
+      functionName: 'doRecovery',
+      args: [
+        ecdsaValidatorAddress,
+        newOwnerAddress, // New owner's address encoded as bytes
+      ],
+    }),
+  });
+
+  // Wait for confirmation
+  const bundlerClient = kernelClient.extend(() => ({}));
+  const receipt = await bundlerClient.waitForUserOperationReceipt({
+    hash: userOpHash,
+  });
+
+  return receipt.receipt.transactionHash;
+}
+
+/**
+ * Get a kernel client using the guardian validator (for transactions after ownership transfer).
+ * This allows the backend to continue signing transactions even after the user takes ownership.
+ *
+ * After ownership transfer:
+ * - The user's EOA is the sudo validator (owner)
+ * - The backend's EOA is a regular validator via the weighted ECDSA guardian
+ *
+ * The guardian can still execute transactions through the regular validator plugin.
+ */
+export async function getGuardianKernelClient(
+  privateKey: Hex,
+  chainId: number,
+  smartAccountAddress: Address
+) {
+  const projectId = env.ZERODEV_PROJECT_ID;
+  if (!projectId) {
+    throw new Error('ZERODEV_PROJECT_ID is not configured');
+  }
+
+  const chain = getChain(chainId);
+  const publicClient = getPublicClient(chainId);
+  const signer = privateKeyToAccount(privateKey);
+
+  // Create the guardian validator
+  const guardianValidator = await createWeightedECDSAValidator(publicClient, {
+    entryPoint,
+    kernelVersion,
+    config: {
+      threshold: 100,
+      signers: [{ address: signer.address, weight: 100 }],
+    },
+    signers: [signer],
+  });
+
+  // Create account with guardian as the regular validator
+  // Note: After ownership transfer, the sudo is the user's ECDSA validator
+  // but we're using the guardian (regular) validator here
+  const account = await createKernelAccount(publicClient, {
+    address: smartAccountAddress,
+    entryPoint,
+    kernelVersion,
+    plugins: {
+      regular: guardianValidator,
+    },
+  });
+
+  const paymasterClient = createZeroDevPaymasterClient({
+    chain,
+    transport: http(getPaymasterUrl(projectId, chainId)),
+  });
+
+  const kernelClient = createKernelAccountClient({
+    account,
+    chain,
+    bundlerTransport: http(getBundlerUrl(projectId, chainId)),
+    paymaster: paymasterClient,
+  });
+
+  return { kernelClient, account, publicClient };
 }

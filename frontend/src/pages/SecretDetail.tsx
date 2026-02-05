@@ -5,6 +5,7 @@ import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
 import BalancesDisplay from '../components/BalancesDisplay';
+import TakeOwnership from '../components/TakeOwnership';
 
 interface SecretData {
   id: string;
@@ -208,6 +209,20 @@ export default function SecretDetail() {
           </button>
         )}
       </div>
+
+      {/* Take Ownership - EVM Wallets only */}
+      {secret.type === 'EVM_WALLET' && secret.walletAddress && (
+        <div className="mb-6">
+          <TakeOwnership
+            secretId={secret.id}
+            walletAddress={secret.walletAddress}
+            onOwnershipTransferred={() => {
+              // Refresh the page to reflect the new ownership status
+              window.location.reload();
+            }}
+          />
+        </div>
+      )}
 
       <div className="border-b border-gray-200 mb-6">
         <div className="flex gap-4">

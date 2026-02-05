@@ -9,6 +9,7 @@ import polymarketRouter from './polymarket.routes';
 import rawSignerRouter from './rawSigner.routes';
 import billingRouter from './billing.routes';
 import auditLogsRouter from './auditLogs.routes';
+import ownershipRouter from './ownership.routes';
 
 const router = Router();
 
@@ -19,6 +20,7 @@ router.use('/secrets', secretsRouter);
 router.use('/secrets', apiKeysRouter); // API key routes are nested under /secrets/:secretId/api-keys
 router.use('/secrets/:secretId/policies', policiesRouter); // Policy routes nested under /secrets/:secretId/policies
 router.use('/secrets/:secretId/audit-logs', auditLogsRouter); // Audit log routes
+router.use('/secrets/:secretId/take-ownership', ownershipRouter); // Ownership transfer routes
 router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
