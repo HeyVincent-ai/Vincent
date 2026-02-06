@@ -40,21 +40,21 @@
 - [x] **4.9** Update `OpenClawSection.tsx` — shows "$25/mo" on deploy button, added PENDING_PAYMENT step to progress, CANCELING status with period end date, `id="openclaw"` anchor
 - [x] **4.10** E2E test `src/e2e/openclaw-billing.e2e.test.ts` — 9 tests covering: checkout session creation (PENDING_PAYMENT), startProvisioning transition, billing fields in API response, cancel at period end (CANCELING + Stripe cancel_at_period_end), restart allowed while CANCELING, subscription expiry → destroy, immediate destroy cancels Stripe sub, validation of required URLs
 
-## Phase 5: Token Billing (LLM credit system)
+## Phase 5: Token Billing (LLM credit system) ✅ COMPLETE
 
-- [ ] **5.1** Prisma migration: add `creditBalanceUsd` (Decimal, default 25.00), `lastKnownUsageUsd` (Decimal, default 0), `lastUsagePollAt` (DateTime?) to `OpenClawDeployment`; add new `OpenClawCreditPurchase` model (id, deploymentId, amountUsd, stripePaymentIntentId, createdAt)
-- [ ] **5.2** Add `updateKeyLimit(hash, newLimit)` to `openrouter.service.ts` — PATCH `/api/v1/keys/:hash` to update spending limit; also expand `getKeyUsage()` return to include `usage_daily`, `usage_weekly`, `usage_monthly`
-- [ ] **5.3** Update deploy flow in `openclaw.service.ts` — create OpenRouter key with `limit: 25` ($25 free credits), initialize `creditBalanceUsd = 25.00` on deployment record
-- [ ] **5.4** Add `getUsage()` method to `openclaw.service.ts` — poll OpenRouter `getKeyUsage()` if last poll > 60s ago, cache `lastKnownUsageUsd` + `lastUsagePollAt` in DB, return usage breakdown + remaining credits
-- [ ] **5.5** Add `addCredits()` method to `openclaw.service.ts` — validate amount ($5-$500), call `chargeCustomerOffSession()`, on success: increment `creditBalanceUsd`, call `updateKeyLimit()` with new total, create `OpenClawCreditPurchase` record; handle 3D Secure (`requiresAction` + `clientSecret`)
-- [ ] **5.6** Add `chargeCustomerOffSession(userId, amountCents, description, metadata)` to `stripe.service.ts` — get customer's default payment method from `customer.invoice_settings.default_payment_method`, create PaymentIntent with `off_session: true, confirm: true`, handle `authentication_required` error
-- [ ] **5.7** Add `GET /api/openclaw/deployments/:id/usage` route — returns `{ creditBalanceUsd, totalUsageUsd, remainingUsd, usageDailyUsd, usageMonthlyUsd, lastPolledAt }`
-- [ ] **5.8** Add `POST /api/openclaw/deployments/:id/credits` route — body `{ amountUsd }`, returns `{ success, newBalanceUsd, paymentIntentId }` or `{ requiresAction, clientSecret }` for 3D Secure
-- [ ] **5.9** Update frontend `OpenClawDetail.tsx` — add usage card above iframe: progress bar (used / total credits), daily/monthly stats, "Add Credits" button → modal with dollar amount input + confirm → calls `addOpenClawCredits()` → handles 3D Secure via Stripe.js `confirmCardPayment(clientSecret)` if needed → refreshes usage on success
-- [ ] **5.10** Update frontend `OpenClawSection.tsx` dashboard card — show credit balance summary for READY deployments (e.g. "$18.42 of $25.00 credits remaining"), show "Credits exhausted" warning when remaining ≤ $0
-- [ ] **5.11** Add frontend API functions: `getOpenClawUsage(id)`, `addOpenClawCredits(id, amountUsd)` in `frontend/src/api.ts`
-- [ ] **5.12** Add background usage poller — cron/interval that polls OpenRouter usage for all READY deployments every 5 min, updates `lastKnownUsageUsd` in DB (for dashboard freshness without requiring page load)
-- [ ] **5.13** E2E test: credit system (verify $25 initial credit, usage polling, add credits via Stripe off-session charge, OpenRouter key limit updated)
+- [x] **5.1** Prisma migration `20260206213951_add_openclaw_credit_billing`: add `creditBalanceUsd` (Decimal(10,2), default 25.00), `lastKnownUsageUsd` (Decimal(10,2), default 0), `lastUsagePollAt` (DateTime?) to `OpenClawDeployment`; add new `OpenClawCreditPurchase` model (id, deploymentId, amountUsd, stripePaymentIntentId, createdAt)
+- [x] **5.2** Add `updateKeyLimit(hash, newLimit)` to `openrouter.service.ts` — PATCH `/api/v1/keys/:hash` to update spending limit; expanded `getKeyUsage()` return to include `usage_daily`, `usage_weekly`, `usage_monthly`
+- [x] **5.3** Update deploy flow in `openclaw.service.ts` — create OpenRouter key with `limit: 25` ($25 free credits); `creditBalanceUsd` defaults to 25.00 via Prisma schema
+- [x] **5.4** Add `getUsage()` method to `openclaw.service.ts` — polls OpenRouter `getKeyUsage()` if last poll > 60s ago, caches `lastKnownUsageUsd` + `lastUsagePollAt` in DB, returns usage breakdown + remaining credits
+- [x] **5.5** Add `addCredits()` method to `openclaw.service.ts` — validates $5-$500, calls `chargeCustomerOffSession()`, on success: increments `creditBalanceUsd` in transaction with `OpenClawCreditPurchase` record, calls `updateKeyLimit()` with new total; handles 3D Secure (`requiresAction` + `clientSecret`)
+- [x] **5.6** Add `chargeCustomerOffSession(userId, amountCents, description, metadata)` to `stripe.service.ts` — gets customer's default payment method from `customer.invoice_settings.default_payment_method`, creates PaymentIntent with `off_session: true, confirm: true`, handles `authentication_required` error (returns `clientSecret` for 3D Secure)
+- [x] **5.7** Add `GET /api/openclaw/deployments/:id/usage` route — returns `{ creditBalanceUsd, totalUsageUsd, remainingUsd, usageDailyUsd, usageMonthlyUsd, lastPolledAt }`
+- [x] **5.8** Add `POST /api/openclaw/deployments/:id/credits` route — body `{ amountUsd }`, zod-validated ($5-$500), returns `{ success, newBalanceUsd, paymentIntentId }` or `{ requiresAction, clientSecret }` for 3D Secure
+- [x] **5.9** Update frontend `OpenClawDetail.tsx` — usage card with progress bar (used/remaining), daily/monthly stats, "Add Credits" button → modal with amount input → calls `addOpenClawCredits()` → refreshes usage on success; "Credits exhausted" warning when remaining ≤ $0
+- [x] **5.10** Update frontend `OpenClawSection.tsx` dashboard card — credit balance progress bar + summary text for READY/CANCELING deployments, "Credits exhausted" warning
+- [x] **5.11** Add frontend API functions: `getOpenClawUsage(id)`, `addOpenClawCredits(id, amountUsd)` in `frontend/src/api.ts`
+- [x] **5.12** Add background usage poller in `openclaw.service.ts` — `startUsagePoller()` / `stopUsagePoller()` (every 5 min), polls all READY deployments with OpenRouter keys, updates `lastKnownUsageUsd`; wired into `src/index.ts` startup/shutdown
+- [x] **5.13** E2E test `src/e2e/openclaw-credits.e2e.test.ts` — 7 tests: $25 default credits, usage API, 404 handling, amount validation ($5-$500), Stripe off-session charge + DB update + CreditPurchase record + PaymentIntent verification, credit stacking, updated balance in usage endpoint
 
 ## Phase 6: Hardening
 

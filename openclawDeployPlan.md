@@ -952,6 +952,15 @@ No DNS needed.
 4. **Deploy flow change**: `deploy()` no longer starts provisioning immediately. It creates a `PENDING_PAYMENT` deployment + Stripe Checkout session. Provisioning begins only when the `checkout.session.completed` webhook fires, via `startProvisioning()`.
 5. **E2E billing test pattern**: Test subscriptions created with `payment_behavior: 'default_incomplete'` (no real payment method on test customer) get status `incomplete_expired` when canceled, not `canceled`. Assertions should accept both. Call `startProvisioning()` directly to simulate webhook rather than trying to forge webhook signatures.
 
+## Learnings from Phase 5 Implementation
+
+1. **Stripe off-session charges**: Use `paymentIntents.create()` with `off_session: true, confirm: true` + customer's default payment method from `customer.invoice_settings.default_payment_method`. Test with `tok_visa` attached to test customers.
+2. **3D Secure handling**: Catch `authentication_required` error code, extract `client_secret` from `err.raw.payment_intent`, return to frontend for Stripe.js `confirmCardPayment()`.
+3. **Prisma Decimal fields**: Use `@db.Decimal(10, 2)` for USD amounts. Access via `Number(deployment.creditBalanceUsd)` — Prisma returns `Decimal` objects, not numbers.
+4. **Credit stacking**: Use `prisma.$transaction()` to atomically update `creditBalanceUsd` and create `OpenClawCreditPurchase` record. OpenRouter key limit updated separately (non-critical).
+5. **Usage polling cooldown**: 60s cooldown on per-deployment polls prevents excessive OpenRouter API calls. Background poller runs every 5 min for all READY deployments.
+6. **OpenRouter key limit**: No `limit_reset` when using credit-based billing — the limit represents total lifetime spending cap, not a periodic reset.
+
 ## Open Questions
 
 1. **Install script edge cases** — Does `--no-onboard` fully suppress all interactive prompts? May need `CI=true` or `NONINTERACTIVE=1` as additional env vars. Need to test on a real VPS.

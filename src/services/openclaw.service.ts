@@ -41,7 +41,7 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
+import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 
@@ -535,8 +535,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     addLog('Provisioning OpenRouter API key...');
     const shortId = deploymentId.slice(-8);
     const orKey = await openRouterService.createKey(`openclaw-${shortId}`, {
-      limit: 10, // $10 safety cap
-      limit_reset: 'monthly',
+      limit: 25, // $25 free credits included with deployment
     });
     addLog(`OpenRouter key created (hash: ${orKey.hash})`);
 
@@ -1015,4 +1014,214 @@ export async function restart(deploymentId: string, userId: string): Promise<Ope
   );
 
   return deployment;
+}
+
+// ============================================================
+// Token Billing (LLM Credits)
+// ============================================================
+
+const USAGE_POLL_COOLDOWN_MS = 60_000; // Don't re-poll within 60s
+
+/**
+ * Get LLM usage stats for a deployment. Polls OpenRouter if stale.
+ */
+export async function getUsage(
+  deploymentId: string,
+  userId: string
+): Promise<{
+  creditBalanceUsd: number;
+  totalUsageUsd: number;
+  remainingUsd: number;
+  usageDailyUsd: number;
+  usageMonthlyUsd: number;
+  lastPolledAt: Date | null;
+}> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!deployment.openRouterKeyHash) {
+    return {
+      creditBalanceUsd: Number(deployment.creditBalanceUsd),
+      totalUsageUsd: 0,
+      remainingUsd: Number(deployment.creditBalanceUsd),
+      usageDailyUsd: 0,
+      usageMonthlyUsd: 0,
+      lastPolledAt: null,
+    };
+  }
+
+  // Poll OpenRouter if last poll was > 60s ago
+  const now = new Date();
+  const lastPoll = deployment.lastUsagePollAt;
+  const stale = !lastPoll || now.getTime() - lastPoll.getTime() > USAGE_POLL_COOLDOWN_MS;
+
+  let totalUsage = Number(deployment.lastKnownUsageUsd);
+  let dailyUsage = 0;
+  let monthlyUsage = 0;
+
+  if (stale) {
+    try {
+      const usage = await openRouterService.getKeyUsage(deployment.openRouterKeyHash);
+      totalUsage = usage.usage;
+      dailyUsage = usage.usage_daily;
+      monthlyUsage = usage.usage_monthly;
+
+      await prisma.openClawDeployment.update({
+        where: { id: deploymentId },
+        data: {
+          lastKnownUsageUsd: totalUsage,
+          lastUsagePollAt: now,
+        },
+      });
+    } catch (err) {
+      console.error(`[openclaw] Failed to poll OpenRouter usage for ${deploymentId}:`, err);
+      // Use cached values on error
+    }
+  }
+
+  const creditBalance = Number(deployment.creditBalanceUsd);
+  return {
+    creditBalanceUsd: creditBalance,
+    totalUsageUsd: totalUsage,
+    remainingUsd: Math.max(0, creditBalance - totalUsage),
+    usageDailyUsd: dailyUsage,
+    usageMonthlyUsd: monthlyUsage,
+    lastPolledAt: deployment.lastUsagePollAt || null,
+  };
+}
+
+/**
+ * Add LLM credits to a deployment by charging the user's Stripe payment method.
+ */
+export async function addCredits(
+  deploymentId: string,
+  userId: string,
+  amountUsd: number
+): Promise<{
+  success: boolean;
+  newBalanceUsd: number;
+  paymentIntentId?: string;
+  requiresAction?: boolean;
+  clientSecret?: string;
+}> {
+  if (amountUsd < 5 || amountUsd > 500) {
+    throw new Error('Credit amount must be between $5 and $500');
+  }
+
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!['READY', 'CANCELING'].includes(deployment.status)) {
+    throw new Error('Deployment must be READY to add credits');
+  }
+
+  const amountCents = Math.round(amountUsd * 100);
+  const result = await chargeCustomerOffSession(
+    userId,
+    amountCents,
+    `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
+    { deploymentId, type: 'openclaw_credits' }
+  );
+
+  if (result.requiresAction) {
+    return {
+      success: false,
+      newBalanceUsd: Number(deployment.creditBalanceUsd),
+      requiresAction: true,
+      clientSecret: result.clientSecret,
+      paymentIntentId: result.paymentIntentId,
+    };
+  }
+
+  // Payment succeeded — update credit balance and OpenRouter key limit
+  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
+
+  await prisma.$transaction([
+    prisma.openClawDeployment.update({
+      where: { id: deploymentId },
+      data: { creditBalanceUsd: newBalance },
+    }),
+    prisma.openClawCreditPurchase.create({
+      data: {
+        deploymentId,
+        amountUsd,
+        stripePaymentIntentId: result.paymentIntentId!,
+      },
+    }),
+  ]);
+
+  // Update OpenRouter key spending limit to match new credit balance
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
+    } catch (err) {
+      console.error(`[openclaw] Failed to update OpenRouter key limit:`, err);
+    }
+  }
+
+  return {
+    success: true,
+    newBalanceUsd: newBalance,
+    paymentIntentId: result.paymentIntentId,
+  };
+}
+
+// ============================================================
+// Background Usage Poller
+// ============================================================
+
+const USAGE_POLL_INTERVAL_MS = 5 * 60_000; // 5 minutes
+let usagePollerTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Poll OpenRouter usage for all READY deployments and update cached values.
+ */
+async function pollAllUsage(): Promise<void> {
+  try {
+    const deployments = await prisma.openClawDeployment.findMany({
+      where: { status: 'READY', openRouterKeyHash: { not: null } },
+      select: { id: true, openRouterKeyHash: true },
+    });
+
+    for (const d of deployments) {
+      try {
+        const usage = await openRouterService.getKeyUsage(d.openRouterKeyHash!);
+        await prisma.openClawDeployment.update({
+          where: { id: d.id },
+          data: {
+            lastKnownUsageUsd: usage.usage,
+            lastUsagePollAt: new Date(),
+          },
+        });
+      } catch (err) {
+        console.error(`[openclaw] Background poll failed for ${d.id}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error('[openclaw] Background usage poll error:', err);
+  }
+}
+
+/**
+ * Start the background usage poller (every 5 minutes).
+ */
+export function startUsagePoller(): void {
+  if (usagePollerTimer) return;
+  console.log('[openclaw] Starting background usage poller (every 5 min)');
+  usagePollerTimer = setInterval(pollAllUsage, USAGE_POLL_INTERVAL_MS);
+}
+
+/**
+ * Stop the background usage poller.
+ */
+export function stopUsagePoller(): void {
+  if (usagePollerTimer) {
+    clearInterval(usagePollerTimer);
+    usagePollerTimer = null;
+    console.log('[openclaw] Background usage poller stopped');
+  }
 }

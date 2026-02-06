@@ -5,6 +5,8 @@ import {
   cancelOpenClawDeployment,
   destroyOpenClawDeployment,
   restartOpenClawDeployment,
+  getOpenClawUsage,
+  addOpenClawCredits,
 } from '../api';
 
 interface Deployment {
@@ -20,6 +22,15 @@ interface Deployment {
   canceledAt: string | null;
   createdAt: string;
   readyAt: string | null;
+}
+
+interface UsageData {
+  creditBalanceUsd: number;
+  totalUsageUsd: number;
+  remainingUsd: number;
+  usageDailyUsd: number;
+  usageMonthlyUsd: number;
+  lastPolledAt: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -57,6 +68,11 @@ export default function OpenClawDetail() {
   const [showDestroyConfirm, setShowDestroyConfirm] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [showCreditsModal, setShowCreditsModal] = useState(false);
+  const [creditAmount, setCreditAmount] = useState('10');
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [creditError, setCreditError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -81,6 +97,47 @@ export default function OpenClawDetail() {
     const timer = setInterval(load, 5000);
     return () => clearInterval(timer);
   }, [deployment, load]);
+
+  // Fetch usage when deployment is active
+  useEffect(() => {
+    if (!id || !deployment) return;
+    if (!['READY', 'CANCELING'].includes(deployment.status)) return;
+    getOpenClawUsage(id)
+      .then((res) => setUsage(res.data.data))
+      .catch(() => {});
+  }, [id, deployment?.status]);
+
+  const handleAddCredits = async () => {
+    if (!id) return;
+    const amount = parseFloat(creditAmount);
+    if (isNaN(amount) || amount < 5 || amount > 500) {
+      setCreditError('Amount must be between $5 and $500');
+      return;
+    }
+    setCreditLoading(true);
+    setCreditError(null);
+    try {
+      const res = await addOpenClawCredits(id, amount);
+      const data = res.data.data;
+      if (data.requiresAction) {
+        setCreditError('3D Secure required — please complete authentication in the popup.');
+        // In production, use Stripe.js confirmCardPayment(data.clientSecret)
+      } else {
+        setShowCreditsModal(false);
+        setCreditAmount('10');
+        // Refresh usage
+        getOpenClawUsage(id)
+          .then((r) => setUsage(r.data.data))
+          .catch(() => {});
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
+        ?.response?.data?.error?.message;
+      setCreditError(msg || 'Failed to add credits');
+    } finally {
+      setCreditLoading(false);
+    }
+  };
 
   const handleRestart = async () => {
     if (!id) return;
@@ -284,6 +341,83 @@ export default function OpenClawDetail() {
           <span>Ready: {new Date(deployment.readyAt).toLocaleString()}</span>
         )}
       </div>
+
+      {/* Usage card (when active) */}
+      {isActive && usage && (
+        <div className="bg-white rounded-lg border p-4 mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium text-gray-700">LLM Credits</h3>
+            <button
+              onClick={() => setShowCreditsModal(true)}
+              className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+            >
+              Add Credits
+            </button>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+            <div
+              className={`h-2.5 rounded-full ${usage.remainingUsd <= 0 ? 'bg-red-500' : usage.remainingUsd < 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
+              style={{ width: `${Math.min(100, (usage.totalUsageUsd / usage.creditBalanceUsd) * 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>Used: ${usage.totalUsageUsd.toFixed(2)}</span>
+            <span>${usage.remainingUsd.toFixed(2)} remaining of ${usage.creditBalanceUsd.toFixed(2)}</span>
+          </div>
+          {(usage.usageDailyUsd > 0 || usage.usageMonthlyUsd > 0) && (
+            <div className="flex gap-4 mt-2 text-xs text-gray-400">
+              <span>Today: ${usage.usageDailyUsd.toFixed(2)}</span>
+              <span>This month: ${usage.usageMonthlyUsd.toFixed(2)}</span>
+            </div>
+          )}
+          {usage.remainingUsd <= 0 && (
+            <p className="text-xs text-red-600 mt-2 font-medium">Credits exhausted — add more to continue using LLM features.</p>
+          )}
+        </div>
+      )}
+
+      {/* Add Credits Modal */}
+      {showCreditsModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreditsModal(false)}>
+          <div className="bg-white rounded-lg p-6 w-96 max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">Add LLM Credits</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Credits will be charged to your card on file. Minimum $5, maximum $500.
+            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-gray-500">$</span>
+              <input
+                type="number"
+                min="5"
+                max="500"
+                step="5"
+                value={creditAmount}
+                onChange={(e) => setCreditAmount(e.target.value)}
+                className="border rounded px-3 py-2 w-full text-lg"
+                placeholder="10"
+              />
+            </div>
+            {creditError && (
+              <p className="text-sm text-red-600 mb-3">{creditError}</p>
+            )}
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowCreditsModal(false); setCreditError(null); }}
+                className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddCredits}
+                disabled={creditLoading}
+                className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {creditLoading ? 'Charging...' : `Add $${parseFloat(creditAmount) || 0} Credits`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Progress steps (while provisioning) */}
       {isInProgress && (

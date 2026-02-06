@@ -288,6 +288,73 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 }
 
+/**
+ * Charge a customer off-session using their default payment method.
+ * Used for OpenClaw LLM credit purchases.
+ *
+ * Returns success + paymentIntentId, or requiresAction + clientSecret
+ * if 3D Secure authentication is needed.
+ */
+export async function chargeCustomerOffSession(
+  userId: string,
+  amountCents: number,
+  description: string,
+  metadata: Record<string, string> = {}
+): Promise<{
+  success: boolean;
+  paymentIntentId?: string;
+  requiresAction?: boolean;
+  clientSecret?: string;
+}> {
+  const stripe = getStripe();
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+  if (!user.stripeCustomerId) {
+    throw new Error('User has no Stripe customer — subscribe first');
+  }
+
+  // Get the customer's default payment method
+  const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+  if (customer.deleted) throw new Error('Stripe customer has been deleted');
+
+  const defaultPm =
+    customer.invoice_settings?.default_payment_method ??
+    customer.default_source;
+
+  if (!defaultPm) {
+    throw new Error('No default payment method on file — please add a card first');
+  }
+
+  const pmId = typeof defaultPm === 'string' ? defaultPm : defaultPm.id;
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      customer: user.stripeCustomerId,
+      payment_method: pmId,
+      off_session: true,
+      confirm: true,
+      description,
+      metadata: { userId, ...metadata },
+    });
+
+    return { success: true, paymentIntentId: paymentIntent.id };
+  } catch (err: any) {
+    // Handle 3D Secure / authentication_required
+    if (err.code === 'authentication_required' && err.raw?.payment_intent) {
+      const pi = err.raw.payment_intent;
+      return {
+        success: false,
+        requiresAction: true,
+        clientSecret: pi.client_secret,
+        paymentIntentId: pi.id,
+      };
+    }
+    throw err;
+  }
+}
+
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },

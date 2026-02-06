@@ -121,6 +121,9 @@ export const cancelOpenClawDeployment = (id: string) =>
 export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
 export const restartOpenClawDeployment = (id: string) =>
   api.post(`/openclaw/deployments/${id}/restart`);
+export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
+export const addOpenClawCredits = (id: string, amountUsd: number) =>
+  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
 
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');

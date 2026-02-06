@@ -23,6 +23,9 @@ export interface OpenRouterKeyResult {
 
 export interface OpenRouterKeyUsage {
   usage: number;
+  usage_daily: number;
+  usage_weekly: number;
+  usage_monthly: number;
   limit: number | null;
   limit_remaining: number | null;
 }
@@ -100,9 +103,23 @@ export async function deleteKey(hash: string): Promise<void> {
  */
 export async function getKeyUsage(hash: string): Promise<OpenRouterKeyUsage> {
   const data = await openRouterFetch(`/keys/${hash}`);
+  const d = data.data ?? data;
   return {
-    usage: data.data?.usage ?? data.usage ?? 0,
-    limit: data.data?.limit ?? data.limit ?? null,
-    limit_remaining: data.data?.limit_remaining ?? data.limit_remaining ?? null,
+    usage: d.usage ?? 0,
+    usage_daily: d.usage_daily ?? 0,
+    usage_weekly: d.usage_weekly ?? 0,
+    usage_monthly: d.usage_monthly ?? 0,
+    limit: d.limit ?? null,
+    limit_remaining: d.limit_remaining ?? null,
   };
+}
+
+/**
+ * Update the spending limit on an OpenRouter API key.
+ */
+export async function updateKeyLimit(hash: string, newLimit: number): Promise<void> {
+  await openRouterFetch(`/keys/${hash}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ limit: newLimit }),
+  });
 }

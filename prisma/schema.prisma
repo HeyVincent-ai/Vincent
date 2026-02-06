@@ -353,6 +353,12 @@ model OpenClawDeployment {
   currentPeriodEnd     DateTime? @map("current_period_end")
   canceledAt           DateTime? @map("canceled_at")
 
+  // Token billing (LLM credits)
+  creditBalanceUsd     Decimal  @default(25.00) @map("credit_balance_usd") @db.Decimal(10, 2)
+  lastKnownUsageUsd    Decimal  @default(0)     @map("last_known_usage_usd") @db.Decimal(10, 2)
+  lastUsagePollAt      DateTime?                @map("last_usage_poll_at")
+  creditPurchases      OpenClawCreditPurchase[]
+
   // Timestamps
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -361,4 +367,19 @@ model OpenClawDeployment {
 
   @@index([userId])
   @@map("openclaw_deployments")
+}
+
+// OpenClaw credit purchases for LLM token billing
+model OpenClawCreditPurchase {
+  id                    String   @id @default(cuid())
+  deploymentId          String   @map("deployment_id")
+  deployment            OpenClawDeployment @relation(fields: [deploymentId], references: [id])
+
+  amountUsd             Decimal  @map("amount_usd") @db.Decimal(10, 2)
+  stripePaymentIntentId String   @unique @map("stripe_payment_intent_id")
+
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([deploymentId])
+  @@map("openclaw_credit_purchases")
 }

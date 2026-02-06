@@ -12,6 +12,8 @@ interface Deployment {
   stripeSubscriptionId: string | null;
   currentPeriodEnd: string | null;
   canceledAt: string | null;
+  creditBalanceUsd: number | string | null;
+  lastKnownUsageUsd: number | string | null;
   createdAt: string;
   readyAt: string | null;
 }
@@ -187,6 +189,27 @@ export default function OpenClawSection() {
 
                 {(d.hostname || d.ipAddress) && (
                   <p className="text-sm text-gray-500 mt-2 font-mono">{d.hostname || d.ipAddress}</p>
+                )}
+
+                {(d.status === 'READY' || d.status === 'CANCELING') && d.creditBalanceUsd != null && (
+                  (() => {
+                    const balance = Number(d.creditBalanceUsd);
+                    const used = Number(d.lastKnownUsageUsd || 0);
+                    const remaining = Math.max(0, balance - used);
+                    return (
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="flex-1 bg-gray-200 rounded-full h-1.5">
+                          <div
+                            className={`h-1.5 rounded-full ${remaining <= 0 ? 'bg-red-500' : remaining < 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                            style={{ width: `${Math.min(100, (used / balance) * 100)}%` }}
+                          />
+                        </div>
+                        <span className={`text-xs ${remaining <= 0 ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                          {remaining <= 0 ? 'Credits exhausted' : `$${remaining.toFixed(2)} credits remaining`}
+                        </span>
+                      </div>
+                    );
+                  })()
                 )}
 
                 {isInProgress && (

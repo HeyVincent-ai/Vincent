@@ -135,4 +135,51 @@ router.post('/deployments/:id/restart', async (req: AuthenticatedRequest, res: R
   }
 });
 
+/**
+ * GET /api/openclaw/deployments/:id/usage
+ * Get LLM token usage stats. Polls OpenRouter if stale (>60s).
+ */
+router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const usage = await openclawService.getUsage(req.params.id as string, req.user!.id);
+    sendSuccess(res, usage);
+  } catch (error: any) {
+    if (error.message === 'Deployment not found') {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw usage error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+const creditsSchema = z.object({
+  amountUsd: z.number().min(5).max(500),
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/credits
+ * Add LLM credits by charging the user's Stripe payment method.
+ */
+router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = creditsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return errors.validation(res, parsed.error.format());
+  }
+
+  try {
+    const result = await openclawService.addCredits(
+      req.params.id as string,
+      req.user!.id,
+      parsed.data.amountUsd
+    );
+    sendSuccess(res, result);
+  } catch (error: any) {
+    if (error.message === 'Deployment not found') {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw credits error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
 export default router;
