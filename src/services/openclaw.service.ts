@@ -63,16 +63,16 @@ const SSH_USERNAME = 'debian'; // Debian 12 default user
 export const OPENCLAW_PORT = 18789;
 
 // Polling intervals
-const ORDER_POLL_INTERVAL_MS = 30_000;       // 30s
-const ORDER_POLL_TIMEOUT_MS = 20 * 60_000;   // 20 min
-const REBUILD_POLL_INTERVAL_MS = 15_000;     // 15s
-const REBUILD_POLL_TIMEOUT_MS = 5 * 60_000;  // 5 min
-const SSH_RETRY_INTERVAL_MS = 15_000;        // 15s
-const SSH_RETRY_TIMEOUT_MS = 5 * 60_000;     // 5 min
-const HEALTH_POLL_INTERVAL_MS = 10_000;      // 10s
-const HEALTH_POLL_TIMEOUT_MS = 10 * 60_000;  // 10 min
-const IP_POLL_INTERVAL_MS = 15_000;          // 15s
-const IP_POLL_TIMEOUT_MS = 3 * 60_000;       // 3 min
+const ORDER_POLL_INTERVAL_MS = 30_000; // 30s
+const ORDER_POLL_TIMEOUT_MS = 20 * 60_000; // 20 min
+const REBUILD_POLL_INTERVAL_MS = 15_000; // 15s
+const REBUILD_POLL_TIMEOUT_MS = 5 * 60_000; // 5 min
+const SSH_RETRY_INTERVAL_MS = 15_000; // 15s
+const SSH_RETRY_TIMEOUT_MS = 5 * 60_000; // 5 min
+const HEALTH_POLL_INTERVAL_MS = 10_000; // 10s
+const HEALTH_POLL_TIMEOUT_MS = 10 * 60_000; // 10 min
+const IP_POLL_INTERVAL_MS = 15_000; // 15s
+const IP_POLL_TIMEOUT_MS = 3 * 60_000; // 3 min
 
 // ============================================================
 // Types
@@ -89,7 +89,7 @@ export interface DeployOptions {
 // ============================================================
 
 export function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -255,6 +255,7 @@ export function buildSetupScript(openRouterApiKey: string, hostname: string): st
   return `sudo -H bash <<'SETUPSCRIPT'
 set -euo pipefail
 export HOME=/root
+cd /root
 export DEBIAN_FRONTEND=noninteractive
 
 echo "=== [1/8] System update ==="
@@ -264,10 +265,7 @@ apt-get install -y -qq curl caddy ufw python3
 echo "=== [2/8] Running OpenClaw installer ==="
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
 
-echo "=== [3/8] Installing Vincent agent wallet skill ==="
-npx --yes clawhub@latest install agentwallet || true
-
-echo "=== [4/8] Running OpenClaw onboard ==="
+echo "=== [3/8] Running OpenClaw onboard ==="
 openclaw onboard \
   --non-interactive \
   --accept-risk \
@@ -280,6 +278,10 @@ openclaw onboard \
   --skip-health \
   --skip-ui \
   --skip-daemon
+
+echo "=== [4/8] Installing Vincent agent wallet skill ==="
+npx --yes clawhub@latest install agentwallet || true
+npx --yes clawhub@latest install vincentpolymarket || true
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Set model (agents.defaults.model is an object with "primary" key)
@@ -605,13 +607,14 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     // Mark as READY
     await updateDeployment(deploymentId, {
       status: 'READY',
-      statusMessage: healthy ? 'OpenClaw is live and accessible' : 'OpenClaw deployed (health check pending)',
+      statusMessage: healthy
+        ? 'OpenClaw is live and accessible'
+        : 'OpenClaw deployed (health check pending)',
       readyAt: new Date(),
       provisionLog: log,
     });
 
     addLog('Deployment complete!');
-
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
     await updateDeployment(deploymentId, {
@@ -630,10 +633,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 /**
  * Poll OVH until the VPS order is delivered and return the service name.
  */
-async function pollForDelivery(
-  orderId: number,
-  addLog: (msg: string) => void
-): Promise<string> {
+async function pollForDelivery(orderId: number, addLog: (msg: string) => void): Promise<string> {
   const deadline = Date.now() + ORDER_POLL_TIMEOUT_MS;
   const vpsBefore = new Set(await ovhService.listVps());
   addLog(`Existing VPS count: ${vpsBefore.size}`);
@@ -670,10 +670,7 @@ async function pollForDelivery(
 /**
  * Poll for VPS IP address (may not be available immediately after delivery).
  */
-async function pollForIp(
-  serviceName: string,
-  addLog: (msg: string) => void
-): Promise<string> {
+async function pollForIp(serviceName: string, addLog: (msg: string) => void): Promise<string> {
   const deadline = Date.now() + IP_POLL_TIMEOUT_MS;
   const isIpv4 = (ip: string) => /^\d+\.\d+\.\d+\.\d+$/.test(ip);
 
@@ -779,10 +776,7 @@ export async function listDeployments(userId: string): Promise<OpenClawDeploymen
 /**
  * Destroy a deployment — terminate VPS and revoke OpenRouter key.
  */
-export async function destroy(
-  deploymentId: string,
-  userId: string
-): Promise<OpenClawDeployment> {
+export async function destroy(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
     where: { id: deploymentId, userId },
   });
@@ -836,10 +830,7 @@ export async function destroy(
 /**
  * Restart OpenClaw on a deployment's VPS via SSH.
  */
-export async function restart(
-  deploymentId: string,
-  userId: string
-): Promise<OpenClawDeployment> {
+export async function restart(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
     where: { id: deploymentId, userId, status: 'READY' },
   });
