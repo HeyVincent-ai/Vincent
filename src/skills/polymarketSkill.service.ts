@@ -346,28 +346,9 @@ export async function searchMarkets(params: {
 }) {
   const { query, active = true, limit = 50 } = params;
 
-  // If there's a search query, use Gamma API which supports text search
-  if (query) {
-    return polymarket.searchMarketsGamma({ query, active, limit });
-  }
-
-  // Otherwise use CLOB API for simple pagination
-  // Note: CLOB API returns many closed markets, so filter them
-  const result = await polymarket.getMarkets(params.nextCursor);
-
-  // Filter to only active markets if requested
-  if (active && result.data) {
-    const filteredData = result.data.filter(
-      (m: any) => m.active && !m.closed && m.accepting_orders !== false
-    );
-    return {
-      ...result,
-      data: filteredData,
-      count: filteredData.length,
-    };
-  }
-
-  return result;
+  // Use Gamma API for both search and browsing — it supports text search
+  // via /public-search and filtered browsing via /markets with proper params
+  return polymarket.searchMarketsGamma({ query, active, limit });
 }
 
 export async function getOrderBook(tokenId: string) {

@@ -414,8 +414,47 @@ export interface GammaSearchResult {
 }
 
 /**
+ * Parse a value that may be a JSON string array or an already-parsed array into string[].
+ */
+function ensureStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch { /* ignore */ }
+  }
+  return [];
+}
+
+/**
+ * Map a raw market object (from either /public-search or /markets) to our clean format.
+ */
+function mapGammaMarket(m: any) {
+  return {
+    id: m.id,
+    question: m.question,
+    conditionId: m.conditionId,
+    slug: m.slug,
+    outcomes: ensureStringArray(m.outcomes),
+    outcomePrices: ensureStringArray(m.outcomePrices),
+    tokenIds: ensureStringArray(m.clobTokenIds),
+    active: m.active,
+    closed: m.closed,
+    acceptingOrders: m.acceptingOrders,
+    endDate: m.endDate,
+    volume: m.volume,
+    liquidity: m.liquidity,
+    bestBid: m.bestBid,
+    bestAsk: m.bestAsk,
+    lastTradePrice: m.lastTradePrice,
+    description: m.description,
+  };
+}
+
+/**
  * Search markets via Gamma API.
- * Supports text search and filtering for active/accepting orders.
+ * Uses /public-search for text queries, /markets for browsing.
  */
 export async function searchMarketsGamma(params: {
   query?: string;
@@ -425,24 +464,46 @@ export async function searchMarketsGamma(params: {
 }): Promise<GammaSearchResult> {
   const { query, active = true, limit = 50, offset = 0 } = params;
 
-  const url = new URL('https://gamma-api.polymarket.com/markets');
-
-  // Text search
   if (query) {
-    url.searchParams.set('_q', query);
+    // Text search via /public-search endpoint
+    const url = new URL('https://gamma-api.polymarket.com/public-search');
+    url.searchParams.set('q', query);
+    url.searchParams.set('limit_per_type', String(limit));
+    if (active) {
+      url.searchParams.set('events_status', 'active');
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const events = data.events || [];
+
+    // Flatten events -> markets
+    const markets = events.flatMap((event: any) =>
+      (event.markets || [])
+        .filter((m: any) => !active || m.acceptingOrders)
+        .map(mapGammaMarket)
+    );
+
+    return {
+      markets,
+      hasMore: data.has_more ?? markets.length >= limit,
+    };
   }
 
-  // Filter for active/open markets
+  // Browse markets (no search query) via /markets endpoint
+  const url = new URL('https://gamma-api.polymarket.com/markets');
   if (active) {
     url.searchParams.set('active', 'true');
     url.searchParams.set('closed', 'false');
   }
-
-  url.searchParams.set('_limit', String(limit));
-  url.searchParams.set('_offset', String(offset));
-
-  // Sort by volume for relevance
-  url.searchParams.set('_order', 'volumeNum:desc');
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('offset', String(offset));
+  url.searchParams.set('order', 'volume24hr');
+  url.searchParams.set('ascending', 'false');
 
   const response = await fetch(url.toString());
   if (!response.ok) {
@@ -451,46 +512,9 @@ export async function searchMarketsGamma(params: {
 
   const data = (await response.json()) as GammaMarket[];
 
-  // Transform to cleaner format with parsed JSON fields
   const markets = data
-    .filter(m => !active || m.acceptingOrders) // Double-check accepting orders
-    .map(m => {
-      let outcomes: string[] = [];
-      let outcomePrices: string[] = [];
-      let tokenIds: string[] = [];
-
-      try {
-        outcomes = JSON.parse(m.outcomes || '[]');
-      } catch { /* ignore */ }
-
-      try {
-        outcomePrices = JSON.parse(m.outcomePrices || '[]');
-      } catch { /* ignore */ }
-
-      try {
-        tokenIds = JSON.parse(m.clobTokenIds || '[]');
-      } catch { /* ignore */ }
-
-      return {
-        id: m.id,
-        question: m.question,
-        conditionId: m.conditionId,
-        slug: m.slug,
-        outcomes,
-        outcomePrices,
-        tokenIds,
-        active: m.active,
-        closed: m.closed,
-        acceptingOrders: m.acceptingOrders,
-        endDate: m.endDate,
-        volume: m.volume,
-        liquidity: m.liquidity,
-        bestBid: m.bestBid,
-        bestAsk: m.bestAsk,
-        lastTradePrice: m.lastTradePrice,
-        description: m.description,
-      };
-    });
+    .filter(m => !active || m.acceptingOrders)
+    .map(mapGammaMarket);
 
   return {
     markets,

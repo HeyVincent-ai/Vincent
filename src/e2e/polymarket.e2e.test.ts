@@ -781,28 +781,21 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
 
   it('should browse markets and find a liquid market', async () => {
     const res = await request(app)
-      .get('/api/skills/polymarket/markets')
+      .get('/api/skills/polymarket/markets?active=true&limit=100')
       .set('Authorization', `Bearer ${apiKey}`)
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.data.length).toBeGreaterThan(0);
-    console.log(`Markets endpoint returned ${res.body.data.data.length} markets`);
-
-    // Use Gamma API to find liquid, active markets sorted by volume
-    const gammaRes = await fetch(
-      'https://gamma-api.polymarket.com/markets?closed=false&active=true&acceptingOrders=true&limit=100&order=volume24hr&ascending=false'
-    );
-    const gammaMarkets = await gammaRes.json();
-    expect(gammaMarkets.length).toBeGreaterThan(0);
-    console.log(`Gamma API returned ${gammaMarkets.length} active markets`);
+    const allMarkets = res.body.data.markets;
+    expect(allMarkets.length).toBeGreaterThan(0);
+    console.log(`Markets endpoint returned ${allMarkets.length} active markets`);
 
     let foundMarket = null;
     let foundTokenId: string | null = null;
 
-    const candidates = gammaMarkets
+    const candidates = allMarkets
       .filter((m: any) => {
-        const tokenIds = m.clobTokenIds ? JSON.parse(m.clobTokenIds) : [];
+        const tokenIds = m.tokenIds || [];
         if (tokenIds.length < 2) return false;
         const ltp = parseFloat(m.lastTradePrice || '0');
         return (ltp > 0.15 && ltp < 0.85) || (1 - ltp > 0.15 && 1 - ltp < 0.85);
@@ -811,7 +804,7 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     console.log(`Candidate markets after pre-filter: ${candidates.length}`);
 
     for (const market of candidates) {
-      const tokenIds = JSON.parse(market.clobTokenIds);
+      const tokenIds = market.tokenIds;
       const ltp = parseFloat(market.lastTradePrice || '0.5');
       const tokenId = ltp >= 0.15 && ltp <= 0.85 ? tokenIds[0] : tokenIds[1];
 
