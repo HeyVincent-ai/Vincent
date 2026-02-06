@@ -9,7 +9,7 @@ Use this skill to safely create a wallet the agent can use for transfers, swaps,
 
 **The agent never sees the private key.** All transactions are executed server-side through a smart account. The wallet owner controls what the agent can do via configurable policies.
 
-## Which Wallet Type to Use
+## Which Secret Type to Use
 
 | Type                | Use Case                                  | Network                 | Gas              |
 | ------------------- | ----------------------------------------- | ----------------------- | ---------------- |
