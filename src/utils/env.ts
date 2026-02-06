@@ -27,6 +27,7 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
+  STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),

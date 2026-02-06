@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
+import * as openclawService from '../services/openclaw.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -183,6 +184,21 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const period = extractPeriodDates(stripeSubscription);
 
+  // Check if this is an OpenClaw deployment checkout
+  const deploymentId = session.metadata?.deploymentId;
+  const checkoutType = session.metadata?.type;
+
+  if (checkoutType === 'openclaw' && deploymentId) {
+    console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
+    await openclawService.startProvisioning(
+      deploymentId,
+      stripeSubscription.id,
+      period.end
+    );
+    return;
+  }
+
+  // Default: standard subscription checkout
   await prisma.subscription.upsert({
     where: { stripeSubscriptionId: stripeSubscription.id },
     create: {
@@ -220,6 +236,21 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
+  // Check if this is an OpenClaw subscription
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+  });
+
+  if (openclawDeployment) {
+    console.log(`[stripe] OpenClaw invoice payment failed for deployment ${openclawDeployment.id}`);
+    await prisma.openClawDeployment.update({
+      where: { id: openclawDeployment.id },
+      data: { statusMessage: 'Payment failed — please update your payment method' },
+    });
+    return;
+  }
+
+  // Default: standard subscription
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscriptionId },
   });
@@ -233,6 +264,18 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  // Check if this is an OpenClaw subscription
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+
+  if (openclawDeployment) {
+    console.log(`[stripe] OpenClaw subscription deleted for deployment ${openclawDeployment.id}`);
+    await openclawService.handleSubscriptionExpired(subscription.id);
+    return;
+  }
+
+  // Default: standard subscription
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });

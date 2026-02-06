@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getOpenClawDeployments, deployOpenClaw } from '../api';
 
 interface Deployment {
@@ -9,22 +9,28 @@ interface Deployment {
   ipAddress: string | null;
   hostname: string | null;
   ovhServiceName: string | null;
+  stripeSubscriptionId: string | null;
+  currentPeriodEnd: string | null;
+  canceledAt: string | null;
   createdAt: string;
   readyAt: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
   READY: 'bg-green-100 text-green-800',
+  PENDING_PAYMENT: 'bg-yellow-100 text-yellow-800',
   PENDING: 'bg-yellow-100 text-yellow-800',
   ORDERING: 'bg-yellow-100 text-yellow-800',
   PROVISIONING: 'bg-blue-100 text-blue-800',
   INSTALLING: 'bg-blue-100 text-blue-800',
+  CANCELING: 'bg-orange-100 text-orange-800',
   ERROR: 'bg-red-100 text-red-800',
   DESTROYING: 'bg-gray-100 text-gray-600',
   DESTROYED: 'bg-gray-100 text-gray-500',
 };
 
 const PROGRESS_STEPS = [
+  { statuses: ['PENDING_PAYMENT'], label: 'Completing payment...' },
   { statuses: ['PENDING', 'ORDERING'], label: 'Ordering VPS...' },
   { statuses: ['PROVISIONING'], label: 'Setting up server...' },
   { statuses: ['INSTALLING'], label: 'Installing OpenClaw...' },
@@ -41,6 +47,7 @@ export default function OpenClawSection() {
   const [loading, setLoading] = useState(true);
   const [deploying, setDeploying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const load = useCallback(() => {
     getOpenClawDeployments()
@@ -56,10 +63,24 @@ export default function OpenClawSection() {
     load();
   }, [load]);
 
+  // Handle return from Stripe Checkout
+  useEffect(() => {
+    const deploySuccess = searchParams.get('openclaw_deploy');
+    const deploymentId = searchParams.get('openclaw_deployment_id');
+    if (deploySuccess === 'success' && deploymentId) {
+      // Clean up URL params
+      searchParams.delete('openclaw_deploy');
+      searchParams.delete('openclaw_deployment_id');
+      setSearchParams(searchParams, { replace: true });
+      // Poll for this specific deployment
+      load();
+    }
+  }, [searchParams, setSearchParams, load]);
+
   // Poll while any deployment is in progress
   useEffect(() => {
     const inProgress = deployments.some((d) =>
-      ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(d.status)
+      ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(d.status)
     );
     if (!inProgress) return;
     const timer = setInterval(load, 5000);
@@ -70,13 +91,18 @@ export default function OpenClawSection() {
     setDeploying(true);
     setError(null);
     try {
-      await deployOpenClaw();
-      load();
+      const currentUrl = window.location.origin + window.location.pathname;
+      const res = await deployOpenClaw(
+        `${currentUrl}?openclaw_deploy=success&openclaw_deployment_id={CHECKOUT_SESSION_ID}`,
+        `${currentUrl}?openclaw_deploy=canceled`
+      );
+      const { checkoutUrl } = res.data.data;
+      // Redirect to Stripe Checkout
+      window.location.href = checkoutUrl;
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })
         ?.response?.data?.error?.message;
       setError(msg || 'Failed to start deployment');
-    } finally {
       setDeploying(false);
     }
   };
@@ -99,7 +125,7 @@ export default function OpenClawSection() {
   const active = deployments.filter((d) => d.status !== 'DESTROYED');
 
   return (
-    <div className="mt-10">
+    <div className="mt-10" id="openclaw">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold">OpenClaw</h2>
         <button
@@ -107,7 +133,7 @@ export default function OpenClawSection() {
           disabled={deploying}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
         >
-          {deploying ? 'Deploying...' : '+ Deploy OpenClaw'}
+          {deploying ? 'Redirecting...' : 'Deploy OpenClaw \u2014 $25/mo'}
         </button>
       </div>
 
@@ -125,7 +151,7 @@ export default function OpenClawSection() {
       ) : (
         <div className="grid gap-4">
           {active.map((d) => {
-            const isInProgress = ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(d.status);
+            const isInProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(d.status);
             const currentStep = stepIndex(d.status);
 
             return (
@@ -133,14 +159,19 @@ export default function OpenClawSection() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[d.status] || 'bg-gray-100 text-gray-600'}`}>
-                      {d.status}
+                      {d.status === 'CANCELING' ? 'CANCELING' : d.status}
                     </span>
-                    {d.statusMessage && (
+                    {d.status === 'CANCELING' && d.currentPeriodEnd && (
+                      <span className="text-sm text-orange-600">
+                        Active until {new Date(d.currentPeriodEnd).toLocaleDateString()}
+                      </span>
+                    )}
+                    {d.statusMessage && d.status !== 'CANCELING' && (
                       <span className="text-sm text-gray-500">{d.statusMessage}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-3">
-                    {d.status === 'READY' && (
+                    {(d.status === 'READY' || d.status === 'CANCELING') && (
                       <Link
                         to={`/openclaw/${d.id}`}
                         className="text-sm bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
@@ -162,11 +193,11 @@ export default function OpenClawSection() {
                   <div className="mt-3 flex items-center gap-2">
                     {PROGRESS_STEPS.map((step, i) => {
                       const done = i < currentStep;
-                      const active = i === currentStep;
+                      const isCurrent = i === currentStep;
                       return (
                         <div key={i} className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${done ? 'bg-green-500' : active ? 'bg-blue-500 animate-pulse' : 'bg-gray-200'}`} />
-                          <span className={`text-xs ${active ? 'text-blue-700 font-medium' : done ? 'text-green-700' : 'text-gray-400'}`}>
+                          <div className={`w-2 h-2 rounded-full ${done ? 'bg-green-500' : isCurrent ? 'bg-blue-500 animate-pulse' : 'bg-gray-200'}`} />
+                          <span className={`text-xs ${isCurrent ? 'text-blue-700 font-medium' : done ? 'text-green-700' : 'text-gray-400'}`}>
                             {step.label}
                           </span>
                           {i < PROGRESS_STEPS.length - 1 && (

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   getOpenClawDeployment,
+  cancelOpenClawDeployment,
   destroyOpenClawDeployment,
   restartOpenClawDeployment,
 } from '../api';
@@ -14,22 +15,28 @@ interface Deployment {
   hostname: string | null;
   accessToken: string | null;
   ovhServiceName: string | null;
+  stripeSubscriptionId: string | null;
+  currentPeriodEnd: string | null;
+  canceledAt: string | null;
   createdAt: string;
   readyAt: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
   READY: 'bg-green-100 text-green-800',
+  PENDING_PAYMENT: 'bg-yellow-100 text-yellow-800',
   PENDING: 'bg-yellow-100 text-yellow-800',
   ORDERING: 'bg-yellow-100 text-yellow-800',
   PROVISIONING: 'bg-blue-100 text-blue-800',
   INSTALLING: 'bg-blue-100 text-blue-800',
+  CANCELING: 'bg-orange-100 text-orange-800',
   ERROR: 'bg-red-100 text-red-800',
   DESTROYING: 'bg-gray-100 text-gray-600',
   DESTROYED: 'bg-gray-100 text-gray-500',
 };
 
 const PROGRESS_STEPS = [
+  { statuses: ['PENDING_PAYMENT'], label: 'Completing payment...' },
   { statuses: ['PENDING', 'ORDERING'], label: 'Ordering VPS...' },
   { statuses: ['PROVISIONING'], label: 'Setting up server...' },
   { statuses: ['INSTALLING'], label: 'Installing OpenClaw...' },
@@ -48,6 +55,7 @@ export default function OpenClawDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showDestroyConfirm, setShowDestroyConfirm] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -68,7 +76,7 @@ export default function OpenClawDetail() {
   // Poll while in progress
   useEffect(() => {
     if (!deployment) return;
-    const inProgress = ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
+    const inProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
     if (!inProgress) return;
     const timer = setInterval(load, 5000);
     return () => clearInterval(timer);
@@ -84,6 +92,20 @@ export default function OpenClawDetail() {
       setError('Failed to restart');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!id) return;
+    setActionLoading('cancel');
+    try {
+      await cancelOpenClawDeployment(id);
+      load();
+    } catch {
+      setError('Failed to cancel subscription');
+    } finally {
+      setActionLoading(null);
+      setShowCancelConfirm(false);
     }
   };
 
@@ -126,8 +148,9 @@ export default function OpenClawDetail() {
 
   if (!deployment) return null;
 
-  const isInProgress = ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
+  const isInProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
   const currentStep = stepIndex(deployment.status);
+  const isActive = deployment.status === 'READY' || deployment.status === 'CANCELING';
   const iframeUrl = deployment.accessToken
     ? deployment.hostname
       ? `https://${deployment.hostname}?token=${deployment.accessToken}`
@@ -152,7 +175,7 @@ export default function OpenClawDetail() {
             {deployment.status}
           </span>
         </div>
-        {deployment.status === 'READY' && (
+        {isActive && (
           <div className="flex items-center gap-2">
             <button
               onClick={handleRestart}
@@ -161,11 +184,19 @@ export default function OpenClawDetail() {
             >
               {actionLoading === 'restart' ? 'Restarting...' : 'Restart'}
             </button>
+            {deployment.status === 'READY' && deployment.stripeSubscriptionId && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                className="text-sm border border-orange-200 text-orange-600 px-3 py-1.5 rounded hover:bg-orange-50 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
             <button
               onClick={() => setShowDestroyConfirm(true)}
               className="text-sm border border-red-200 text-red-600 px-3 py-1.5 rounded hover:bg-red-50 transition-colors"
             >
-              Destroy
+              {deployment.status === 'CANCELING' ? 'Destroy Now' : 'Destroy'}
             </button>
           </div>
         )}
@@ -177,6 +208,35 @@ export default function OpenClawDetail() {
         </div>
       )}
 
+      {/* Cancel confirmation */}
+      {showCancelConfirm && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+          <p className="text-sm text-orange-800 font-medium mb-2">
+            Cancel your subscription?
+          </p>
+          <p className="text-sm text-orange-700 mb-3">
+            Your instance will remain active until the end of your billing period
+            {deployment.currentPeriodEnd && ` (${new Date(deployment.currentPeriodEnd).toLocaleDateString()})`}.
+            After that, it will be automatically destroyed.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={handleCancel}
+              disabled={actionLoading === 'cancel'}
+              className="text-sm bg-orange-600 text-white px-4 py-1.5 rounded hover:bg-orange-700 disabled:opacity-50"
+            >
+              {actionLoading === 'cancel' ? 'Canceling...' : 'Yes, cancel subscription'}
+            </button>
+            <button
+              onClick={() => setShowCancelConfirm(false)}
+              className="text-sm text-gray-500 px-3 py-1.5 hover:text-gray-700"
+            >
+              Keep subscription
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Destroy confirmation */}
       {showDestroyConfirm && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
@@ -184,7 +244,7 @@ export default function OpenClawDetail() {
             Are you sure you want to destroy this instance?
           </p>
           <p className="text-sm text-red-700 mb-3">
-            This will terminate the VPS and revoke the OpenRouter API key. This cannot be undone.
+            This will immediately terminate the VPS, cancel your subscription, and revoke the API key. This cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
@@ -201,6 +261,13 @@ export default function OpenClawDetail() {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Canceling banner */}
+      {deployment.status === 'CANCELING' && deployment.currentPeriodEnd && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-700">
+          Subscription canceled. Instance active until {new Date(deployment.currentPeriodEnd).toLocaleDateString()}.
         </div>
       )}
 
@@ -260,8 +327,8 @@ export default function OpenClawDetail() {
         </div>
       )}
 
-      {/* Iframe (when ready) */}
-      {deployment.status === 'READY' && iframeUrl && (
+      {/* Iframe (when active) */}
+      {isActive && iframeUrl && (
         <iframe
           src={iframeUrl}
           className="w-full h-[calc(100vh-280px)] border rounded-lg"
@@ -269,7 +336,7 @@ export default function OpenClawDetail() {
         />
       )}
 
-      {deployment.status === 'READY' && !iframeUrl && (
+      {isActive && !iframeUrl && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
           <p className="text-yellow-800 font-medium">Instance is ready but missing connection details.</p>
           <p className="text-sm text-yellow-700 mt-1">The access token or IP address is not available yet.</p>

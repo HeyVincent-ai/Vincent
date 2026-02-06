@@ -310,11 +310,13 @@ model AuditLog {
 
 // OpenClaw deployment status enum
 enum OpenClawStatus {
+  PENDING_PAYMENT
   PENDING
   ORDERING
   PROVISIONING
   INSTALLING
   READY
+  CANCELING
   ERROR
   DESTROYING
   DESTROYED
@@ -345,6 +347,11 @@ model OpenClawDeployment {
   status          OpenClawStatus @default(PENDING)
   statusMessage   String?        @map("status_message")
   provisionLog    String?        @map("provision_log") @db.Text
+
+  // Billing
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  canceledAt           DateTime? @map("canceled_at")
 
   // Timestamps
   createdAt       DateTime       @default(now()) @map("created_at")

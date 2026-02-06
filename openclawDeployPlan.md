@@ -944,6 +944,13 @@ No DNS needed.
 9. **Billing model (deployment)** — $25/mo per deployment via Stripe subscription (`STRIPE_OPENCLAW_PRICE_ID`). Payment required before provisioning. On cancel, VPS stays running until subscription period ends. Follows existing `stripe.service.ts` patterns (checkout sessions, webhook handling).
 8. **openclaw.json schema** — OpenRouter key goes in `env.OPENROUTER_API_KEY`, model in `model`, gateway access token is at `gateway.auth.token`.
 
+## Learnings from Phase 4 Implementation
+
+1. **Stripe Checkout metadata**: Use `metadata: { type: 'openclaw', deploymentId, userId }` on checkout sessions to distinguish OpenClaw checkouts from standard subscription checkouts in the shared webhook handler.
+2. **Webhook handler branching**: The existing `handleCheckoutCompleted`, `handleSubscriptionDeleted`, and `handleInvoicePaymentFailed` handlers in `stripe.service.ts` were extended to check for OpenClaw subscriptions (by looking up `prisma.openClawDeployment.findFirst({ where: { stripeSubscriptionId } })`) before falling through to the standard subscription logic.
+3. **Stripe v2026+ period dates**: Period dates are on `subscription.items.data[0].current_period_start/end`, not on the subscription itself.
+4. **Deploy flow change**: `deploy()` no longer starts provisioning immediately. It creates a `PENDING_PAYMENT` deployment + Stripe Checkout session. Provisioning begins only when the `checkout.session.completed` webhook fires, via `startProvisioning()`.
+
 ## Open Questions
 
 1. **Install script edge cases** — Does `--no-onboard` fully suppress all interactive prompts? May need `CI=true` or `NONINTERACTIVE=1` as additional env vars. Need to test on a real VPS.

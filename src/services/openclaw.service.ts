@@ -37,9 +37,12 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const { Client: SshClient, utils: sshUtils } = require('ssh2');
 
+import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
+import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
+import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 
 // ============================================================
@@ -120,6 +123,9 @@ async function updateDeployment(
     sshPrivateKey?: string;
     sshPublicKey?: string;
     openRouterKeyHash?: string;
+    stripeSubscriptionId?: string;
+    currentPeriodEnd?: Date;
+    canceledAt?: Date;
     readyAt?: Date;
     destroyedAt?: Date;
   }
@@ -134,6 +140,15 @@ function appendLog(existingLog: string | null, message: string): string {
   const timestamp = new Date().toISOString();
   const line = `[${timestamp}] ${message}`;
   return existingLog ? `${existingLog}\n${line}` : line;
+}
+
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe {
+  if (!stripeClient) {
+    if (!env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY is not configured');
+    stripeClient = new Stripe(env.STRIPE_SECRET_KEY);
+  }
+  return stripeClient;
 }
 
 // ============================================================
@@ -423,32 +438,74 @@ async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter:
 // ============================================================
 
 /**
- * Deploy a new OpenClaw instance. This is the main entry point.
- * Creates a deployment record and starts the async provisioning job.
+ * Deploy a new OpenClaw instance. Creates a Stripe Checkout session for
+ * the $25/mo subscription. VPS provisioning starts after payment confirmation
+ * via webhook (startProvisioning).
  */
 export async function deploy(
   userId: string,
-  options: DeployOptions = {}
-): Promise<OpenClawDeployment> {
-  // Create deployment record
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ deployment: OpenClawDeployment; checkoutUrl: string }> {
+  if (!env.STRIPE_OPENCLAW_PRICE_ID) {
+    throw new Error('STRIPE_OPENCLAW_PRICE_ID is not configured');
+  }
+
+  // Create deployment record in PENDING_PAYMENT state
   const deployment = await prisma.openClawDeployment.create({
     data: {
       userId,
-      status: 'PENDING',
-      statusMessage: 'Deployment initiated',
+      status: 'PENDING_PAYMENT',
+      statusMessage: 'Awaiting payment',
     },
   });
 
+  // Create Stripe Checkout session
+  const stripe = getStripe();
+  const customerId = await getOrCreateStripeCustomer(userId);
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      userId,
+      deploymentId: deployment.id,
+      type: 'openclaw',
+    },
+  });
+
+  return { deployment, checkoutUrl: session.url! };
+}
+
+/**
+ * Start VPS provisioning after payment is confirmed via webhook.
+ * Called by the checkout.session.completed webhook handler.
+ */
+export async function startProvisioning(
+  deploymentId: string,
+  stripeSubscriptionId: string,
+  currentPeriodEnd: Date
+): Promise<void> {
+  // Update deployment with subscription info
+  await updateDeployment(deploymentId, {
+    status: 'PENDING',
+    statusMessage: 'Payment confirmed, starting provisioning',
+    stripeSubscriptionId,
+    currentPeriodEnd,
+  });
+
   // Start async provisioning (don't await — return immediately)
-  provisionAsync(deployment.id, options).catch(async (err) => {
-    console.error(`[openclaw] Provisioning failed for ${deployment.id}:`, err);
-    await updateDeployment(deployment.id, {
+  provisionAsync(deploymentId, {}).catch(async (err) => {
+    console.error(`[openclaw] Provisioning failed for ${deploymentId}:`, err);
+    await updateDeployment(deploymentId, {
       status: 'ERROR',
       statusMessage: `Provisioning failed: ${err.message}`,
     }).catch(console.error);
   });
-
-  return deployment;
 }
 
 /**
@@ -774,7 +831,7 @@ export async function listDeployments(userId: string): Promise<OpenClawDeploymen
 }
 
 /**
- * Destroy a deployment — terminate VPS and revoke OpenRouter key.
+ * Destroy a deployment — cancel Stripe subscription, terminate VPS, revoke OpenRouter key.
  */
 export async function destroy(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
@@ -795,6 +852,16 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
   });
 
   try {
+    // Cancel Stripe subscription immediately (no refund)
+    if (deployment.stripeSubscriptionId) {
+      try {
+        const stripe = getStripe();
+        await stripe.subscriptions.cancel(deployment.stripeSubscriptionId);
+      } catch (err: any) {
+        console.error(`[openclaw] Failed to cancel Stripe subscription:`, err);
+      }
+    }
+
     // Terminate VPS
     if (deployment.ovhServiceName) {
       try {
@@ -828,11 +895,107 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
 }
 
 /**
+ * Cancel a deployment's subscription at period end.
+ * VPS stays running until subscription expires; webhook handles teardown.
+ */
+export async function cancel(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found');
+  }
+
+  if (!deployment.stripeSubscriptionId) {
+    throw new Error('Deployment has no associated subscription');
+  }
+
+  if (deployment.status !== 'READY') {
+    throw new Error('Can only cancel a READY deployment');
+  }
+
+  const stripe = getStripe();
+  const sub = await stripe.subscriptions.update(deployment.stripeSubscriptionId, {
+    cancel_at_period_end: true,
+  });
+
+  // Extract period end from subscription items (Stripe v2026+ API)
+  const firstItem = sub.items?.data?.[0];
+  const periodEnd = firstItem
+    ? new Date(firstItem.current_period_end * 1000)
+    : deployment.currentPeriodEnd;
+
+  return await updateDeployment(deploymentId, {
+    status: 'CANCELING',
+    statusMessage: `Active until ${periodEnd?.toISOString().split('T')[0] || 'end of billing period'}`,
+    canceledAt: new Date(),
+    currentPeriodEnd: periodEnd || undefined,
+  });
+}
+
+/**
+ * Handle subscription expiry — called by webhook when Stripe subscription
+ * is actually deleted (period ended after cancel_at_period_end).
+ */
+export async function handleSubscriptionExpired(stripeSubscriptionId: string): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId },
+  });
+
+  if (!deployment) {
+    console.log(`[openclaw] No deployment found for subscription ${stripeSubscriptionId}`);
+    return;
+  }
+
+  if (deployment.status === 'DESTROYED' || deployment.status === 'DESTROYING') {
+    return;
+  }
+
+  console.log(`[openclaw] Subscription expired for deployment ${deployment.id}, destroying...`);
+
+  await updateDeployment(deployment.id, {
+    status: 'DESTROYING',
+    statusMessage: 'Subscription expired, destroying deployment',
+  });
+
+  try {
+    if (deployment.ovhServiceName) {
+      try {
+        await ovhService.terminateVps(deployment.ovhServiceName);
+      } catch (err: any) {
+        console.error(`[openclaw] Failed to terminate VPS ${deployment.ovhServiceName}:`, err);
+      }
+    }
+
+    if (deployment.openRouterKeyHash) {
+      try {
+        await openRouterService.deleteKey(deployment.openRouterKeyHash);
+      } catch (err: any) {
+        console.error(`[openclaw] Failed to revoke OpenRouter key:`, err);
+      }
+    }
+
+    await updateDeployment(deployment.id, {
+      status: 'DESTROYED',
+      statusMessage: 'Subscription expired, deployment destroyed',
+      destroyedAt: new Date(),
+    });
+  } catch (err: any) {
+    console.error(`[openclaw] Destroy after subscription expiry failed:`, err);
+    await updateDeployment(deployment.id, {
+      status: 'ERROR',
+      statusMessage: `Destroy failed: ${err.message}`,
+    }).catch(console.error);
+  }
+}
+
+/**
  * Restart OpenClaw on a deployment's VPS via SSH.
  */
 export async function restart(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
-    where: { id: deploymentId, userId, status: 'READY' },
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
   });
 
   if (!deployment) {
