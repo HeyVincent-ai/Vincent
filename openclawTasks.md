@@ -12,14 +12,14 @@
 - [x] **1.8** Mount routes in `src/api/routes/index.ts` (`router.use('/openclaw', openclawRouter)`)
 - [x] **1.9** Export service from `src/services/index.ts`
 
-## Phase 2: Frontend
+## Phase 2: Frontend ✅ COMPLETE
 
-- [ ] **2.1** Add OpenClaw API functions to `frontend/src/api.ts` (deployOpenClaw, getOpenClawDeployments, getOpenClawDeployment, destroyOpenClawDeployment, restartOpenClawDeployment)
-- [ ] **2.2** Build `frontend/src/components/OpenClawSection.tsx` — dashboard card with deploy button, progress view, ready state, error state
-- [ ] **2.3** Build `frontend/src/pages/OpenClawDetail.tsx` — instance management page with iframe embedding OpenClaw web UI (`https://<vps-ip>?token=...`), status badge, restart/destroy buttons
-- [ ] **2.4** Add route in `frontend/src/App.tsx` (`/openclaw/:id` → `<OpenClawDetail />` inside `<ProtectedRoute>`)
-- [ ] **2.5** Add OpenClaw section to Dashboard page (`frontend/src/pages/Dashboard.tsx`)
-- [ ] **2.6** Add nav link in Layout (link to OpenClaw section on dashboard or dedicated page)
+- [x] **2.1** Add OpenClaw API functions to `frontend/src/api.ts` (deployOpenClaw, getOpenClawDeployments, getOpenClawDeployment, destroyOpenClawDeployment, restartOpenClawDeployment)
+- [x] **2.2** Build `frontend/src/components/OpenClawSection.tsx` — dashboard card with deploy button, progress stepper, polling, ready/error states
+- [x] **2.3** Build `frontend/src/pages/OpenClawDetail.tsx` — instance management page with iframe (`https://<vps-ip>?token=...`), status badge, restart/destroy with confirmation
+- [x] **2.4** Add route in `frontend/src/App.tsx` (`/openclaw/:id` → `<OpenClawDetail />` inside `<ProtectedRoute>`)
+- [x] **2.5** Add OpenClaw section to Dashboard page (`frontend/src/pages/Dashboard.tsx`) via `<OpenClawSection />` component
+- [x] **2.6** Add nav link in Layout (`/dashboard#openclaw`)
 
 ## Phase 3: Infrastructure & E2E Testing ✅ COMPLETE
 

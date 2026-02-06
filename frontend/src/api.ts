@@ -111,6 +111,14 @@ export const executeSwap = (
   }
 ) => api.post(`/secrets/${secretId}/swap/execute`, data);
 
+// OpenClaw
+export const deployOpenClaw = () => api.post('/openclaw/deploy');
+export const getOpenClawDeployments = () => api.get('/openclaw/deployments');
+export const getOpenClawDeployment = (id: string) => api.get(`/openclaw/deployments/${id}`);
+export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
+export const restartOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/restart`);
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>

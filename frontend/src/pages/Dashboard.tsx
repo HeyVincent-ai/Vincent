@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret } from '../api';
+import OpenClawSection from '../components/OpenClawSection';
 
 interface Secret {
   id: string;
@@ -189,6 +190,10 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <div id="openclaw">
+        <OpenClawSection />
+      </div>
     </div>
   );
 }
