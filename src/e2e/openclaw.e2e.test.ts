@@ -34,8 +34,18 @@ import prisma from '../db/client.js';
 // Test Configuration
 // ============================================================
 
-const VPS_PLAN_CODE = 'vps-2025-model1';
-const VPS_DATACENTER = 'US-WEST-OR';
+// Plans to try in priority order: .LZ first (US light zones), then -ca, then base.
+// Only model1 has a .LZ variant. Within each tier, model1 → model2 → model3.
+const VPS_PLANS_PRIORITY = [
+  'vps-2025-model1.LZ',
+  'vps-2025-model1-ca',
+  'vps-2025-model1',
+  'vps-2025-model2-ca',
+  'vps-2025-model3-ca',
+  'vps-2025-model2',
+  'vps-2025-model3',
+];
+
 const VPS_OS = 'Debian 12';
 const REBUILD_IMAGE_NAME = 'Debian 12'; // Must match an image from /images/available
 
@@ -82,7 +92,7 @@ const evidence: {
 // ============================================================
 
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -103,7 +113,12 @@ function generateSshKeys(): { publicKey: string; privateKey: string } {
 /**
  * Try to SSH into a host and run a simple command.
  */
-function trySsh(host: string, username: string, privateKey: string, command = 'echo ok'): Promise<string> {
+function trySsh(
+  host: string,
+  username: string,
+  privateKey: string,
+  command = 'echo ok'
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const conn = new SshClient();
     const timer = setTimeout(() => {
@@ -113,15 +128,30 @@ function trySsh(host: string, username: string, privateKey: string, command = 'e
 
     conn.on('ready', () => {
       conn.exec(command, (err: any, stream: any) => {
-        if (err) { clearTimeout(timer); conn.end(); return reject(err); }
+        if (err) {
+          clearTimeout(timer);
+          conn.end();
+          return reject(err);
+        }
         let out = '';
-        stream.on('data', (d: Buffer) => { out += d.toString(); });
-        stream.stderr.on('data', (d: Buffer) => { out += d.toString(); });
-        stream.on('close', () => { clearTimeout(timer); conn.end(); resolve(out.trim()); });
+        stream.on('data', (d: Buffer) => {
+          out += d.toString();
+        });
+        stream.stderr.on('data', (d: Buffer) => {
+          out += d.toString();
+        });
+        stream.on('close', () => {
+          clearTimeout(timer);
+          conn.end();
+          resolve(out.trim());
+        });
       });
     });
 
-    conn.on('error', (err: any) => { clearTimeout(timer); reject(err); });
+    conn.on('error', (err: any) => {
+      clearTimeout(timer);
+      reject(err);
+    });
 
     conn.connect({
       host,
@@ -129,7 +159,15 @@ function trySsh(host: string, username: string, privateKey: string, command = 'e
       username,
       privateKey,
       readyTimeout: 15_000,
-      algorithms: { serverHostKey: ['ssh-ed25519', 'ecdsa-sha2-nistp256', 'rsa-sha2-512', 'rsa-sha2-256', 'ssh-rsa'] },
+      algorithms: {
+        serverHostKey: [
+          'ssh-ed25519',
+          'ecdsa-sha2-nistp256',
+          'rsa-sha2-512',
+          'rsa-sha2-256',
+          'ssh-rsa',
+        ],
+      },
     });
   });
 }
@@ -145,9 +183,15 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
     console.log('\n========================================');
     console.log('  OPENCLAW E2E TEST');
     console.log('========================================');
-    console.log(`OVH_APP_KEY: ${process.env.OVH_APP_KEY ? '***' + process.env.OVH_APP_KEY.slice(-4) : 'NOT SET'}`);
-    console.log(`OVH_CONSUMER_KEY: ${process.env.OVH_CONSUMER_KEY ? '***' + process.env.OVH_CONSUMER_KEY.slice(-4) : 'NOT SET'}`);
-    console.log(`OPENROUTER_PROVISIONING_KEY: ${process.env.OPENROUTER_PROVISIONING_KEY ? 'SET' : 'NOT SET'}`);
+    console.log(
+      `OVH_APP_KEY: ${process.env.OVH_APP_KEY ? '***' + process.env.OVH_APP_KEY.slice(-4) : 'NOT SET'}`
+    );
+    console.log(
+      `OVH_CONSUMER_KEY: ${process.env.OVH_CONSUMER_KEY ? '***' + process.env.OVH_CONSUMER_KEY.slice(-4) : 'NOT SET'}`
+    );
+    console.log(
+      `OPENROUTER_PROVISIONING_KEY: ${process.env.OPENROUTER_PROVISIONING_KEY ? 'SET' : 'NOT SET'}`
+    );
     console.log(`E2E_ORDER_VPS: ${ACTUALLY_ORDER_VPS}`);
     console.log('========================================\n');
   });
@@ -165,17 +209,27 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
       console.log(`  SSH User:         ${evidence.sshUser || 'unknown'}`);
       console.log(`  SSH Connected:    ${evidence.sshConnected}`);
       console.log(`  Rebuild Image:    ${evidence.rebuildImageId}`);
-      console.log(`  OpenRouter Key:   ${evidence.openRouterKey ? evidence.openRouterKey.slice(0, 15) + '...' : 'N/A'}`);
+      console.log(
+        `  OpenRouter Key:   ${evidence.openRouterKey ? evidence.openRouterKey.slice(0, 15) + '...' : 'N/A'}`
+      );
       console.log(`  OpenRouter Hash:  ${evidence.openRouterKeyHash || 'N/A'}`);
       console.log(`\n  Connect with:`);
-      console.log(`    ssh -i ${evidence.sshKeyFile} ${evidence.sshUser || 'root'}@${evidence.vpsIp}`);
+      console.log(
+        `    ssh -i ${evidence.sshKeyFile} ${evidence.sshUser || 'root'}@${evidence.vpsIp}`
+      );
     }
 
     console.log('\n  Full evidence:');
-    console.log(JSON.stringify(evidence, (key, val) => {
-      if (key === 'openRouterKey' && val) return val.slice(0, 15) + '...';
-      return val;
-    }, 2));
+    console.log(
+      JSON.stringify(
+        evidence,
+        (key, val) => {
+          if (key === 'openRouterKey' && val) return val.slice(0, 15) + '...';
+          return val;
+        },
+        2
+      )
+    );
     console.log('========================================\n');
 
     await prisma.$disconnect();
@@ -221,31 +275,40 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
   // Test 3: Check Available Datacenters
   // ============================================================
 
-  it('should list available datacenters for VPS plan', async () => {
-    const datacenters = await ovhService.getAvailableDatacenters(VPS_PLAN_CODE);
-    evidence.availableDatacenters = datacenters;
-
-    console.log(`Available datacenters for ${VPS_PLAN_CODE}:`);
-    if (datacenters?.datacenters) {
-      for (const dc of datacenters.datacenters) {
-        console.log(`  ${dc.datacenter} — status: ${dc.status}, linux: ${dc.linuxStatus}`);
+  it('should list available datacenters for VPS plans', async () => {
+    const allResults: Record<string, any> = {};
+    for (const plan of VPS_PLANS_PRIORITY) {
+      try {
+        const datacenters = await ovhService.getAvailableDatacenters(plan);
+        allResults[plan] = datacenters;
+        if (datacenters?.datacenters) {
+          const available = datacenters.datacenters.filter(
+            (dc: any) => dc.linuxStatus === 'available'
+          );
+          if (available.length > 0) {
+            console.log(`${plan}: ${available.map((dc: any) => dc.datacenter).join(', ')}`);
+          } else {
+            console.log(`${plan}: all out-of-stock`);
+          }
+        }
+      } catch {
+        console.log(`${plan}: error checking`);
       }
-    } else {
-      console.log(`  Response: ${JSON.stringify(datacenters).slice(0, 300)}`);
     }
-
-    expect(datacenters).toBeTruthy();
-  }, 30_000);
+    evidence.availableDatacenters = allResults;
+    expect(Object.keys(allResults).length).toBeGreaterThan(0);
+  }, 60_000);
 
   // ============================================================
   // Test 4: Check Available OS
   // ============================================================
 
   it('should list available OS choices for VPS plan', async () => {
-    const osChoices = await ovhService.getAvailableOs(VPS_PLAN_CODE);
+    const plan = VPS_PLANS_PRIORITY[0];
+    const osChoices = await ovhService.getAvailableOs(plan);
     evidence.availableOs = osChoices;
 
-    console.log(`Available OS for ${VPS_PLAN_CODE}:`);
+    console.log(`Available OS for ${plan}:`);
     if (Array.isArray(osChoices)) {
       osChoices.slice(0, 10).forEach((os: any) => {
         console.log(`  ${os.name || os}`);
@@ -337,7 +400,8 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
   // ============================================================
 
   it('should create a VPS cart and validate the order (dry run)', async () => {
-    const ovh = (await import('@ovhcloud/node-ovh')).default || (await import('@ovhcloud/node-ovh'));
+    const ovh =
+      (await import('@ovhcloud/node-ovh')).default || (await import('@ovhcloud/node-ovh'));
     const client = (ovh as any)({
       endpoint: process.env.OVH_ENDPOINT || 'ovh-us',
       appKey: process.env.OVH_APP_KEY,
@@ -356,18 +420,19 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
     // Assign
     await client.requestPromised('POST', `/order/cart/${cart.cartId}/assign`);
 
-    // Add VPS
+    // Add VPS — use first plan from priority list
+    const dryRunPlan = VPS_PLANS_PRIORITY[0];
     const plans = await client.requestPromised('GET', `/order/cart/${cart.cartId}/vps`);
-    const targetPlan = plans.find((p: any) => p.planCode === VPS_PLAN_CODE);
+    const targetPlan = plans.find((p: any) => p.planCode === dryRunPlan);
     if (!targetPlan) {
-      console.log(`Plan ${VPS_PLAN_CODE} not found. Available:`);
+      console.log(`Plan ${dryRunPlan} not found. Available:`);
       plans.slice(0, 5).forEach((p: any) => console.log(`  ${p.planCode}`));
       return;
     }
 
     const item = await client.requestPromised('POST', `/order/cart/${cart.cartId}/vps`, {
       duration: 'P1M',
-      planCode: VPS_PLAN_CODE,
+      planCode: dryRunPlan,
       pricingMode: 'default',
       quantity: 1,
     });
@@ -381,24 +446,33 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
     const dcConfig = reqConfig.find((c: any) => c.label.includes('datacenter'));
     const osConfig = reqConfig.find((c: any) => c.label.includes('os'));
 
-    const dcValue = dcConfig?.allowedValues?.find((v: string) =>
-      v.toUpperCase().includes('WEST')
-    ) || dcConfig?.allowedValues?.[0] || VPS_DATACENTER;
+    const dcValue = dcConfig?.allowedValues?.[0] || 'US-EAST-VA';
 
-    const osValue = osConfig?.allowedValues?.find((v: string) =>
-      v.toLowerCase().includes('debian') && v.includes('12')
-    ) || osConfig?.allowedValues?.[0] || VPS_OS;
+    const osValue =
+      osConfig?.allowedValues?.find(
+        (v: string) => v.toLowerCase().includes('debian') && v.includes('12')
+      ) ||
+      osConfig?.allowedValues?.[0] ||
+      VPS_OS;
 
     console.log(`Datacenter: ${dcValue}, OS: ${osValue}`);
 
-    await client.requestPromised('POST', `/order/cart/${cart.cartId}/item/${item.itemId}/configuration`, {
-      label: dcConfig.label,
-      value: dcValue,
-    });
-    await client.requestPromised('POST', `/order/cart/${cart.cartId}/item/${item.itemId}/configuration`, {
-      label: osConfig.label,
-      value: osValue,
-    });
+    await client.requestPromised(
+      'POST',
+      `/order/cart/${cart.cartId}/item/${item.itemId}/configuration`,
+      {
+        label: dcConfig.label,
+        value: dcValue,
+      }
+    );
+    await client.requestPromised(
+      'POST',
+      `/order/cart/${cart.cartId}/item/${item.itemId}/configuration`,
+      {
+        label: osConfig.label,
+        value: osValue,
+      }
+    );
 
     // Dry-run checkout
     const checkout = await client.requestPromised('GET', `/order/cart/${cart.cartId}/checkout`);
@@ -421,243 +495,282 @@ describe('OpenClaw E2E: OVH VPS Deployment', () => {
   //         register SSH key, rebuild with key, verify SSH
   // ============================================================
 
-  it('should order a VPS and verify SSH access (REAL)', async () => {
-    if (!ACTUALLY_ORDER_VPS) {
-      console.log('E2E_ORDER_VPS !== true — skipping');
-      return;
-    }
-
-    // ---- 1. Generate SSH key pair + register with OVH ----
-    // SSH key must be registered BEFORE ordering so it's available for rebuild.
-    console.log('\n=== [1/7] Generating RSA SSH key pair ===');
-    const { publicKey: sshPub, privateKey: sshPriv } = generateSshKeys();
-    console.log(`  Public key: ${sshPub.slice(0, 60)}...`);
-
-    const keyDir = join(process.cwd(), '.e2e-keys');
-    mkdirSync(keyDir, { recursive: true });
-    const keyFile = join(keyDir, `openclaw-e2e-${Date.now()}`);
-    writeFileSync(keyFile, sshPriv, { mode: 0o600 });
-    evidence.sshKeyFile = keyFile;
-    console.log(`  Private key saved: ${keyFile}`);
-
-    // Clean up old e2e keys from the OVH account
-    const existingKeys = await ovhService.listSshKeys();
-    for (const oldKey of existingKeys) {
-      if (oldKey.startsWith('openclaw-')) {
-        try {
-          await ovhService.deleteSshKey(oldKey);
-          console.log(`  Deleted old OVH key: ${oldKey}`);
-        } catch {}
+  it(
+    'should order a VPS and verify SSH access (REAL)',
+    async () => {
+      if (!ACTUALLY_ORDER_VPS) {
+        console.log('E2E_ORDER_VPS !== true — skipping');
+        return;
       }
-    }
 
-    const sshKeyName = `openclaw-e2e-${Date.now()}`;
-    await ovhService.addSshKey(sshKeyName, sshPub);
-    evidence.sshKeyName = sshKeyName;
-    console.log(`  Registered SSH key with OVH as "${sshKeyName}"`);
+      // ---- 1. Generate SSH key pair + register with OVH ----
+      // SSH key must be registered BEFORE ordering so it's available for rebuild.
+      console.log('\n=== [1/7] Generating RSA SSH key pair ===');
+      const { publicKey: sshPub, privateKey: sshPriv } = generateSshKeys();
+      console.log(`  Public key: ${sshPub.slice(0, 60)}...`);
 
-    // ---- 2. Provision OpenRouter key (kept alive after test) ----
-    console.log('\n=== [2/7] Provisioning OpenRouter API key ===');
-    let orKey: { key: string; hash: string } | null = null;
-    if (process.env.OPENROUTER_PROVISIONING_KEY) {
-      const shortId = Date.now().toString(36);
-      orKey = await openRouterService.createKey(`openclaw-e2e-${shortId}`, {
-        limit: 10,
-        limit_reset: 'monthly',
+      const keyDir = join(process.cwd(), '.e2e-keys');
+      mkdirSync(keyDir, { recursive: true });
+      const keyFile = join(keyDir, `openclaw-e2e-${Date.now()}`);
+      writeFileSync(keyFile, sshPriv, { mode: 0o600 });
+      evidence.sshKeyFile = keyFile;
+      console.log(`  Private key saved: ${keyFile}`);
+
+      // Clean up old e2e keys from the OVH account
+      const existingKeys = await ovhService.listSshKeys();
+      for (const oldKey of existingKeys) {
+        if (oldKey.startsWith('openclaw-')) {
+          try {
+            await ovhService.deleteSshKey(oldKey);
+            console.log(`  Deleted old OVH key: ${oldKey}`);
+          } catch {}
+        }
+      }
+
+      const sshKeyName = `openclaw-e2e-${Date.now()}`;
+      await ovhService.addSshKey(sshKeyName, sshPub);
+      evidence.sshKeyName = sshKeyName;
+      console.log(`  Registered SSH key with OVH as "${sshKeyName}"`);
+
+      // ---- 2. Provision OpenRouter key (kept alive after test) ----
+      console.log('\n=== [2/7] Provisioning OpenRouter API key ===');
+      let orKey: { key: string; hash: string } | null = null;
+      if (process.env.OPENROUTER_PROVISIONING_KEY) {
+        const shortId = Date.now().toString(36);
+        orKey = await openRouterService.createKey(`openclaw-e2e-${shortId}`, {
+          limit: 10,
+          limit_reset: 'monthly',
+        });
+        evidence.openRouterKey = orKey.key;
+        evidence.openRouterKeyHash = orKey.hash;
+        console.log(`  Key hash: ${orKey.hash}`);
+      } else {
+        console.log('  OPENROUTER_PROVISIONING_KEY not set — skipping');
+      }
+
+      // ---- 3. Find available plan + datacenter and order ----
+      console.log('\n=== [3/7] Finding available VPS plan + datacenter ===');
+
+      let chosenPlan: string | null = null;
+      let chosenDc: string | null = null;
+
+      for (const plan of VPS_PLANS_PRIORITY) {
+        const dc = await ovhService.findAvailableDatacenter(plan);
+        if (dc) {
+          chosenPlan = plan;
+          chosenDc = dc;
+          console.log(`  Found: ${plan} @ ${dc}`);
+          break;
+        }
+        console.log(`  ${plan}: no available datacenters`);
+      }
+
+      // If nothing is in-stock, fall back to .LZ model1 with first cart datacenter
+      if (!chosenPlan) {
+        console.log('  No in-stock plans found. Trying first .LZ plan with cart datacenters...');
+        chosenPlan = VPS_PLANS_PRIORITY[0];
+        const cartDcs = await ovhService.getCartDatacenters(chosenPlan);
+        chosenDc = cartDcs[0] || 'US-EAST-LZ-MIA';
+        console.log(`  Fallback: ${chosenPlan} @ ${chosenDc}`);
+      }
+
+      console.log(`\n  Ordering VPS (${chosenPlan}, ${chosenDc}, ${VPS_OS})...`);
+      const order = await ovhService.orderVps({
+        planCode: chosenPlan!,
+        datacenter: chosenDc!,
+        os: VPS_OS,
       });
-      evidence.openRouterKey = orKey.key;
-      evidence.openRouterKeyHash = orKey.hash;
-      console.log(`  Key hash: ${orKey.hash}`);
-    } else {
-      console.log('  OPENROUTER_PROVISIONING_KEY not set — skipping');
-    }
-
-    // ---- 3. Order VPS ----
-    console.log(`\n=== [3/7] Ordering VPS (${VPS_PLAN_CODE}, ${VPS_DATACENTER}, ${VPS_OS}) ===`);
-    const order = await ovhService.orderVps({
-      planCode: VPS_PLAN_CODE,
-      datacenter: VPS_DATACENTER,
-      os: VPS_OS,
-    });
-    evidence.orderId = order.orderId;
-    evidence.orderUrl = order.url;
-    console.log(`  Order ID: ${order.orderId}`);
-    console.log(`  URL: ${order.url}`);
-
-    expect(order.orderId).toBeTruthy();
-
-    // ---- 4. Poll for delivery ----
-    console.log(`\n=== [4/7] Waiting for VPS delivery (polling every 30s, timeout 20min) ===`);
-    const vpsBefore = new Set(await ovhService.listVps());
-    const deadline = Date.now() + ORDER_POLL_TIMEOUT_MS;
-    let deliveredName: string | null = null;
-
-    while (Date.now() < deadline) {
-      await sleep(ORDER_POLL_INTERVAL_MS);
-
-      const vpsNow = await ovhService.listVps();
-      for (const name of vpsNow) {
-        if (!vpsBefore.has(name)) {
-          deliveredName = name;
-          break;
-        }
-      }
-      if (deliveredName) break;
-
-      try {
-        const status = await ovhService.getOrderStatus(order.orderId);
-        console.log(`  [${Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000)}s] Order status: ${status.status}`);
-        evidence.orderStatus = status;
-      } catch (err: any) {
-        console.log(`  Order status check error: ${err.message}`);
-      }
-    }
-
-    if (!deliveredName) {
-      console.log('\n  VPS not delivered within timeout.');
-      console.log('  Check OVH dashboard manually. The order was placed successfully.');
+      evidence.orderId = order.orderId;
+      evidence.orderUrl = order.url;
       console.log(`  Order ID: ${order.orderId}`);
-      return;
-    }
+      console.log(`  URL: ${order.url}`);
 
-    evidence.deliveredServiceName = deliveredName;
-    console.log(`  VPS delivered: ${deliveredName}`);
+      expect(order.orderId).toBeTruthy();
 
-    // ---- 5. Get IP (prefer IPv4) ----
-    console.log('\n=== [5/7] Retrieving VPS IP ===');
+      // ---- 4. Poll for delivery ----
+      console.log(`\n=== [4/7] Waiting for VPS delivery (polling every 30s, timeout 20min) ===`);
+      const vpsBefore = new Set(await ovhService.listVps());
+      const deadline = Date.now() + ORDER_POLL_TIMEOUT_MS;
+      let deliveredName: string | null = null;
 
-    let allIps: string[] = [];
-    for (let attempt = 0; attempt < 10; attempt++) {
-      try {
-        const ips = await ovhService.getVpsIps(deliveredName);
-        if (ips.length > 0) { allIps = ips; break; }
-      } catch {}
+      while (Date.now() < deadline) {
+        await sleep(ORDER_POLL_INTERVAL_MS);
 
-      try {
-        const details = await ovhService.getVpsDetails(deliveredName);
-        if (details.ips && details.ips.length > 0) { allIps = details.ips; break; }
-      } catch {}
-
-      console.log(`  Waiting for IP (attempt ${attempt + 1}/10)...`);
-      await sleep(15_000);
-    }
-
-    if (allIps.length === 0) {
-      console.log('  Could not retrieve VPS IP. Check OVH dashboard.');
-      return;
-    }
-
-    console.log(`  All IPs: ${allIps.join(', ')}`);
-    const isIpv4 = (ip: string) => /^\d+\.\d+\.\d+\.\d+$/.test(ip);
-    const ip = allIps.find(isIpv4) || allIps[0];
-    evidence.vpsIp = ip;
-    console.log(`  Using IP: ${ip}${isIpv4(ip) ? ' (IPv4)' : ' (IPv6)'}`);
-
-    // ---- 6. Rebuild with SSH key ----
-    // The initial order delivers a bare VPS with a random password.
-    // We rebuild with publicSshKey + doNotSendPassword to inject our key
-    // and avoid the forced password-change-on-first-login issue.
-    console.log(`\n=== [6/7] Rebuilding VPS with SSH key ===`);
-
-    // Find the target image
-    const imageIds = await ovhService.getAvailableImages(deliveredName);
-    let rebuildImageId: string | null = null;
-    for (const imgId of imageIds) {
-      try {
-        const img = await ovhService.getImageDetails(deliveredName, imgId);
-        if (img.name === REBUILD_IMAGE_NAME) {
-          rebuildImageId = imgId;
-          console.log(`  Found image: ${img.name} (${imgId})`);
-          break;
+        const vpsNow = await ovhService.listVps();
+        for (const name of vpsNow) {
+          if (!vpsBefore.has(name)) {
+            deliveredName = name;
+            break;
+          }
         }
-      } catch {}
-    }
+        if (deliveredName) break;
 
-    if (!rebuildImageId) {
-      console.log(`  Image "${REBUILD_IMAGE_NAME}" not found. Available images:`);
-      for (const imgId of imageIds.slice(0, 5)) {
+        try {
+          const status = await ovhService.getOrderStatus(order.orderId);
+          console.log(
+            `  [${Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000)}s] Order status: ${status.status}`
+          );
+          evidence.orderStatus = status;
+        } catch (err: any) {
+          console.log(`  Order status check error: ${err.message}`);
+        }
+      }
+
+      if (!deliveredName) {
+        console.log('\n  VPS not delivered within timeout.');
+        console.log('  Check OVH dashboard manually. The order was placed successfully.');
+        console.log(`  Order ID: ${order.orderId}`);
+        return;
+      }
+
+      evidence.deliveredServiceName = deliveredName;
+      console.log(`  VPS delivered: ${deliveredName}`);
+
+      // ---- 5. Get IP (prefer IPv4) ----
+      console.log('\n=== [5/7] Retrieving VPS IP ===');
+
+      let allIps: string[] = [];
+      for (let attempt = 0; attempt < 10; attempt++) {
+        try {
+          const ips = await ovhService.getVpsIps(deliveredName);
+          if (ips.length > 0) {
+            allIps = ips;
+            break;
+          }
+        } catch {}
+
+        try {
+          const details = await ovhService.getVpsDetails(deliveredName);
+          if (details.ips && details.ips.length > 0) {
+            allIps = details.ips;
+            break;
+          }
+        } catch {}
+
+        console.log(`  Waiting for IP (attempt ${attempt + 1}/10)...`);
+        await sleep(15_000);
+      }
+
+      if (allIps.length === 0) {
+        console.log('  Could not retrieve VPS IP. Check OVH dashboard.');
+        return;
+      }
+
+      console.log(`  All IPs: ${allIps.join(', ')}`);
+      const isIpv4 = (ip: string) => /^\d+\.\d+\.\d+\.\d+$/.test(ip);
+      const ip = allIps.find(isIpv4) || allIps[0];
+      evidence.vpsIp = ip;
+      console.log(`  Using IP: ${ip}${isIpv4(ip) ? ' (IPv4)' : ' (IPv6)'}`);
+
+      // ---- 6. Rebuild with SSH key ----
+      // The initial order delivers a bare VPS with a random password.
+      // We rebuild with publicSshKey + doNotSendPassword to inject our key
+      // and avoid the forced password-change-on-first-login issue.
+      console.log(`\n=== [6/7] Rebuilding VPS with SSH key ===`);
+
+      // Find the target image
+      const imageIds = await ovhService.getAvailableImages(deliveredName);
+      let rebuildImageId: string | null = null;
+      for (const imgId of imageIds) {
         try {
           const img = await ovhService.getImageDetails(deliveredName, imgId);
-          console.log(`    ${img.name} (${imgId})`);
+          if (img.name === REBUILD_IMAGE_NAME) {
+            rebuildImageId = imgId;
+            console.log(`  Found image: ${img.name} (${imgId})`);
+            break;
+          }
         } catch {}
       }
-      console.log('  Using first available image as fallback.');
-      rebuildImageId = imageIds[0];
-    }
 
-    evidence.rebuildImageId = rebuildImageId;
-
-    const rebuildResult = await ovhService.rebuildVps(deliveredName, rebuildImageId, sshPub);
-    console.log(`  Rebuild initiated: task ${rebuildResult.id}, state: ${rebuildResult.state}`);
-
-    // Wait for rebuild to complete (installing → running)
-    console.log('  Waiting for rebuild...');
-    const rebuildDeadline = Date.now() + REBUILD_POLL_TIMEOUT_MS;
-    let wasInstalling = false;
-
-    while (Date.now() < rebuildDeadline) {
-      await sleep(REBUILD_POLL_INTERVAL_MS);
-      try {
-        const details = await ovhService.getVpsDetails(deliveredName);
-        const elapsed = Math.round((Date.now() + REBUILD_POLL_TIMEOUT_MS - rebuildDeadline) / 1000);
-        console.log(`  [${elapsed}s] State: ${details.state}`);
-        if (details.state === 'installing') wasInstalling = true;
-        if (details.state === 'running' && wasInstalling) {
-          console.log('  Rebuild complete. Waiting 30s for SSH to come up...');
-          await sleep(30_000);
-          break;
+      if (!rebuildImageId) {
+        console.log(`  Image "${REBUILD_IMAGE_NAME}" not found. Available images:`);
+        for (const imgId of imageIds.slice(0, 5)) {
+          try {
+            const img = await ovhService.getImageDetails(deliveredName, imgId);
+            console.log(`    ${img.name} (${imgId})`);
+          } catch {}
         }
-      } catch (e: any) {
-        console.log(`  Poll error: ${e.message}`);
+        console.log('  Using first available image as fallback.');
+        rebuildImageId = imageIds[0];
       }
-    }
 
-    // ---- 7. Verify SSH ----
-    console.log(`\n=== [7/7] Verifying SSH access ===`);
-    const sshDeadline = Date.now() + SSH_POLL_TIMEOUT_MS;
-    let sshOk = false;
-    let sshUser = '';
+      evidence.rebuildImageId = rebuildImageId;
 
-    while (Date.now() < sshDeadline) {
-      for (const username of SSH_USERNAMES) {
+      const rebuildResult = await ovhService.rebuildVps(deliveredName, rebuildImageId, sshPub);
+      console.log(`  Rebuild initiated: task ${rebuildResult.id}, state: ${rebuildResult.state}`);
+
+      // Wait for rebuild to complete (installing → running)
+      console.log('  Waiting for rebuild...');
+      const rebuildDeadline = Date.now() + REBUILD_POLL_TIMEOUT_MS;
+      let wasInstalling = false;
+
+      while (Date.now() < rebuildDeadline) {
+        await sleep(REBUILD_POLL_INTERVAL_MS);
         try {
-          const result = await trySsh(ip, username, sshPriv, 'hostname && whoami && uname -a');
-          console.log(`  SSH connected as ${username}! Output: ${result}`);
-          sshOk = true;
-          sshUser = username;
-          break;
-        } catch (err: any) {
-          const remaining = Math.round((sshDeadline - Date.now()) / 1000);
-          console.log(`  ${username}: ${err.message} (${remaining}s left)`);
+          const details = await ovhService.getVpsDetails(deliveredName);
+          const elapsed = Math.round(
+            (Date.now() + REBUILD_POLL_TIMEOUT_MS - rebuildDeadline) / 1000
+          );
+          console.log(`  [${elapsed}s] State: ${details.state}`);
+          if (details.state === 'installing') wasInstalling = true;
+          if (details.state === 'running' && wasInstalling) {
+            console.log('  Rebuild complete. Waiting 30s for SSH to come up...');
+            await sleep(30_000);
+            break;
+          }
+        } catch (e: any) {
+          console.log(`  Poll error: ${e.message}`);
         }
       }
-      if (sshOk) break;
-      await sleep(SSH_POLL_INTERVAL_MS);
-    }
 
-    evidence.sshConnected = sshOk;
-    evidence.sshUser = sshUser;
+      // ---- 7. Verify SSH ----
+      console.log(`\n=== [7/7] Verifying SSH access ===`);
+      const sshDeadline = Date.now() + SSH_POLL_TIMEOUT_MS;
+      let sshOk = false;
+      let sshUser = '';
 
-    if (sshOk) {
-      console.log('\n========================================');
-      console.log('  VPS READY — CONNECTION INFO');
-      console.log('========================================');
-      console.log(`  IP:             ${ip}`);
-      console.log(`  Service:        ${deliveredName}`);
-      console.log(`  SSH:            ssh -i ${keyFile} ${sshUser}@${ip}`);
-      if (orKey) {
-        console.log(`  OpenRouter Key: ${orKey.key.slice(0, 15)}...`);
-        console.log(`  OR Key Hash:    ${orKey.hash}`);
+      while (Date.now() < sshDeadline) {
+        for (const username of SSH_USERNAMES) {
+          try {
+            const result = await trySsh(ip, username, sshPriv, 'hostname && whoami && uname -a');
+            console.log(`  SSH connected as ${username}! Output: ${result}`);
+            sshOk = true;
+            sshUser = username;
+            break;
+          } catch (err: any) {
+            const remaining = Math.round((sshDeadline - Date.now()) / 1000);
+            console.log(`  ${username}: ${err.message} (${remaining}s left)`);
+          }
+        }
+        if (sshOk) break;
+        await sleep(SSH_POLL_INTERVAL_MS);
       }
-      console.log('========================================\n');
 
-      expect(sshOk).toBe(true);
-    } else {
-      console.log('\n  SSH not available within timeout.');
-      console.log(`  The VPS is provisioned — try manually:`);
-      for (const username of SSH_USERNAMES) {
-        console.log(`    ssh -i ${keyFile} ${username}@${ip}`);
+      evidence.sshConnected = sshOk;
+      evidence.sshUser = sshUser;
+
+      if (sshOk) {
+        console.log('\n========================================');
+        console.log('  VPS READY — CONNECTION INFO');
+        console.log('========================================');
+        console.log(`  IP:             ${ip}`);
+        console.log(`  Service:        ${deliveredName}`);
+        console.log(`  SSH:            ssh -i ${keyFile} ${sshUser}@${ip}`);
+        if (orKey) {
+          console.log(`  OpenRouter Key: ${orKey.key.slice(0, 15)}...`);
+          console.log(`  OR Key Hash:    ${orKey.hash}`);
+        }
+        console.log('========================================\n');
+
+        expect(sshOk).toBe(true);
+      } else {
+        console.log('\n  SSH not available within timeout.');
+        console.log(`  The VPS is provisioned — try manually:`);
+        for (const username of SSH_USERNAMES) {
+          console.log(`    ssh -i ${keyFile} ${username}@${ip}`);
+        }
       }
-    }
-  }, 30 * 60_000); // 30 min timeout for the whole thing
+    },
+    30 * 60_000
+  ); // 30 min timeout for the whole thing
 });

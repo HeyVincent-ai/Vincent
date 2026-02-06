@@ -312,7 +312,53 @@ export async function listSshKeys(): Promise<string[]> {
  */
 export async function getAvailableDatacenters(planCode: string): Promise<any> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/order/rule/datacenter?ovhSubsidiary=US&planCode=${planCode}`);
+  return ovh.requestPromised(
+    'GET',
+    `/vps/order/rule/datacenter?ovhSubsidiary=US&planCode=${planCode}`,
+  );
+}
+
+/**
+ * Find the first in-stock datacenter for a plan.
+ * Returns the datacenter name or null if all are out of stock.
+ */
+export async function findAvailableDatacenter(planCode: string): Promise<string | null> {
+  const result = await getAvailableDatacenters(planCode);
+  if (!result?.datacenters) return null;
+  const available = result.datacenters.find(
+    (dc: any) => dc.linuxStatus === 'available',
+  );
+  return available?.datacenter || null;
+}
+
+/**
+ * Get the allowed datacenter values for a plan via the cart API.
+ * This returns the values accepted by the configuration endpoint,
+ * which may differ from the availability/stock endpoint.
+ */
+export async function getCartDatacenters(planCode: string): Promise<string[]> {
+  const ovh = getClient();
+  const cart = await ovh.requestPromised('POST', '/order/cart', {
+    ovhSubsidiary: 'US',
+    description: 'datacenter check',
+  });
+  await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/assign`);
+  try {
+    const item = await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/vps`, {
+      duration: 'P1M',
+      planCode,
+      pricingMode: 'default',
+      quantity: 1,
+    });
+    const reqConfig = await ovh.requestPromised(
+      'GET',
+      `/order/cart/${cart.cartId}/item/${item.itemId}/requiredConfiguration`,
+    );
+    const dcConfig = reqConfig.find((c: any) => c.label.includes('datacenter'));
+    return dcConfig?.allowedValues || [];
+  } catch {
+    return [];
+  }
 }
 
 /**
