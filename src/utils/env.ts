@@ -79,6 +79,15 @@ const envSchema = z.object({
 
   // Webshare Proxy (for geo-restricted API calls like Polymarket)
   WEBSHARE_API_KEY: z.string().optional(),
+
+  // OVH API (for OpenClaw VPS provisioning)
+  OVH_APP_KEY: z.string().optional(),
+  OVH_APP_SECRET: z.string().optional(),
+  OVH_CONSUMER_KEY: z.string().optional(),
+  OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+
+  // OpenRouter Provisioning Key (for per-deployment API key management)
+  OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

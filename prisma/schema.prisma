@@ -23,6 +23,7 @@ model User {
   gasUsages          GasUsage[]
   monthlyGasSummaries MonthlyGasSummary[]
   auditLogs          AuditLog[]
+  openclawDeployments OpenClawDeployment[]
 
   @@map("users")
 }
@@ -305,4 +306,51 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([status, createdAt])
   @@map("audit_logs")
+}
+
+// OpenClaw deployment status enum
+enum OpenClawStatus {
+  PENDING
+  ORDERING
+  PROVISIONING
+  INSTALLING
+  READY
+  ERROR
+  DESTROYING
+  DESTROYED
+}
+
+// OpenClaw VPS deployment tracking
+model OpenClawDeployment {
+  id              String         @id @default(cuid())
+  userId          String         @map("user_id")
+  user            User           @relation(fields: [userId], references: [id])
+
+  // OVH identifiers
+  ovhServiceName  String?        @unique @map("ovh_service_name")
+  ovhOrderId      String?        @map("ovh_order_id")
+  ovhCartId       String?        @map("ovh_cart_id")
+
+  // Instance details
+  ipAddress       String?        @map("ip_address")
+  accessToken     String?        @map("access_token")
+  sshPrivateKey   String?        @map("ssh_private_key")  @db.Text
+  sshPublicKey    String?        @map("ssh_public_key")   @db.Text
+
+  // OpenRouter
+  openRouterKeyHash String?      @map("open_router_key_hash")
+
+  // Status tracking
+  status          OpenClawStatus @default(PENDING)
+  statusMessage   String?        @map("status_message")
+  provisionLog    String?        @map("provision_log") @db.Text
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  readyAt         DateTime?      @map("ready_at")
+  destroyedAt     DateTime?      @map("destroyed_at")
+
+  @@index([userId])
+  @@map("openclaw_deployments")
 }
