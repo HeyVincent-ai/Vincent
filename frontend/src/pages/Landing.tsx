@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 type Persona = 'human' | 'agent';
-type InstallMethod = 'clawhub' | 'manual' | 'other';
+type InstallMethod = 'clawhub' | 'other';
+type SkillChoice = 'wallet' | 'polymarket';
 
 const STYLES = `
   :root{
@@ -252,6 +253,34 @@ const STYLES = `
     color: rgba(245,246,248,.75);
   }
 
+  /* Skill Selector */
+  .landing-page .skillTabs{
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .landing-page .skillTab{
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all .18s ease;
+  }
+  .landing-page .skillTab.active{
+    background: rgba(255,255,255,.08);
+    color: var(--text);
+    border-color: rgba(255,255,255,.18);
+  }
+  .landing-page .skillTab:not(.active):hover{
+    background: rgba(255,255,255,.04);
+    color: rgba(245,246,248,.75);
+  }
+
   /* Install Card */
   .landing-page .installCard{
     background: rgba(0,0,0,.35);
@@ -329,7 +358,6 @@ const STYLES = `
 
 export default function Landing() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const cmdRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Parallax background effect
@@ -384,8 +412,7 @@ export default function Landing() {
     };
   }, []);
 
-  const handleCopy = async () => {
-    const text = cmdRef.current?.textContent?.replace('$', '').trim() || '';
+  const handleCopy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -406,6 +433,20 @@ export default function Landing() {
 
   const [persona, setPersona] = useState<Persona>('human');
   const [installMethod, setInstallMethod] = useState<InstallMethod>('clawhub');
+  const [selectedSkill, setSelectedSkill] = useState<SkillChoice>('wallet');
+
+  const installCommands: Record<InstallMethod, Record<SkillChoice, string>> = {
+    clawhub: {
+      wallet: 'npx clawhub@latest install agentwallet',
+      polymarket: 'npx clawhub@latest install vincentpolymarket',
+    },
+    other: {
+      wallet: 'npx skills add HeyVincent-ai/Vincent/wallet',
+      polymarket: 'npx skills add HeyVincent-ai/Vincent/polymarket',
+    },
+  };
+
+  const currentCommand = installCommands[installMethod][selectedSkill];
 
   // const handleSubscribe = () => {
   //   const val = emailRef.current?.value || '';
@@ -483,7 +524,7 @@ export default function Landing() {
               <div className="installTitle">
                 {persona === 'human'
                   ? ''
-                  : 'Get a secure wallet to use for transfers, swaps, and any EVM chain transaction'}
+                  : 'Give your agent a secure wallet for transfers, swaps, and prediction markets'}
               </div>
 
               <div className="methodTabs">
@@ -499,25 +540,30 @@ export default function Landing() {
                 >
                   other agents
                 </button>
+              </div>
+
+              <div className="skillTabs">
                 <button
-                  className={`methodTab ${installMethod === 'manual' ? 'active' : ''}`}
-                  onClick={() => setInstallMethod('manual')}
+                  className={`skillTab ${selectedSkill === 'wallet' ? 'active' : ''}`}
+                  onClick={() => setSelectedSkill('wallet')}
                 >
-                  manual
+                  agent wallet
+                </button>
+                <button
+                  className={`skillTab ${selectedSkill === 'polymarket' ? 'active' : ''}`}
+                  onClick={() => setSelectedSkill('polymarket')}
+                >
+                  polymarket
                 </button>
               </div>
 
               <div className="commandBox">
-                <div className="commandText" ref={cmdRef}>
-                  {installMethod === 'clawhub'
-                    ? 'npx clawhub@latest install agentwallet'
-                    : installMethod === 'other'
-                      ? 'npx skills add HeyVincent-ai/agent-skills'
-                      : 'Read https://heyvincent.ai/SKILL.md and follow the instructions'}
+                <div className="commandText">
+                  {currentCommand}
                 </div>
                 <button
                   className="copyBtnInline"
-                  onClick={handleCopy}
+                  onClick={() => handleCopy(currentCommand)}
                   aria-label="Copy"
                   title="Copy"
                 >
@@ -555,7 +601,7 @@ export default function Landing() {
               ) : (
                 <ol className="stepsList">
                   <li>
-                    <span className="stepNum">1.</span> Run this command or read the skill
+                    <span className="stepNum">1.</span> Run this command to install the skill
                   </li>
                   <li>
                     <span className="stepNum">2.</span> Create a wallet for your user
