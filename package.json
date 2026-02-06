@@ -27,7 +27,8 @@
     "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
     "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts",
     "test:openclaw": "vitest run src/e2e/openclaw.e2e.test.ts --test-timeout 600000",
-    "test:openclaw-api": "vitest run src/e2e/openclaw-api.e2e.test.ts --test-timeout 600000"
+    "test:openclaw-api": "vitest run src/e2e/openclaw-api.e2e.test.ts --test-timeout 600000",
+    "test:openclaw-billing": "vitest run src/e2e/openclaw-billing.e2e.test.ts --test-timeout 120000"
   },
   "keywords": [
     "secrets",

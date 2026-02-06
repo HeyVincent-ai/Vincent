@@ -27,7 +27,7 @@
 - [x] **3.2** Write E2E test for API endpoints (`src/e2e/openclaw-api.e2e.test.ts`) — tests deployment CRUD, auth, user isolation, polling lifecycle, and destroy via HTTP API with mocked auth
 - [x] **3.3** VPS setup script tested on real OVH VPS (build script embedded in openclaw.service.ts)
 
-## Phase 4: Billing ($25/mo per deployment) ✅ COMPLETE (except E2E test)
+## Phase 4: Billing ($25/mo per deployment) ✅ COMPLETE
 
 - [x] **4.1** Add `STRIPE_OPENCLAW_PRICE_ID` to env schema (`src/utils/env.ts`)
 - [x] **4.2** Prisma migration `20260206_add_openclaw_billing`: add `stripeSubscriptionId` (String? @unique), `currentPeriodEnd` (DateTime?), `canceledAt` (DateTime?) to `OpenClawDeployment`; add `PENDING_PAYMENT` and `CANCELING` to `OpenClawStatus` enum
@@ -38,7 +38,7 @@
 - [x] **4.7** Update frontend deploy flow — `deployOpenClaw(successUrl, cancelUrl)` returns `{ deploymentId, checkoutUrl }`, frontend redirects to Stripe Checkout, handles return via `openclaw_deploy` + `openclaw_deployment_id` query params
 - [x] **4.8** Update frontend cancel flow — "Cancel" button on detail page triggers cancel confirmation dialog, shows "Active until [date]" for CANCELING status, "Destroy Now" option for immediate teardown
 - [x] **4.9** Update `OpenClawSection.tsx` — shows "$25/mo" on deploy button, added PENDING_PAYMENT step to progress, CANCELING status with period end date, `id="openclaw"` anchor
-- [ ] **4.10** E2E test: billing flow (checkout session creation, webhook-triggered provisioning, cancel at period end, subscription expiry → VPS destroy)
+- [x] **4.10** E2E test `src/e2e/openclaw-billing.e2e.test.ts` — 9 tests covering: checkout session creation (PENDING_PAYMENT), startProvisioning transition, billing fields in API response, cancel at period end (CANCELING + Stripe cancel_at_period_end), restart allowed while CANCELING, subscription expiry → destroy, immediate destroy cancels Stripe sub, validation of required URLs
 
 ## Phase 5: Token Billing (LLM credit system)
 

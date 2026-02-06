@@ -950,6 +950,7 @@ No DNS needed.
 2. **Webhook handler branching**: The existing `handleCheckoutCompleted`, `handleSubscriptionDeleted`, and `handleInvoicePaymentFailed` handlers in `stripe.service.ts` were extended to check for OpenClaw subscriptions (by looking up `prisma.openClawDeployment.findFirst({ where: { stripeSubscriptionId } })`) before falling through to the standard subscription logic.
 3. **Stripe v2026+ period dates**: Period dates are on `subscription.items.data[0].current_period_start/end`, not on the subscription itself.
 4. **Deploy flow change**: `deploy()` no longer starts provisioning immediately. It creates a `PENDING_PAYMENT` deployment + Stripe Checkout session. Provisioning begins only when the `checkout.session.completed` webhook fires, via `startProvisioning()`.
+5. **E2E billing test pattern**: Test subscriptions created with `payment_behavior: 'default_incomplete'` (no real payment method on test customer) get status `incomplete_expired` when canceled, not `canceled`. Assertions should accept both. Call `startProvisioning()` directly to simulate webhook rather than trying to forge webhook signatures.
 
 ## Open Questions
 
