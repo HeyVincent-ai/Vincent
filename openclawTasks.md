@@ -40,11 +40,26 @@
 - [ ] **4.9** Update `OpenClawSection.tsx` — show "$25/mo" on deploy button, add PENDING_PAYMENT and CANCELING states to progress/status UI
 - [ ] **4.10** E2E test: billing flow (checkout session creation, webhook-triggered provisioning, cancel at period end, subscription expiry → VPS destroy)
 
-## Phase 5: Hardening
+## Phase 5: Token Billing (LLM credit system)
 
-- [ ] **5.1** Add error recovery — retry failed provisions, cleanup orphaned VPS, revoke orphaned OpenRouter keys
-- [ ] **5.2** Add deployment timeout handling — cancel/error after 20 min of no progress
-- [ ] **5.3** Add monitoring / health checks for running instances (periodic background checks)
-- [ ] **5.4** Add OpenRouter usage tracking + passthrough billing via Stripe
-- [ ] **5.5** Add rate limiting on deploy endpoint to prevent abuse
-- [ ] **5.6** Add cost tracking per user (VPS + OpenRouter token costs)
+- [ ] **5.1** Prisma migration: add `creditBalanceUsd` (Decimal, default 25.00), `lastKnownUsageUsd` (Decimal, default 0), `lastUsagePollAt` (DateTime?) to `OpenClawDeployment`; add new `OpenClawCreditPurchase` model (id, deploymentId, amountUsd, stripePaymentIntentId, createdAt)
+- [ ] **5.2** Add `updateKeyLimit(hash, newLimit)` to `openrouter.service.ts` — PATCH `/api/v1/keys/:hash` to update spending limit; also expand `getKeyUsage()` return to include `usage_daily`, `usage_weekly`, `usage_monthly`
+- [ ] **5.3** Update deploy flow in `openclaw.service.ts` — create OpenRouter key with `limit: 25` ($25 free credits), initialize `creditBalanceUsd = 25.00` on deployment record
+- [ ] **5.4** Add `getUsage()` method to `openclaw.service.ts` — poll OpenRouter `getKeyUsage()` if last poll > 60s ago, cache `lastKnownUsageUsd` + `lastUsagePollAt` in DB, return usage breakdown + remaining credits
+- [ ] **5.5** Add `addCredits()` method to `openclaw.service.ts` — validate amount ($5-$500), call `chargeCustomerOffSession()`, on success: increment `creditBalanceUsd`, call `updateKeyLimit()` with new total, create `OpenClawCreditPurchase` record; handle 3D Secure (`requiresAction` + `clientSecret`)
+- [ ] **5.6** Add `chargeCustomerOffSession(userId, amountCents, description, metadata)` to `stripe.service.ts` — get customer's default payment method from `customer.invoice_settings.default_payment_method`, create PaymentIntent with `off_session: true, confirm: true`, handle `authentication_required` error
+- [ ] **5.7** Add `GET /api/openclaw/deployments/:id/usage` route — returns `{ creditBalanceUsd, totalUsageUsd, remainingUsd, usageDailyUsd, usageMonthlyUsd, lastPolledAt }`
+- [ ] **5.8** Add `POST /api/openclaw/deployments/:id/credits` route — body `{ amountUsd }`, returns `{ success, newBalanceUsd, paymentIntentId }` or `{ requiresAction, clientSecret }` for 3D Secure
+- [ ] **5.9** Update frontend `OpenClawDetail.tsx` — add usage card above iframe: progress bar (used / total credits), daily/monthly stats, "Add Credits" button → modal with dollar amount input + confirm → calls `addOpenClawCredits()` → handles 3D Secure via Stripe.js `confirmCardPayment(clientSecret)` if needed → refreshes usage on success
+- [ ] **5.10** Update frontend `OpenClawSection.tsx` dashboard card — show credit balance summary for READY deployments (e.g. "$18.42 of $25.00 credits remaining"), show "Credits exhausted" warning when remaining ≤ $0
+- [ ] **5.11** Add frontend API functions: `getOpenClawUsage(id)`, `addOpenClawCredits(id, amountUsd)` in `frontend/src/api.ts`
+- [ ] **5.12** Add background usage poller — cron/interval that polls OpenRouter usage for all READY deployments every 5 min, updates `lastKnownUsageUsd` in DB (for dashboard freshness without requiring page load)
+- [ ] **5.13** E2E test: credit system (verify $25 initial credit, usage polling, add credits via Stripe off-session charge, OpenRouter key limit updated)
+
+## Phase 6: Hardening
+
+- [ ] **6.1** Add error recovery — retry failed provisions, cleanup orphaned VPS, revoke orphaned OpenRouter keys
+- [ ] **6.2** Add deployment timeout handling — cancel/error after 20 min of no progress
+- [ ] **6.3** Add monitoring / health checks for running instances (periodic background checks)
+- [ ] **6.4** Add rate limiting on deploy endpoint to prevent abuse
+- [ ] **6.5** Add cost tracking per user (VPS + OpenRouter token costs)
