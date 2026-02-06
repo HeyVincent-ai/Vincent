@@ -27,7 +27,7 @@
  *   systemd service instead.
  * - Top-level "model" key is invalid in openclaw.json. The correct path
  *   is agents.defaults.model = { primary: "provider/model" }.
- * - Use `openclaw setup --non-interactive --mode local` to bootstrap
+ * - Use `openclaw onboard --non-interactive --accept-risk --mode local` to bootstrap
  *   config, then `openclaw config set` for schema-validated changes.
  * - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to VPS IP,
  *   so Caddy can auto-provision a Let's Encrypt TLS certificate.
@@ -248,7 +248,7 @@ function buildSetupScript(openRouterApiKey: string, hostname: string): string {
   //   systemd service.
   // - Top-level "model" is not a valid config key. Use openclaw config set
   //   with agents.defaults.model (object with "primary" field).
-  // - Use `openclaw setup --non-interactive --mode local` to create initial
+  // - Use `openclaw onboard --non-interactive --accept-risk --mode local` to create initial
   //   config, then `openclaw config set` for schema-validated changes.
   // - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to the VPS IP,
   //   allowing Caddy to obtain a Let's Encrypt certificate automatically.
@@ -266,19 +266,25 @@ curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
 echo "=== [3/8] Installing Vincent agent wallet skill ==="
 npx --yes clawhub@latest install agentwallet || true
 
-echo "=== [4/8] Initializing OpenClaw config ==="
-openclaw setup --non-interactive --mode local
+echo "=== [4/8] Running OpenClaw onboard ==="
+openclaw onboard \
+  --non-interactive \
+  --accept-risk \
+  --mode local \
+  --auth-choice openrouter-api-key \
+  --openrouter-api-key '${openRouterApiKey}' \
+  --gateway-bind loopback \
+  --skip-channels \
+  --skip-skills \
+  --skip-health \
+  --skip-ui \
+  --skip-daemon
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Set model (agents.defaults.model is an object with "primary" key)
 openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-flash-preview"}'
 
-# Set OpenRouter API key
-openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
-
-# Gateway settings
-openclaw config set gateway.mode local
-openclaw config set gateway.bind loopback
+# Additional gateway settings not covered by onboard
 openclaw config set gateway.controlUi.allowInsecureAuth true
 openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 

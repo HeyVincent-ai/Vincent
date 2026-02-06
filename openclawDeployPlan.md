@@ -82,6 +82,11 @@ model OpenClawDeployment {
   statusMessage   String?             // human-readable status detail
   provisionLog    String?  @db.Text   // log output from provisioning
 
+  // Billing
+  stripeSubscriptionId String?  @unique   // Stripe subscription ID for $25/mo
+  currentPeriodEnd     DateTime?          // when the current billing period ends
+  canceledAt           DateTime?          // when user requested cancellation
+
   // Timestamps
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -92,11 +97,13 @@ model OpenClawDeployment {
 }
 
 enum OpenClawStatus {
-  PENDING           // user clicked deploy, order not yet placed
+  PENDING_PAYMENT   // checkout session created, waiting for payment
+  PENDING           // payment confirmed, order not yet placed
   ORDERING          // OVH order placed, waiting for VPS delivery
   PROVISIONING      // VPS delivered, running install script
   INSTALLING        // OpenClaw being installed via official install.sh
   READY             // OpenClaw is live and accessible
+  CANCELING         // subscription set to cancel at period end, VPS still running
   ERROR             // something went wrong (see statusMessage)
   DESTROYING        // tear-down in progress
   DESTROYED         // VPS deleted
@@ -128,6 +135,7 @@ OVH_APP_SECRET=...
 OVH_CONSUMER_KEY=...
 OVH_ENDPOINT=ovh-us              # US endpoint
 OPENROUTER_PROVISIONING_KEY=...  # Provisioning API key (key mgmt only, not completions)
+STRIPE_OPENCLAW_PRICE_ID=...     # Stripe Price ID for $25/mo OpenClaw subscription
 ```
 
 **Key methods:**
@@ -216,8 +224,11 @@ Orchestrates the full deploy lifecycle.
 
 ```ts
 class OpenClawService {
-  // Main deploy orchestrator — runs as async background job
-  async deploy(userId: string): Promise<OpenClawDeployment>;
+  // Main deploy orchestrator — creates checkout session, provisioning starts after payment
+  async deploy(userId: string, successUrl: string, cancelUrl: string): Promise<{ deployment: OpenClawDeployment; checkoutUrl: string }>;
+
+  // Called by webhook after checkout.session.completed — starts VPS provisioning
+  async startProvisioning(deploymentId: string): Promise<void>;
 
   // Get deployment status
   async getDeployment(deploymentId: string, userId: string): Promise<OpenClawDeployment>;
@@ -225,32 +236,57 @@ class OpenClawService {
   // List user's deployments
   async listDeployments(userId: string): Promise<OpenClawDeployment[]>;
 
-  // Destroy a deployment
+  // Cancel subscription (sets cancel_at_period_end, VPS stays running until expiry)
+  async cancel(deploymentId: string, userId: string): Promise<void>;
+
+  // Destroy a deployment immediately (called by webhook on subscription expiry)
   async destroy(deploymentId: string, userId: string): Promise<void>;
 
   // Restart OpenClaw on the VPS
   async restart(deploymentId: string, userId: string): Promise<void>;
+
+  // Called by webhook on customer.subscription.deleted — destroys VPS after subscription expires
+  async handleSubscriptionExpired(stripeSubscriptionId: string): Promise<void>;
 }
 ```
 
-**Deploy flow (background job):**
+**Deploy flow (checkout + background job):**
 
 ```
-1. Create OpenClawDeployment record (PENDING)
-2. Provision a fresh OpenRouter API key via OpenRouter Key Management API
-3. Call OVH API to order VPS (→ ORDERING)
-4. Poll OVH order status until VPS is delivered (every 30s, timeout 15 min)
-5. Retrieve VPS IP address (→ PROVISIONING)
-6. SSH into VPS and run setup script (→ INSTALLING):
-   a. Install prereqs (curl, caddy)
-   b. Run official OpenClaw installer non-interactively
-   c. Pre-install Vincent agent wallet skill (`npx --yes clawhub@latest install agentwallet`)
-   d. Write OpenClaw config with OpenRouter API key, model, and gateway settings
-   e. Configure Caddy to reverse proxy https://<vps-ip> → localhost:18789 (TLS via Let's Encrypt IP certs)
-   f. Start OpenClaw gateway as systemd service
-   g. Read access token from ~/.openclaw/openclaw.json (gateway.auth.token)
-7. Poll OpenClaw health endpoint (https://<vps-ip>) until responsive (→ READY)
-8. Store ipAddress, accessToken, openRouterKeyHash, and readyAt in database
+1. Create OpenClawDeployment record (PENDING_PAYMENT)
+2. Create Stripe Checkout session for STRIPE_OPENCLAW_PRICE_ID ($25/mo)
+   - metadata: { deploymentId, userId }
+   - Return checkout URL to frontend for redirect
+3. User completes payment on Stripe Checkout
+4. Webhook: checkout.session.completed → update deployment (→ PENDING), start provisioning:
+   a. Store stripeSubscriptionId, currentPeriodEnd on deployment
+   b. Provision a fresh OpenRouter API key via OpenRouter Key Management API
+   c. Call OVH API to order VPS (→ ORDERING)
+   d. Poll OVH order status until VPS is delivered (every 30s, timeout 15 min)
+   e. Retrieve VPS IP address (→ PROVISIONING)
+   f. SSH into VPS and run setup script (→ INSTALLING):
+      - Install prereqs (curl, caddy)
+      - Run official OpenClaw installer non-interactively
+      - Pre-install Vincent agent wallet skill (`npx --yes clawhub@latest install agentwallet`)
+      - Write OpenClaw config with OpenRouter API key, model, and gateway settings
+      - Configure Caddy to reverse proxy https://<vps-ip> → localhost:18789 (TLS via Let's Encrypt IP certs)
+      - Start OpenClaw gateway as systemd service
+      - Read access token from ~/.openclaw/openclaw.json (gateway.auth.token)
+   g. Poll OpenClaw health endpoint (https://<vps-ip>) until responsive (→ READY)
+   h. Store ipAddress, accessToken, openRouterKeyHash, and readyAt in database
+```
+
+**Cancel flow (graceful, keeps VPS until subscription expires):**
+
+```
+1. User clicks "Cancel" on deployment
+2. POST /api/openclaw/deployments/:id/cancel
+3. Backend sets cancel_at_period_end: true on Stripe subscription
+4. Update deployment: canceledAt = now, status → CANCELING
+5. Frontend shows "Active until <currentPeriodEnd>" with status badge
+6. VPS continues running until subscription period ends
+7. Webhook: customer.subscription.deleted → fires when period actually ends
+8. Backend destroys VPS, revokes OpenRouter key (→ DESTROYING → DESTROYED)
 ```
 
 **SSH execution:**
@@ -398,12 +434,13 @@ const router = Router();
 // All routes require session auth
 router.use(sessionAuthMiddleware);
 
-// Deploy a new OpenClaw instance
+// Deploy a new OpenClaw instance (creates Stripe checkout session)
 router.post(
   '/deploy',
   asyncHandler(async (req, res) => {
-    // Kick off deploy and return deployment record
-    // Users can have multiple active deployments
+    // Create deployment record (PENDING_PAYMENT) + Stripe checkout session
+    // Return { deploymentId, checkoutUrl } for frontend redirect
+    // Provisioning starts after checkout.session.completed webhook
   })
 );
 
@@ -419,15 +456,27 @@ router.get(
 router.get(
   '/deployments/:id',
   asyncHandler(async (req, res) => {
-    // Return deployment details + current status
+    // Return deployment details + current status + billing info
+    // Includes: stripeSubscriptionId, currentPeriodEnd, canceledAt
   })
 );
 
-// Destroy a deployment
+// Cancel a deployment (cancels subscription at period end, VPS stays running)
+router.post(
+  '/deployments/:id/cancel',
+  asyncHandler(async (req, res) => {
+    // Set cancel_at_period_end on Stripe subscription
+    // Update deployment: canceledAt, status → CANCELING
+    // VPS destroyed later by webhook when subscription actually expires
+  })
+);
+
+// Destroy a deployment immediately (also cancels Stripe subscription immediately)
 router.delete(
   '/deployments/:id',
   asyncHandler(async (req, res) => {
-    // Terminate VPS, update status to DESTROYING
+    // Cancel Stripe subscription immediately (no refund)
+    // Terminate VPS, revoke OpenRouter key, status → DESTROYING
   })
 );
 
@@ -454,9 +503,12 @@ router.use('/openclaw', openclawRouter);
 
 ```ts
 // OpenClaw
-export const deployOpenClaw = () => api.post('/openclaw/deploy');
+export const deployOpenClaw = (successUrl: string, cancelUrl: string) =>
+  api.post('/openclaw/deploy', { successUrl, cancelUrl });
 export const getOpenClawDeployments = () => api.get('/openclaw/deployments');
 export const getOpenClawDeployment = (id: string) => api.get(`/openclaw/deployments/${id}`);
+export const cancelOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/cancel`);
 export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
 export const restartOpenClawDeployment = (id: string) =>
   api.post(`/openclaw/deployments/${id}/restart`);
@@ -470,18 +522,21 @@ A self-contained component rendered on the Dashboard page below the secrets list
 
 | State                                                | UI                                                                                                     |
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| No deployment                                        | Card with OpenClaw logo, description, "Deploy OpenClaw" button                                         |
+| No deployment                                        | Card with OpenClaw logo, description, "Deploy OpenClaw — $25/mo" button                               |
+| Pending payment (PENDING_PAYMENT)                    | Card with "Completing payment..." message (user redirected to Stripe Checkout)                         |
 | Deploying (PENDING/ORDERING/PROVISIONING/INSTALLING) | Progress card with status steps, spinner, status message                                               |
-| Ready                                                | Card with green status badge, "Open" link (navigates to `/openclaw/:id` iframe view), "Destroy" option |
+| Ready                                                | Card with green status badge, "Open" link, "Cancel" option (cancel subscription)                       |
+| Canceling (CANCELING)                                | Card with orange badge, "Active until [date]", "Open" link still works, "Destroy Now" option           |
 | Error                                                | Card with error message, "Retry" button, "Destroy" option                                              |
 | Destroyed                                            | Same as "No deployment" state                                                                          |
 
 **Progress steps shown during deploy:**
 
-1. Ordering VPS... (PENDING/ORDERING)
-2. Setting up server... (PROVISIONING)
-3. Installing OpenClaw... (INSTALLING)
-4. Ready! (READY)
+1. Completing payment... (PENDING_PAYMENT)
+2. Ordering VPS... (PENDING/ORDERING)
+3. Setting up server... (PROVISIONING)
+4. Installing OpenClaw... (INSTALLING)
+5. Ready! (READY)
 
 **Polling:** While deploying, poll `GET /api/openclaw/deployments/:id` every 5 seconds until status is READY or ERROR.
 
@@ -552,16 +607,29 @@ pointing directly at the VPS IP over HTTPS:
 ## Deploy Flow (End-to-End)
 
 ```
-User clicks "Deploy OpenClaw"
+User clicks "Deploy OpenClaw — $25/mo"
         │
         ▼
-Frontend calls POST /api/openclaw/deploy
+Frontend calls POST /api/openclaw/deploy { successUrl, cancelUrl }
         │
         ▼
-Backend creates OpenClawDeployment (PENDING)
-Returns deployment ID immediately
+Backend creates OpenClawDeployment (PENDING_PAYMENT)
+Creates Stripe Checkout session (STRIPE_OPENCLAW_PRICE_ID, metadata: { deploymentId, userId })
+Returns { deploymentId, checkoutUrl }
+        │
+        ▼
+Frontend redirects user to Stripe Checkout (checkoutUrl)
+        │
+        ▼
+User completes payment on Stripe
+        │
+        ▼
+Stripe redirects user back to successUrl (e.g. /dashboard?openclaw_deploy=success)
         │
         ├──► Frontend starts polling GET /api/openclaw/deployments/:id
+        │
+        ▼ (webhook: checkout.session.completed)
+Backend updates deployment: stripeSubscriptionId, currentPeriodEnd (→ PENDING)
         │
         ▼ (async background)
 Backend provisions fresh OpenRouter API key (via Provisioning Key API)
@@ -595,6 +663,37 @@ Shows "Your OpenClaw is ready!" with "Open" button
 User clicks "Open" → navigates to /openclaw/:id
 OpenClaw web UI loads in iframe: <iframe src="https://<vps-ip>?token=...">
 (Caddy on VPS provides TLS, auth token injected as URL param by frontend)
+```
+
+### Cancellation Flow (End-to-End)
+
+```
+User clicks "Cancel" on deployment
+        │
+        ▼
+Frontend calls POST /api/openclaw/deployments/:id/cancel
+        │
+        ▼
+Backend sets cancel_at_period_end: true on Stripe subscription
+Updates deployment: canceledAt = now, status → CANCELING
+Returns { currentPeriodEnd } to frontend
+        │
+        ▼
+Frontend shows "Active until <date>" with orange status badge
+OpenClaw instance continues working normally
+        │
+        ... time passes, subscription period ends ...
+        │
+        ▼ (webhook: customer.subscription.deleted)
+Backend calls handleSubscriptionExpired(stripeSubscriptionId)
+Looks up deployment by stripeSubscriptionId
+        │
+        ▼
+Backend terminates OVH VPS (→ DESTROYING)
+Revokes OpenRouter API key
+        │
+        ▼
+Deployment status → DESTROYED, destroyedAt = now
 ```
 
 ---
@@ -659,7 +758,7 @@ No DNS needed.
 5. **TLS** — Caddy auto-provisions Let's Encrypt IP address certificates (6-day, auto-renewed). All iframe traffic is HTTPS.
 6. **OpenRouter keys** — each deployment gets its own key via Provisioning API; key is revoked when deployment is destroyed; provisioning key (env var) can only manage keys, not make completions
 7. **Rate limiting** — limit deploy endpoint to prevent abuse
-8. **Cost control** — track VPS + OpenRouter token costs per user, potentially tie to existing billing/subscription system
+8. **Cost control** — each deployment requires a $25/mo Stripe subscription; VPS provisioning only begins after confirmed payment via webhook; subscription expiry automatically triggers VPS teardown
 
 ---
 
@@ -675,11 +774,19 @@ No DNS needed.
 - Each deployment has its own OpenRouter API key with usage tracking
 - OpenRouter Provisioning API exposes per-key usage stats (`usage`, `usage_daily`, etc.)
 
-**Billing strategy:**
+**Subscription billing ($25/mo per deployment):**
 
-- **MVP:** limit 1 deployment per user, absorb costs or set a spending cap on the OpenRouter key
+- Each deployment requires an active Stripe subscription at `STRIPE_OPENCLAW_PRICE_ID` ($25/mo)
+- Deploy flow creates a Stripe Checkout session before provisioning begins
+- Provisioning only starts after `checkout.session.completed` webhook confirms payment
+- Cancellation sets `cancel_at_period_end: true` — VPS stays running until the billing period ends
+- When subscription expires (`customer.subscription.deleted` webhook), VPS is destroyed automatically
+- Users can also "Destroy Now" to immediately cancel the subscription and tear down the VPS
+
+**LLM cost strategy:**
+
+- **MVP:** set a spending cap on the OpenRouter key (e.g. $10/month) included in the $25/mo price
 - **Later — passthrough billing:** poll OpenRouter key usage, charge users for their token spend via Stripe metered billing (same pattern as existing gas usage billing)
-- Can set `limit` on the OpenRouter key as a safety cap (e.g. $10/month) to prevent runaway costs
 
 ---
 
@@ -717,12 +824,23 @@ No DNS needed.
 12. Write and test the VPS setup script against a real OVH VPS
 13. Test end-to-end deploy flow (deploy → Caddy TLS on IP → iframe)
 
-### Phase 4: Hardening
+### Phase 4: Billing ($25/mo per deployment)
 
-15. Add error recovery (retry failed provisions, cleanup orphaned VPS + revoke orphaned OpenRouter keys)
-16. Add deployment timeout handling (cancel after 20 min)
-17. Add monitoring / health checks for running instances
-18. Add OpenRouter usage tracking + passthrough billing via Stripe
+14. Add `STRIPE_OPENCLAW_PRICE_ID` to env schema (`src/utils/env.ts`)
+15. Add Prisma migration: `stripeSubscriptionId`, `currentPeriodEnd`, `canceledAt` fields + `PENDING_PAYMENT` / `CANCELING` enum values on `OpenClawDeployment`
+16. Update `openclaw.service.ts` deploy flow: create Stripe Checkout session → return checkout URL, move VPS provisioning to be triggered by webhook
+17. Add OpenClaw-specific webhook handlers in billing routes: `checkout.session.completed` (start provisioning), `customer.subscription.deleted` (destroy VPS), `invoice.payment_failed` (mark deployment)
+18. Add `POST /api/openclaw/deployments/:id/cancel` route — sets `cancel_at_period_end` on Stripe, updates deployment status to `CANCELING`
+19. Update `DELETE /api/openclaw/deployments/:id` to also cancel the Stripe subscription immediately
+20. Update frontend: deploy button → redirect to Stripe Checkout, add cancel flow, show "Active until [date]" for canceling deployments, show $25/mo pricing
+21. Test end-to-end billing flow: checkout → deploy → cancel → wait for expiry → VPS destroyed
+
+### Phase 5: Hardening
+
+22. Add error recovery (retry failed provisions, cleanup orphaned VPS + revoke orphaned OpenRouter keys)
+23. Add deployment timeout handling (cancel after 20 min)
+24. Add monitoring / health checks for running instances
+25. Add OpenRouter usage tracking + passthrough billing via Stripe
 
 ---
 
@@ -734,7 +852,8 @@ No DNS needed.
 4. **LLM provider** — OpenRouter, using model `openrouter/google/gemini-3-flash-preview`. Each deployment gets a fresh OpenRouter API key provisioned via the Provisioning Key API.
 5. **Billing model (LLM)** — passthrough billing of OpenRouter token charges via Stripe, but saved for later. MVP absorbs costs or sets a spending cap.
 6. **VPS plan** — `vps-2025-model1` (4 vCPUs, 8 GB RAM). Plenty for OpenClaw + Node.js v22.
-7. **Multiple instances** — yes, users can deploy multiple instances. No per-user limit (beyond rate limiting on the deploy endpoint).
+7. **Multiple instances** — yes, users can deploy multiple instances. Each requires its own $25/mo subscription. No per-user limit (beyond rate limiting on the deploy endpoint).
+9. **Billing model (deployment)** — $25/mo per deployment via Stripe subscription (`STRIPE_OPENCLAW_PRICE_ID`). Payment required before provisioning. On cancel, VPS stays running until subscription period ends. Follows existing `stripe.service.ts` patterns (checkout sessions, webhook handling).
 8. **openclaw.json schema** — OpenRouter key goes in `env.OPENROUTER_API_KEY`, model in `model`, gateway access token is at `gateway.auth.token`.
 
 ## Open Questions
