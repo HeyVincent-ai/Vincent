@@ -60,7 +60,7 @@ const VPS_PLANS_PRIORITY = [
 const DEFAULT_OS = 'Debian 12';
 const REBUILD_IMAGE_NAME = 'Debian 12';
 const SSH_USERNAME = 'debian'; // Debian 12 default user
-const OPENCLAW_PORT = 18789;
+export const OPENCLAW_PORT = 18789;
 
 // Polling intervals
 const ORDER_POLL_INTERVAL_MS = 30_000;       // 30s
@@ -88,7 +88,7 @@ export interface DeployOptions {
 // Helpers
 // ============================================================
 
-function sleep(ms: number): Promise<void> {
+export function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -144,7 +144,7 @@ function appendLog(existingLog: string | null, message: string): string {
  * Execute a command on the VPS via SSH.
  * Uses the non-root user (debian) since OVH injects keys there.
  */
-function sshExec(
+export function sshExec(
   host: string,
   username: string,
   privateKey: string,
@@ -212,7 +212,7 @@ function sshExec(
  * Wait for SSH to become available on the VPS.
  * Tries debian first (Debian 12), then root as fallback.
  */
-async function waitForSsh(
+export async function waitForSsh(
   host: string,
   privateKey: string,
   timeoutMs: number = SSH_RETRY_TIMEOUT_MS
@@ -239,7 +239,7 @@ async function waitForSsh(
 // VPS Setup Script
 // ============================================================
 
-function buildSetupScript(openRouterApiKey: string, hostname: string): string {
+export function buildSetupScript(openRouterApiKey: string, hostname: string): string {
   // Run as root via sudo. The SSH user is debian (non-root).
   // Key learnings from real VPS testing:
   // - openclaw binary installs to /usr/bin/openclaw (not /usr/local/bin)
@@ -352,7 +352,7 @@ SETUPSCRIPT`;
 // Health Check
 // ============================================================
 
-async function waitForHealth(
+export async function waitForHealth(
   ipAddress: string,
   hostname?: string,
   timeoutMs: number = HEALTH_POLL_TIMEOUT_MS
@@ -703,7 +703,7 @@ async function pollForIp(
 /**
  * Find the Debian 12 rebuild image for a VPS.
  */
-async function findRebuildImage(
+export async function findRebuildImage(
   serviceName: string,
   addLog: (msg: string) => void
 ): Promise<string> {
@@ -726,7 +726,7 @@ async function findRebuildImage(
 /**
  * Wait for VPS rebuild to complete (state: installing → running).
  */
-async function waitForRebuild(
+export async function waitForRebuild(
   serviceName: string,
   addLog: (msg: string) => void
 ): Promise<void> {
