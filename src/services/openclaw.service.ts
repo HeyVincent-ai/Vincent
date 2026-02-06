@@ -2,21 +2,31 @@
  * OpenClaw Deploy Orchestration Service
  *
  * Manages the full lifecycle of OpenClaw VPS deployments:
- * 1. Provision OpenRouter API key
- * 2. Order VPS from OVH
- * 3. Poll until VPS is delivered
- * 4. SSH into VPS and run setup script
- * 5. Poll health endpoint until ready
- * 6. Store deployment details
+ * 1. Generate SSH key pair (RSA 4096 — OVH doesn't support ed25519)
+ * 2. Provision OpenRouter API key
+ * 3. Find available VPS plan + datacenter
+ * 4. Order VPS from OVH
+ * 5. Poll until VPS is delivered
+ * 6. Rebuild VPS with SSH key (publicSshKey + doNotSendPassword)
+ * 7. SSH into VPS and run setup script
+ * 8. Extract access token from OpenClaw config
+ * 9. Poll health endpoint until ready
  *
- * Destroy flow:
- * 1. Terminate VPS via OVH
- * 2. Revoke OpenRouter API key
- * 3. Clean up SSH keys
+ * Key learnings from real VPS testing:
+ * - OVH /me/sshKey does NOT support ed25519. Must use RSA.
+ * - publicSshKey (raw content) + doNotSendPassword: true is the ONLY
+ *   working combination for SSH key injection via rebuild.
+ * - The SSH key is injected for the non-root user (e.g., "debian" for
+ *   Debian 12). Root does NOT get the key.
+ * - ssh2 library does not support Node crypto's PKCS8 format — use
+ *   ssh2's own utils.generateKeyPairSync.
+ * - getVpsIps() is more reliable than getVpsDetails().ips.
  */
 
-import { generateKeyPairSync } from 'crypto';
-import { Client as SshClient } from 'ssh2';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const { Client: SshClient, utils: sshUtils } = require('ssh2');
+
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
@@ -26,18 +36,33 @@ import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 // Constants
 // ============================================================
 
-const DEFAULT_PLAN_CODE = 'vps-2025-model1';
-const DEFAULT_DATACENTER = 'US-WEST-OR';
-const DEFAULT_OS = 'Ubuntu 24.04';
+// Plans to try in priority order
+const VPS_PLANS_PRIORITY = [
+  'vps-2025-model1.LZ',
+  'vps-2025-model1-ca',
+  'vps-2025-model1',
+  'vps-2025-model2-ca',
+  'vps-2025-model3-ca',
+  'vps-2025-model2',
+  'vps-2025-model3',
+];
+
+const DEFAULT_OS = 'Debian 12';
+const REBUILD_IMAGE_NAME = 'Debian 12';
+const SSH_USERNAME = 'debian'; // Debian 12 default user
 const OPENCLAW_PORT = 18789;
 
 // Polling intervals
-const ORDER_POLL_INTERVAL_MS = 30_000;      // 30s
-const ORDER_POLL_TIMEOUT_MS = 15 * 60_000;  // 15 min
-const SSH_RETRY_INTERVAL_MS = 15_000;       // 15s
-const SSH_RETRY_TIMEOUT_MS = 5 * 60_000;    // 5 min
-const HEALTH_POLL_INTERVAL_MS = 10_000;     // 10s
-const HEALTH_POLL_TIMEOUT_MS = 10 * 60_000; // 10 min
+const ORDER_POLL_INTERVAL_MS = 30_000;       // 30s
+const ORDER_POLL_TIMEOUT_MS = 20 * 60_000;   // 20 min
+const REBUILD_POLL_INTERVAL_MS = 15_000;     // 15s
+const REBUILD_POLL_TIMEOUT_MS = 5 * 60_000;  // 5 min
+const SSH_RETRY_INTERVAL_MS = 15_000;        // 15s
+const SSH_RETRY_TIMEOUT_MS = 5 * 60_000;     // 5 min
+const HEALTH_POLL_INTERVAL_MS = 10_000;      // 10s
+const HEALTH_POLL_TIMEOUT_MS = 10 * 60_000;  // 10 min
+const IP_POLL_INTERVAL_MS = 15_000;          // 15s
+const IP_POLL_TIMEOUT_MS = 3 * 60_000;       // 3 min
 
 // ============================================================
 // Types
@@ -57,23 +82,17 @@ function sleep(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+/**
+ * Generate an RSA 4096 SSH key pair using ssh2's built-in utility.
+ * OVH /me/sshKey does NOT support ed25519. ssh2 does not support
+ * Node crypto's PKCS8 format. This is the only working combination.
+ */
 function generateSshKeyPair(): { publicKey: string; privateKey: string } {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519', {
-    publicKeyEncoding: { type: 'spki', format: 'pem' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  const keys = sshUtils.generateKeyPairSync('rsa', {
+    bits: 4096,
+    comment: 'openclaw-deploy',
   });
-
-  // Convert PEM public key to OpenSSH format for OVH
-  const { publicKey: sshPub } = generateKeyPairSync('ed25519', {
-    publicKeyEncoding: { type: 'spki', format: 'der' },
-    privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
-  });
-
-  // We'll use ssh-keygen style conversion or just pass the PEM
-  // For OVH, we need OpenSSH format. Let's generate using crypto and convert.
-  // Actually, let's just use the ssh2 library's key format support.
-
-  return { publicKey, privateKey };
+  return { publicKey: keys.public, privateKey: keys.private };
 }
 
 async function updateDeployment(
@@ -112,9 +131,11 @@ function appendLog(existingLog: string | null, message: string): string {
 
 /**
  * Execute a command on the VPS via SSH.
+ * Uses the non-root user (debian) since OVH injects keys there.
  */
 function sshExec(
   host: string,
+  username: string,
   privateKey: string,
   command: string,
   timeoutMs: number = 10 * 60_000
@@ -129,7 +150,7 @@ function sshExec(
     }, timeoutMs);
 
     conn.on('ready', () => {
-      conn.exec(command, (err, stream) => {
+      conn.exec(command, (err: any, stream: any) => {
         if (err) {
           clearTimeout(timer);
           conn.end();
@@ -152,7 +173,7 @@ function sshExec(
       });
     });
 
-    conn.on('error', (err) => {
+    conn.on('error', (err: any) => {
       clearTimeout(timer);
       reject(err);
     });
@@ -160,29 +181,42 @@ function sshExec(
     conn.connect({
       host,
       port: 22,
-      username: 'root',
+      username,
       privateKey,
       readyTimeout: 30_000,
+      algorithms: {
+        serverHostKey: [
+          'ssh-ed25519',
+          'ecdsa-sha2-nistp256',
+          'rsa-sha2-512',
+          'rsa-sha2-256',
+          'ssh-rsa',
+        ],
+      },
     });
   });
 }
 
 /**
  * Wait for SSH to become available on the VPS.
+ * Tries debian first (Debian 12), then root as fallback.
  */
 async function waitForSsh(
   host: string,
   privateKey: string,
   timeoutMs: number = SSH_RETRY_TIMEOUT_MS
-): Promise<void> {
+): Promise<string> {
   const deadline = Date.now() + timeoutMs;
+  const usernames = [SSH_USERNAME, 'root'];
 
   while (Date.now() < deadline) {
-    try {
-      const result = await sshExec(host, privateKey, 'echo ok', 15_000);
-      if (result.stdout.includes('ok')) return;
-    } catch {
-      // SSH not ready yet
+    for (const username of usernames) {
+      try {
+        const result = await sshExec(host, username, privateKey, 'echo ok', 15_000);
+        if (result.stdout.includes('ok')) return username;
+      } catch {
+        // SSH not ready yet
+      }
     }
     await sleep(SSH_RETRY_INTERVAL_MS);
   }
@@ -195,9 +229,9 @@ async function waitForSsh(
 // ============================================================
 
 function buildSetupScript(openRouterApiKey: string, vpsIp: string): string {
-  return `#!/bin/bash
+  // Run as root via sudo. The SSH user is debian (non-root).
+  return `sudo bash <<'SETUPSCRIPT'
 set -euo pipefail
-
 export DEBIAN_FRONTEND=noninteractive
 
 echo "=== [1/7] System update ==="
@@ -211,11 +245,12 @@ echo "=== [3/7] Installing Vincent agent wallet skill ==="
 npx --yes clawhub@latest install agentwallet || true
 
 echo "=== [4/7] Configuring OpenClaw ==="
-mkdir -p ~/.openclaw
-if [ -f ~/.openclaw/openclaw.json ]; then
+mkdir -p /root/.openclaw
+OCFILE="/root/.openclaw/openclaw.json"
+if [ -f "$OCFILE" ]; then
   python3 -c "
 import json
-with open('$HOME/.openclaw/openclaw.json') as f:
+with open('$OCFILE') as f:
     cfg = json.load(f)
 cfg.setdefault('env', {})
 cfg['env']['OPENROUTER_API_KEY'] = '${openRouterApiKey}'
@@ -229,11 +264,11 @@ cfg['gateway'] = {
     'trustedProxies': ['127.0.0.1/32', '::1/128'],
     'auth': cfg.get('gateway', {}).get('auth', {'mode': 'token', 'token': ''})
 }
-with open('$HOME/.openclaw/openclaw.json', 'w') as f:
+with open('$OCFILE', 'w') as f:
     json.dump(cfg, f, indent=2)
 "
 else
-  cat > ~/.openclaw/openclaw.json << 'OCCONFIG'
+  cat > "$OCFILE" << OCCONFIG
 {
   "env": {
     "OPENROUTER_API_KEY": "${openRouterApiKey}"
@@ -256,7 +291,7 @@ OCCONFIG
 fi
 
 echo "=== [5/7] Configuring Caddy reverse proxy ==="
-cat > /etc/caddy/Caddyfile << 'CADDYEOF'
+cat > /etc/caddy/Caddyfile << CADDYEOF
 https://${vpsIp} {
     reverse_proxy localhost:${OPENCLAW_PORT}
 }
@@ -293,17 +328,19 @@ UNIT
   systemctl daemon-reload
   systemctl enable openclaw-gateway
   systemctl start openclaw-gateway
+else
+  systemctl restart openclaw-gateway
 fi
 
-# Wait a moment for the gateway to generate its token
-sleep 5
+# Wait for the gateway to generate its token
+sleep 10
 
 # Extract access token
-ACCESS_TOKEN=$(cat ~/.openclaw/openclaw.json | python3 -c "import sys,json; print(json.load(sys.stdin).get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null || echo "")
+ACCESS_TOKEN=$(cat "$OCFILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null || echo "")
 echo "OPENCLAW_ACCESS_TOKEN=\${ACCESS_TOKEN}"
 
 echo "=== Setup complete ==="
-`;
+SETUPSCRIPT`;
 }
 
 // ============================================================
@@ -323,7 +360,6 @@ async function waitForHealth(
         signal: AbortSignal.timeout(10_000),
       });
       if (res.ok || res.status === 401 || res.status === 403) {
-        // 401/403 means the gateway is up but requires auth — that's fine
         return true;
       }
     } catch {
@@ -343,6 +379,29 @@ async function waitForHealth(
   }
 
   return false;
+}
+
+// ============================================================
+// Plan Discovery
+// ============================================================
+
+/**
+ * Find the first available VPS plan + datacenter from the priority list.
+ * Falls back to the first plan with cart datacenters if nothing is in-stock.
+ */
+async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter: string }> {
+  for (const plan of VPS_PLANS_PRIORITY) {
+    const dc = await ovhService.findAvailableDatacenter(plan);
+    if (dc) {
+      return { planCode: plan, datacenter: dc };
+    }
+  }
+
+  // Fallback: use first plan with whatever cart datacenter is available
+  const fallbackPlan = VPS_PLANS_PRIORITY[0];
+  const cartDcs = await ovhService.getCartDatacenters(fallbackPlan);
+  const dc = cartDcs[0] || 'US-EAST-LZ-MIA';
+  return { planCode: fallbackPlan, datacenter: dc };
 }
 
 // ============================================================
@@ -382,9 +441,6 @@ export async function deploy(
  * Async provisioning job — runs in the background after deploy() returns.
  */
 async function provisionAsync(deploymentId: string, options: DeployOptions): Promise<void> {
-  const planCode = options.planCode || DEFAULT_PLAN_CODE;
-  const datacenter = options.datacenter || DEFAULT_DATACENTER;
-  const os = options.os || DEFAULT_OS;
   let log = '';
 
   const addLog = (msg: string) => {
@@ -393,7 +449,18 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
   };
 
   try {
-    // Step 1: Provision OpenRouter API key
+    // Step 1: Generate SSH key pair (RSA 4096)
+    addLog('Generating RSA 4096 SSH key pair...');
+    const { publicKey: sshPub, privateKey: sshPriv } = generateSshKeyPair();
+    addLog(`SSH key generated (${sshPub.slice(0, 40)}...)`);
+
+    await updateDeployment(deploymentId, {
+      sshPublicKey: sshPub,
+      sshPrivateKey: sshPriv,
+      provisionLog: log,
+    });
+
+    // Step 2: Provision OpenRouter API key
     addLog('Provisioning OpenRouter API key...');
     const shortId = deploymentId.slice(-8);
     const orKey = await openRouterService.createKey(`openclaw-${shortId}`, {
@@ -407,7 +474,20 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    // Step 2: Order VPS
+    // Step 3: Find available plan + datacenter
+    let planCode = options.planCode;
+    let datacenter = options.datacenter;
+    const os = options.os || DEFAULT_OS;
+
+    if (!planCode || !datacenter) {
+      addLog('Finding available VPS plan + datacenter...');
+      const found = await findAvailablePlanAndDc();
+      planCode = planCode || found.planCode;
+      datacenter = datacenter || found.datacenter;
+      addLog(`Found: ${planCode} @ ${datacenter}`);
+    }
+
+    // Step 4: Order VPS
     addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
     await updateDeployment(deploymentId, {
       status: 'ORDERING',
@@ -415,11 +495,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    const order = await ovhService.orderVps({
-      planCode,
-      datacenter,
-      os,
-    });
+    const order = await ovhService.orderVps({ planCode, datacenter, os });
     addLog(`VPS order placed (orderId: ${order.orderId})`);
 
     await updateDeployment(deploymentId, {
@@ -427,7 +503,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    // Step 3: Poll order status until VPS is delivered
+    // Step 5: Poll order status until VPS is delivered
     addLog('Waiting for VPS delivery...');
     const deliveredServiceName = await pollForDelivery(order.orderId, addLog);
     addLog(`VPS delivered: ${deliveredServiceName}`);
@@ -439,15 +515,9 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    // Step 4: Get VPS IP
-    const vpsDetails = await ovhService.getVpsDetails(deliveredServiceName);
-    const ipAddress = vpsDetails.ips[0];
-    if (!ipAddress) {
-      // Try the /ips endpoint
-      const ips = await ovhService.getVpsIps(deliveredServiceName);
-      if (!ips.length) throw new Error('VPS has no IP addresses');
-    }
-    const ip = ipAddress || (await ovhService.getVpsIps(deliveredServiceName))[0];
+    // Step 6: Get VPS IP (with retries — may not be available immediately)
+    addLog('Retrieving VPS IP address...');
+    const ip = await pollForIp(deliveredServiceName, addLog);
     addLog(`VPS IP: ${ip}`);
 
     await updateDeployment(deploymentId, {
@@ -455,47 +525,75 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    // Step 5: Wait for SSH to become available
-    addLog('Waiting for SSH to become available...');
-    // Note: For OVH VPS, the root password is emailed. We may need to use
-    // the OVH SSH key mechanism or wait for the key to be injected.
-    // For now, we'll generate a keypair and attempt to register it.
-    // If SSH key auth doesn't work out of the box, we'll need to use
-    // OVH's VNC/console or rebuild with SSH key.
+    // Step 7: Rebuild VPS with SSH key
+    // The initial delivery comes with a random password. We rebuild with
+    // publicSshKey + doNotSendPassword to inject our key properly.
+    addLog('Rebuilding VPS with SSH key...');
+    const rebuildImageId = await findRebuildImage(deliveredServiceName, addLog);
+    const rebuildResult = await ovhService.rebuildVps(deliveredServiceName, rebuildImageId, sshPub);
+    addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
 
-    // TODO: The SSH auth flow needs testing on a real VPS.
-    // OVH typically sets up the default SSH key registered on the account.
-    // We may need to rebuild the VPS with our SSH key after initial delivery.
+    await waitForRebuild(deliveredServiceName, addLog);
+    addLog('Rebuild complete, waiting 30s for SSH to come up...');
+    await sleep(30_000);
 
+    await updateDeployment(deploymentId, {
+      statusMessage: 'VPS rebuilt with SSH key, connecting...',
+      provisionLog: log,
+    });
+
+    // Step 8: Wait for SSH and run setup
+    addLog('Waiting for SSH access...');
     await updateDeployment(deploymentId, {
       status: 'INSTALLING',
       statusMessage: 'Connecting to VPS and installing OpenClaw',
       provisionLog: log,
     });
 
-    // For now, we'll try password-less SSH (relies on OVH account SSH key)
-    // This will be refined after testing on a real VPS.
-    addLog('TODO: SSH setup needs real VPS testing');
-    addLog('Provisioning flow stops here until SSH auth is validated');
+    const sshUser = await waitForSsh(ip, sshPriv);
+    addLog(`SSH connected as ${sshUser}`);
 
-    // Step 6: SSH in and run setup
-    // const setupScript = buildSetupScript(orKey.key, ip);
-    // await waitForSsh(ip, sshPrivateKey);
-    // const result = await sshExec(ip, sshPrivateKey, setupScript, 10 * 60_000);
+    addLog('Running OpenClaw setup script...');
+    const setupScript = buildSetupScript(orKey.key, ip);
+    const result = await sshExec(ip, sshUser, sshPriv, setupScript, 15 * 60_000);
+    addLog(`Setup script exit code: ${result.code}`);
+    if (result.stderr) {
+      addLog(`Setup stderr (last 500 chars): ${result.stderr.slice(-500)}`);
+    }
 
-    // Step 7: Extract access token
-    // const tokenMatch = result.stdout.match(/OPENCLAW_ACCESS_TOKEN=(.*)/);
-    // const accessToken = tokenMatch?.[1] || '';
+    if (result.code !== 0) {
+      addLog(`Setup stdout (last 1000 chars): ${result.stdout.slice(-1000)}`);
+      throw new Error(`Setup script failed with exit code ${result.code}`);
+    }
 
-    // Step 8: Wait for health check
-    // const healthy = await waitForHealth(ip);
+    // Step 9: Extract access token
+    const tokenMatch = result.stdout.match(/OPENCLAW_ACCESS_TOKEN=(.*)/);
+    const accessToken = tokenMatch?.[1]?.trim() || '';
+    addLog(`Access token: ${accessToken ? accessToken.slice(0, 10) + '...' : 'empty'}`);
 
-    // For now, mark as requiring manual intervention
     await updateDeployment(deploymentId, {
-      status: 'PROVISIONING',
-      statusMessage: 'VPS ready — SSH setup pending (needs real VPS testing)',
+      accessToken: accessToken || null,
       provisionLog: log,
     });
+
+    // Step 10: Wait for health check
+    addLog('Waiting for OpenClaw health check...');
+    const healthy = await waitForHealth(ip);
+    if (healthy) {
+      addLog('OpenClaw is healthy and responding!');
+    } else {
+      addLog('Health check timed out — OpenClaw may still be starting');
+    }
+
+    // Mark as READY
+    await updateDeployment(deploymentId, {
+      status: 'READY',
+      statusMessage: healthy ? 'OpenClaw is live and accessible' : 'OpenClaw deployed (health check pending)',
+      readyAt: new Date(),
+      provisionLog: log,
+    });
+
+    addLog('Deployment complete!');
 
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
@@ -508,6 +606,10 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
   }
 }
 
+// ============================================================
+// Polling Helpers
+// ============================================================
+
 /**
  * Poll OVH until the VPS order is delivered and return the service name.
  */
@@ -516,8 +618,6 @@ async function pollForDelivery(
   addLog: (msg: string) => void
 ): Promise<string> {
   const deadline = Date.now() + ORDER_POLL_TIMEOUT_MS;
-
-  // Track VPS list before to detect new additions
   const vpsBefore = new Set(await ovhService.listVps());
   addLog(`Existing VPS count: ${vpsBefore.size}`);
 
@@ -535,9 +635,9 @@ async function pollForDelivery(
     // Also check order status
     try {
       const status = await ovhService.getOrderStatus(orderId);
-      addLog(`Order ${orderId} status: ${status.status}`);
+      const elapsed = Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000);
+      addLog(`[${elapsed}s] Order ${orderId} status: ${status.status}`);
 
-      // Check for associated service
       const serviceName = await ovhService.getOrderAssociatedService(orderId);
       if (serviceName && serviceName.startsWith('vps')) {
         return serviceName;
@@ -548,6 +648,89 @@ async function pollForDelivery(
   }
 
   throw new Error(`VPS delivery timed out after ${ORDER_POLL_TIMEOUT_MS / 60_000} minutes`);
+}
+
+/**
+ * Poll for VPS IP address (may not be available immediately after delivery).
+ */
+async function pollForIp(
+  serviceName: string,
+  addLog: (msg: string) => void
+): Promise<string> {
+  const deadline = Date.now() + IP_POLL_TIMEOUT_MS;
+  const isIpv4 = (ip: string) => /^\d+\.\d+\.\d+\.\d+$/.test(ip);
+
+  for (let attempt = 0; Date.now() < deadline; attempt++) {
+    // Try getVpsIps first (more reliable)
+    try {
+      const ips = await ovhService.getVpsIps(serviceName);
+      if (ips.length > 0) {
+        return ips.find(isIpv4) || ips[0];
+      }
+    } catch {}
+
+    // Fallback to getVpsDetails
+    try {
+      const details = await ovhService.getVpsDetails(serviceName);
+      if (details.ips && details.ips.length > 0) {
+        return details.ips.find(isIpv4) || details.ips[0];
+      }
+    } catch {}
+
+    addLog(`Waiting for IP (attempt ${attempt + 1})...`);
+    await sleep(IP_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Could not retrieve IP for ${serviceName}`);
+}
+
+/**
+ * Find the Debian 12 rebuild image for a VPS.
+ */
+async function findRebuildImage(
+  serviceName: string,
+  addLog: (msg: string) => void
+): Promise<string> {
+  const imageIds = await ovhService.getAvailableImages(serviceName);
+  for (const imgId of imageIds) {
+    try {
+      const img = await ovhService.getImageDetails(serviceName, imgId);
+      if (img.name === REBUILD_IMAGE_NAME) {
+        addLog(`Found rebuild image: ${img.name} (${imgId})`);
+        return imgId;
+      }
+    } catch {}
+  }
+
+  addLog(`Image "${REBUILD_IMAGE_NAME}" not found, using first available`);
+  if (imageIds.length === 0) throw new Error('No rebuild images available');
+  return imageIds[0];
+}
+
+/**
+ * Wait for VPS rebuild to complete (state: installing → running).
+ */
+async function waitForRebuild(
+  serviceName: string,
+  addLog: (msg: string) => void
+): Promise<void> {
+  const deadline = Date.now() + REBUILD_POLL_TIMEOUT_MS;
+  let wasInstalling = false;
+
+  while (Date.now() < deadline) {
+    await sleep(REBUILD_POLL_INTERVAL_MS);
+    try {
+      const details = await ovhService.getVpsDetails(serviceName);
+      const elapsed = Math.round((Date.now() + REBUILD_POLL_TIMEOUT_MS - deadline) / 1000);
+      addLog(`[${elapsed}s] VPS state: ${details.state}`);
+      if (details.state === 'installing') wasInstalling = true;
+      if (details.state === 'running' && wasInstalling) return;
+    } catch (e: any) {
+      addLog(`Rebuild poll error: ${e.message}`);
+    }
+  }
+
+  throw new Error(`VPS rebuild timed out after ${REBUILD_POLL_TIMEOUT_MS / 60_000} minutes`);
 }
 
 // ============================================================
@@ -654,8 +837,9 @@ export async function restart(
 
   await sshExec(
     deployment.ipAddress,
+    SSH_USERNAME,
     deployment.sshPrivateKey,
-    'systemctl restart openclaw-gateway',
+    'sudo systemctl restart openclaw-gateway',
     30_000
   );
 

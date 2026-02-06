@@ -135,30 +135,30 @@ OPENROUTER_PROVISIONING_KEY=...  # Provisioning API key (key mgmt only, not comp
 ```ts
 class OvhService {
   // Order a new VPS from OVH
-  async orderVps(planCode: string, region: string): Promise<{ orderId: string }>
+  async orderVps(planCode: string, region: string): Promise<{ orderId: string }>;
 
   // Check order status / wait for delivery
-  async getOrderStatus(orderId: string): Promise<OvhOrderStatus>
+  async getOrderStatus(orderId: string): Promise<OvhOrderStatus>;
 
   // Get VPS details (IP, status, etc.)
-  async getVpsDetails(serviceName: string): Promise<OvhVpsDetails>
+  async getVpsDetails(serviceName: string): Promise<OvhVpsDetails>;
 
   // Reinstall VPS OS (Ubuntu) if needed
-  async reinstallVps(serviceName: string, templateName: string): Promise<void>
+  async reinstallVps(serviceName: string, templateName: string): Promise<void>;
 
   // Terminate / delete VPS
-  async terminateVps(serviceName: string): Promise<void>
+  async terminateVps(serviceName: string): Promise<void>;
 
   // List available VPS plans for US region
-  async listAvailablePlans(region: string): Promise<OvhVpsPlan[]>
+  async listAvailablePlans(region: string): Promise<OvhVpsPlan[]>;
 }
 ```
 
 **VPS Spec:**
-- Plan: `vps-2025-model1`
-- 4 vCPUs, 8 GB RAM
+
+- Plans (in this order of priority): 'vps-2025-model1.LZ', 'vps-2025-model1-ca', 'vps-2025-model1', 'vps-2025-model2-ca', 'vps-2025-model3-ca', 'vps-2025-model2', 'vps-2025-model3'
 - OS: Ubuntu 22.04 or 24.04 LTS
-- Region: US (East or West, whatever's available)
+- Region: US (East or West or Canada, whatever's available)
 
 ### 2. OpenRouter Service (`src/services/openrouter.service.ts`)
 
@@ -173,32 +173,37 @@ isolated key. Uses the OpenRouter Key Management API with a **Provisioning Key**
 ```ts
 class OpenRouterService {
   // Create a new API key scoped to this deployment
-  async createKey(name: string, options?: {
-    limit?: number;          // spending cap in USD (null = unlimited)
-    limit_reset?: 'daily' | 'weekly' | 'monthly' | null;
-    expires_at?: string;     // ISO 8601 UTC
-  }): Promise<{ key: string; hash: string }>
+  async createKey(
+    name: string,
+    options?: {
+      limit?: number; // spending cap in USD (null = unlimited)
+      limit_reset?: 'daily' | 'weekly' | 'monthly' | null;
+      expires_at?: string; // ISO 8601 UTC
+    }
+  ): Promise<{ key: string; hash: string }>;
 
   // Delete a key when deployment is destroyed
-  async deleteKey(hash: string): Promise<void>
+  async deleteKey(hash: string): Promise<void>;
 
   // Get key usage stats (for future billing passthrough)
   async getKeyUsage(hash: string): Promise<{
-    usage: number;           // total USD spent
+    usage: number; // total USD spent
     usage_daily: number;
     usage_weekly: number;
     usage_monthly: number;
-  }>
+  }>;
 }
 ```
 
 **Per-deployment key creation:**
+
 - Name: `openclaw-<deployment-short-id>` for easy identification in OpenRouter dashboard
 - The provisioned key is written into the OpenClaw config on the VPS
 - The key hash is stored in our DB for later revocation/usage tracking
 - On deployment destroy, the key is deleted via the API
 
 **Future: passthrough billing**
+
 - Poll `getKeyUsage()` periodically or on-demand to track token spend per deployment
 - Charge users via Stripe for their OpenRouter usage (metered billing)
 - Can set `limit` on the key as a safety cap
@@ -212,19 +217,19 @@ Orchestrates the full deploy lifecycle.
 ```ts
 class OpenClawService {
   // Main deploy orchestrator — runs as async background job
-  async deploy(userId: string): Promise<OpenClawDeployment>
+  async deploy(userId: string): Promise<OpenClawDeployment>;
 
   // Get deployment status
-  async getDeployment(deploymentId: string, userId: string): Promise<OpenClawDeployment>
+  async getDeployment(deploymentId: string, userId: string): Promise<OpenClawDeployment>;
 
   // List user's deployments
-  async listDeployments(userId: string): Promise<OpenClawDeployment[]>
+  async listDeployments(userId: string): Promise<OpenClawDeployment[]>;
 
   // Destroy a deployment
-  async destroy(deploymentId: string, userId: string): Promise<void>
+  async destroy(deploymentId: string, userId: string): Promise<void>;
 
   // Restart OpenClaw on the VPS
-  async restart(deploymentId: string, userId: string): Promise<void>
+  async restart(deploymentId: string, userId: string): Promise<void>;
 }
 ```
 
@@ -249,6 +254,7 @@ class OpenClawService {
 ```
 
 **SSH execution:**
+
 - Use `ssh2` npm package for programmatic SSH
 - OVH VPS comes with root SSH access (key injected at order time)
 - Generate a deployment-specific SSH key pair, store encrypted in the deployment record or use OVH's SSH key management API
@@ -259,6 +265,7 @@ OpenClaw provides an official install script at `https://openclaw.ai/install.sh`
 for `curl | bash` usage. The script supports non-interactive flags which we leverage:
 
 **Official installer features we use:**
+
 - `--no-onboard` — skips interactive onboarding prompts
 - `--install-method npm` or `--install-method git` — pick install strategy
 - `--version <ver>` — pin a specific version
@@ -392,33 +399,49 @@ const router = Router();
 router.use(sessionAuthMiddleware);
 
 // Deploy a new OpenClaw instance
-router.post('/deploy', asyncHandler(async (req, res) => {
-  // Kick off deploy and return deployment record
-  // Users can have multiple active deployments
-}));
+router.post(
+  '/deploy',
+  asyncHandler(async (req, res) => {
+    // Kick off deploy and return deployment record
+    // Users can have multiple active deployments
+  })
+);
 
 // List user's deployments
-router.get('/deployments', asyncHandler(async (req, res) => {
-  // Return all deployments for the authenticated user
-}));
+router.get(
+  '/deployments',
+  asyncHandler(async (req, res) => {
+    // Return all deployments for the authenticated user
+  })
+);
 
 // Get single deployment status
-router.get('/deployments/:id', asyncHandler(async (req, res) => {
-  // Return deployment details + current status
-}));
+router.get(
+  '/deployments/:id',
+  asyncHandler(async (req, res) => {
+    // Return deployment details + current status
+  })
+);
 
 // Destroy a deployment
-router.delete('/deployments/:id', asyncHandler(async (req, res) => {
-  // Terminate VPS, update status to DESTROYING
-}));
+router.delete(
+  '/deployments/:id',
+  asyncHandler(async (req, res) => {
+    // Terminate VPS, update status to DESTROYING
+  })
+);
 
 // Restart OpenClaw on a deployment
-router.post('/deployments/:id/restart', asyncHandler(async (req, res) => {
-  // SSH in and systemctl restart openclaw-gateway
-}));
+router.post(
+  '/deployments/:id/restart',
+  asyncHandler(async (req, res) => {
+    // SSH in and systemctl restart openclaw-gateway
+  })
+);
 ```
 
 Mount in `src/api/routes/index.ts`:
+
 ```ts
 router.use('/openclaw', openclawRouter);
 ```
@@ -435,7 +458,8 @@ export const deployOpenClaw = () => api.post('/openclaw/deploy');
 export const getOpenClawDeployments = () => api.get('/openclaw/deployments');
 export const getOpenClawDeployment = (id: string) => api.get(`/openclaw/deployments/${id}`);
 export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
-export const restartOpenClawDeployment = (id: string) => api.post(`/openclaw/deployments/${id}/restart`);
+export const restartOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/restart`);
 ```
 
 ### 2. OpenClaw section in Dashboard (`frontend/src/components/OpenClawSection.tsx`)
@@ -444,15 +468,16 @@ A self-contained component rendered on the Dashboard page below the secrets list
 
 **States:**
 
-| State | UI |
-|-------|-----|
-| No deployment | Card with OpenClaw logo, description, "Deploy OpenClaw" button |
-| Deploying (PENDING/ORDERING/PROVISIONING/INSTALLING) | Progress card with status steps, spinner, status message |
-| Ready | Card with green status badge, "Open" link (navigates to `/openclaw/:id` iframe view), "Destroy" option |
-| Error | Card with error message, "Retry" button, "Destroy" option |
-| Destroyed | Same as "No deployment" state |
+| State                                                | UI                                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| No deployment                                        | Card with OpenClaw logo, description, "Deploy OpenClaw" button                                         |
+| Deploying (PENDING/ORDERING/PROVISIONING/INSTALLING) | Progress card with status steps, spinner, status message                                               |
+| Ready                                                | Card with green status badge, "Open" link (navigates to `/openclaw/:id` iframe view), "Destroy" option |
+| Error                                                | Card with error message, "Retry" button, "Destroy" option                                              |
+| Destroyed                                            | Same as "No deployment" state                                                                          |
 
 **Progress steps shown during deploy:**
+
 1. Ordering VPS... (PENDING/ORDERING)
 2. Setting up server... (PROVISIONING)
 3. Installing OpenClaw... (INSTALLING)
@@ -479,32 +504,47 @@ pointing directly at the VPS IP over HTTPS:
 ```
 
 **How auth works in the iframe:**
+
 - Backend returns the `accessToken` as part of the deployment details (GET /api/openclaw/deployments/:id)
 - Frontend injects it as a URL param `?token=` when constructing the iframe src
 - OpenClaw's gateway accepts the token for authentication
 - The token is only visible in the iframe src attribute, not exposed to the user directly
 
 **Above the iframe:**
+
 - Instance name / ID
 - Status badge (green = ready)
 - "Restart" button
 - "Destroy" button (with confirmation dialog)
 
 **Loading/error states:**
+
 - If deployment not READY yet, show progress steps instead of iframe
 - If deployment in ERROR state, show error message + retry option
 
 ### 4. Route & Nav Updates
 
 **App.tsx** — add route:
+
 ```tsx
-<Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
+<Route
+  path="/openclaw/:id"
+  element={
+    <ProtectedRoute>
+      <OpenClawDetail />
+    </ProtectedRoute>
+  }
+/>
 ```
 
 **Layout.tsx** — add nav link:
+
 ```tsx
-<Link to="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">OpenClaw</Link>
+<Link to="/dashboard" className="text-sm text-gray-600 hover:text-gray-900">
+  OpenClaw
+</Link>
 ```
+
 (This scrolls to / highlights the OpenClaw section on the dashboard, or could be a dedicated `/openclaw` page if we want to keep it separate.)
 
 ---
@@ -594,12 +634,14 @@ No DNS needed.
 ```
 
 **TLS for IP addresses:**
+
 - Let's Encrypt now issues TLS certs for bare IP addresses (GA since early 2026)
 - Short-lived (6-day / 160-hour) certificates, auto-renewed by Caddy
 - Validated via HTTP-01 challenge (port 80 must be open)
 - No domain or DNS management needed
 
 **Why this approach:**
+
 - No DNS management — just use the VPS IP directly
 - No backend proxying — avoids bandwidth/latency bottleneck through our server
 - HTTPS everywhere — browser won't block mixed content in the iframe
@@ -624,14 +666,17 @@ No DNS needed.
 ## Cost & Billing
 
 **Infrastructure costs:**
+
 - OVH VPS Starter (US): ~$3.50-6/month per instance
 
 **LLM costs (OpenRouter):**
+
 - Model: `openrouter/google/gemini-3-flash-preview`
 - Each deployment has its own OpenRouter API key with usage tracking
 - OpenRouter Provisioning API exposes per-key usage stats (`usage`, `usage_daily`, etc.)
 
 **Billing strategy:**
+
 - **MVP:** limit 1 deployment per user, absorb costs or set a spending cap on the OpenRouter key
 - **Later — passthrough billing:** poll OpenRouter key usage, charge users for their token spend via Stripe metered billing (same pattern as existing gas usage billing)
 - Can set `limit` on the OpenRouter key as a safety cap (e.g. $10/month) to prevent runaway costs
@@ -640,16 +685,17 @@ No DNS needed.
 
 ## New Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `ovh` | Official OVH API Node.js client |
-| `ssh2` | SSH into provisioned VPS for setup |
+| Package | Purpose                            |
+| ------- | ---------------------------------- |
+| `ovh`   | Official OVH API Node.js client    |
+| `ssh2`  | SSH into provisioned VPS for setup |
 
 ---
 
 ## Implementation Order
 
 ### Phase 1: Backend Foundation
+
 1. Add `ovh` and `ssh2` packages
 2. Create Prisma migration for `OpenClawDeployment` model
 3. Implement `ovh.service.ts` — OVH API client
@@ -659,6 +705,7 @@ No DNS needed.
 7. Mount routes in `index.ts`
 
 ### Phase 2: Frontend
+
 7. Add OpenClaw API functions to `frontend/src/api.ts`
 8. Build `OpenClawSection.tsx` component (dashboard card)
 9. Build `OpenClawDetail.tsx` page
@@ -666,10 +713,12 @@ No DNS needed.
 11. Add nav link in `Layout.tsx`
 
 ### Phase 3: Infrastructure
+
 12. Write and test the VPS setup script against a real OVH VPS
 13. Test end-to-end deploy flow (deploy → Caddy TLS on IP → iframe)
 
 ### Phase 4: Hardening
+
 15. Add error recovery (retry failed provisions, cleanup orphaned VPS + revoke orphaned OpenRouter keys)
 16. Add deployment timeout handling (cancel after 20 min)
 17. Add monitoring / health checks for running instances
