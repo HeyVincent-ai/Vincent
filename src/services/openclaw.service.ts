@@ -21,6 +21,16 @@
  * - ssh2 library does not support Node crypto's PKCS8 format — use
  *   ssh2's own utils.generateKeyPairSync.
  * - getVpsIps() is more reliable than getVpsDetails().ips.
+ * - openclaw binary installs to /usr/bin/openclaw (not /usr/local/bin).
+ * - `gateway start` requires systemd user services (unavailable on
+ *   minimal VPS images). Use `gateway run` (foreground) with a system
+ *   systemd service instead.
+ * - Top-level "model" key is invalid in openclaw.json. The correct path
+ *   is agents.defaults.model = { primary: "provider/model" }.
+ * - Use `openclaw setup --non-interactive --mode local` to bootstrap
+ *   config, then `openclaw config set` for schema-validated changes.
+ * - Caddy 2.6 (Debian 12 package) does not support TLS for bare IPs.
+ *   Use HTTP (port 80) reverse proxy instead.
  */
 
 import { createRequire } from 'module';
@@ -228,71 +238,52 @@ async function waitForSsh(
 // VPS Setup Script
 // ============================================================
 
-function buildSetupScript(openRouterApiKey: string, vpsIp: string): string {
+function buildSetupScript(openRouterApiKey: string, _vpsIp: string): string {
   // Run as root via sudo. The SSH user is debian (non-root).
+  // Key learnings from real VPS testing:
+  // - openclaw binary installs to /usr/bin/openclaw (not /usr/local/bin)
+  // - `gateway start` uses systemd user services which aren't available on
+  //   minimal VPS images. Must use `gateway run` (foreground) with a system
+  //   systemd service.
+  // - Top-level "model" is not a valid config key. Use openclaw config set
+  //   with agents.defaults.model (object with "primary" field).
+  // - Use `openclaw setup --non-interactive --mode local` to create initial
+  //   config, then `openclaw config set` for schema-validated changes.
+  // - Caddy 2.6 (Debian 12 package) does not support TLS for bare IP addresses.
+  //   Use HTTP reverse proxy on port 80 instead.
   return `sudo bash <<'SETUPSCRIPT'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-echo "=== [1/7] System update ==="
+echo "=== [1/8] System update ==="
 apt-get update -qq
 apt-get install -y -qq curl caddy ufw python3
 
-echo "=== [2/7] Running OpenClaw installer ==="
+echo "=== [2/8] Running OpenClaw installer ==="
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
 
-echo "=== [3/7] Installing Vincent agent wallet skill ==="
+echo "=== [3/8] Installing Vincent agent wallet skill ==="
 npx --yes clawhub@latest install agentwallet || true
 
-echo "=== [4/7] Configuring OpenClaw ==="
-mkdir -p /root/.openclaw
-OCFILE="/root/.openclaw/openclaw.json"
-if [ -f "$OCFILE" ]; then
-  python3 -c "
-import json
-with open('$OCFILE') as f:
-    cfg = json.load(f)
-cfg.setdefault('env', {})
-cfg['env']['OPENROUTER_API_KEY'] = '${openRouterApiKey}'
-cfg['model'] = 'openrouter/google/gemini-3-flash-preview'
-cfg['gateway'] = {
-    'mode': 'local',
-    'bind': 'loopback',
-    'controlUi': {
-        'allowInsecureAuth': True
-    },
-    'trustedProxies': ['127.0.0.1/32', '::1/128'],
-    'auth': cfg.get('gateway', {}).get('auth', {'mode': 'token', 'token': ''})
-}
-with open('$OCFILE', 'w') as f:
-    json.dump(cfg, f, indent=2)
-"
-else
-  cat > "$OCFILE" << OCCONFIG
-{
-  "env": {
-    "OPENROUTER_API_KEY": "${openRouterApiKey}"
-  },
-  "model": "openrouter/google/gemini-3-flash-preview",
-  "gateway": {
-    "mode": "local",
-    "bind": "loopback",
-    "controlUi": {
-      "allowInsecureAuth": true
-    },
-    "trustedProxies": ["127.0.0.1/32", "::1/128"],
-    "auth": {
-      "mode": "token",
-      "token": ""
-    }
-  }
-}
-OCCONFIG
-fi
+echo "=== [4/8] Initializing OpenClaw config ==="
+openclaw setup --non-interactive --mode local
 
-echo "=== [5/7] Configuring Caddy reverse proxy ==="
+echo "=== [5/8] Configuring OpenClaw ==="
+# Set model (agents.defaults.model is an object with "primary" key)
+openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-flash-preview"}'
+
+# Set OpenRouter API key
+openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
+
+# Gateway settings
+openclaw config set gateway.mode local
+openclaw config set gateway.bind loopback
+openclaw config set gateway.controlUi.allowInsecureAuth true
+openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
+
+echo "=== [6/8] Configuring Caddy reverse proxy ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
-https://${vpsIp} {
+:80 {
     reverse_proxy localhost:${OPENCLAW_PORT}
 }
 CADDYEOF
@@ -300,7 +291,7 @@ CADDYEOF
 systemctl enable caddy
 systemctl restart caddy
 
-echo "=== [6/7] Configuring firewall ==="
+echo "=== [7/8] Configuring firewall ==="
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
@@ -308,35 +299,42 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-echo "=== [7/7] Starting OpenClaw gateway ==="
-if ! systemctl is-active --quiet openclaw-gateway; then
-  cat > /etc/systemd/system/openclaw-gateway.service << 'UNIT'
+echo "=== [8/8] Starting OpenClaw gateway ==="
+# Find the openclaw binary (installed to /usr/bin by npm global)
+OPENCLAW_BIN=$(which openclaw)
+echo "OpenClaw binary: \${OPENCLAW_BIN}"
+
+# Create systemd service using "gateway run" (foreground mode).
+# "gateway start" requires systemd user services which are unavailable
+# on minimal VPS images.
+cat > /etc/systemd/system/openclaw-gateway.service << UNIT
 [Unit]
 Description=OpenClaw Gateway
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/openclaw gateway start
+ExecStart=\${OPENCLAW_BIN} gateway run
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
+WorkingDirectory=/root
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-  systemctl daemon-reload
-  systemctl enable openclaw-gateway
-  systemctl start openclaw-gateway
-else
-  systemctl restart openclaw-gateway
-fi
 
-# Wait for the gateway to generate its token
+systemctl daemon-reload
+systemctl enable openclaw-gateway
+systemctl stop openclaw-gateway 2>/dev/null || true
+systemctl start openclaw-gateway
+
+# Wait for the gateway to start and generate its token
 sleep 10
 
 # Extract access token
-ACCESS_TOKEN=$(cat "$OCFILE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('gateway',{}).get('auth',{}).get('token',''))" 2>/dev/null || echo "")
+OCFILE="/root/.openclaw/openclaw.json"
+ACCESS_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
 echo "OPENCLAW_ACCESS_TOKEN=\${ACCESS_TOKEN}"
 
 echo "=== Setup complete ==="
@@ -355,15 +353,15 @@ async function waitForHealth(
 
   while (Date.now() < deadline) {
     try {
-      // Try HTTPS first (Caddy with Let's Encrypt IP cert)
-      const res = await fetch(`https://${ipAddress}`, {
+      // Try HTTP via Caddy (port 80 reverse proxy to gateway)
+      const res = await fetch(`http://${ipAddress}`, {
         signal: AbortSignal.timeout(10_000),
       });
       if (res.ok || res.status === 401 || res.status === 403) {
         return true;
       }
     } catch {
-      // Not ready yet — try HTTP as fallback
+      // Not ready yet — try direct gateway port as fallback
       try {
         const res = await fetch(`http://${ipAddress}:${OPENCLAW_PORT}`, {
           signal: AbortSignal.timeout(5_000),
@@ -572,7 +570,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     addLog(`Access token: ${accessToken ? accessToken.slice(0, 10) + '...' : 'empty'}`);
 
     await updateDeployment(deploymentId, {
-      accessToken: accessToken || null,
+      accessToken: accessToken || undefined,
       provisionLog: log,
     });
 
