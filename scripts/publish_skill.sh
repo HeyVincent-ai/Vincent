@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Publish SKILL.md to multiple locations and publish to clawhub
-# Source: skills/wallet/SKILL.md
+# Publish all SKILL.md files to multiple locations and publish to clawhub
+# Skills: wallet, polymarket
 
 set -e
 
@@ -12,19 +12,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-
-SOURCE="$PROJECT_ROOT/skills/wallet/SKILL.md"
 PACKAGE_JSON="$PROJECT_ROOT/package.json"
-
-# Destination paths
-FRONTEND_DEST="$PROJECT_ROOT/frontend/public/SKILL.md"
-AGENT_SKILLS_DEST="$PROJECT_ROOT/../agent-skills/skills/wallet/SKILL.md"
-
-# Check if source file exists
-if [ ! -f "$SOURCE" ]; then
-    echo "Error: Source file not found: $SOURCE"
-    exit 1
-fi
 
 # Check if package.json exists
 if [ ! -f "$PACKAGE_JSON" ]; then
@@ -46,19 +34,45 @@ echo "New version: $NEW_VERSION"
 
 # Update package.json with new version
 sed -i '' "s/\"version\": \"$CURRENT_VERSION\"/\"version\": \"$NEW_VERSION\"/" "$PACKAGE_JSON"
-echo "Updated package.json"
+echo "Updated package.json to v$NEW_VERSION"
+
+# --- Wallet skill ---
+WALLET_SOURCE="$PROJECT_ROOT/skills/wallet/SKILL.md"
+if [ ! -f "$WALLET_SOURCE" ]; then
+    echo "Error: Wallet skill not found: $WALLET_SOURCE"
+    exit 1
+fi
+
+echo ""
+echo "=== Publishing wallet skill ==="
 
 # Copy to frontend/public
-echo "Copying to $FRONTEND_DEST"
-cp "$SOURCE" "$FRONTEND_DEST"
-
-# Copy to agent-skills (create directory if needed)
-echo "Copying to $AGENT_SKILLS_DEST"
-mkdir -p "$(dirname "$AGENT_SKILLS_DEST")"
-cp "$SOURCE" "$AGENT_SKILLS_DEST"
+mkdir -p "$PROJECT_ROOT/frontend/public/agentwallet"
+cp "$WALLET_SOURCE" "$PROJECT_ROOT/frontend/public/agentwallet/SKILL.md"
+echo "Copied to frontend/public/agentwallet/SKILL.md"
 
 # Publish to clawhub
-echo "Publishing to clawhub..."
-clawhub publish skills/wallet --slug agentwallet --name "Agent Wallet" --version "$NEW_VERSION"
+echo "Publishing wallet to clawhub..."
+clawhub publish skills/wallet --slug agentwallet --name "Vincent - Wallet" --version "$NEW_VERSION"
 
-echo "Done! SKILL.md published to all locations and clawhub (v$NEW_VERSION)."
+# --- Polymarket skill ---
+POLYMARKET_SOURCE="$PROJECT_ROOT/skills/polymarket/SKILL.md"
+if [ ! -f "$POLYMARKET_SOURCE" ]; then
+    echo "Error: Polymarket skill not found: $POLYMARKET_SOURCE"
+    exit 1
+fi
+
+echo ""
+echo "=== Publishing polymarket skill ==="
+
+# Copy to frontend/public
+mkdir -p "$PROJECT_ROOT/frontend/public/vincentpolymarket"
+cp "$POLYMARKET_SOURCE" "$PROJECT_ROOT/frontend/public/vincentpolymarket/SKILL.md"
+echo "Copied to frontend/public/vincentpolymarket/SKILL.md"
+
+# Publish to clawhub
+echo "Publishing polymarket to clawhub..."
+clawhub publish skills/polymarket --slug vincentpolymarket --name "Vincent - Polymarket" --version "$NEW_VERSION"
+
+echo ""
+echo "Done! All skills published to all locations and clawhub (v$NEW_VERSION)."

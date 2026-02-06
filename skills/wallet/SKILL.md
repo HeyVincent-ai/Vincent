@@ -1,6 +1,6 @@
 ---
 name: Vincent - A wallet for agents
-description: Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction. Also supports raw signing for Ethereum and Solana.
+description: Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction. Also supports raw signing.
 ---
 
 # Vincent - A wallet for agents
@@ -11,10 +11,10 @@ Use this skill to safely create a wallet the agent can use for transfers, swaps,
 
 ## Which Secret Type to Use
 
-| Type         | Use Case                                  | Network                 | Gas              |
-| ------------ | ----------------------------------------- | ----------------------- | ---------------- |
-| `EVM_WALLET` | Transfers, swaps, DeFi, contract calls    | Any EVM chain           | Sponsored (free) |
-| `RAW_SIGNER` | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay          |
+| Type                | Use Case                                  | Network                 | Gas              |
+| ------------------- | ----------------------------------------- | ----------------------- | ---------------- |
+| `EVM_WALLET`        | Transfers, swaps, DeFi, contract calls    | Any EVM chain           | Sponsored (free) |
+| `RAW_SIGNER`        | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay          |
 
 **Choose `EVM_WALLET`** (default) for:
 
