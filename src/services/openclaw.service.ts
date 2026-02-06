@@ -252,8 +252,9 @@ export function buildSetupScript(openRouterApiKey: string, hostname: string): st
   //   config, then `openclaw config set` for schema-validated changes.
   // - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to the VPS IP,
   //   allowing Caddy to obtain a Let's Encrypt certificate automatically.
-  return `sudo bash <<'SETUPSCRIPT'
+  return `sudo -H bash <<'SETUPSCRIPT'
 set -euo pipefail
+export HOME=/root
 export DEBIAN_FRONTEND=noninteractive
 
 echo "=== [1/8] System update ==="
