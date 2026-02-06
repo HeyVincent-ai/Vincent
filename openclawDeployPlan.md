@@ -87,6 +87,12 @@ model OpenClawDeployment {
   currentPeriodEnd     DateTime?          // when the current billing period ends
   canceledAt           DateTime?          // when user requested cancellation
 
+  // Token billing (LLM credits)
+  creditBalanceUsd     Decimal  @default(25.00)  // available credits in USD ($25 free included)
+  lastKnownUsageUsd    Decimal  @default(0)      // last polled total usage from OpenRouter
+  lastUsagePollAt      DateTime?                  // when we last polled OpenRouter for usage
+  creditPurchases      OpenClawCreditPurchase[]
+
   // Timestamps
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -107,6 +113,23 @@ enum OpenClawStatus {
   ERROR             // something went wrong (see statusMessage)
   DESTROYING        // tear-down in progress
   DESTROYED         // VPS deleted
+}
+```
+
+### New Prisma model: `OpenClawCreditPurchase`
+
+```prisma
+model OpenClawCreditPurchase {
+  id                    String   @id @default(cuid())
+  deploymentId          String
+  deployment            OpenClawDeployment @relation(fields: [deploymentId], references: [id])
+
+  amountUsd             Decimal             // amount purchased (e.g. 10.00)
+  stripePaymentIntentId String   @unique    // Stripe PaymentIntent ID for the charge
+
+  createdAt             DateTime @default(now())
+
+  @@index([deploymentId])
 }
 ```
 
@@ -193,13 +216,18 @@ class OpenRouterService {
   // Delete a key when deployment is destroyed
   async deleteKey(hash: string): Promise<void>;
 
-  // Get key usage stats (for future billing passthrough)
+  // Get key usage stats (per-key USD totals from OpenRouter)
   async getKeyUsage(hash: string): Promise<{
-    usage: number; // total USD spent
-    usage_daily: number;
-    usage_weekly: number;
-    usage_monthly: number;
+    usage: number;         // total USD spent (all-time)
+    usage_daily: number;   // USD spent today (UTC)
+    usage_weekly: number;  // USD spent this week (UTC, Mon-Sun)
+    usage_monthly: number; // USD spent this month (UTC)
+    limit: number | null;
+    limit_remaining: number | null;
   }>;
+
+  // Update the spending limit on an OpenRouter key
+  async updateKeyLimit(hash: string, newLimit: number): Promise<void>;
 }
 ```
 
@@ -247,6 +275,25 @@ class OpenClawService {
 
   // Called by webhook on customer.subscription.deleted — destroys VPS after subscription expires
   async handleSubscriptionExpired(stripeSubscriptionId: string): Promise<void>;
+
+  // Token billing: get current usage stats from OpenRouter (polls + caches)
+  async getUsage(deploymentId: string, userId: string): Promise<{
+    creditBalanceUsd: number;     // total credits available
+    totalUsageUsd: number;        // total spent on OpenRouter
+    remainingUsd: number;         // creditBalanceUsd - totalUsageUsd
+    usageDailyUsd: number;        // today's usage
+    usageMonthlyUsd: number;      // this month's usage
+    lastPolledAt: Date | null;
+  }>;
+
+  // Token billing: add credits by charging user's existing Stripe payment method
+  async addCredits(deploymentId: string, userId: string, amountUsd: number): Promise<{
+    success: boolean;
+    newBalanceUsd: number;
+    paymentIntentId?: string;
+    requiresAction?: boolean;     // true if 3D Secure required
+    clientSecret?: string;        // for frontend to complete 3D Secure
+  }>;
 }
 ```
 
@@ -487,6 +534,26 @@ router.post(
     // SSH in and systemctl restart openclaw-gateway
   })
 );
+
+// Get LLM token usage for a deployment (polls OpenRouter, caches result)
+router.get(
+  '/deployments/:id/usage',
+  asyncHandler(async (req, res) => {
+    // Returns: creditBalanceUsd, totalUsageUsd, remainingUsd, usageDailyUsd, usageMonthlyUsd
+    // Polls OpenRouter getKeyUsage() if last poll > 60s ago, otherwise returns cached
+  })
+);
+
+// Add LLM credits to a deployment (charges user's existing Stripe payment method)
+router.post(
+  '/deployments/:id/credits',
+  asyncHandler(async (req, res) => {
+    // Body: { amountUsd: number } (min $5, max $500)
+    // Charges user's Stripe customer off-session via PaymentIntent
+    // If successful: increments creditBalanceUsd, updates OpenRouter key limit, creates CreditPurchase record
+    // If 3D Secure required: returns { requiresAction: true, clientSecret } for frontend
+  })
+);
 ```
 
 Mount in `src/api/routes/index.ts`:
@@ -512,6 +579,9 @@ export const cancelOpenClawDeployment = (id: string) =>
 export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
 export const restartOpenClawDeployment = (id: string) =>
   api.post(`/openclaw/deployments/${id}/restart`);
+export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
+export const addOpenClawCredits = (id: string, amountUsd: number) =>
+  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
 ```
 
 ### 2. OpenClaw section in Dashboard (`frontend/src/components/OpenClawSection.tsx`)
@@ -783,10 +853,17 @@ No DNS needed.
 - When subscription expires (`customer.subscription.deleted` webhook), VPS is destroyed automatically
 - Users can also "Destroy Now" to immediately cancel the subscription and tear down the VPS
 
-**LLM cost strategy:**
+**LLM token billing (credit-based):**
 
-- **MVP:** set a spending cap on the OpenRouter key (e.g. $10/month) included in the $25/mo price
-- **Later — passthrough billing:** poll OpenRouter key usage, charge users for their token spend via Stripe metered billing (same pattern as existing gas usage billing)
+- Each deployment starts with **$25 free credits** for LLM usage (`creditBalanceUsd = 25.00`)
+- OpenRouter key is created with `limit: 25` (spending cap matches credit balance)
+- Backend polls `GET /api/v1/keys/:hash` for per-key usage in USD (`usage`, `usage_daily`, `usage_monthly`)
+- Dashboard shows usage card: "Used $X.XX / $25.00 credits remaining" with progress bar
+- When credits run low, user clicks **"Add Credits"** → enters dollar amount → charges existing Stripe payment method
+- Stripe charge uses `paymentIntents.create()` with `off_session: true` + customer's default payment method (no re-entering card)
+- On successful charge: increment `creditBalanceUsd` in DB, update OpenRouter key `limit` to new total
+- If 3D Secure is required, frontend completes authentication using Stripe.js + returned `clientSecret`
+- When credits reach $0, OpenRouter automatically blocks the key (via its `limit` feature) — user sees "Credits exhausted" and must add more
 
 ---
 
@@ -835,12 +912,23 @@ No DNS needed.
 20. Update frontend: deploy button → redirect to Stripe Checkout, add cancel flow, show "Active until [date]" for canceling deployments, show $25/mo pricing
 21. Test end-to-end billing flow: checkout → deploy → cancel → wait for expiry → VPS destroyed
 
-### Phase 5: Hardening
+### Phase 5: Token Billing (LLM credit system)
 
-22. Add error recovery (retry failed provisions, cleanup orphaned VPS + revoke orphaned OpenRouter keys)
-23. Add deployment timeout handling (cancel after 20 min)
-24. Add monitoring / health checks for running instances
-25. Add OpenRouter usage tracking + passthrough billing via Stripe
+22. Add Prisma migration: `creditBalanceUsd`, `lastKnownUsageUsd`, `lastUsagePollAt` on `OpenClawDeployment` + new `OpenClawCreditPurchase` model
+23. Add `updateKeyLimit()` to `openrouter.service.ts` — PATCH key spending limit via OpenRouter API
+24. Update deploy flow: create OpenRouter key with `limit: 25` ($25 free credits), set `creditBalanceUsd = 25.00`
+25. Add `GET /api/openclaw/deployments/:id/usage` route — polls OpenRouter `getKeyUsage()`, caches in DB, returns usage + credit balance
+26. Add `POST /api/openclaw/deployments/:id/credits` route — validate amount ($5-$500), charge Stripe off-session (`paymentIntents.create` with `off_session: true`, customer's default payment method), increment credits, update OpenRouter key limit, create `OpenClawCreditPurchase` record
+27. Add `chargeCustomerOffSession()` to `stripe.service.ts` — gets customer default payment method, creates PaymentIntent, handles `authentication_required` error (returns `clientSecret` for 3D Secure)
+28. Update frontend `OpenClawDetail.tsx`: add usage card (progress bar: used/remaining), poll usage on page load, "Add Credits" button → modal with amount input → calls addCredits API → handles 3D Secure if needed via Stripe.js
+29. Update `OpenClawSection.tsx` dashboard card: show credit balance summary for READY deployments ("$X.XX credits remaining")
+30. Add background job / cron: poll OpenRouter usage for all READY deployments every 5 min, update `lastKnownUsageUsd`, optionally warn when credits < $5 remaining
+
+### Phase 6: Hardening
+
+31. Add error recovery (retry failed provisions, cleanup orphaned VPS + revoke orphaned OpenRouter keys)
+32. Add deployment timeout handling (cancel after 20 min)
+33. Add monitoring / health checks for running instances
 
 ---
 
@@ -850,7 +938,7 @@ No DNS needed.
 2. **OpenClaw auth** — Gateway auth token at `gateway.auth.token` in `~/.openclaw/openclaw.json`. Stored in our DB, injected by frontend as `?token=` URL param in iframe src.
 3. **Database** — OpenClaw does not need a database.
 4. **LLM provider** — OpenRouter, using model `openrouter/google/gemini-3-flash-preview`. Each deployment gets a fresh OpenRouter API key provisioned via the Provisioning Key API.
-5. **Billing model (LLM)** — passthrough billing of OpenRouter token charges via Stripe, but saved for later. MVP absorbs costs or sets a spending cap.
+5. **Billing model (LLM)** — credit-based system. $25 free credits per deployment. Users add more via "Add Credits" button which charges their existing Stripe payment method off-session. OpenRouter key `limit` is kept in sync with credit balance. Per-key usage polled from `GET /api/v1/keys/:hash` (returns USD totals: `usage`, `usage_daily`, `usage_monthly`).
 6. **VPS plan** — `vps-2025-model1` (4 vCPUs, 8 GB RAM). Plenty for OpenClaw + Node.js v22.
 7. **Multiple instances** — yes, users can deploy multiple instances. Each requires its own $25/mo subscription. No per-user limit (beyond rate limiting on the deploy endpoint).
 9. **Billing model (deployment)** — $25/mo per deployment via Stripe subscription (`STRIPE_OPENCLAW_PRICE_ID`). Payment required before provisioning. On cancel, VPS stays running until subscription period ends. Follows existing `stripe.service.ts` patterns (checkout sessions, webhook handling).
