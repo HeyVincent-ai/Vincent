@@ -808,13 +808,22 @@ export default function Landing() {
                     Ideal for dApps requiring raw signatures.
                   </span>
                 </span>
+                <span className="tooltip-wrapper">
+                  <span className="pill hoverable">
+                    Polymarket{' '}
+                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                  </span>
+                  <span className="tooltip-text">
+                    Trade on prediction markets via Polymarket. Browse markets, place bets, and
+                    manage positions with gasless trading on Polygon.
+                  </span>
+                </span>
               </div>
               <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>
                 Coming soon
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 <span className="pill">Hyperliquid</span>
-                <span className="pill">Polymarket</span>
                 <span className="pill">Solana</span>
                 <span className="pill">Bitcoin</span>
                 <span className="pill">Binance</span>
