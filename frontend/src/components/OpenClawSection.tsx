@@ -7,6 +7,7 @@ interface Deployment {
   status: string;
   statusMessage: string | null;
   ipAddress: string | null;
+  hostname: string | null;
   ovhServiceName: string | null;
   createdAt: string;
   readyAt: string | null;
@@ -153,8 +154,8 @@ export default function OpenClawSection() {
                   </div>
                 </div>
 
-                {d.ipAddress && (
-                  <p className="text-sm text-gray-500 mt-2 font-mono">{d.ipAddress}</p>
+                {(d.hostname || d.ipAddress) && (
+                  <p className="text-sm text-gray-500 mt-2 font-mono">{d.hostname || d.ipAddress}</p>
                 )}
 
                 {isInProgress && (

@@ -11,6 +11,7 @@ interface Deployment {
   status: string;
   statusMessage: string | null;
   ipAddress: string | null;
+  hostname: string | null;
   accessToken: string | null;
   ovhServiceName: string | null;
   createdAt: string;
@@ -127,8 +128,12 @@ export default function OpenClawDetail() {
 
   const isInProgress = ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
   const currentStep = stepIndex(deployment.status);
-  const iframeUrl = deployment.ipAddress && deployment.accessToken
-    ? `https://${deployment.ipAddress}?token=${deployment.accessToken}`
+  const iframeUrl = deployment.accessToken
+    ? deployment.hostname
+      ? `https://${deployment.hostname}?token=${deployment.accessToken}`
+      : deployment.ipAddress
+        ? `http://${deployment.ipAddress}?token=${deployment.accessToken}`
+        : null
     : null;
 
   return (
@@ -201,11 +206,11 @@ export default function OpenClawDetail() {
 
       {/* Info bar */}
       <div className="bg-white rounded-lg border p-3 mb-4 flex items-center gap-4 text-sm text-gray-500">
+        {deployment.hostname && (
+          <span>Host: <code className="font-mono text-gray-700">{deployment.hostname}</code></span>
+        )}
         {deployment.ipAddress && (
           <span>IP: <code className="font-mono text-gray-700">{deployment.ipAddress}</code></span>
-        )}
-        {deployment.ovhServiceName && (
-          <span>Service: <code className="font-mono text-gray-700">{deployment.ovhServiceName}</code></span>
         )}
         <span>Created: {new Date(deployment.createdAt).toLocaleString()}</span>
         {deployment.readyAt && (

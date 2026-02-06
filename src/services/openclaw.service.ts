@@ -29,8 +29,8 @@
  *   is agents.defaults.model = { primary: "provider/model" }.
  * - Use `openclaw setup --non-interactive --mode local` to bootstrap
  *   config, then `openclaw config set` for schema-validated changes.
- * - Caddy 2.6 (Debian 12 package) does not support TLS for bare IPs.
- *   Use HTTP (port 80) reverse proxy instead.
+ * - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to VPS IP,
+ *   so Caddy can auto-provision a Let's Encrypt TLS certificate.
  */
 
 import { createRequire } from 'module';
@@ -112,6 +112,7 @@ async function updateDeployment(
     statusMessage?: string;
     provisionLog?: string;
     ipAddress?: string;
+    hostname?: string;
     accessToken?: string;
     ovhServiceName?: string;
     ovhOrderId?: string;
@@ -238,7 +239,7 @@ async function waitForSsh(
 // VPS Setup Script
 // ============================================================
 
-function buildSetupScript(openRouterApiKey: string, _vpsIp: string): string {
+function buildSetupScript(openRouterApiKey: string, hostname: string): string {
   // Run as root via sudo. The SSH user is debian (non-root).
   // Key learnings from real VPS testing:
   // - openclaw binary installs to /usr/bin/openclaw (not /usr/local/bin)
@@ -249,8 +250,8 @@ function buildSetupScript(openRouterApiKey: string, _vpsIp: string): string {
   //   with agents.defaults.model (object with "primary" field).
   // - Use `openclaw setup --non-interactive --mode local` to create initial
   //   config, then `openclaw config set` for schema-validated changes.
-  // - Caddy 2.6 (Debian 12 package) does not support TLS for bare IP addresses.
-  //   Use HTTP reverse proxy on port 80 instead.
+  // - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to the VPS IP,
+  //   allowing Caddy to obtain a Let's Encrypt certificate automatically.
   return `sudo bash <<'SETUPSCRIPT'
 set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
@@ -281,9 +282,9 @@ openclaw config set gateway.bind loopback
 openclaw config set gateway.controlUi.allowInsecureAuth true
 openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 
-echo "=== [6/8] Configuring Caddy reverse proxy ==="
+echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
-:80 {
+${hostname} {
     reverse_proxy localhost:${OPENCLAW_PORT}
 }
 CADDYEOF
@@ -347,32 +348,38 @@ SETUPSCRIPT`;
 
 async function waitForHealth(
   ipAddress: string,
+  hostname?: string,
   timeoutMs: number = HEALTH_POLL_TIMEOUT_MS
 ): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    try {
-      // Try HTTP via Caddy (port 80 reverse proxy to gateway)
-      const res = await fetch(`http://${ipAddress}`, {
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (res.ok || res.status === 401 || res.status === 403) {
-        return true;
-      }
-    } catch {
-      // Not ready yet — try direct gateway port as fallback
+    // Try HTTPS via Caddy on the hostname (Let's Encrypt cert)
+    if (hostname) {
       try {
-        const res = await fetch(`http://${ipAddress}:${OPENCLAW_PORT}`, {
-          signal: AbortSignal.timeout(5_000),
+        const res = await fetch(`https://${hostname}`, {
+          signal: AbortSignal.timeout(10_000),
         });
         if (res.ok || res.status === 401 || res.status === 403) {
           return true;
         }
       } catch {
-        // Not ready
+        // TLS cert may not be ready yet
       }
     }
+
+    // Fallback: direct gateway port via IP
+    try {
+      const res = await fetch(`http://${ipAddress}:${OPENCLAW_PORT}`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok || res.status === 401 || res.status === 403) {
+        return true;
+      }
+    } catch {
+      // Not ready
+    }
+
     await sleep(HEALTH_POLL_INTERVAL_MS);
   }
 
@@ -506,10 +513,15 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     const deliveredServiceName = await pollForDelivery(order.orderId, addLog);
     addLog(`VPS delivered: ${deliveredServiceName}`);
 
+    // Construct the OVH hostname (e.g. vps-xxxx.vps.ovh.us) for Caddy TLS
+    const hostname = ovhService.getVpsHostname(deliveredServiceName);
+    addLog(`VPS hostname: ${hostname}`);
+
     await updateDeployment(deploymentId, {
       status: 'PROVISIONING',
       statusMessage: 'VPS delivered, retrieving IP address',
       ovhServiceName: deliveredServiceName,
+      hostname,
       provisionLog: log,
     });
 
@@ -552,7 +564,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     addLog(`SSH connected as ${sshUser}`);
 
     addLog('Running OpenClaw setup script...');
-    const setupScript = buildSetupScript(orKey.key, ip);
+    const setupScript = buildSetupScript(orKey.key, hostname);
     const result = await sshExec(ip, sshUser, sshPriv, setupScript, 15 * 60_000);
     addLog(`Setup script exit code: ${result.code}`);
     if (result.stderr) {
@@ -576,7 +588,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
     // Step 10: Wait for health check
     addLog('Waiting for OpenClaw health check...');
-    const healthy = await waitForHealth(ip);
+    const healthy = await waitForHealth(ip, hostname);
     if (healthy) {
       addLog('OpenClaw is healthy and responding!');
     } else {

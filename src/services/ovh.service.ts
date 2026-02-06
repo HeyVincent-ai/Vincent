@@ -49,6 +49,21 @@ interface OvhClient {
 }
 
 // ============================================================
+// VPS Hostname
+// ============================================================
+
+const OVH_VPS_DOMAIN_SUFFIX = '.vps.ovh.us';
+
+/**
+ * Construct the OVH-provided FQDN for a VPS.
+ * OVH US VPSes get a hostname like `vps-xxxx.vps.ovh.us` that resolves
+ * to the VPS IP and has reverse DNS set up — perfect for Caddy TLS.
+ */
+export function getVpsHostname(serviceName: string): string {
+  return `${serviceName}${OVH_VPS_DOMAIN_SUFFIX}`;
+}
+
+// ============================================================
 // Client singleton
 // ============================================================
 

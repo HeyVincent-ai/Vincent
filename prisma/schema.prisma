@@ -333,6 +333,7 @@ model OpenClawDeployment {
 
   // Instance details
   ipAddress       String?        @map("ip_address")
+  hostname        String?        @map("hostname")
   accessToken     String?        @map("access_token")
   sshPrivateKey   String?        @map("ssh_private_key")  @db.Text
   sshPublicKey    String?        @map("ssh_public_key")   @db.Text
