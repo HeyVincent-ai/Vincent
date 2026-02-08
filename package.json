@@ -1,6 +1,6 @@
 {
   "name": "safeskills",
-  "version": "1.0.28",
+  "version": "1.0.30",
   "description": "Secure secret management service for AI agents",
   "type": "module",
   "main": "dist/index.js",
@@ -25,11 +25,7 @@
     "test:coverage": "vitest run --coverage",
     "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
     "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
-    "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts",
-    "test:openclaw": "vitest run src/e2e/openclaw.e2e.test.ts --test-timeout 600000",
-    "test:openclaw-api": "vitest run src/e2e/openclaw-api.e2e.test.ts --test-timeout 600000",
-    "test:openclaw-billing": "vitest run src/e2e/openclaw-billing.e2e.test.ts --test-timeout 120000",
-    "test:openclaw-credits": "vitest run src/e2e/openclaw-credits.e2e.test.ts --test-timeout 120000"
+    "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts"
   },
   "keywords": [
     "secrets",
@@ -45,7 +41,6 @@
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.1.0",
-    "@types/ssh2": "^1.15.5",
     "@types/supertest": "^6.0.3",
     "@types/uuid": "^11.0.0",
     "@vitest/coverage-v8": "^4.0.18",
@@ -68,7 +63,6 @@
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
-    "@ovhcloud/node-ovh": "^3.0.0",
     "@polymarket/builder-relayer-client": "^0.0.8",
     "@polymarket/clob-client": "^5.2.1",
     "@prisma/client": "^5.22.0",
@@ -85,7 +79,6 @@
     "helmet": "^8.1.0",
     "https-proxy-agent": "^7.0.6",
     "prisma": "^5.22.0",
-    "ssh2": "^1.17.0",
     "stripe": "^20.3.0",
     "stytch": "^13.1.0",
     "tweetnacl": "^1.0.3",
