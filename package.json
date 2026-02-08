@@ -63,6 +63,7 @@
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
+    "@ovhcloud/node-ovh": "^3.0.0",
     "@polymarket/builder-relayer-client": "^0.0.8",
     "@polymarket/clob-client": "^5.2.1",
     "@prisma/client": "^5.22.0",
