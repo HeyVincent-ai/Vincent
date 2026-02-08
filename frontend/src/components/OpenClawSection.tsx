@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getOpenClawDeployments, deployOpenClaw } from '../api';
+import { getOpenClawDeployments, deployOpenClaw, retryOpenClawDeployment } from '../api';
 
 interface Deployment {
   id: string;
@@ -233,14 +233,33 @@ export default function OpenClawSection() {
                 )}
 
                 {d.status === 'ERROR' && (
-                  <div className="mt-2">
-                    <button
-                      onClick={handleDeploy}
-                      disabled={deploying}
-                      className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                    >
-                      Retry
-                    </button>
+                  <div className="mt-2 flex items-center gap-3">
+                    {d.stripeSubscriptionId ? (
+                      <button
+                        onClick={async () => {
+                          try {
+                            setError(null);
+                            await retryOpenClawDeployment(d.id);
+                            load();
+                          } catch (err: unknown) {
+                            const msg = (err as { response?: { data?: { error?: string } } })
+                              ?.response?.data?.error;
+                            setError(msg || 'Retry failed');
+                          }
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Retry
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleDeploy}
+                        disabled={deploying}
+                        className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        Deploy Again
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

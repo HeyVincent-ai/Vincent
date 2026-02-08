@@ -5,6 +5,7 @@ import {
   cancelOpenClawDeployment,
   destroyOpenClawDeployment,
   restartOpenClawDeployment,
+  retryOpenClawDeployment,
   getOpenClawUsage,
   addOpenClawCredits,
 } from '../api';
@@ -457,7 +458,36 @@ export default function OpenClawDetail() {
       {deployment.status === 'ERROR' && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
           <p className="text-red-800 font-medium mb-2">Deployment failed</p>
-          <p className="text-sm text-red-700">{deployment.statusMessage}</p>
+          <p className="text-sm text-red-700 mb-4">{deployment.statusMessage}</p>
+          <div className="flex items-center justify-center gap-3">
+            {deployment.stripeSubscriptionId && (
+              <button
+                onClick={async () => {
+                  if (!id) return;
+                  setActionLoading('retry');
+                  setError(null);
+                  try {
+                    await retryOpenClawDeployment(id);
+                    load();
+                  } catch {
+                    setError('Retry failed');
+                  } finally {
+                    setActionLoading(null);
+                  }
+                }}
+                disabled={actionLoading === 'retry'}
+                className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+              >
+                {actionLoading === 'retry' ? 'Retrying...' : 'Retry Deployment'}
+              </button>
+            )}
+            <button
+              onClick={() => setShowDestroyConfirm(true)}
+              className="text-sm border border-red-200 text-red-600 px-4 py-2 rounded hover:bg-red-50"
+            >
+              Destroy
+            </button>
+          </div>
         </div>
       )}
 

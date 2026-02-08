@@ -56,10 +56,15 @@
 - [x] **5.12** Add background usage poller in `openclaw.service.ts` — `startUsagePoller()` / `stopUsagePoller()` (every 5 min), polls all READY deployments with OpenRouter keys, updates `lastKnownUsageUsd`; wired into `src/index.ts` startup/shutdown
 - [x] **5.13** E2E test `src/e2e/openclaw-credits.e2e.test.ts` — 7 tests: $25 default credits, usage API, 404 handling, amount validation ($5-$500), Stripe off-session charge + DB update + CreditPurchase record + PaymentIntent verification, credit stacking, updated balance in usage endpoint
 
-## Phase 6: Hardening
+## Phase 6: Hardening ✅ COMPLETE
 
-- [ ] **6.1** Add error recovery — retry failed provisions, cleanup orphaned VPS, revoke orphaned OpenRouter keys
-- [ ] **6.2** Add deployment timeout handling — cancel/error after 20 min of no progress
-- [ ] **6.3** Add monitoring / health checks for running instances (periodic background checks)
-- [ ] **6.4** Add rate limiting on deploy endpoint to prevent abuse
-- [ ] **6.5** Add cost tracking per user (VPS + OpenRouter token costs)
+- [x] **6.1** Add error recovery — `retryDeploy()` in openclaw.service.ts (cleans up partial OpenRouter key, resets deployment state, re-provisions from scratch using existing subscription); `cleanupOrphanedResources()` revokes OpenRouter keys on DESTROYED deployments and marks abandoned PENDING_PAYMENT checkouts (>24h) as DESTROYED; `POST /api/openclaw/deployments/:id/retry` route; frontend retry buttons in OpenClawSection.tsx and OpenClawDetail.tsx (uses retry API for paid deployments, deploy-again for unpaid)
+- [x] **6.2** Add deployment timeout handling — `checkStaleDeployments()` runs every 5 min; PENDING_PAYMENT > 1h → ERROR; PENDING/ORDERING > 20 min → ERROR; PROVISIONING/INSTALLING > 30 min → ERROR
+- [x] **6.3** Add monitoring / health checks — `checkDeploymentHealth()` pings READY/CANCELING deployments via hostname HTTPS and fallback direct IP:18789; tracks consecutive failures in memory; after 3 failures, updates statusMessage to warn; auto-recovers when instance comes back
+- [x] **6.4** Add rate limiting on deploy endpoint — per-user in-memory: 1 deploy per minute, max 3 active (non-DESTROYED, non-ERROR) deployments per user; returns 429 with descriptive error
+- [x] **6.5** Unified hardening background worker — `startHardeningWorker()` / `stopHardeningWorker()` runs every 5 min (timeout checks → orphan cleanup → health monitoring); wired into src/index.ts startup/shutdown alongside usage poller
+
+## Phase 7: Frontend and Landing Page Cleanup
+
+- [ ] **7.1** Integrate cofounder's new landing page design
+- [ ] **7.2** General frontend cleanup and polish

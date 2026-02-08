@@ -1171,6 +1171,342 @@ export async function addCredits(
 }
 
 // ============================================================
+// Retry Failed Deployment
+// ============================================================
+
+/**
+ * Retry a failed deployment. Cleans up partial resources (OpenRouter key),
+ * then re-provisions from scratch using the existing subscription.
+ */
+export async function retryDeploy(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (deployment.status !== 'ERROR') {
+    throw new Error('Can only retry deployments in ERROR state');
+  }
+  if (!deployment.stripeSubscriptionId) {
+    throw new Error('Deployment has no subscription — cannot retry without payment');
+  }
+
+  console.log(`[openclaw] Retrying deployment ${deploymentId}...`);
+
+  // Clean up partial OpenRouter key from the failed attempt
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.deleteKey(deployment.openRouterKeyHash);
+      console.log(`[openclaw] Cleaned up orphaned OpenRouter key ${deployment.openRouterKeyHash}`);
+    } catch (err: any) {
+      console.error(`[openclaw] Failed to clean up OpenRouter key:`, err.message);
+    }
+  }
+
+  // Reset deployment state for fresh provisioning
+  const updated = await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: {
+      status: 'PENDING',
+      statusMessage: 'Retrying provisioning',
+      openRouterKeyHash: null,
+      ipAddress: null,
+      hostname: null,
+      accessToken: null,
+      sshPrivateKey: null,
+      sshPublicKey: null,
+      ovhServiceName: null,
+      ovhOrderId: null,
+      readyAt: null,
+      provisionLog: null,
+    },
+  });
+
+  // Start async provisioning (reuses existing subscription)
+  provisionAsync(deploymentId, {}).catch(async (err) => {
+    console.error(`[openclaw] Retry provisioning failed for ${deploymentId}:`, err);
+    await updateDeployment(deploymentId, {
+      status: 'ERROR',
+      statusMessage: `Retry failed: ${err.message}`,
+    }).catch(console.error);
+  });
+
+  return updated;
+}
+
+// ============================================================
+// Orphan Cleanup
+// ============================================================
+
+/**
+ * Clean up orphaned resources from DESTROYED/old-ERROR deployments.
+ * - Revoke OpenRouter keys on DESTROYED deployments
+ * - Mark abandoned PENDING_PAYMENT checkouts (>24h) as DESTROYED
+ */
+export async function cleanupOrphanedResources(): Promise<{
+  keysRevoked: number;
+  abandonedCheckouts: number;
+}> {
+  let keysRevoked = 0;
+  let abandonedCheckouts = 0;
+
+  // 1. Revoke OpenRouter keys on DESTROYED deployments that still have a key hash
+  const destroyedWithKeys = await prisma.openClawDeployment.findMany({
+    where: {
+      status: 'DESTROYED',
+      openRouterKeyHash: { not: null },
+    },
+    select: { id: true, openRouterKeyHash: true },
+  });
+
+  for (const d of destroyedWithKeys) {
+    try {
+      await openRouterService.deleteKey(d.openRouterKeyHash!);
+      await prisma.openClawDeployment.update({
+        where: { id: d.id },
+        data: { openRouterKeyHash: null },
+      });
+      keysRevoked++;
+      console.log(`[openclaw:cleanup] Revoked orphaned key for destroyed deployment ${d.id}`);
+    } catch (err: any) {
+      console.error(`[openclaw:cleanup] Failed to revoke key for ${d.id}:`, err.message);
+    }
+  }
+
+  // 2. Mark PENDING_PAYMENT deployments older than 24h as DESTROYED (abandoned checkouts)
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60_000);
+  const abandonedPayments = await prisma.openClawDeployment.findMany({
+    where: {
+      status: 'PENDING_PAYMENT',
+      createdAt: { lt: twentyFourHoursAgo },
+    },
+    select: { id: true },
+  });
+
+  for (const d of abandonedPayments) {
+    try {
+      await prisma.openClawDeployment.update({
+        where: { id: d.id },
+        data: {
+          status: 'DESTROYED',
+          statusMessage: 'Checkout session expired (abandoned)',
+          destroyedAt: new Date(),
+        },
+      });
+      abandonedCheckouts++;
+      console.log(`[openclaw:cleanup] Marked abandoned checkout ${d.id} as DESTROYED`);
+    } catch (err: any) {
+      console.error(`[openclaw:cleanup] Failed to clean up abandoned checkout ${d.id}:`, err.message);
+    }
+  }
+
+  if (keysRevoked > 0 || abandonedCheckouts > 0) {
+    console.log(`[openclaw:cleanup] Cleaned up: ${keysRevoked} orphaned keys, ${abandonedCheckouts} abandoned checkouts`);
+  }
+
+  return { keysRevoked, abandonedCheckouts };
+}
+
+// ============================================================
+// Stale Deployment Timeout
+// ============================================================
+
+const PROVISIONING_TIMEOUT_MS = 20 * 60_000;  // 20 min for PENDING/ORDERING
+const INSTALLING_TIMEOUT_MS = 30 * 60_000;    // 30 min for PROVISIONING/INSTALLING
+const CHECKOUT_TIMEOUT_MS = 60 * 60_000;      // 1 hour for PENDING_PAYMENT
+
+/**
+ * Find deployments stuck in intermediate states and mark them ERROR.
+ */
+export async function checkStaleDeployments(): Promise<number> {
+  let timedOut = 0;
+  const now = Date.now();
+
+  // PENDING_PAYMENT > 1 hour
+  const staleCheckouts = await prisma.openClawDeployment.findMany({
+    where: {
+      status: 'PENDING_PAYMENT',
+      updatedAt: { lt: new Date(now - CHECKOUT_TIMEOUT_MS) },
+    },
+    select: { id: true },
+  });
+
+  // PENDING/ORDERING > 20 min
+  const staleOrdering = await prisma.openClawDeployment.findMany({
+    where: {
+      status: { in: ['PENDING', 'ORDERING'] },
+      updatedAt: { lt: new Date(now - PROVISIONING_TIMEOUT_MS) },
+    },
+    select: { id: true },
+  });
+
+  // PROVISIONING/INSTALLING > 30 min
+  const staleInstalling = await prisma.openClawDeployment.findMany({
+    where: {
+      status: { in: ['PROVISIONING', 'INSTALLING'] },
+      updatedAt: { lt: new Date(now - INSTALLING_TIMEOUT_MS) },
+    },
+    select: { id: true },
+  });
+
+  const allStale = [
+    ...staleCheckouts.map(d => ({ id: d.id, reason: 'Checkout session timed out' })),
+    ...staleOrdering.map(d => ({ id: d.id, reason: 'VPS provisioning timed out after 20 minutes' })),
+    ...staleInstalling.map(d => ({ id: d.id, reason: 'Installation timed out after 30 minutes' })),
+  ];
+
+  for (const { id, reason } of allStale) {
+    try {
+      await prisma.openClawDeployment.update({
+        where: { id },
+        data: {
+          status: 'ERROR',
+          statusMessage: reason,
+        },
+      });
+      timedOut++;
+      console.log(`[openclaw:timeout] Deployment ${id}: ${reason}`);
+    } catch (err: any) {
+      console.error(`[openclaw:timeout] Failed to mark ${id} as timed out:`, err.message);
+    }
+  }
+
+  if (timedOut > 0) {
+    console.log(`[openclaw:timeout] Timed out ${timedOut} stale deployments`);
+  }
+
+  return timedOut;
+}
+
+// ============================================================
+// Health Monitoring
+// ============================================================
+
+// Track consecutive health check failures per deployment (in-memory)
+const healthFailureCounts = new Map<string, number>();
+const HEALTH_FAILURE_THRESHOLD = 3; // Mark unhealthy after 3 consecutive failures
+
+/**
+ * Check health of all READY deployments and update status messages.
+ */
+export async function checkDeploymentHealth(): Promise<{
+  checked: number;
+  healthy: number;
+  unhealthy: number;
+}> {
+  let checked = 0;
+  let healthy = 0;
+  let unhealthy = 0;
+
+  const deployments = await prisma.openClawDeployment.findMany({
+    where: { status: { in: ['READY', 'CANCELING'] }, ipAddress: { not: null } },
+    select: { id: true, ipAddress: true, hostname: true, statusMessage: true },
+  });
+
+  for (const d of deployments) {
+    checked++;
+    let isHealthy = false;
+
+    // Try hostname first, then direct IP
+    if (d.hostname) {
+      try {
+        const res = await fetch(`https://${d.hostname}`, {
+          signal: AbortSignal.timeout(10_000),
+        });
+        if (res.ok || res.status === 401 || res.status === 403) {
+          isHealthy = true;
+        }
+      } catch {
+        // Try direct IP fallback
+      }
+    }
+
+    if (!isHealthy && d.ipAddress) {
+      try {
+        const res = await fetch(`http://${d.ipAddress}:${OPENCLAW_PORT}`, {
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (res.ok || res.status === 401 || res.status === 403) {
+          isHealthy = true;
+        }
+      } catch {
+        // Not reachable
+      }
+    }
+
+    const prevFailures = healthFailureCounts.get(d.id) || 0;
+
+    if (isHealthy) {
+      healthy++;
+      if (prevFailures > 0) {
+        healthFailureCounts.delete(d.id);
+        // Restore normal status message if it was showing unhealthy warning
+        if (d.statusMessage?.includes('not responding')) {
+          await prisma.openClawDeployment.update({
+            where: { id: d.id },
+            data: { statusMessage: 'OpenClaw is live and accessible' },
+          }).catch(console.error);
+        }
+      }
+    } else {
+      unhealthy++;
+      const newFailures = prevFailures + 1;
+      healthFailureCounts.set(d.id, newFailures);
+
+      if (newFailures >= HEALTH_FAILURE_THRESHOLD) {
+        await prisma.openClawDeployment.update({
+          where: { id: d.id },
+          data: {
+            statusMessage: `Instance not responding (${newFailures} consecutive failures)`,
+          },
+        }).catch(console.error);
+        console.log(`[openclaw:health] Deployment ${d.id} unhealthy (${newFailures} failures)`);
+      }
+    }
+  }
+
+  // Clean up tracking for deployments that no longer exist
+  for (const id of healthFailureCounts.keys()) {
+    if (!deployments.find(d => d.id === id)) {
+      healthFailureCounts.delete(id);
+    }
+  }
+
+  return { checked, healthy, unhealthy };
+}
+
+// ============================================================
+// Unified Hardening Background Worker
+// ============================================================
+
+const HARDENING_POLL_INTERVAL_MS = 5 * 60_000; // 5 minutes
+let hardeningWorkerTimer: ReturnType<typeof setInterval> | null = null;
+
+async function runHardeningChecks(): Promise<void> {
+  try {
+    await checkStaleDeployments();
+    await cleanupOrphanedResources();
+    await checkDeploymentHealth();
+  } catch (err) {
+    console.error('[openclaw:hardening] Background check error:', err);
+  }
+}
+
+export function startHardeningWorker(): void {
+  if (hardeningWorkerTimer) return;
+  console.log('[openclaw] Starting hardening background worker (every 5 min)');
+  hardeningWorkerTimer = setInterval(runHardeningChecks, HARDENING_POLL_INTERVAL_MS);
+}
+
+export function stopHardeningWorker(): void {
+  if (hardeningWorkerTimer) {
+    clearInterval(hardeningWorkerTimer);
+    hardeningWorkerTimer = null;
+    console.log('[openclaw] Hardening background worker stopped');
+  }
+}
+
+// ============================================================
 // Background Usage Poller
 // ============================================================
 

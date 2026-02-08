@@ -961,6 +961,14 @@ No DNS needed.
 5. **Usage polling cooldown**: 60s cooldown on per-deployment polls prevents excessive OpenRouter API calls. Background poller runs every 5 min for all READY deployments.
 6. **OpenRouter key limit**: No `limit_reset` when using credit-based billing — the limit represents total lifetime spending cap, not a periodic reset.
 
+## Learnings from Phase 6 Implementation
+
+1. **Retry strategy**: Retry cleans up partial OpenRouter key (if exists), resets all deployment fields (IP, hostname, SSH keys, etc.), and re-provisions from scratch. Simpler than resuming mid-provision since the subscription already exists.
+2. **Timeout thresholds**: PENDING_PAYMENT: 1h, PENDING/ORDERING: 20 min, PROVISIONING/INSTALLING: 30 min. Uses `updatedAt` to determine staleness (tracks last status change).
+3. **Health monitoring**: In-memory `Map<deploymentId, failureCount>` tracks consecutive failures. No DB field needed — resets on server restart which is acceptable (health state is transient). Threshold of 3 consecutive failures before warning.
+4. **Rate limiting**: Simple in-memory per-user Map. No Redis needed at current scale. Two limits: temporal (1 deploy/minute) and count-based (max 3 active deployments).
+5. **Unified hardening worker**: Single `setInterval` runs all checks (timeout → cleanup → health) sequentially every 5 min. Simpler than separate timers.
+
 ## Open Questions
 
 1. **Install script edge cases** — Does `--no-onboard` fully suppress all interactive prompts? May need `CI=true` or `NONINTERACTIVE=1` as additional env vars. Need to test on a real VPS.
