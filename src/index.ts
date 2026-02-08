@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { env } from './utils/env.js';
 import prisma from './db/client.js';
 import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram/index.js';
+import { startUsagePoller, stopUsagePoller, startHardeningWorker, stopHardeningWorker } from './services/openclaw.service.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {
@@ -29,6 +30,10 @@ async function main() {
   await startBot();
   startTimeoutChecker();
 
+  // Start OpenClaw background workers
+  startUsagePoller();
+  startHardeningWorker();
+
   // Start server
   const server = app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
@@ -41,6 +46,8 @@ async function main() {
     console.log(`${signal} received, shutting down gracefully...`);
 
     stopTimeoutChecker();
+    stopUsagePoller();
+    stopHardeningWorker();
     await stopBot();
 
     server.close(async () => {

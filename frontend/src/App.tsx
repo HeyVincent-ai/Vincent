@@ -8,6 +8,7 @@ import SecretDetail from './pages/SecretDetail';
 import Settings from './pages/Settings';
 import Claim from './pages/Claim';
 import Billing from './pages/Billing';
+import OpenClawDetail from './pages/OpenClawDetail';
 import Landing from './pages/Landing';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ function AppRoutes() {
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+        <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
       </Route>
     </Routes>
   );

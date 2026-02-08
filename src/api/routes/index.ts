@@ -9,6 +9,7 @@ import polymarketRouter from './polymarket.routes.js';
 import rawSignerRouter from './rawSigner.routes.js';
 import billingRouter from './billing.routes.js';
 import auditLogsRouter from './auditLogs.routes.js';
+import openclawRouter from './openclaw.routes.js';
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
 router.use('/billing', billingRouter); // Billing & subscription endpoints
+router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
 
 export default router;
