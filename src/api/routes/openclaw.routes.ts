@@ -1,7 +1,7 @@
 /**
  * OpenClaw Deployment Routes
  *
- * POST   /api/openclaw/deploy                  → Create checkout session + deployment (rate limited)
+ * POST   /api/openclaw/deploy                  → Create checkout session + deployment
  * GET    /api/openclaw/deployments              → List user's deployments
  * GET    /api/openclaw/deployments/:id          → Get deployment status
  * POST   /api/openclaw/deployments/:id/cancel   → Cancel subscription at period end
@@ -19,17 +19,13 @@ import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as openclawService from '../../services/openclaw.service.js';
 
+const { toPublicData } = openclawService;
+
 const router = Router();
 
 // All routes require session auth
 router.use(sessionAuthMiddleware);
 
-// ============================================================
-// Rate Limiting (per-user, in-memory)
-// ============================================================
-
-const deployRateLimit = new Map<string, number>(); // userId → last deploy timestamp
-const DEPLOY_RATE_LIMIT_MS = 60_000; // 1 deploy per minute
 const MAX_ACTIVE_DEPLOYMENTS = 3;
 
 const deploySchema = z.object({
@@ -41,7 +37,7 @@ const deploySchema = z.object({
  * POST /api/openclaw/deploy
  * Create a Stripe Checkout session for a new OpenClaw deployment.
  * Returns { deploymentId, checkoutUrl } for frontend redirect.
- * Rate limited: 1 deploy per minute, max 3 active deployments.
+ * VPS provisioning only begins after payment is confirmed via Stripe webhook.
  */
 router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
   const parsed = deploySchema.safeParse(req.body);
@@ -50,16 +46,6 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
   }
 
   const userId = req.user!.id;
-
-  // Rate limit: 1 deploy per minute per user
-  const lastDeploy = deployRateLimit.get(userId);
-  if (lastDeploy && Date.now() - lastDeploy < DEPLOY_RATE_LIMIT_MS) {
-    const waitSec = Math.ceil((DEPLOY_RATE_LIMIT_MS - (Date.now() - lastDeploy)) / 1000);
-    return res.status(429).json({
-      success: false,
-      error: `Rate limited. Please wait ${waitSec} seconds before deploying again.`,
-    });
-  }
 
   try {
     // Limit: max 3 active (non-destroyed, non-error) deployments per user
@@ -74,7 +60,6 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
       });
     }
 
-    deployRateLimit.set(userId, Date.now());
     const { deployment, checkoutUrl } = await openclawService.deploy(
       userId,
       parsed.data.successUrl,
@@ -94,7 +79,7 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/deployments', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const deployments = await openclawService.listDeployments(req.user!.id);
-    sendSuccess(res, { deployments });
+    sendSuccess(res, { deployments: deployments.map(toPublicData) });
   } catch (error: any) {
     console.error('OpenClaw list error:', error);
     errors.internal(res, error.message);
@@ -111,7 +96,7 @@ router.get('/deployments/:id', async (req: AuthenticatedRequest, res: Response) 
     if (!deployment) {
       return errors.notFound(res, 'Deployment');
     }
-    sendSuccess(res, { deployment });
+    sendSuccess(res, { deployment: toPublicData(deployment) });
   } catch (error: any) {
     console.error('OpenClaw get error:', error);
     errors.internal(res, error.message);
@@ -126,7 +111,7 @@ router.post('/deployments/:id/cancel', async (req: AuthenticatedRequest, res: Re
   try {
     const deployment = await openclawService.cancel(req.params.id as string, req.user!.id);
     sendSuccess(res, {
-      deployment,
+      deployment: toPublicData(deployment),
       currentPeriodEnd: deployment.currentPeriodEnd,
     });
   } catch (error: any) {
@@ -145,7 +130,7 @@ router.post('/deployments/:id/cancel', async (req: AuthenticatedRequest, res: Re
 router.delete('/deployments/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const deployment = await openclawService.destroy(req.params.id as string, req.user!.id);
-    sendSuccess(res, { deployment });
+    sendSuccess(res, { deployment: toPublicData(deployment) });
   } catch (error: any) {
     if (error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
@@ -162,7 +147,7 @@ router.delete('/deployments/:id', async (req: AuthenticatedRequest, res: Respons
 router.post('/deployments/:id/restart', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const deployment = await openclawService.restart(req.params.id as string, req.user!.id);
-    sendSuccess(res, { deployment });
+    sendSuccess(res, { deployment: toPublicData(deployment) });
   } catch (error: any) {
     if (error.message.includes('not found')) {
       return errors.notFound(res, 'Deployment');
@@ -179,7 +164,7 @@ router.post('/deployments/:id/restart', async (req: AuthenticatedRequest, res: R
 router.post('/deployments/:id/retry', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const deployment = await openclawService.retryDeploy(req.params.id as string, req.user!.id);
-    sendSuccess(res, { deployment });
+    sendSuccess(res, { deployment: toPublicData(deployment) });
   } catch (error: any) {
     if (error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');

@@ -1561,3 +1561,21 @@ export function stopUsagePoller(): void {
     console.log('[openclaw] Background usage poller stopped');
   }
 }
+
+// ============================================================
+// Public Data Sanitization
+// ============================================================
+
+export function toPublicData(deployment: OpenClawDeployment) {
+  const {
+    sshPrivateKey,
+    sshPublicKey,
+    accessToken,
+    openRouterKeyHash,
+    ovhOrderId,
+    ovhCartId,
+    provisionLog,
+    ...publicFields
+  } = deployment;
+  return publicFields;
+}
