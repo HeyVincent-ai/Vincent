@@ -287,6 +287,29 @@ export async function getImageDetails(
 }
 
 // ============================================================
+// VPS Tasks
+// ============================================================
+
+/**
+ * List active task IDs on a VPS.
+ */
+export async function getVpsTasks(serviceName: string): Promise<number[]> {
+  const ovh = getClient();
+  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks`);
+}
+
+/**
+ * Get details of a specific VPS task.
+ */
+export async function getVpsTaskDetails(
+  serviceName: string,
+  taskId: number,
+): Promise<{ id: number; state: string; type: string }> {
+  const ovh = getClient();
+  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks/${taskId}`);
+}
+
+// ============================================================
 // SSH Key Management
 // ============================================================
 

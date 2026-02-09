@@ -77,6 +77,10 @@ const HEALTH_POLL_INTERVAL_MS = 10_000; // 10s
 const HEALTH_POLL_TIMEOUT_MS = 10 * 60_000; // 10 min
 const IP_POLL_INTERVAL_MS = 15_000; // 15s
 const IP_POLL_TIMEOUT_MS = 3 * 60_000; // 3 min
+const VPS_TASKS_POLL_INTERVAL_MS = 15_000; // 15s
+const VPS_TASKS_POLL_TIMEOUT_MS = 5 * 60_000; // 5 min
+const REBUILD_MAX_RETRIES = 3;
+const REBUILD_RETRY_DELAY_MS = 30_000; // 30s
 
 // ============================================================
 // Types
@@ -435,6 +439,64 @@ async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter:
 }
 
 // ============================================================
+// VPS Task Readiness
+// ============================================================
+
+const ACTIVE_TASK_STATES = new Set(['todo', 'doing', 'waitingAck', 'init', 'paused']);
+
+/**
+ * Wait until the VPS has no active tasks and is in "running" state.
+ * OVH rejects rebuild calls while initial installation tasks are still running.
+ */
+async function waitForVpsReady(
+  serviceName: string,
+  addLog: (msg: string) => void,
+  timeoutMs: number = VPS_TASKS_POLL_TIMEOUT_MS
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    // Check VPS state
+    const details = await ovhService.getVpsDetails(serviceName);
+    if (details.state !== 'running') {
+      addLog(`VPS state: ${details.state}, waiting for running...`);
+      await sleep(VPS_TASKS_POLL_INTERVAL_MS);
+      continue;
+    }
+
+    // Check for active tasks
+    const taskIds = await ovhService.getVpsTasks(serviceName);
+    if (taskIds.length === 0) {
+      addLog('VPS ready: no active tasks');
+      return;
+    }
+
+    let hasActiveTasks = false;
+    for (const taskId of taskIds) {
+      try {
+        const task = await ovhService.getVpsTaskDetails(serviceName, taskId);
+        if (ACTIVE_TASK_STATES.has(task.state)) {
+          addLog(`VPS task ${taskId}: ${task.type} (${task.state}) — waiting...`);
+          hasActiveTasks = true;
+          break;
+        }
+      } catch {
+        // Task may have completed between list and detail fetch
+      }
+    }
+
+    if (!hasActiveTasks) {
+      addLog('VPS ready: all tasks completed');
+      return;
+    }
+
+    await sleep(VPS_TASKS_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`VPS tasks did not complete within ${timeoutMs / 60_000} minutes`);
+}
+
+// ============================================================
 // Deploy Orchestration
 // ============================================================
 
@@ -601,13 +663,32 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       provisionLog: log,
     });
 
-    // Step 7: Rebuild VPS with SSH key
+    // Step 7: Wait for VPS tasks to complete before rebuild
+    addLog('Waiting for VPS tasks to complete...');
+    await waitForVpsReady(deliveredServiceName, addLog);
+
+    // Step 8: Rebuild VPS with SSH key (with retry logic)
     // The initial delivery comes with a random password. We rebuild with
     // publicSshKey + doNotSendPassword to inject our key properly.
     addLog('Rebuilding VPS with SSH key...');
     const rebuildImageId = await findRebuildImage(deliveredServiceName, addLog);
-    const rebuildResult = await ovhService.rebuildVps(deliveredServiceName, rebuildImageId, sshPub);
-    addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
+
+    let rebuildResult: { id: number; state: string; type: string } | undefined;
+    for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
+      try {
+        rebuildResult = await ovhService.rebuildVps(deliveredServiceName, rebuildImageId, sshPub);
+        addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
+        break;
+      } catch (err: any) {
+        const isTaskConflict = err.message?.includes('running tasks');
+        if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
+          addLog(`Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`);
+          await sleep(REBUILD_RETRY_DELAY_MS);
+        } else {
+          throw err;
+        }
+      }
+    }
 
     await waitForRebuild(deliveredServiceName, addLog);
     addLog('Rebuild complete, waiting 30s for SSH to come up...');
