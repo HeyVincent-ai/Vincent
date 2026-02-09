@@ -401,11 +401,13 @@ async function launchSetupScript(
   );
   addLog('Setup script uploaded');
 
-  // Launch detached via nohup
+  // Launch detached via nohup — redirect must happen INSIDE sudo's shell,
+  // otherwise the debian user's shell tries to open /root/openclaw-setup.log
+  // and fails with Permission denied (debian can't write to /root/).
   addLog('Launching setup script (detached)...');
   await sshExec(
     host, username, privateKey,
-    'sudo nohup bash /root/openclaw-setup.sh > /root/openclaw-setup.log 2>&1 &',
+    `sudo bash -c 'nohup bash /root/openclaw-setup.sh > /root/openclaw-setup.log 2>&1 &'`,
     15_000
   );
   addLog('Setup script launched in background on VPS');
