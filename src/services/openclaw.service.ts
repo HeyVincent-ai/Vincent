@@ -119,6 +119,7 @@ async function updateDeployment(
     status?: OpenClawStatus;
     statusMessage?: string;
     provisionLog?: string;
+    provisionStage?: string | null;
     ipAddress?: string;
     hostname?: string;
     accessToken?: string;
@@ -260,23 +261,20 @@ export async function waitForSsh(
 // ============================================================
 
 export function buildSetupScript(openRouterApiKey: string, hostname: string): string {
-  // Run as root via sudo. The SSH user is debian (non-root).
-  // Key learnings from real VPS testing:
-  // - openclaw binary installs to /usr/bin/openclaw (not /usr/local/bin)
-  // - `gateway start` uses systemd user services which aren't available on
-  //   minimal VPS images. Must use `gateway run` (foreground) with a system
-  //   systemd service.
-  // - Top-level "model" is not a valid config key. Use openclaw config set
-  //   with agents.defaults.model (object with "primary" field).
-  // - Use `openclaw onboard --non-interactive --accept-risk --mode local` to create initial
-  //   config, then `openclaw config set` for schema-validated changes.
-  // - OVH VPS hostname (e.g. vps-xxxx.vps.ovh.us) resolves to the VPS IP,
-  //   allowing Caddy to obtain a Let's Encrypt certificate automatically.
-  return `sudo -H bash <<'SETUPSCRIPT'
+  // Standalone script to be saved as a file on the VPS and run via nohup.
+  // Runs as root. Writes marker files for progress tracking:
+  //   /root/.openclaw-setup-started  — written at start
+  //   /root/.openclaw-setup-complete — written on success
+  //   /root/.openclaw-setup-token    — access token on success
+  //   /root/.openclaw-setup-error    — written on failure
+  return `#!/bin/bash
 set -euo pipefail
+trap 'echo "FAILED: line \$LINENO: \$BASH_COMMAND" > /root/.openclaw-setup-error' ERR
 export HOME=/root
 cd /root
 export DEBIAN_FRONTEND=noninteractive
+
+echo "STARTED" > /root/.openclaw-setup-started
 
 echo "=== [1/8] System update ==="
 apt-get update -qq
@@ -286,18 +284,23 @@ echo "=== [2/8] Running OpenClaw installer ==="
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
 
 echo "=== [3/8] Running OpenClaw onboard ==="
-openclaw onboard \
-  --non-interactive \
-  --accept-risk \
-  --mode local \
-  --auth-choice openrouter-api-key \
-  --openrouter-api-key '${openRouterApiKey}' \
-  --gateway-bind loopback \
-  --skip-channels \
-  --skip-skills \
-  --skip-health \
-  --skip-ui \
-  --skip-daemon
+# Skip onboard if config already exists (idempotent for re-runs)
+if [ ! -f /root/.openclaw/openclaw.json ]; then
+  openclaw onboard \\
+    --non-interactive \\
+    --accept-risk \\
+    --mode local \\
+    --auth-choice openrouter-api-key \\
+    --openrouter-api-key '${openRouterApiKey}' \\
+    --gateway-bind loopback \\
+    --skip-channels \\
+    --skip-skills \\
+    --skip-health \\
+    --skip-ui \\
+    --skip-daemon
+else
+  echo "OpenClaw config already exists, skipping onboard"
+fi
 
 echo "=== [4/8] Installing Vincent agent wallet skill ==="
 npx --yes clawhub@latest install agentwallet || true
@@ -331,7 +334,7 @@ ufw --force enable
 
 echo "=== [8/8] Starting OpenClaw gateway ==="
 # Find the openclaw binary (installed to /usr/bin by npm global)
-OPENCLAW_BIN=$(which openclaw)
+OPENCLAW_BIN=\$(which openclaw)
 echo "OpenClaw binary: \${OPENCLAW_BIN}"
 
 # Create systemd service using "gateway run" (foreground mode).
@@ -362,13 +365,109 @@ systemctl start openclaw-gateway
 # Wait for the gateway to start and generate its token
 sleep 10
 
-# Extract access token
-OCFILE="/root/.openclaw/openclaw.json"
-ACCESS_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
-echo "OPENCLAW_ACCESS_TOKEN=\${ACCESS_TOKEN}"
+# Extract access token and write marker files
+ACCESS_TOKEN=\$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+echo "\${ACCESS_TOKEN}" > /root/.openclaw-setup-token
+echo "COMPLETE" > /root/.openclaw-setup-complete
 
-echo "=== Setup complete ==="
-SETUPSCRIPT`;
+echo "=== Setup complete ==="`;
+}
+
+// ============================================================
+// Detached Setup Execution
+// ============================================================
+
+const SETUP_POLL_INTERVAL_MS = 30_000; // 30s
+const SETUP_POLL_TIMEOUT_MS = 20 * 60_000; // 20 min
+
+/**
+ * Upload and launch the setup script on the VPS in detached mode (nohup).
+ * The script runs independently of the SSH session — survives disconnection.
+ */
+async function launchSetupScript(
+  host: string,
+  username: string,
+  privateKey: string,
+  script: string,
+  addLog: (msg: string) => void
+): Promise<void> {
+  // Base64-encode the script and upload it
+  const b64 = Buffer.from(script).toString('base64');
+  addLog('Uploading setup script to VPS...');
+  await sshExec(
+    host, username, privateKey,
+    `echo '${b64}' | base64 -d | sudo tee /root/openclaw-setup.sh > /dev/null && sudo chmod +x /root/openclaw-setup.sh`,
+    30_000
+  );
+  addLog('Setup script uploaded');
+
+  // Launch detached via nohup
+  addLog('Launching setup script (detached)...');
+  await sshExec(
+    host, username, privateKey,
+    'sudo nohup bash /root/openclaw-setup.sh > /root/openclaw-setup.log 2>&1 &',
+    15_000
+  );
+  addLog('Setup script launched in background on VPS');
+}
+
+/**
+ * Poll the VPS for setup completion via SSH marker files.
+ * Returns the access token on success, throws on failure/timeout.
+ */
+async function pollSetupCompletion(
+  host: string,
+  username: string,
+  privateKey: string,
+  addLog: (msg: string) => void
+): Promise<string> {
+  const deadline = Date.now() + SETUP_POLL_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    await sleep(SETUP_POLL_INTERVAL_MS);
+
+    // Check for error first
+    try {
+      const errorResult = await sshExec(
+        host, username, privateKey,
+        'sudo cat /root/.openclaw-setup-error 2>/dev/null',
+        15_000
+      );
+      if (errorResult.stdout.trim()) {
+        throw new Error(`Setup script failed: ${errorResult.stdout.trim()}`);
+      }
+    } catch (err: any) {
+      if (err.message?.startsWith('Setup script failed:')) throw err;
+      // SSH error — transient, will retry
+    }
+
+    // Check for completion
+    try {
+      const completeResult = await sshExec(
+        host, username, privateKey,
+        'sudo cat /root/.openclaw-setup-complete 2>/dev/null',
+        15_000
+      );
+      if (completeResult.stdout.trim() === 'COMPLETE') {
+        // Read the access token
+        const tokenResult = await sshExec(
+          host, username, privateKey,
+          'sudo cat /root/.openclaw-setup-token 2>/dev/null',
+          15_000
+        );
+        const token = tokenResult.stdout.trim();
+        addLog(`Setup complete, token: ${token ? token.slice(0, 10) + '...' : 'empty'}`);
+        return token;
+      }
+    } catch {
+      // SSH error — transient, will retry
+    }
+
+    const remaining = Math.round((deadline - Date.now()) / 60_000);
+    addLog(`Setup still running, ~${remaining} min remaining...`);
+  }
+
+  throw new Error(`Setup script did not complete within ${SETUP_POLL_TIMEOUT_MS / 60_000} minutes`);
 }
 
 // ============================================================
@@ -573,177 +672,330 @@ export async function startProvisioning(
 }
 
 /**
+ * Provision stages — tracked in DB for resumability across Railway restarts.
+ * Each stage is idempotent: safe to re-run if interrupted.
+ */
+const PROVISION_STAGES = [
+  'ssh_key_generated',
+  'openrouter_key_created',
+  'plan_found',
+  'vps_ordered',
+  'vps_delivered',
+  'vps_ip_acquired',
+  'vps_rebuilt',
+  'ssh_ready',
+  'setup_script_launched',
+  'setup_complete',
+] as const;
+
+type ProvisionStage = typeof PROVISION_STAGES[number];
+
+/**
  * Async provisioning job — runs in the background after deploy() returns.
+ * Stage-based: reads provisionStage from DB and resumes from the next stage.
  */
 async function provisionAsync(deploymentId: string, options: DeployOptions): Promise<void> {
-  let log = '';
+  const deployment = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+  if (!deployment) throw new Error(`Deployment ${deploymentId} not found`);
+
+  let log = deployment.provisionLog || '';
 
   const addLog = (msg: string) => {
     console.log(`[openclaw:${deploymentId}] ${msg}`);
     log = appendLog(log, msg);
   };
 
+  const completedStage = deployment.provisionStage as ProvisionStage | null;
+  const startIndex = completedStage ? PROVISION_STAGES.indexOf(completedStage) + 1 : 0;
+
+  if (startIndex > 0) {
+    addLog(`Resuming from stage: ${completedStage} (next: ${PROVISION_STAGES[startIndex] || 'done'})`);
+  }
+
+  // In-memory context accumulated across stages (populated from DB on resume)
+  const ctx: {
+    sshPub?: string;
+    sshPriv?: string;
+    orKeyHash?: string;
+    orKeyRaw?: string;
+    planCode?: string;
+    datacenter?: string;
+    serviceName?: string;
+    hostname?: string;
+    ip?: string;
+    sshUser?: string;
+    accessToken?: string;
+  } = {
+    sshPub: deployment.sshPublicKey || undefined,
+    sshPriv: deployment.sshPrivateKey || undefined,
+    orKeyHash: deployment.openRouterKeyHash || undefined,
+    serviceName: deployment.ovhServiceName || undefined,
+    hostname: deployment.hostname || undefined,
+    ip: deployment.ipAddress || undefined,
+    accessToken: deployment.accessToken || undefined,
+  };
+
   try {
-    // Step 1: Generate SSH key pair (RSA 4096)
-    addLog('Generating RSA 4096 SSH key pair...');
-    const { publicKey: sshPub, privateKey: sshPriv } = generateSshKeyPair();
-    addLog(`SSH key generated (${sshPub.slice(0, 40)}...)`);
+    for (let i = startIndex; i < PROVISION_STAGES.length; i++) {
+      const stage = PROVISION_STAGES[i];
 
-    await updateDeployment(deploymentId, {
-      sshPublicKey: sshPub,
-      sshPrivateKey: sshPriv,
-      provisionLog: log,
-    });
+      switch (stage) {
+        case 'ssh_key_generated': {
+          if (!ctx.sshPub || !ctx.sshPriv) {
+            addLog('Generating RSA 4096 SSH key pair...');
+            const { publicKey, privateKey } = generateSshKeyPair();
+            ctx.sshPub = publicKey;
+            ctx.sshPriv = privateKey;
+            addLog(`SSH key generated (${publicKey.slice(0, 40)}...)`);
+          }
+          await updateDeployment(deploymentId, {
+            sshPublicKey: ctx.sshPub,
+            sshPrivateKey: ctx.sshPriv,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    // Step 2: Provision OpenRouter API key
-    addLog('Provisioning OpenRouter API key...');
-    const shortId = deploymentId.slice(-8);
-    const orKey = await openRouterService.createKey(`openclaw-${shortId}`, {
-      limit: 25, // $25 free credits included with deployment
-    });
-    addLog(`OpenRouter key created (hash: ${orKey.hash})`);
+        case 'openrouter_key_created': {
+          if (!ctx.orKeyHash) {
+            addLog('Provisioning OpenRouter API key...');
+            const shortId = deploymentId.slice(-8);
+            const orKey = await openRouterService.createKey(`openclaw-${shortId}`, {
+              limit: 25,
+            });
+            ctx.orKeyHash = orKey.hash;
+            ctx.orKeyRaw = orKey.key;
+            addLog(`OpenRouter key created (hash: ${orKey.hash})`);
+          }
+          await updateDeployment(deploymentId, {
+            openRouterKeyHash: ctx.orKeyHash,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    await updateDeployment(deploymentId, {
-      openRouterKeyHash: orKey.hash,
-      provisionLog: log,
-    });
+        case 'plan_found': {
+          const planCode = options.planCode;
+          const datacenter = options.datacenter;
+          if (!planCode || !datacenter) {
+            addLog('Finding available VPS plan + datacenter...');
+            const found = await findAvailablePlanAndDc();
+            ctx.planCode = planCode || found.planCode;
+            ctx.datacenter = datacenter || found.datacenter;
+            addLog(`Found: ${ctx.planCode} @ ${ctx.datacenter}`);
+          } else {
+            ctx.planCode = planCode;
+            ctx.datacenter = datacenter;
+          }
+          await updateDeployment(deploymentId, {
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    // Step 3: Find available plan + datacenter
-    let planCode = options.planCode;
-    let datacenter = options.datacenter;
-    const os = options.os || DEFAULT_OS;
+        case 'vps_ordered': {
+          // Reload from DB in case we're resuming and order already placed
+          const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+          if (current?.ovhOrderId) {
+            addLog(`VPS order already placed (orderId: ${current.ovhOrderId}), skipping`);
+          } else {
+            const os = options.os || DEFAULT_OS;
+            const planCode = ctx.planCode || VPS_PLANS_PRIORITY[0];
+            const datacenter = ctx.datacenter || 'US-EAST-LZ-MIA';
+            addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
+            await updateDeployment(deploymentId, {
+              status: 'ORDERING',
+              statusMessage: 'Placing VPS order with OVH',
+              provisionLog: log,
+            });
 
-    if (!planCode || !datacenter) {
-      addLog('Finding available VPS plan + datacenter...');
-      const found = await findAvailablePlanAndDc();
-      planCode = planCode || found.planCode;
-      datacenter = datacenter || found.datacenter;
-      addLog(`Found: ${planCode} @ ${datacenter}`);
-    }
+            const order = await ovhService.orderVps({ planCode, datacenter, os });
+            addLog(`VPS order placed (orderId: ${order.orderId})`);
 
-    // Step 4: Order VPS
-    addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
-    await updateDeployment(deploymentId, {
-      status: 'ORDERING',
-      statusMessage: 'Placing VPS order with OVH',
-      provisionLog: log,
-    });
+            await updateDeployment(deploymentId, {
+              ovhOrderId: String(order.orderId),
+              provisionLog: log,
+            });
+          }
+          await updateDeployment(deploymentId, {
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    const order = await ovhService.orderVps({ planCode, datacenter, os });
-    addLog(`VPS order placed (orderId: ${order.orderId})`);
+        case 'vps_delivered': {
+          if (!ctx.serviceName) {
+            const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+            const orderId = Number(current?.ovhOrderId);
+            if (!orderId) throw new Error('No order ID found for delivery polling');
 
-    await updateDeployment(deploymentId, {
-      ovhOrderId: String(order.orderId),
-      provisionLog: log,
-    });
+            addLog('Waiting for VPS delivery...');
+            const deliveredServiceName = await pollForDelivery(orderId, addLog);
+            ctx.serviceName = deliveredServiceName;
+            addLog(`VPS delivered: ${deliveredServiceName}`);
+          }
 
-    // Step 5: Poll order status until VPS is delivered
-    addLog('Waiting for VPS delivery...');
-    const deliveredServiceName = await pollForDelivery(order.orderId, addLog);
-    addLog(`VPS delivered: ${deliveredServiceName}`);
+          ctx.hostname = ovhService.getVpsHostname(ctx.serviceName);
+          addLog(`VPS hostname: ${ctx.hostname}`);
 
-    // Construct the OVH hostname (e.g. vps-xxxx.vps.ovh.us) for Caddy TLS
-    const hostname = ovhService.getVpsHostname(deliveredServiceName);
-    addLog(`VPS hostname: ${hostname}`);
+          await updateDeployment(deploymentId, {
+            status: 'PROVISIONING',
+            statusMessage: 'VPS delivered, retrieving IP address',
+            ovhServiceName: ctx.serviceName,
+            hostname: ctx.hostname,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    await updateDeployment(deploymentId, {
-      status: 'PROVISIONING',
-      statusMessage: 'VPS delivered, retrieving IP address',
-      ovhServiceName: deliveredServiceName,
-      hostname,
-      provisionLog: log,
-    });
+        case 'vps_ip_acquired': {
+          if (!ctx.serviceName) throw new Error('No service name for IP retrieval');
+          if (!ctx.ip) {
+            addLog('Retrieving VPS IP address...');
+            ctx.ip = await pollForIp(ctx.serviceName, addLog);
+            addLog(`VPS IP: ${ctx.ip}`);
+          }
+          await updateDeployment(deploymentId, {
+            ipAddress: ctx.ip,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
 
-    // Step 6: Get VPS IP (with retries — may not be available immediately)
-    addLog('Retrieving VPS IP address...');
-    const ip = await pollForIp(deliveredServiceName, addLog);
-    addLog(`VPS IP: ${ip}`);
+        case 'vps_rebuilt': {
+          if (!ctx.serviceName || !ctx.sshPub) {
+            throw new Error('Missing service name or SSH public key for rebuild');
+          }
 
-    await updateDeployment(deploymentId, {
-      ipAddress: ip,
-      provisionLog: log,
-    });
+          addLog('Waiting for VPS tasks to complete...');
+          await waitForVpsReady(ctx.serviceName, addLog);
 
-    // Step 7: Wait for VPS tasks to complete before rebuild
-    addLog('Waiting for VPS tasks to complete...');
-    await waitForVpsReady(deliveredServiceName, addLog);
+          addLog('Rebuilding VPS with SSH key...');
+          const rebuildImageId = await findRebuildImage(ctx.serviceName, addLog);
 
-    // Step 8: Rebuild VPS with SSH key (with retry logic)
-    // The initial delivery comes with a random password. We rebuild with
-    // publicSshKey + doNotSendPassword to inject our key properly.
-    addLog('Rebuilding VPS with SSH key...');
-    const rebuildImageId = await findRebuildImage(deliveredServiceName, addLog);
+          for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
+            try {
+              const rebuildResult = await ovhService.rebuildVps(ctx.serviceName, rebuildImageId, ctx.sshPub);
+              addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
+              break;
+            } catch (err: any) {
+              const isTaskConflict = err.message?.includes('running tasks');
+              if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
+                addLog(`Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`);
+                await sleep(REBUILD_RETRY_DELAY_MS);
+              } else {
+                throw err;
+              }
+            }
+          }
 
-    let rebuildResult: { id: number; state: string; type: string } | undefined;
-    for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
-      try {
-        rebuildResult = await ovhService.rebuildVps(deliveredServiceName, rebuildImageId, sshPub);
-        addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
-        break;
-      } catch (err: any) {
-        const isTaskConflict = err.message?.includes('running tasks');
-        if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
-          addLog(`Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`);
-          await sleep(REBUILD_RETRY_DELAY_MS);
-        } else {
-          throw err;
+          await waitForRebuild(ctx.serviceName, addLog);
+          addLog('Rebuild complete, waiting 30s for SSH to come up...');
+          await sleep(30_000);
+
+          await updateDeployment(deploymentId, {
+            statusMessage: 'VPS rebuilt with SSH key, connecting...',
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
+
+        case 'ssh_ready': {
+          if (!ctx.ip || !ctx.sshPriv) throw new Error('Missing IP or SSH key for SSH');
+
+          addLog('Waiting for SSH access...');
+          await updateDeployment(deploymentId, {
+            status: 'INSTALLING',
+            statusMessage: 'Connecting to VPS and installing OpenClaw',
+            provisionLog: log,
+          });
+
+          ctx.sshUser = await waitForSsh(ctx.ip, ctx.sshPriv);
+          addLog(`SSH connected as ${ctx.sshUser}`);
+
+          await updateDeployment(deploymentId, {
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
+
+        case 'setup_script_launched': {
+          if (!ctx.ip || !ctx.sshPriv || !ctx.hostname) {
+            throw new Error('Missing IP, SSH key, or hostname for setup');
+          }
+          // Determine SSH user (may need to re-detect on resume)
+          if (!ctx.sshUser) {
+            ctx.sshUser = await waitForSsh(ctx.ip, ctx.sshPriv);
+          }
+
+          // Get the OpenRouter key — on resume we need to read it from
+          // the OpenRouter API since we only store the hash in DB
+          if (!ctx.orKeyRaw) {
+            // We can't recover the raw key from the hash. But if we're
+            // resuming at this stage, the script hasn't been launched yet,
+            // so the key must still be needed. Create a new one and clean
+            // up the old one.
+            addLog('Reprovisioning OpenRouter API key for setup script...');
+            const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+            if (current?.openRouterKeyHash) {
+              try { await openRouterService.deleteKey(current.openRouterKeyHash); } catch {}
+            }
+            const shortId = deploymentId.slice(-8);
+            const orKey = await openRouterService.createKey(`openclaw-${shortId}`, { limit: 25 });
+            ctx.orKeyRaw = orKey.key;
+            ctx.orKeyHash = orKey.hash;
+            await updateDeployment(deploymentId, { openRouterKeyHash: orKey.hash });
+            addLog(`New OpenRouter key created (hash: ${orKey.hash})`);
+          }
+
+          addLog('Launching OpenClaw setup script (detached)...');
+          const setupScript = buildSetupScript(ctx.orKeyRaw, ctx.hostname);
+          await launchSetupScript(ctx.ip, ctx.sshUser, ctx.sshPriv, setupScript, addLog);
+
+          await updateDeployment(deploymentId, {
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
+
+        case 'setup_complete': {
+          if (!ctx.ip || !ctx.sshPriv) throw new Error('Missing IP or SSH key for poll');
+          if (!ctx.sshUser) {
+            ctx.sshUser = await waitForSsh(ctx.ip, ctx.sshPriv);
+          }
+
+          addLog('Polling for setup completion...');
+          const token = await pollSetupCompletion(ctx.ip, ctx.sshUser, ctx.sshPriv, addLog);
+          ctx.accessToken = token;
+
+          await updateDeployment(deploymentId, {
+            accessToken: token || undefined,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
         }
       }
     }
 
-    await waitForRebuild(deliveredServiceName, addLog);
-    addLog('Rebuild complete, waiting 30s for SSH to come up...');
-    await sleep(30_000);
-
-    await updateDeployment(deploymentId, {
-      statusMessage: 'VPS rebuilt with SSH key, connecting...',
-      provisionLog: log,
-    });
-
-    // Step 8: Wait for SSH and run setup
-    addLog('Waiting for SSH access...');
-    await updateDeployment(deploymentId, {
-      status: 'INSTALLING',
-      statusMessage: 'Connecting to VPS and installing OpenClaw',
-      provisionLog: log,
-    });
-
-    const sshUser = await waitForSsh(ip, sshPriv);
-    addLog(`SSH connected as ${sshUser}`);
-
-    addLog('Running OpenClaw setup script...');
-    const setupScript = buildSetupScript(orKey.key, hostname);
-    const result = await sshExec(ip, sshUser, sshPriv, setupScript, 15 * 60_000);
-    addLog(`Setup script exit code: ${result.code}`);
-    if (result.stderr) {
-      addLog(`Setup stderr (last 500 chars): ${result.stderr.slice(-500)}`);
-    }
-
-    if (result.code !== 0) {
-      addLog(`Setup stdout (last 1000 chars): ${result.stdout.slice(-1000)}`);
-      throw new Error(`Setup script failed with exit code ${result.code}`);
-    }
-
-    // Step 9: Extract access token
-    const tokenMatch = result.stdout.match(/OPENCLAW_ACCESS_TOKEN=(.*)/);
-    const accessToken = tokenMatch?.[1]?.trim() || '';
-    addLog(`Access token: ${accessToken ? accessToken.slice(0, 10) + '...' : 'empty'}`);
-
-    await updateDeployment(deploymentId, {
-      accessToken: accessToken || undefined,
-      provisionLog: log,
-    });
-
-    // Step 10: Wait for health check
+    // All stages complete — health check and mark READY
     addLog('Waiting for OpenClaw health check...');
-    const healthy = await waitForHealth(ip, hostname);
+    const healthy = await waitForHealth(ctx.ip!, ctx.hostname);
     if (healthy) {
       addLog('OpenClaw is healthy and responding!');
     } else {
       addLog('Health check timed out — OpenClaw may still be starting');
     }
 
-    // Mark as READY
     const readyDeployment = await updateDeployment(deploymentId, {
       status: 'READY',
       statusMessage: healthy
@@ -756,8 +1008,8 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     // Send ready notification email
     try {
       const user = await prisma.user.findUnique({ where: { id: readyDeployment.userId } });
-      if (user?.email && hostname) {
-        await sendOpenClawReadyEmail(user.email, deploymentId, hostname);
+      if (user?.email && ctx.hostname) {
+        await sendOpenClawReadyEmail(user.email, deploymentId, ctx.hostname);
         addLog(`Ready notification email sent to ${user.email}`);
       }
     } catch (emailErr: any) {
@@ -782,36 +1034,50 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
 /**
  * Poll OVH until the VPS order is delivered and return the service name.
+ * Primarily uses getOrderAssociatedService (works on resume without in-memory
+ * snapshot), with VPS list comparison as a secondary check.
  */
 async function pollForDelivery(orderId: number, addLog: (msg: string) => void): Promise<string> {
   const deadline = Date.now() + ORDER_POLL_TIMEOUT_MS;
-  const vpsBefore = new Set(await ovhService.listVps());
-  addLog(`Existing VPS count: ${vpsBefore.size}`);
+
+  // Snapshot current VPS list for diff-based detection (fallback)
+  let vpsBefore: Set<string>;
+  try {
+    vpsBefore = new Set(await ovhService.listVps());
+    addLog(`Existing VPS count: ${vpsBefore.size}`);
+  } catch {
+    vpsBefore = new Set();
+  }
 
   while (Date.now() < deadline) {
     await sleep(ORDER_POLL_INTERVAL_MS);
 
-    // Check if a new VPS appeared
-    const vpsNow = await ovhService.listVps();
-    for (const name of vpsNow) {
-      if (!vpsBefore.has(name)) {
-        return name;
-      }
-    }
-
-    // Also check order status
+    // Primary: check order's associated service (works on resume)
     try {
-      const status = await ovhService.getOrderStatus(orderId);
-      const elapsed = Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000);
-      addLog(`[${elapsed}s] Order ${orderId} status: ${status.status}`);
-
       const serviceName = await ovhService.getOrderAssociatedService(orderId);
       if (serviceName && serviceName.startsWith('vps')) {
         return serviceName;
       }
     } catch (err: any) {
-      addLog(`Order status check error: ${err.message}`);
+      addLog(`Order association check error: ${err.message}`);
     }
+
+    // Secondary: check if a new VPS appeared in the list
+    try {
+      const vpsNow = await ovhService.listVps();
+      for (const name of vpsNow) {
+        if (!vpsBefore.has(name)) {
+          return name;
+        }
+      }
+    } catch {}
+
+    // Log order status
+    try {
+      const status = await ovhService.getOrderStatus(orderId);
+      const elapsed = Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000);
+      addLog(`[${elapsed}s] Order ${orderId} status: ${status.status}`);
+    } catch {}
   }
 
   throw new Error(`VPS delivery timed out after ${ORDER_POLL_TIMEOUT_MS / 60_000} minutes`);
@@ -1313,6 +1579,7 @@ export async function retryDeploy(deploymentId: string, userId: string): Promise
       ovhOrderId: null,
       readyAt: null,
       provisionLog: null,
+      provisionStage: null,
     },
   });
 
@@ -1406,7 +1673,7 @@ export async function cleanupOrphanedResources(): Promise<{
 // ============================================================
 
 const PROVISIONING_TIMEOUT_MS = 20 * 60_000;  // 20 min for PENDING/ORDERING
-const INSTALLING_TIMEOUT_MS = 30 * 60_000;    // 30 min for PROVISIONING/INSTALLING
+const INSTALLING_TIMEOUT_MS = 45 * 60_000;    // 45 min for PROVISIONING/INSTALLING (setup script runs detached, Railway restarts add delay)
 const CHECKOUT_TIMEOUT_MS = 60 * 60_000;      // 1 hour for PENDING_PAYMENT
 
 /**
@@ -1444,9 +1711,9 @@ export async function checkStaleDeployments(): Promise<number> {
   });
 
   const allStale = [
-    ...staleCheckouts.map(d => ({ id: d.id, reason: 'Checkout session timed out' })),
-    ...staleOrdering.map(d => ({ id: d.id, reason: 'VPS provisioning timed out after 20 minutes' })),
-    ...staleInstalling.map(d => ({ id: d.id, reason: 'Installation timed out after 30 minutes' })),
+    ...staleCheckouts.map((d: { id: string }) => ({ id: d.id, reason: 'Checkout session timed out' })),
+    ...staleOrdering.map((d: { id: string }) => ({ id: d.id, reason: 'VPS provisioning timed out after 20 minutes' })),
+    ...staleInstalling.map((d: { id: string }) => ({ id: d.id, reason: 'Installation timed out after 45 minutes' })),
   ];
 
   for (const { id, reason } of allStale) {
@@ -1601,6 +1868,52 @@ export function stopHardeningWorker(): void {
 }
 
 // ============================================================
+// Startup Resume
+// ============================================================
+
+const RESUME_STARTUP_DELAY_MS = 45_000; // Wait 45s for old Railway instance to fully drain
+
+/**
+ * Resume deployments that were interrupted by a Railway restart.
+ * Called once at startup after the server begins listening.
+ * Waits 45s to ensure the old instance has fully shut down (Railway
+ * sends SIGTERM + 30s drain), then picks up any in-flight deployments.
+ */
+export async function resumeInterruptedDeployments(): Promise<void> {
+  console.log(`[openclaw:resume] Waiting ${RESUME_STARTUP_DELAY_MS / 1000}s before checking for interrupted deployments...`);
+  await sleep(RESUME_STARTUP_DELAY_MS);
+
+  try {
+    const interrupted = await prisma.openClawDeployment.findMany({
+      where: {
+        status: { in: ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'] },
+      },
+      select: { id: true, status: true, provisionStage: true },
+    });
+
+    if (interrupted.length === 0) {
+      console.log('[openclaw:resume] No interrupted deployments found');
+      return;
+    }
+
+    console.log(`[openclaw:resume] Found ${interrupted.length} interrupted deployment(s)`);
+
+    for (const d of interrupted) {
+      console.log(`[openclaw:resume] Resuming deployment ${d.id} (status: ${d.status}, stage: ${d.provisionStage || 'none'})`);
+      provisionAsync(d.id, {}).catch(async (err) => {
+        console.error(`[openclaw:resume] Failed to resume ${d.id}:`, err);
+        await updateDeployment(d.id, {
+          status: 'ERROR',
+          statusMessage: `Resume failed: ${err.message}`,
+        }).catch(console.error);
+      });
+    }
+  } catch (err) {
+    console.error('[openclaw:resume] Error checking for interrupted deployments:', err);
+  }
+}
+
+// ============================================================
 // Background Usage Poller
 // ============================================================
 
@@ -1669,6 +1982,7 @@ export function toPublicData(deployment: OpenClawDeployment) {
     ovhOrderId,
     ovhCartId,
     provisionLog,
+    provisionStage,
     ...publicFields
   } = deployment;
   return publicFields;

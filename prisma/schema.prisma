@@ -347,6 +347,7 @@ model OpenClawDeployment {
   status          OpenClawStatus @default(PENDING)
   statusMessage   String?        @map("status_message")
   provisionLog    String?        @map("provision_log") @db.Text
+  provisionStage  String?        @map("provision_stage")
 
   // Billing
   stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
