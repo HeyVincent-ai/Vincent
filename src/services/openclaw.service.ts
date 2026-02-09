@@ -42,6 +42,7 @@ import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
 import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 
@@ -661,7 +662,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     }
 
     // Mark as READY
-    await updateDeployment(deploymentId, {
+    const readyDeployment = await updateDeployment(deploymentId, {
       status: 'READY',
       statusMessage: healthy
         ? 'OpenClaw is live and accessible'
@@ -669,6 +670,17 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       readyAt: new Date(),
       provisionLog: log,
     });
+
+    // Send ready notification email
+    try {
+      const user = await prisma.user.findUnique({ where: { id: readyDeployment.userId } });
+      if (user?.email && hostname) {
+        await sendOpenClawReadyEmail(user.email, deploymentId, hostname);
+        addLog(`Ready notification email sent to ${user.email}`);
+      }
+    } catch (emailErr: any) {
+      addLog(`Failed to send ready email: ${emailErr.message}`);
+    }
 
     addLog('Deployment complete!');
   } catch (err: any) {

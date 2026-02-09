@@ -89,6 +89,9 @@ const envSchema = z.object({
 
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
+
+  // Resend (email notifications)
+  RESEND_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
