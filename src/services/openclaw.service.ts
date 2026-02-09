@@ -1979,7 +1979,6 @@ export function toPublicData(deployment: OpenClawDeployment) {
   const {
     sshPrivateKey,
     sshPublicKey,
-    accessToken,
     openRouterKeyHash,
     ovhOrderId,
     ovhCartId,
