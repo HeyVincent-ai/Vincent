@@ -39,6 +39,7 @@ export function createApp(): Express {
           connectSrc: ["'self'", 'https://api.stytch.com'],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          frameSrc: ["'self'", "https://*.vps.ovh.us"],
         },
       },
     })

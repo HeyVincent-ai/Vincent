@@ -8,6 +8,7 @@
  * DELETE /api/openclaw/deployments/:id          → Destroy VPS immediately
  * POST   /api/openclaw/deployments/:id/restart  → Restart OpenClaw
  * POST   /api/openclaw/deployments/:id/retry    → Retry failed deployment
+ * POST   /api/openclaw/deployments/:id/reprovision → Reinstall OpenClaw on existing VPS
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
  * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits
  */
@@ -173,6 +174,26 @@ router.post('/deployments/:id/retry', async (req: AuthenticatedRequest, res: Res
       return res.status(400).json({ success: false, error: error.message });
     }
     console.error('OpenClaw retry error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/reprovision
+ * Reinstall OpenClaw on an existing VPS without ordering a new one.
+ */
+router.post('/deployments/:id/reprovision', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.reprovision(req.params.id as string, req.user!.id);
+    sendSuccess(res, { deployment: toPublicData(deployment) });
+  } catch (error: any) {
+    if (error.message === 'Deployment not found') {
+      return errors.notFound(res, 'Deployment');
+    }
+    if (error.message.includes('Can only reprovision') || error.message.includes('missing VPS')) {
+      return res.status(400).json({ success: false, error: error.message });
+    }
+    console.error('OpenClaw reprovision error:', error);
     errors.internal(res, error.message);
   }
 });

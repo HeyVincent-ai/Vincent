@@ -318,6 +318,8 @@ echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
     reverse_proxy localhost:${OPENCLAW_PORT}
+    header Content-Security-Policy "frame-ancestors 'self' https://*.heyvincent.ai https://heyvincent.ai"
+    header -X-Frame-Options
 }
 CADDYEOF
 
@@ -1533,6 +1535,148 @@ export async function addCredits(
 }
 
 // ============================================================
+// Reprovision (reinstall OpenClaw on existing VPS)
+// ============================================================
+
+/**
+ * Reprovision OpenClaw on an existing VPS. Reinstalls without ordering a new VPS.
+ * Validates that the VPS exists (has service name, SSH keys, IP), creates a new
+ * OpenRouter key, and runs the setup script.
+ */
+export async function reprovision(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!['READY', 'CANCELING', 'ERROR'].includes(deployment.status)) {
+    throw new Error('Can only reprovision READY, CANCELING, or ERROR deployments');
+  }
+  if (!deployment.ovhServiceName || !deployment.sshPublicKey || !deployment.sshPrivateKey || !deployment.ipAddress) {
+    throw new Error('Deployment missing VPS details — cannot reprovision without an existing VPS');
+  }
+
+  console.log(`[openclaw] Reprovisioning deployment ${deploymentId}...`);
+
+  // Clean up old OpenRouter key
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.deleteKey(deployment.openRouterKeyHash);
+      console.log(`[openclaw] Cleaned up old OpenRouter key ${deployment.openRouterKeyHash}`);
+    } catch (err: any) {
+      console.error(`[openclaw] Failed to clean up OpenRouter key:`, err.message);
+    }
+  }
+
+  // Create new OpenRouter key
+  const shortId = deploymentId.slice(-8);
+  const orKey = await openRouterService.createKey(`openclaw-${shortId}`, { limit: Number(deployment.creditBalanceUsd) || 25 });
+
+  const updated = await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: {
+      status: 'INSTALLING',
+      statusMessage: 'Reprovisioning — reinstalling OpenClaw on existing VPS',
+      openRouterKeyHash: orKey.hash,
+      accessToken: null,
+      provisionLog: null,
+      provisionStage: 'vps_rebuilt',
+    },
+  });
+
+  // Start async reprovisioning (don't await)
+  reprovisionAsync(deploymentId, orKey.key).catch(async (err) => {
+    console.error(`[openclaw] Reprovision failed for ${deploymentId}:`, err);
+    await updateDeployment(deploymentId, {
+      status: 'ERROR',
+      statusMessage: `Reprovision failed: ${err.message}`,
+    }).catch(console.error);
+  });
+
+  return updated;
+}
+
+/**
+ * Async reprovisioning job — SSH into existing VPS and reinstall OpenClaw.
+ */
+async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+  if (!deployment) throw new Error(`Deployment ${deploymentId} not found`);
+
+  const ip = deployment.ipAddress!;
+  const privateKey = deployment.sshPrivateKey!;
+  const hostname = deployment.hostname || deployment.ovhServiceName!;
+
+  let log = deployment.provisionLog || '';
+  const addLog = (msg: string) => {
+    console.log(`[openclaw:${deploymentId}] ${msg}`);
+    log = appendLog(log, msg);
+  };
+
+  try {
+    // 1. Wait for SSH
+    addLog('Waiting for SSH access...');
+    const sshUser = await waitForSsh(ip, privateKey);
+    addLog(`SSH connected as ${sshUser}`);
+
+    // 2. Clean up old marker files so the new setup script starts fresh
+    addLog('Cleaning up old setup markers...');
+    await sshExec(ip, sshUser, privateKey,
+      'sudo rm -f /root/.openclaw-setup-started /root/.openclaw-setup-complete /root/.openclaw-setup-token /root/.openclaw-setup-error',
+      15_000
+    );
+
+    // 3. Launch setup script
+    addLog('Launching OpenClaw setup script (detached)...');
+    const setupScript = buildSetupScript(orKeyRaw, hostname);
+    await launchSetupScript(ip, sshUser, privateKey, setupScript, addLog);
+
+    await updateDeployment(deploymentId, {
+      provisionLog: log,
+      provisionStage: 'setup_script_launched',
+    });
+
+    // 4. Poll for completion
+    addLog('Polling for setup completion...');
+    const token = await pollSetupCompletion(ip, sshUser, privateKey, addLog);
+
+    await updateDeployment(deploymentId, {
+      accessToken: token || undefined,
+      provisionLog: log,
+      provisionStage: 'setup_complete',
+    });
+
+    // 5. Health check
+    addLog('Waiting for OpenClaw health check...');
+    const healthy = await waitForHealth(ip, hostname);
+    if (healthy) {
+      addLog('OpenClaw is healthy and responding!');
+    } else {
+      addLog('Health check timed out — OpenClaw may still be starting');
+    }
+
+    await updateDeployment(deploymentId, {
+      status: 'READY',
+      statusMessage: healthy
+        ? 'OpenClaw is live and accessible'
+        : 'OpenClaw deployed (health check pending)',
+      readyAt: new Date(),
+      provisionLog: log,
+    });
+
+    addLog('Reprovision complete!');
+  } catch (err: any) {
+    addLog(`ERROR: ${err.message}`);
+    await updateDeployment(deploymentId, {
+      status: 'ERROR',
+      statusMessage: `Reprovision failed: ${err.message}`,
+      provisionLog: log,
+    });
+    throw err;
+  }
+}
+
+// ============================================================
 // Retry Failed Deployment
 // ============================================================
 
@@ -1565,25 +1709,40 @@ export async function retryDeploy(deploymentId: string, userId: string): Promise
     }
   }
 
-  // Reset deployment state for fresh provisioning
-  const updated = await prisma.openClawDeployment.update({
-    where: { id: deploymentId },
-    data: {
-      status: 'PENDING',
-      statusMessage: 'Retrying provisioning',
-      openRouterKeyHash: null,
-      ipAddress: null,
-      hostname: null,
-      accessToken: null,
-      sshPrivateKey: null,
-      sshPublicKey: null,
-      ovhServiceName: null,
-      ovhOrderId: null,
-      readyAt: null,
-      provisionLog: null,
-      provisionStage: null,
-    },
-  });
+  // Smart retry: if VPS already exists, reuse it (skip ordering/delivery)
+  const hasVps = deployment.ovhServiceName && deployment.sshPublicKey && deployment.sshPrivateKey;
+
+  const updated = hasVps
+    ? await prisma.openClawDeployment.update({
+        where: { id: deploymentId },
+        data: {
+          status: 'PROVISIONING',
+          statusMessage: 'Retrying — reusing existing VPS',
+          openRouterKeyHash: null,
+          accessToken: null,
+          readyAt: null,
+          provisionLog: null,
+          provisionStage: 'vps_ip_acquired',
+        },
+      })
+    : await prisma.openClawDeployment.update({
+        where: { id: deploymentId },
+        data: {
+          status: 'PENDING',
+          statusMessage: 'Retrying provisioning',
+          openRouterKeyHash: null,
+          ipAddress: null,
+          hostname: null,
+          accessToken: null,
+          sshPrivateKey: null,
+          sshPublicKey: null,
+          ovhServiceName: null,
+          ovhOrderId: null,
+          readyAt: null,
+          provisionLog: null,
+          provisionStage: null,
+        },
+      });
 
   // Start async provisioning (reuses existing subscription)
   provisionAsync(deploymentId, {}).catch(async (err) => {
