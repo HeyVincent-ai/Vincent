@@ -142,7 +142,50 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Policy Configuration</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)' }}>
+              <div className="arch-diagram" style={{ padding: '1.5rem' }}>
+                <div className="arch-box arch-box--mediator">
+                  <div className="arch-tags" style={{ marginTop: 0 }}>
+                    <span className="arch-tag">Spending Limit</span>
+                  </div>
+                  <p style={{ marginTop: '0.375rem', fontSize: '0.8125rem', color: 'var(--text)' }}>
+                    Max <span style={{ color: 'var(--accent)', fontWeight: 700 }}>$500</span>/day
+                  </p>
+                </div>
+                <div className="diagram-compose">+</div>
+                <div className="arch-box arch-box--mediator">
+                  <div className="arch-tags" style={{ marginTop: 0 }}>
+                    <span className="arch-tag">Action Restriction</span>
+                  </div>
+                  <p style={{ marginTop: '0.375rem', fontSize: '0.8125rem', color: 'var(--text)' }}>
+                    <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>swap</span>
+                    {' '}<span style={{ color: 'var(--text-dim)' }}>and</span>{' '}
+                    <span style={{ color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>transfer</span>
+                    {' '}<span style={{ color: 'var(--text-dim)' }}>only</span>
+                  </p>
+                </div>
+                <div className="diagram-compose">+</div>
+                <div className="arch-box arch-box--mediator">
+                  <div className="arch-tags" style={{ marginTop: 0 }}>
+                    <span className="arch-tag">Rate Limit</span>
+                  </div>
+                  <p style={{ marginTop: '0.375rem', fontSize: '0.8125rem', color: 'var(--text)' }}>
+                    Max <span style={{ color: 'var(--accent)', fontWeight: 700 }}>10</span> txns/hr
+                  </p>
+                </div>
+                <div className="arch-arrow">
+                  <div className="arch-arrow__line" />
+                  <span className="arch-arrow__label">combined</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+                <div className="arch-box arch-box--vault">
+                  <span className="arch-label">Active Policy</span>
+                  <h4 style={{ fontSize: '0.875rem' }}>
+                    <span className="diagram-status diagram-status--green">&#10003; All rules enforced</span>
+                  </h4>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -178,7 +221,52 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Approval Flow Diagram</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)' }}>
+              <div className="arch-diagram" style={{ padding: '1.5rem' }}>
+                <div className="arch-box arch-box--runtime">
+                  <h4 style={{ fontSize: '0.875rem' }}>Agent Request</h4>
+                  <p style={{ marginTop: '0.25rem', fontSize: '0.8125rem', color: 'var(--text)' }}>
+                    Withdraw <span style={{ color: 'var(--accent)', fontWeight: 700 }}>$2,000</span>
+                  </p>
+                </div>
+                <div className="arch-arrow">
+                  <div className="arch-arrow__line" />
+                  <span className="arch-arrow__label">requires approval</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+                <div className="arch-box arch-box--mediator" style={{ padding: '1rem 1.5rem' }}>
+                  <h4 style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Policy: Requires 2-of-3</h4>
+                </div>
+                <div className="arch-arrow">
+                  <div className="arch-arrow__line" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+                <div className="diagram-flow-row">
+                  <div className="arch-box arch-box--mediator" style={{ padding: '0.75rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem' }}>Alice</h4>
+                    <span className="diagram-status diagram-status--green">&#10003;</span>
+                  </div>
+                  <div className="arch-box arch-box--mediator" style={{ padding: '0.75rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem' }}>Bob</h4>
+                    <span className="diagram-status diagram-status--green">&#10003;</span>
+                  </div>
+                  <div className="arch-box arch-box--mediator" style={{ padding: '0.75rem' }}>
+                    <h4 style={{ fontSize: '0.8125rem' }}>Carol</h4>
+                    <span className="diagram-status diagram-status--dim">&mdash;</span>
+                  </div>
+                </div>
+                <div className="arch-arrow">
+                  <div className="arch-arrow__line" />
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                </div>
+                <div className="arch-box arch-box--vault">
+                  <span className="arch-label">Result</span>
+                  <h4 style={{ fontSize: '0.875rem' }}>
+                    <span className="diagram-status diagram-status--green">&#10003; Approved</span>
+                  </h4>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -210,7 +298,42 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Role Matrix Visualization</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)', padding: '1.5rem' }}>
+              <table className="diagram-matrix">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>Read</th>
+                    <th>Scoped</th>
+                    <th>Full</th>
+                    <th>Admin</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Trading Bot</td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-dash">&mdash;</span></td>
+                    <td><span className="matrix-dash">&mdash;</span></td>
+                  </tr>
+                  <tr>
+                    <td>Ops Agent</td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-dash">&mdash;</span></td>
+                  </tr>
+                  <tr>
+                    <td>Team Lead</td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                    <td><span className="matrix-check">&#10003;</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -246,7 +369,52 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Integration Diagram</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)' }}>
+              <div className="arch-diagram" style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.75rem', width: '100%' }}>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div className="arch-box arch-box--runtime" style={{ padding: '1rem' }}>
+                      <h4 style={{ fontSize: '0.8125rem' }}>Your Bot</h4>
+                      <div className="arch-tags">
+                        <span className="arch-tag">any framework</span>
+                      </div>
+                    </div>
+                    <div className="arch-box arch-box--runtime" style={{ padding: '1rem' }}>
+                      <h4 style={{ fontSize: '0.8125rem' }}>Hosted Agent</h4>
+                      <div className="arch-tags">
+                        <span className="arch-tag">OpenClaw</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="arch-arrow arch-arrow--horizontal">
+                      <div className="arch-arrow__line" />
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0.75rem' }}>
+                    <div className="arch-box arch-box--mediator" style={{ padding: '1rem' }}>
+                      <h4 style={{ fontSize: '0.8125rem' }}>Vincent API</h4>
+                      <div className="arch-tags">
+                        <span className="arch-tag">skills.md</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div className="arch-arrow arch-arrow--horizontal">
+                      <div className="arch-arrow__line" />
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                    <div className="arch-box arch-box--vault" style={{ padding: '1rem' }}>
+                      <span className="arch-label">Airgapped</span>
+                      <h4 style={{ fontSize: '0.8125rem' }}>Vault</h4>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -282,7 +450,35 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Audit Log</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)', padding: '1.5rem', alignItems: 'stretch' }}>
+              <div className="diagram-log">
+                <div className="diagram-log__header">
+                  <span className="diagram-log__dot diagram-log__dot--red" />
+                  <span className="diagram-log__dot diagram-log__dot--yellow" />
+                  <span className="diagram-log__dot diagram-log__dot--green" />
+                </div>
+                <div className="diagram-log__entry">
+                  <span className="diagram-log__time">14:23:01</span>
+                  <span className="diagram-log__type diagram-log__type--request">REQUESTED</span>
+                  <span className="diagram-log__msg">swap 0.5 ETH &rarr; USDC</span>
+                </div>
+                <div className="diagram-log__entry">
+                  <span className="diagram-log__time">14:23:01</span>
+                  <span className="diagram-log__type diagram-log__type--policy">POLICY</span>
+                  <span className="diagram-log__msg">spending-limit: &#10003; rate-limit: &#10003;</span>
+                </div>
+                <div className="diagram-log__entry">
+                  <span className="diagram-log__time">14:23:02</span>
+                  <span className="diagram-log__type diagram-log__type--approved">APPROVED</span>
+                  <span className="diagram-log__msg">auto (within limits)</span>
+                </div>
+                <div className="diagram-log__entry">
+                  <span className="diagram-log__time">14:23:03</span>
+                  <span className="diagram-log__type diagram-log__type--executed">EXECUTED</span>
+                  <span className="diagram-log__msg">tx: 0x8f3a...c2d1</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -319,7 +515,42 @@ export default function Features() {
                 </li>
               </ul>
             </div>
-            <div className="feature-section__visual">Advanced Mode Interface</div>
+            <div className="feature-section__visual" style={{ background: 'var(--bg)', padding: '1.5rem', alignItems: 'stretch' }}>
+              <div className="diagram-code">
+                <div className="diagram-code__header">
+                  <span className="diagram-log__dot diagram-log__dot--red" />
+                  <span className="diagram-log__dot diagram-log__dot--yellow" />
+                  <span className="diagram-log__dot diagram-log__dot--green" />
+                  <span style={{ marginLeft: '0.5rem' }}>vincent.config</span>
+                </div>
+                <div className="diagram-code__line">
+                  <span className="diagram-code__key">runtime:</span>{' '}
+                  <span className="diagram-code__val">openclaw</span>
+                </div>
+                <div className="diagram-code__line">
+                  <span className="diagram-code__key">skills:</span>
+                </div>
+                <div className="diagram-code__line">
+                  {'  '}<span className="diagram-code__val">- polymarket</span>
+                </div>
+                <div className="diagram-code__line">
+                  {'  '}<span className="diagram-code__val">- defi-swap</span>
+                </div>
+                <div className="diagram-code__line">
+                  {'  '}<span className="diagram-code__val">- custom/my-skill</span>{' '}
+                  <span className="diagram-code__comment"># your own</span>
+                </div>
+                <div className="diagram-code__line">
+                  <span className="diagram-code__key">memory:</span>{' '}
+                  <span className="diagram-code__val">persistent</span>
+                </div>
+                <div className="diagram-code__line">
+                  <span className="diagram-code__key">secrets:</span>{' '}
+                  <span className="diagram-code__val">airgapped</span>{' '}
+                  <span className="diagram-code__check">&#10003;</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
