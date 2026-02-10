@@ -382,7 +382,7 @@ export default function Features() {
                     <div className="arch-box arch-box--runtime" style={{ padding: '1rem' }}>
                       <h4 style={{ fontSize: '0.8125rem' }}>Hosted Agent</h4>
                       <div className="arch-tags">
-                        <span className="arch-tag">OpenClawd</span>
+                        <span className="arch-tag">OpenClaw</span>
                       </div>
                     </div>
                   </div>
@@ -502,7 +502,7 @@ export default function Features() {
               </p>
               <ul>
                 <li>
-                  <CheckSvg /> Full access to the OpenClawd runtime
+                  <CheckSvg /> Full access to the OpenClaw runtime
                 </li>
                 <li>
                   <CheckSvg /> Install community skills and connectors
@@ -525,7 +525,7 @@ export default function Features() {
                 </div>
                 <div className="diagram-code__line">
                   <span className="diagram-code__key">runtime:</span>{' '}
-                  <span className="diagram-code__val">openclawd</span>
+                  <span className="diagram-code__val">openclaw</span>
                 </div>
                 <div className="diagram-code__line">
                   <span className="diagram-code__key">skills:</span>

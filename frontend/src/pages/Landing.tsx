@@ -255,7 +255,7 @@ export default function Landing() {
               </div>
               <h3>Advanced Mode</h3>
               <p>
-                Access the full OpenClawd runtime — install skills, customize behavior, extend
+                Access the full OpenClaw runtime — install skills, customize behavior, extend
                 capabilities.
               </p>
             </div>
