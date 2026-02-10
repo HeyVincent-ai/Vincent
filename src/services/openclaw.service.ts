@@ -317,9 +317,11 @@ openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
-    reverse_proxy localhost:${OPENCLAW_PORT}
+    reverse_proxy localhost:${OPENCLAW_PORT} {
+        header_down -Content-Security-Policy
+        header_down -X-Frame-Options
+    }
     header Content-Security-Policy "frame-ancestors 'self' https://*.heyvincent.ai https://heyvincent.ai"
-    header -X-Frame-Options
 }
 CADDYEOF
 
