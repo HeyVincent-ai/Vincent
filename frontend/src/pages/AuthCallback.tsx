@@ -28,11 +28,11 @@ export default function AuthCallback() {
 
     if (tokenType === 'magic_links') {
       authPromise = stytch.magicLinks.authenticate(token, {
-        session_duration_minutes: 60,
+        session_duration_minutes: 44640, // 31 days,
       }) as Promise<{ session_token: string }>;
     } else if (tokenType === 'oauth') {
       authPromise = stytch.oauth.authenticate(token, {
-        session_duration_minutes: 60,
+        session_duration_minutes: 44640, // 31 days,
       }) as Promise<{ session_token: string }>;
     } else {
       setError(`Unknown token type: ${tokenType}`);
