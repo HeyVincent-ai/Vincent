@@ -311,6 +311,50 @@ echo "=== [5/8] Configuring OpenClaw ==="
 # skipped if the installer already created a config file (e.g. via doctor).
 openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
 
+# Also write the key directly to the agent's auth-profiles.json.
+# OpenClaw's embedded agent reads API keys from this file, not from
+# env.OPENROUTER_API_KEY. When onboard is skipped (config already exists),
+# auth-profiles.json retains the old/revoked key and agent calls fail 401.
+AUTH_PROFILES_DIR="/root/.openclaw/agents/main/agent"
+AUTH_PROFILES_FILE="\${AUTH_PROFILES_DIR}/auth-profiles.json"
+mkdir -p "\${AUTH_PROFILES_DIR}"
+if [ -f "\${AUTH_PROFILES_FILE}" ]; then
+  python3 -c "
+import json
+with open('\${AUTH_PROFILES_FILE}') as f:
+    ap = json.load(f)
+ap.setdefault('profiles', {})
+ap['profiles']['openrouter:default'] = {
+    'type': 'api_key',
+    'provider': 'openrouter',
+    'key': '${openRouterApiKey}'
+}
+ap['lastGood'] = {'openrouter': 'openrouter:default'}
+with open('\${AUTH_PROFILES_FILE}', 'w') as f:
+    json.dump(ap, f, indent=2)
+print('Updated auth-profiles.json with new OpenRouter key')
+"
+else
+  cat > "\${AUTH_PROFILES_FILE}" << AUTHEOF
+{
+  "version": 1,
+  "profiles": {
+    "openrouter:default": {
+      "type": "api_key",
+      "provider": "openrouter",
+      "key": "${openRouterApiKey}"
+    }
+  },
+  "lastGood": {
+    "openrouter": "openrouter:default"
+  },
+  "usageStats": {}
+}
+AUTHEOF
+  chmod 600 "\${AUTH_PROFILES_FILE}"
+  echo "Created auth-profiles.json with OpenRouter key"
+fi
+
 # Set model (agents.defaults.model is an object with "primary" key)
 openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-flash-preview"}'
 
