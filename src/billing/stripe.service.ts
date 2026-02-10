@@ -86,6 +86,7 @@ export async function createCheckoutSession(
     customer: customerId,
     mode: 'subscription',
     payment_method_types: ['card'],
+    payment_method_collection: 'if_required',
     line_items: [{ price: env.STRIPE_PRICE_ID, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
@@ -183,6 +184,22 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   const period = extractPeriodDates(stripeSubscription);
 
+  // Check if this is an OpenClaw deployment checkout
+  const deploymentId = session.metadata?.deploymentId;
+  const checkoutType = session.metadata?.type;
+
+  if (checkoutType === 'openclaw' && deploymentId) {
+    console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
+    const openclawService = await import('../services/openclaw.service.js');
+    await openclawService.startProvisioning(
+      deploymentId,
+      stripeSubscription.id,
+      period.end
+    );
+    return;
+  }
+
+  // Default: standard subscription checkout
   await prisma.subscription.upsert({
     where: { stripeSubscriptionId: stripeSubscription.id },
     create: {
@@ -220,6 +237,21 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
+  // Check if this is an OpenClaw subscription
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+  });
+
+  if (openclawDeployment) {
+    console.log(`[stripe] OpenClaw invoice payment failed for deployment ${openclawDeployment.id}`);
+    await prisma.openClawDeployment.update({
+      where: { id: openclawDeployment.id },
+      data: { statusMessage: 'Payment failed — please update your payment method' },
+    });
+    return;
+  }
+
+  // Default: standard subscription
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscriptionId },
   });
@@ -233,6 +265,19 @@ async function handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
 }
 
 async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+  // Check if this is an OpenClaw subscription
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+
+  if (openclawDeployment) {
+    console.log(`[stripe] OpenClaw subscription deleted for deployment ${openclawDeployment.id}`);
+    const openclawService = await import('../services/openclaw.service.js');
+    await openclawService.handleSubscriptionExpired(subscription.id);
+    return;
+  }
+
+  // Default: standard subscription
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });
@@ -245,7 +290,88 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   }
 }
 
+/**
+ * Charge a customer off-session using their default payment method.
+ * Used for OpenClaw LLM credit purchases.
+ *
+ * Returns success + paymentIntentId, or requiresAction + clientSecret
+ * if 3D Secure authentication is needed.
+ */
+export async function chargeCustomerOffSession(
+  userId: string,
+  amountCents: number,
+  description: string,
+  metadata: Record<string, string> = {}
+): Promise<{
+  success: boolean;
+  paymentIntentId?: string;
+  requiresAction?: boolean;
+  clientSecret?: string;
+}> {
+  const stripe = getStripe();
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+
+  if (!user.stripeCustomerId) {
+    throw new Error('User has no Stripe customer — subscribe first');
+  }
+
+  // Get the customer's default payment method
+  const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+  if (customer.deleted) throw new Error('Stripe customer has been deleted');
+
+  const defaultPm =
+    customer.invoice_settings?.default_payment_method ??
+    customer.default_source;
+
+  if (!defaultPm) {
+    throw new Error('No default payment method on file — please add a card first');
+  }
+
+  const pmId = typeof defaultPm === 'string' ? defaultPm : defaultPm.id;
+
+  try {
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: amountCents,
+      currency: 'usd',
+      customer: user.stripeCustomerId,
+      payment_method: pmId,
+      off_session: true,
+      confirm: true,
+      description,
+      metadata: { userId, ...metadata },
+    });
+
+    return { success: true, paymentIntentId: paymentIntent.id };
+  } catch (err: any) {
+    // Handle 3D Secure / authentication_required
+    if (err.code === 'authentication_required' && err.raw?.payment_intent) {
+      const pi = err.raw.payment_intent;
+      return {
+        success: false,
+        requiresAction: true,
+        clientSecret: pi.client_secret,
+        paymentIntentId: pi.id,
+      };
+    }
+    throw err;
+  }
+}
+
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  // Sync period dates for OpenClaw deployments (e.g. trial → active transition)
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+
+  if (openclawDeployment) {
+    const period = extractPeriodDates(subscription);
+    await prisma.openClawDeployment.update({
+      where: { id: openclawDeployment.id },
+      data: { currentPeriodEnd: period.end },
+    });
+  }
+
+  // Standard subscription handling
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });

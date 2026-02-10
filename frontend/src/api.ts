@@ -111,6 +111,26 @@ export const executeSwap = (
   }
 ) => api.post(`/secrets/${secretId}/swap/execute`, data);
 
+// OpenClaw
+export const deployOpenClaw = (successUrl: string, cancelUrl: string) =>
+  api.post('/openclaw/deploy', { successUrl, cancelUrl });
+export const getOpenClawDeployments = () => api.get('/openclaw/deployments');
+export const getOpenClawDeployment = (id: string) => api.get(`/openclaw/deployments/${id}`);
+export const cancelOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/cancel`);
+export const destroyOpenClawDeployment = (id: string) => api.delete(`/openclaw/deployments/${id}`);
+export const restartOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/restart`);
+export const retryOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/retry`);
+export const reprovisionOpenClawDeployment = (id: string) =>
+  api.post(`/openclaw/deployments/${id}/reprovision`);
+export const downloadOpenClawSshKey = (id: string) =>
+  api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
+export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
+export const addOpenClawCredits = (id: string, amountUsd: number) =>
+  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>

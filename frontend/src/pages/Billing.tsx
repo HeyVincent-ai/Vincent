@@ -26,7 +26,9 @@ export default function Billing() {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   const handleSubscribe = async () => {
     try {
@@ -41,7 +43,12 @@ export default function Billing() {
   };
 
   const handleCancel = async () => {
-    if (!confirm('Cancel your subscription? You will lose mainnet access at the end of the billing period.')) return;
+    if (
+      !confirm(
+        'Cancel your subscription? You will lose mainnet access at the end of the billing period.'
+      )
+    )
+      return;
     try {
       await cancelSubscription();
       load();
@@ -62,30 +69,43 @@ export default function Billing() {
         {hasSub && sub ? (
           <div>
             <p className="text-sm">
-              Status: <span className={`font-medium ${sub.status === 'ACTIVE' ? 'text-green-600' : 'text-yellow-600'}`}>{sub.status}</span>
+              Status:{' '}
+              <span
+                className={`font-medium ${sub.status === 'ACTIVE' ? 'text-green-600' : 'text-yellow-600'}`}
+              >
+                {sub.status}
+              </span>
             </p>
             {sub.currentPeriodEnd && (
-              <p className="text-sm text-gray-500">Current period ends: {new Date(sub.currentPeriodEnd).toLocaleDateString()}</p>
+              <p className="text-sm text-gray-500">
+                Current period ends: {new Date(sub.currentPeriodEnd).toLocaleDateString()}
+              </p>
             )}
-            {sub.canceledAt && (
-              <p className="text-sm text-red-500">Cancels at period end</p>
-            )}
+            {sub.canceledAt && <p className="text-sm text-red-500">Cancels at period end</p>}
             <p className="text-sm text-green-600 mt-2">Unlimited mainnet transactions included</p>
             {!sub.canceledAt && (
-              <button onClick={handleCancel} className="mt-3 text-sm text-red-600 hover:text-red-800 border border-red-200 px-3 py-1 rounded">
+              <button
+                onClick={handleCancel}
+                className="mt-3 text-sm text-red-600 hover:text-red-800 border border-red-200 px-3 py-1 rounded"
+              >
                 Cancel Subscription
               </button>
             )}
           </div>
         ) : (
           <div>
-            <p className="text-sm text-gray-600 mb-3">No active subscription. Subscribe for mainnet access ($10/month).</p>
+            <p className="text-sm text-gray-600 mb-3">
+              No active subscription. Subscribe for mainnet access ($10/month).
+            </p>
             <ul className="text-sm text-gray-600 mb-4 list-disc list-inside">
               <li>Unlimited mainnet transactions</li>
               <li>Gas fees included</li>
               <li>All supported chains</li>
             </ul>
-            <button onClick={handleSubscribe} className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            <button
+              onClick={handleSubscribe}
+              className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
               Subscribe - $10/month
             </button>
           </div>

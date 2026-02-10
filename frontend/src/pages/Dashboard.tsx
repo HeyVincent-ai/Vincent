@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret } from '../api';
+import OpenClawSection from '../components/OpenClawSection';
 
 interface Secret {
   id: string;
@@ -51,8 +52,8 @@ export default function Dashboard() {
       setCreateMemo('');
       loadSecrets();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message;
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
       setCreateError(msg || 'Failed to create secret');
     } finally {
       setCreating(false);
@@ -147,9 +148,7 @@ export default function Dashboard() {
                   </button>
                 </div>
               </div>
-              {createError && (
-                <p className="text-red-600 text-sm mt-2">{createError}</p>
-              )}
+              {createError && <p className="text-red-600 text-sm mt-2">{createError}</p>}
             </div>
           )}
         </div>
@@ -174,7 +173,9 @@ export default function Dashboard() {
                   </span>
                   <span className="text-gray-900 font-medium">{s.memo || 'Unnamed secret'}</span>
                 </div>
-                <span className="text-gray-400 text-sm">{new Date(s.createdAt).toLocaleDateString()}</span>
+                <span className="text-gray-400 text-sm">
+                  {new Date(s.createdAt).toLocaleDateString()}
+                </span>
               </div>
               {s.walletAddress && (
                 <p className="text-sm text-gray-500 mt-1 font-mono">{s.walletAddress}</p>
@@ -189,6 +190,10 @@ export default function Dashboard() {
           ))}
         </div>
       )}
+
+      <div id="openclaw">
+        <OpenClawSection />
+      </div>
     </div>
   );
 }

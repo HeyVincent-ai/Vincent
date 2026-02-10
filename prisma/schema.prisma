@@ -23,6 +23,7 @@ model User {
   gasUsages          GasUsage[]
   monthlyGasSummaries MonthlyGasSummary[]
   auditLogs          AuditLog[]
+  openclawDeployments OpenClawDeployment[]
 
   @@map("users")
 }
@@ -305,4 +306,81 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([status, createdAt])
   @@map("audit_logs")
+}
+
+// OpenClaw deployment status enum
+enum OpenClawStatus {
+  PENDING_PAYMENT
+  PENDING
+  ORDERING
+  PROVISIONING
+  INSTALLING
+  READY
+  CANCELING
+  ERROR
+  DESTROYING
+  DESTROYED
+}
+
+// OpenClaw VPS deployment tracking
+model OpenClawDeployment {
+  id              String         @id @default(cuid())
+  userId          String         @map("user_id")
+  user            User           @relation(fields: [userId], references: [id])
+
+  // OVH identifiers
+  ovhServiceName  String?        @unique @map("ovh_service_name")
+  ovhOrderId      String?        @map("ovh_order_id")
+  ovhCartId       String?        @map("ovh_cart_id")
+
+  // Instance details
+  ipAddress       String?        @map("ip_address")
+  hostname        String?        @map("hostname")
+  accessToken     String?        @map("access_token")
+  sshPrivateKey   String?        @map("ssh_private_key")  @db.Text
+  sshPublicKey    String?        @map("ssh_public_key")   @db.Text
+
+  // OpenRouter
+  openRouterKeyHash String?      @map("open_router_key_hash")
+
+  // Status tracking
+  status          OpenClawStatus @default(PENDING)
+  statusMessage   String?        @map("status_message")
+  provisionLog    String?        @map("provision_log") @db.Text
+  provisionStage  String?        @map("provision_stage")
+
+  // Billing
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  canceledAt           DateTime? @map("canceled_at")
+
+  // Token billing (LLM credits)
+  creditBalanceUsd     Decimal  @default(25.00) @map("credit_balance_usd") @db.Decimal(10, 2)
+  lastKnownUsageUsd    Decimal  @default(0)     @map("last_known_usage_usd") @db.Decimal(10, 2)
+  lastUsagePollAt      DateTime?                @map("last_usage_poll_at")
+  creditPurchases      OpenClawCreditPurchase[]
+
+  // Timestamps
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  readyAt         DateTime?      @map("ready_at")
+  destroyedAt     DateTime?      @map("destroyed_at")
+
+  @@index([userId])
+  @@map("openclaw_deployments")
+}
+
+// OpenClaw credit purchases for LLM token billing
+model OpenClawCreditPurchase {
+  id                    String   @id @default(cuid())
+  deploymentId          String   @map("deployment_id")
+  deployment            OpenClawDeployment @relation(fields: [deploymentId], references: [id])
+
+  amountUsd             Decimal  @map("amount_usd") @db.Decimal(10, 2)
+  stripePaymentIntentId String   @unique @map("stripe_payment_intent_id")
+
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([deploymentId])
+  @@map("openclaw_credit_purchases")
 }
