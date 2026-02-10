@@ -312,6 +312,73 @@ export const SHARED_STYLES = `
   .vp .arch-arrow__line { width: 2px; height: 24px; background: var(--border); }
   .vp .arch-arrow__label { margin: 0.375rem 0; font-family: var(--font-mono); }
 
+  /* Diagram: horizontal arrow */
+  .vp .arch-arrow--horizontal { flex-direction: row; padding: 0 0.5rem; }
+  .vp .arch-arrow--horizontal .arch-arrow__line { width: 24px; height: 2px; }
+
+  /* Diagram: composability connector */
+  .vp .diagram-compose { color: var(--accent); font-weight: 700; font-size: 1.25rem; padding: 0.25rem 0; }
+
+  /* Diagram: flow row (horizontal layout) */
+  .vp .diagram-flow-row { display: flex; gap: 0.75rem; justify-content: center; align-items: center; width: 100%; }
+  .vp .diagram-flow-row .arch-box { flex: 1; padding: 1rem; }
+
+  /* Diagram: status indicators */
+  .vp .diagram-status { display: inline-flex; align-items: center; gap: 0.375rem; font-family: var(--font-mono); font-size: 0.8125rem; }
+  .vp .diagram-status--green { color: #22c55e; }
+  .vp .diagram-status--orange { color: var(--accent); }
+  .vp .diagram-status--dim { color: var(--text-dim); }
+
+  /* Diagram: role matrix */
+  .vp .diagram-matrix { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; font-family: var(--font-mono); }
+  .vp .diagram-matrix th, .vp .diagram-matrix td {
+    padding: 0.75rem 0.5rem; text-align: center; border-bottom: 1px solid var(--border);
+  }
+  .vp .diagram-matrix th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .vp .diagram-matrix td:first-child, .vp .diagram-matrix th:first-child { text-align: left; color: var(--text); font-weight: 600; }
+  .vp .diagram-matrix tr:last-child td { border-bottom: none; }
+  .vp .diagram-matrix .matrix-check { color: var(--accent); font-weight: 700; }
+  .vp .diagram-matrix .matrix-dash { color: var(--text-dim); }
+
+  /* Diagram: audit log */
+  .vp .diagram-log {
+    width: 100%; padding: 1.25rem 1.5rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.75rem; line-height: 2;
+    overflow-x: auto;
+  }
+  .vp .diagram-log__header {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .vp .diagram-log__dot { width: 8px; height: 8px; border-radius: 50%; }
+  .vp .diagram-log__dot--red { background: #ef4444; }
+  .vp .diagram-log__dot--yellow { background: #eab308; }
+  .vp .diagram-log__dot--green { background: #22c55e; }
+  .vp .diagram-log__entry { display: flex; gap: 0.75rem; white-space: nowrap; }
+  .vp .diagram-log__time { color: var(--text-dim); }
+  .vp .diagram-log__type { font-weight: 600; min-width: 80px; }
+  .vp .diagram-log__type--request { color: var(--accent); }
+  .vp .diagram-log__type--policy { color: var(--text-muted); }
+  .vp .diagram-log__type--approved { color: #22c55e; }
+  .vp .diagram-log__type--executed { color: #22c55e; }
+  .vp .diagram-log__msg { color: var(--text-muted); }
+
+  /* Diagram: code/config block */
+  .vp .diagram-code {
+    width: 100%; padding: 1.25rem 1.5rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.8;
+    overflow-x: auto;
+  }
+  .vp .diagram-code__header {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted);
+  }
+  .vp .diagram-code__key { color: var(--accent); }
+  .vp .diagram-code__val { color: var(--text-muted); }
+  .vp .diagram-code__comment { color: var(--text-dim); }
+  .vp .diagram-code__line { white-space: pre; }
+  .vp .diagram-code__check { color: #22c55e; }
+
   /* Threat model */
   .vp .threat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
   .vp .threat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
