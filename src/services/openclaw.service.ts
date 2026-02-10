@@ -356,7 +356,7 @@ AUTHEOF
 fi
 
 # Set model (agents.defaults.model is an object with "primary" key)
-openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-flash-preview"}'
+openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-pro-preview"}'
 
 # Additional gateway settings not covered by onboard
 openclaw config set gateway.controlUi.allowInsecureAuth true
@@ -448,7 +448,9 @@ async function launchSetupScript(
   const b64 = Buffer.from(script).toString('base64');
   addLog('Uploading setup script to VPS...');
   await sshExec(
-    host, username, privateKey,
+    host,
+    username,
+    privateKey,
     `echo '${b64}' | base64 -d | sudo tee /root/openclaw-setup.sh > /dev/null && sudo chmod +x /root/openclaw-setup.sh`,
     30_000
   );
@@ -459,7 +461,9 @@ async function launchSetupScript(
   // and fails with Permission denied (debian can't write to /root/).
   addLog('Launching setup script (detached)...');
   await sshExec(
-    host, username, privateKey,
+    host,
+    username,
+    privateKey,
     `sudo bash -c 'nohup bash /root/openclaw-setup.sh > /root/openclaw-setup.log 2>&1 &'`,
     15_000
   );
@@ -485,14 +489,18 @@ async function pollSetupCompletion(
     // may write the error marker even though the script recovers and finishes.
     try {
       const completeResult = await sshExec(
-        host, username, privateKey,
+        host,
+        username,
+        privateKey,
         'sudo cat /root/.openclaw-setup-complete 2>/dev/null',
         15_000
       );
       if (completeResult.stdout.trim() === 'COMPLETE') {
         // Read the access token
         const tokenResult = await sshExec(
-          host, username, privateKey,
+          host,
+          username,
+          privateKey,
           'sudo cat /root/.openclaw-setup-token 2>/dev/null',
           15_000
         );
@@ -507,7 +515,9 @@ async function pollSetupCompletion(
     // Check for error (only if not complete)
     try {
       const errorResult = await sshExec(
-        host, username, privateKey,
+        host,
+        username,
+        privateKey,
         'sudo cat /root/.openclaw-setup-error 2>/dev/null',
         15_000
       );
@@ -744,7 +754,7 @@ const PROVISION_STAGES = [
   'setup_complete',
 ] as const;
 
-type ProvisionStage = typeof PROVISION_STAGES[number];
+type ProvisionStage = (typeof PROVISION_STAGES)[number];
 
 /**
  * Async provisioning job — runs in the background after deploy() returns.
@@ -765,7 +775,9 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
   const startIndex = completedStage ? PROVISION_STAGES.indexOf(completedStage) + 1 : 0;
 
   if (startIndex > 0) {
-    addLog(`Resuming from stage: ${completedStage} (next: ${PROVISION_STAGES[startIndex] || 'done'})`);
+    addLog(
+      `Resuming from stage: ${completedStage} (next: ${PROVISION_STAGES[startIndex] || 'done'})`
+    );
   }
 
   // In-memory context accumulated across stages (populated from DB on resume)
@@ -854,7 +866,9 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
         case 'vps_ordered': {
           // Reload from DB in case we're resuming and order already placed
-          const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+          const current = await prisma.openClawDeployment.findUnique({
+            where: { id: deploymentId },
+          });
           if (current?.ovhOrderId) {
             addLog(`VPS order already placed (orderId: ${current.ovhOrderId}), skipping`);
           } else {
@@ -885,7 +899,9 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
         case 'vps_delivered': {
           if (!ctx.serviceName) {
-            const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+            const current = await prisma.openClawDeployment.findUnique({
+              where: { id: deploymentId },
+            });
             const orderId = Number(current?.ovhOrderId);
             if (!orderId) throw new Error('No order ID found for delivery polling');
 
@@ -937,13 +953,21 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
           for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
             try {
-              const rebuildResult = await ovhService.rebuildVps(ctx.serviceName, rebuildImageId, ctx.sshPub);
-              addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
+              const rebuildResult = await ovhService.rebuildVps(
+                ctx.serviceName,
+                rebuildImageId,
+                ctx.sshPub
+              );
+              addLog(
+                `Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`
+              );
               break;
             } catch (err: any) {
               const isTaskConflict = err.message?.includes('running tasks');
               if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
-                addLog(`Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`);
+                addLog(
+                  `Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`
+                );
                 await sleep(REBUILD_RETRY_DELAY_MS);
               } else {
                 throw err;
@@ -1000,9 +1024,13 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             // so the key must still be needed. Create a new one and clean
             // up the old one.
             addLog('Reprovisioning OpenRouter API key for setup script...');
-            const current = await prisma.openClawDeployment.findUnique({ where: { id: deploymentId } });
+            const current = await prisma.openClawDeployment.findUnique({
+              where: { id: deploymentId },
+            });
             if (current?.openRouterKeyHash) {
-              try { await openRouterService.deleteKey(current.openRouterKeyHash); } catch {}
+              try {
+                await openRouterService.deleteKey(current.openRouterKeyHash);
+              } catch {}
             }
             const shortId = deploymentId.slice(-8);
             const orKey = await openRouterService.createKey(`openclaw-${shortId}`, { limit: 25 });
@@ -1595,7 +1623,10 @@ export async function addCredits(
  * Validates that the VPS exists (has service name, SSH keys, IP), creates a new
  * OpenRouter key, and runs the setup script.
  */
-export async function reprovision(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
+export async function reprovision(
+  deploymentId: string,
+  userId: string
+): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
     where: { id: deploymentId, userId },
   });
@@ -1604,7 +1635,12 @@ export async function reprovision(deploymentId: string, userId: string): Promise
   if (!['READY', 'CANCELING', 'ERROR'].includes(deployment.status)) {
     throw new Error('Can only reprovision READY, CANCELING, or ERROR deployments');
   }
-  if (!deployment.ovhServiceName || !deployment.sshPublicKey || !deployment.sshPrivateKey || !deployment.ipAddress) {
+  if (
+    !deployment.ovhServiceName ||
+    !deployment.sshPublicKey ||
+    !deployment.sshPrivateKey ||
+    !deployment.ipAddress
+  ) {
     throw new Error('Deployment missing VPS details — cannot reprovision without an existing VPS');
   }
 
@@ -1622,7 +1658,9 @@ export async function reprovision(deploymentId: string, userId: string): Promise
 
   // Create new OpenRouter key
   const shortId = deploymentId.slice(-8);
-  const orKey = await openRouterService.createKey(`openclaw-${shortId}`, { limit: Number(deployment.creditBalanceUsd) || 25 });
+  const orKey = await openRouterService.createKey(`openclaw-${shortId}`, {
+    limit: Number(deployment.creditBalanceUsd) || 25,
+  });
 
   const updated = await prisma.openClawDeployment.update({
     where: { id: deploymentId },
@@ -1673,7 +1711,10 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
 
     // 2. Clean up old marker files so the new setup script starts fresh
     addLog('Cleaning up old setup markers...');
-    await sshExec(ip, sshUser, privateKey,
+    await sshExec(
+      ip,
+      sshUser,
+      privateKey,
       'sudo rm -f /root/.openclaw-setup-started /root/.openclaw-setup-complete /root/.openclaw-setup-token /root/.openclaw-setup-error',
       15_000
     );
@@ -1736,7 +1777,10 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
  * Retry a failed deployment. Cleans up partial resources (OpenRouter key),
  * then re-provisions from scratch using the existing subscription.
  */
-export async function retryDeploy(deploymentId: string, userId: string): Promise<OpenClawDeployment> {
+export async function retryDeploy(
+  deploymentId: string,
+  userId: string
+): Promise<OpenClawDeployment> {
   const deployment = await prisma.openClawDeployment.findFirst({
     where: { id: deploymentId, userId },
   });
@@ -1870,12 +1914,17 @@ export async function cleanupOrphanedResources(): Promise<{
       abandonedCheckouts++;
       console.log(`[openclaw:cleanup] Marked abandoned checkout ${d.id} as DESTROYED`);
     } catch (err: any) {
-      console.error(`[openclaw:cleanup] Failed to clean up abandoned checkout ${d.id}:`, err.message);
+      console.error(
+        `[openclaw:cleanup] Failed to clean up abandoned checkout ${d.id}:`,
+        err.message
+      );
     }
   }
 
   if (keysRevoked > 0 || abandonedCheckouts > 0) {
-    console.log(`[openclaw:cleanup] Cleaned up: ${keysRevoked} orphaned keys, ${abandonedCheckouts} abandoned checkouts`);
+    console.log(
+      `[openclaw:cleanup] Cleaned up: ${keysRevoked} orphaned keys, ${abandonedCheckouts} abandoned checkouts`
+    );
   }
 
   return { keysRevoked, abandonedCheckouts };
@@ -1885,9 +1934,9 @@ export async function cleanupOrphanedResources(): Promise<{
 // Stale Deployment Timeout
 // ============================================================
 
-const PROVISIONING_TIMEOUT_MS = 20 * 60_000;  // 20 min for PENDING/ORDERING
-const INSTALLING_TIMEOUT_MS = 45 * 60_000;    // 45 min for PROVISIONING/INSTALLING (setup script runs detached, Railway restarts add delay)
-const CHECKOUT_TIMEOUT_MS = 60 * 60_000;      // 1 hour for PENDING_PAYMENT
+const PROVISIONING_TIMEOUT_MS = 20 * 60_000; // 20 min for PENDING/ORDERING
+const INSTALLING_TIMEOUT_MS = 45 * 60_000; // 45 min for PROVISIONING/INSTALLING (setup script runs detached, Railway restarts add delay)
+const CHECKOUT_TIMEOUT_MS = 60 * 60_000; // 1 hour for PENDING_PAYMENT
 
 /**
  * Find deployments stuck in intermediate states and mark them ERROR.
@@ -1924,9 +1973,18 @@ export async function checkStaleDeployments(): Promise<number> {
   });
 
   const allStale = [
-    ...staleCheckouts.map((d: { id: string }) => ({ id: d.id, reason: 'Checkout session timed out' })),
-    ...staleOrdering.map((d: { id: string }) => ({ id: d.id, reason: 'VPS provisioning timed out after 20 minutes' })),
-    ...staleInstalling.map((d: { id: string }) => ({ id: d.id, reason: 'Installation timed out after 45 minutes' })),
+    ...staleCheckouts.map((d: { id: string }) => ({
+      id: d.id,
+      reason: 'Checkout session timed out',
+    })),
+    ...staleOrdering.map((d: { id: string }) => ({
+      id: d.id,
+      reason: 'VPS provisioning timed out after 20 minutes',
+    })),
+    ...staleInstalling.map((d: { id: string }) => ({
+      id: d.id,
+      reason: 'Installation timed out after 45 minutes',
+    })),
   ];
 
   for (const { id, reason } of allStale) {
@@ -2016,10 +2074,12 @@ export async function checkDeploymentHealth(): Promise<{
         healthFailureCounts.delete(d.id);
         // Restore normal status message if it was showing unhealthy warning
         if (d.statusMessage?.includes('not responding')) {
-          await prisma.openClawDeployment.update({
-            where: { id: d.id },
-            data: { statusMessage: 'OpenClaw is live and accessible' },
-          }).catch(console.error);
+          await prisma.openClawDeployment
+            .update({
+              where: { id: d.id },
+              data: { statusMessage: 'OpenClaw is live and accessible' },
+            })
+            .catch(console.error);
         }
       }
     } else {
@@ -2028,12 +2088,14 @@ export async function checkDeploymentHealth(): Promise<{
       healthFailureCounts.set(d.id, newFailures);
 
       if (newFailures >= HEALTH_FAILURE_THRESHOLD) {
-        await prisma.openClawDeployment.update({
-          where: { id: d.id },
-          data: {
-            statusMessage: `Instance not responding (${newFailures} consecutive failures)`,
-          },
-        }).catch(console.error);
+        await prisma.openClawDeployment
+          .update({
+            where: { id: d.id },
+            data: {
+              statusMessage: `Instance not responding (${newFailures} consecutive failures)`,
+            },
+          })
+          .catch(console.error);
         console.log(`[openclaw:health] Deployment ${d.id} unhealthy (${newFailures} failures)`);
       }
     }
@@ -2041,7 +2103,7 @@ export async function checkDeploymentHealth(): Promise<{
 
   // Clean up tracking for deployments that no longer exist
   for (const id of healthFailureCounts.keys()) {
-    if (!deployments.find(d => d.id === id)) {
+    if (!deployments.find((d) => d.id === id)) {
       healthFailureCounts.delete(id);
     }
   }
@@ -2093,7 +2155,9 @@ const RESUME_STARTUP_DELAY_MS = 45_000; // Wait 45s for old Railway instance to 
  * sends SIGTERM + 30s drain), then picks up any in-flight deployments.
  */
 export async function resumeInterruptedDeployments(): Promise<void> {
-  console.log(`[openclaw:resume] Waiting ${RESUME_STARTUP_DELAY_MS / 1000}s before checking for interrupted deployments...`);
+  console.log(
+    `[openclaw:resume] Waiting ${RESUME_STARTUP_DELAY_MS / 1000}s before checking for interrupted deployments...`
+  );
   await sleep(RESUME_STARTUP_DELAY_MS);
 
   try {
@@ -2112,7 +2176,9 @@ export async function resumeInterruptedDeployments(): Promise<void> {
     console.log(`[openclaw:resume] Found ${interrupted.length} interrupted deployment(s)`);
 
     for (const d of interrupted) {
-      console.log(`[openclaw:resume] Resuming deployment ${d.id} (status: ${d.status}, stage: ${d.provisionStage || 'none'})`);
+      console.log(
+        `[openclaw:resume] Resuming deployment ${d.id} (status: ${d.status}, stage: ${d.provisionStage || 'none'})`
+      );
       provisionAsync(d.id, {}).catch(async (err) => {
         console.error(`[openclaw:resume] Failed to resume ${d.id}:`, err);
         await updateDeployment(d.id, {

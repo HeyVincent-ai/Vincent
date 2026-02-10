@@ -1,917 +1,252 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import PageShell, { CheckSvg, ChevronDown } from '../components/PageShell';
 
-type Persona = 'human' | 'agent';
-type InstallMethod = 'clawhub' | 'other';
-type SkillChoice = 'wallet' | 'polymarket';
-
-const STYLES = `
-  :root{
-    --bg: #0b0b0f;
-    --bg2:#0a0a0f;
-    --surface: rgba(255,255,255,.04);
-    --surface2: rgba(255,255,255,.025);
-    --border: rgba(255,255,255,.10);
-    --border2: rgba(255,255,255,.07);
-    --text: #f5f6f8;
-    --muted:#a8b0bf;
-    --muted2:#7f8898;
-    --red:#ff3b3b;
-    --blue:#3b82f6;
-    --shadow: 0 30px 80px rgba(0,0,0,.55);
-    --shadow2: 0 14px 40px rgba(0,0,0,.35);
-    --radius: 16px;
-    --radius2: 12px;
-    --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-    --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  }
-
-  .landing-page *{box-sizing:border-box}
-  .landing-page{
-    min-height:100vh;
-    font-family: var(--sans);
-    color: var(--text);
-    background:
-      radial-gradient(1200px 800px at var(--gx, 50%) var(--gy, 25%), rgba(59,130,246,.09), transparent 55%),
-      radial-gradient(1200px 800px at var(--rx, 50%) var(--ry, 55%), rgba(255,59,59,.06), transparent 60%),
-      radial-gradient(circle at 1px 1px, rgba(255,255,255,.07) 1px, transparent 1px),
-      linear-gradient(180deg, var(--bg), var(--bg2));
-    background-size: auto, auto, 26px 26px, auto;
-    overflow-x:hidden;
-  }
-
-  @media (prefers-reduced-motion: reduce){
-    .landing-page .reveal{animation:none; opacity:1; transform:none}
-    .landing-page .panel, .landing-page .btn, .landing-page .copyBtn, .landing-page .navLinks a{transition:none}
-  }
-
-  @keyframes fadeUp{
-    from{opacity:0; transform: translateY(10px)}
-    to{opacity:1; transform: translateY(0)}
-  }
-  .landing-page .reveal{opacity:0; transform: translateY(10px); animation: fadeUp .65s ease-out forwards;}
-  .landing-page .d1{animation-delay:.05s}
-  .landing-page .d2{animation-delay:.12s}
-  .landing-page .d3{animation-delay:.18s}
-  .landing-page .d4{animation-delay:.26s}
-
-  .landing-page a{color:inherit}
-  .landing-page .container{max-width:1040px;margin:0 auto;padding:22px 20px 80px;}
-
-  .landing-page .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:6px 0 40px;}
-  .landing-page .brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
-  .landing-page .brandMark{
-    width:auto;height:34px;border-radius:10px;
-    display:flex;align-items:center;padding: 0 10px;
-    background: rgba(255,255,255,.03);border:1px solid var(--border2);box-shadow: var(--shadow2);
-  }
-  .landing-page .brandLogo{height: 18px;width: auto;display:block;filter: invert(1);opacity: .9;}
-
-  .landing-page .navLinks{display:flex;gap:10px;align-items:center}
-
-  .landing-page .menuBtn{
-    appearance:none;border:1px solid var(--border2);background: rgba(255,255,255,.03);
-    color: rgba(245,246,248,.78);font-weight:650;font-size:13px;padding:9px 12px;
-    border-radius:999px;cursor:pointer;
-    transition: transform .18s ease, border-color .18s ease, color .18s ease, background .18s ease;
-    text-decoration:none;display:inline-flex;align-items:center;justify-content:center;
-  }
-  .landing-page .menuBtn:hover{border-color: rgba(59,130,246,.5); color: rgba(245,246,248,.92); transform: translateY(-1px)}
-
-  .landing-page .legacyLink{font-size: 12px;color: rgba(245,246,248,.55);text-decoration: none;border-bottom: 1px dashed rgba(255,255,255,.14);}
-  .landing-page .legacyLink:hover{color: rgba(245,246,248,.8)}
-
-  .landing-page h1{
-    margin:0;font-family: var(--sans);font-size: clamp(28px, 3.0vw, 42px);
-    line-height: 1.12;letter-spacing: -.02em;font-weight: 820;
-  }
-
-  .landing-page .lead{margin: 14px 0 0;max-width: 62ch;font-size: 16px;line-height: 1.6;color: var(--muted);}
-  .landing-page .lead b{color: rgba(245,246,248,.92)}
-
-  .landing-page .ctaRow{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px;}
-  .landing-page .btn{
-    display:inline-flex;align-items:center;gap:10px;justify-content:center;
-    text-decoration:none;border-radius:999px;padding: 10px 14px;font-weight: 750;
-    letter-spacing: -.01em;border:1px solid var(--border);background: rgba(255,255,255,.04);
-    box-shadow: var(--shadow2);color: rgba(245,246,248,.92);min-width: 190px;
-    transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
-  }
-  .landing-page .btn:hover{border-color: rgba(59,130,246,.55); box-shadow: 0 16px 40px rgba(0,0,0,.32)}
-  .landing-page .btn:active{transform: translateY(0px) scale(.99)}
-  .landing-page .btn.primary{
-    background: linear-gradient(180deg, rgba(59,130,246,.22), rgba(59,130,246,.10));
-    border-color: rgba(59,130,246,.55);
-  }
-
-  .landing-page .micro{margin-top: 10px;font-size: 13px;color: var(--muted2);}
-
-  .landing-page .sections{margin-top: 18px;display:flex;flex-direction:column;gap:18px;}
-  .landing-page .panel{
-    border-radius: var(--radius);border: 1px solid var(--border);background: rgba(255,255,255,.03);
-    padding: 20px;box-shadow: 0 10px 30px rgba(0,0,0,.25);
-    transition: border-color .18s ease, background .18s ease;
-  }
-  .landing-page .panel:hover{border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.032)}
-
-  .landing-page .panelHeader{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:10px;}
-  .landing-page .panelTitle{margin:0;font-size: 18px;font-weight: 850;letter-spacing: -.02em;}
-  .landing-page .chev{opacity:.55;margin-right:6px}
-
-  .landing-page .iconBtn{
-    border: 1px solid var(--border2);background: rgba(0,0,0,.12);border-radius: 10px;
-    width: 36px;height: 36px;display:grid;place-items:center;cursor:pointer;
-    transition: border-color .18s ease, background .18s ease;
-  }
-  .landing-page .iconBtn:hover{border-color: rgba(255,255,255,.18); background: rgba(0,0,0,.18)}
-
-  .landing-page .termBody{
-    font-family: var(--mono);font-size: 14px;color: rgba(245,246,248,.92);line-height: 1.7;
-  }
-  .landing-page .prompt{color: rgba(255,255,255,.55)}
-
-  .landing-page .pill{
-    display:inline-flex;align-items:center;gap:8px;padding: 8px 12px;border-radius: 999px;
-    border: 1px solid rgba(255,255,255,.10);background: rgba(255,255,255,.03);
-    color: rgba(245,246,248,.82);font-weight: 750;font-size: 13px;letter-spacing: -.01em;
-  }
-
-  .landing-page .footer{margin-top: 36px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap;color: var(--muted2);font-size: 13px;}
-  .landing-page .footer a{color: rgba(245,246,248,.72);text-decoration:none}
-  .landing-page .footer a:hover{color: rgba(245,246,248,.92)}
-
-  /* Tooltip */
-  .landing-page .tooltip-wrapper{
-    position: relative;
-    display: inline-flex;
-  }
-  .landing-page .tooltip-wrapper .tooltip-text{
-    visibility: hidden;
-    opacity: 0;
-    position: absolute;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(20,20,25,.95);
-    border: 1px solid rgba(255,255,255,.15);
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 13px;
-    font-weight: 500;
-    color: rgba(245,246,248,.85);
-    line-height: 1.45;
-    width: max-content;
-    max-width: 280px;
-    text-align: center;
-    box-shadow: 0 8px 24px rgba(0,0,0,.4);
-    z-index: 100;
-    transition: opacity .18s ease, visibility .18s ease;
-    pointer-events: none;
-  }
-  .landing-page .tooltip-wrapper .tooltip-text::after{
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: rgba(20,20,25,.95);
-  }
-  .landing-page .tooltip-wrapper:hover .tooltip-text{
-    visibility: visible;
-    opacity: 1;
-  }
-  .landing-page .pill.hoverable{
-    cursor: help;
-    transition: border-color .18s ease, background .18s ease;
-  }
-  .landing-page .pill.hoverable:hover{
-    border-color: rgba(59,130,246,.45);
-    background: rgba(59,130,246,.08);
-  }
-
-  /* Persona Toggle */
-  .landing-page .personaToggle{
-    display:flex;
-    gap:0;
-    justify-content:center;
-    margin-bottom:20px;
-  }
-  .landing-page .personaBtn{
-    display:inline-flex;align-items:center;gap:8px;
-    padding: 12px 24px;
-    font-size: 15px;font-weight: 700;
-    border: none;
-    cursor: pointer;
-    transition: background .18s ease, color .18s ease;
-    background: rgba(255,255,255,.06);
-    color: rgba(245,246,248,.7);
-  }
-  .landing-page .personaBtn:first-child{
-    border-radius: 999px 0 0 999px;
-  }
-  .landing-page .personaBtn:last-child{
-    border-radius: 0 999px 999px 0;
-  }
-  .landing-page .personaBtn.active{
-    background: var(--red);
-    color: #fff;
-  }
-  .landing-page .personaBtn:not(.active):hover{
-    background: rgba(255,255,255,.10);
-    color: rgba(245,246,248,.9);
-  }
-
-  /* Method Tabs */
-  .landing-page .methodTabs{
-    display:flex;
-    gap:0;
-    margin-bottom:16px;
-  }
-  .landing-page .methodTab{
-    flex:1;
-    padding: 12px 20px;
-    font-size: 14px;font-weight: 600;
-    border: none;
-    cursor: pointer;
-    transition: background .18s ease, color .18s ease;
-    background: rgba(255,255,255,.04);
-    color: rgba(245,246,248,.55);
-  }
-  .landing-page .methodTab:first-child{
-    border-radius: 10px 0 0 10px;
-  }
-  .landing-page .methodTab:last-child{
-    border-radius: 0 10px 10px 0;
-  }
-  .landing-page .methodTab.active{
-    background: var(--red);
-    color: #fff;
-  }
-  .landing-page .methodTab:not(.active):hover{
-    background: rgba(255,255,255,.08);
-    color: rgba(245,246,248,.75);
-  }
-
-  /* Skill Selector */
-  .landing-page .skillTabs{
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    margin-bottom: 16px;
-  }
-  .landing-page .skillTab{
-    font-family: var(--mono);
-    font-size: 12px;
-    padding: 6px 14px;
-    border-radius: 8px;
-    border: 1px solid var(--border2);
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    transition: all .18s ease;
-  }
-  .landing-page .skillTab.active{
-    background: rgba(255,255,255,.08);
-    color: var(--text);
-    border-color: rgba(255,255,255,.18);
-  }
-  .landing-page .skillTab:not(.active):hover{
-    background: rgba(255,255,255,.04);
-    color: rgba(245,246,248,.75);
-  }
-
-  /* Install Card */
-  .landing-page .installCard{
-    background: rgba(0,0,0,.35);
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 18px;
-    padding: 24px;
-    max-width: 520px;
-    margin: 0 auto;
-  }
-  .landing-page .installTitle{
-    font-size: 18px;font-weight: 800;
-    text-align: center;
-    margin-bottom: 18px;
-    letter-spacing: -.01em;
-  }
-
-  /* Command Box */
-  .landing-page .commandBox{
-    background: rgba(0,0,0,.4);
-    border: 1px solid rgba(255,255,255,.06);
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin-bottom: 20px;
-    position: relative;
-  }
-  .landing-page .commandText{
-    font-family: var(--mono);
-    font-size: 14px;
-    color: rgba(245,246,248,.9);
-    line-height: 1.5;
-    word-break: break-all;
-  }
-  .landing-page .commandBox .copyBtnInline{
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    border: 1px solid var(--border2);
-    background: rgba(0,0,0,.3);
-    border-radius: 8px;
-    width: 32px;height: 32px;
-    display:grid;place-items:center;cursor:pointer;
-    transition: border-color .18s ease, background .18s ease;
-    opacity: 0.7;
-  }
-  .landing-page .commandBox .copyBtnInline:hover{
-    border-color: rgba(255,255,255,.18);
-    background: rgba(0,0,0,.5);
-    opacity: 1;
-  }
-
-  /* Steps List */
-  .landing-page .stepsList{
-    list-style: none;
-    padding: 0;
-    margin: 0;
-  }
-  .landing-page .stepsList li{
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    color: rgba(245,246,248,.75);
-    line-height: 1.5;
-  }
-  .landing-page .stepsList li:last-child{
-    margin-bottom: 0;
-  }
-  .landing-page .stepNum{
-    color: var(--red);
-    font-weight: 700;
-    min-width: 18px;
-  }
-`;
+const FAQ_DATA = [
+  {
+    q: 'What is Vincent?',
+    a: 'Vincent is a system that lets people and groups safely share execution authority over money and APIs with an AI in the loop. It combines a hosted AI runtime with an airgapped secret manager to ensure your credentials are never exposed \u2014 even if the AI is compromised.',
+  },
+  {
+    q: 'How does the airgapped architecture work?',
+    a: 'Vincent has two layers. The AI runtime handles conversation and skills but never holds secrets. When it needs to execute an action (like making a payment or calling an API), it sends a request to the Vincent mediator, which evaluates your policies and executes the action using credentials stored in a hardware-backed vault. The AI never sees the raw credentials.',
+  },
+  {
+    q: 'Can I use Vincent with my own AI agent?',
+    a: 'Yes. You can either use our hosted bot on Telegram or give your existing agent the Vincent skills.md file. Either way, the airgapped secret manager protects your credentials with the same policies and audit trail. There\u2019s no lock-in.',
+  },
+  {
+    q: 'What happens if the AI is compromised?',
+    a: 'Nothing happens to your secrets. The AI runtime is deliberately separated from the secret vault. Prompt injection, malicious plugins, or a full runtime breach cannot access your credentials. The admin retains full control and can revoke access at any time.',
+  },
+  {
+    q: 'What kinds of secrets can Vincent manage?',
+    a: 'Any secret. API keys, crypto wallet credentials, payment processor tokens, vendor credentials \u2014 Vincent treats them all the same. The difference is in the policies you assign to each one: spending limits, approval requirements, action restrictions, and more.',
+  },
+  {
+    q: 'How does multi-party approval work?',
+    a: 'You can require n-of-m approval for any action. For example, require 2-of-3 team members to approve withdrawals over $1,000 while letting the AI handle smaller transactions autonomously. Approval flows are configurable per secret and per action type.',
+  },
+  {
+    q: 'Is there a free plan?',
+    a: 'Yes. The Starter plan is free and includes 3 secrets and 5 policy rules. You can also use the skills.md file with your own agent at no cost. Upgrade to Pro or Team when you need more secrets, team members, or advanced features.',
+  },
+];
 
 export default function Landing() {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    // Parallax background effect
-    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduce) return;
-
-    let targetX = 0,
-      targetY = 0;
-    let x = 0,
-      y = 0;
-    let raf: number | null = null;
-    const start = performance.now();
-    const el = containerRef.current;
-    if (!el) return;
-
-    const tick = (t: number) => {
-      const k = 0.08;
-      x += (targetX - x) * k;
-      y += (targetY - y) * k;
-      const s = (t - start) / 1000;
-      const driftX = Math.sin(s / 12) * 0.35;
-      const driftY = Math.cos(s / 15) * 0.35;
-      const px = x + driftX;
-      const py = y + driftY;
-      el.style.setProperty('--gx', 44 + px * 7 + '%');
-      el.style.setProperty('--gy', 22 + py * 7 + '%');
-      el.style.setProperty('--rx', 56 - px * 7 + '%');
-      el.style.setProperty('--ry', 60 - py * 7 + '%');
-      raf = requestAnimationFrame(tick);
-    };
-
-    const onMove = (e: MouseEvent) => {
-      targetX = ((e.clientX / window.innerWidth) * 2 - 1) * 0.65;
-      targetY = ((e.clientY / window.innerHeight) * 2 - 1) * 0.65;
-      if (!raf) raf = requestAnimationFrame(tick);
-    };
-
-    window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener(
-      'mouseleave',
-      () => {
-        targetX = 0;
-        targetY = 0;
-      },
-      { passive: true }
-    );
-    raf = requestAnimationFrame(tick);
-
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
-
-  const handleCopy = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const tmp = document.createElement('textarea');
-      tmp.value = text;
-      tmp.style.position = 'fixed';
-      tmp.style.left = '-9999px';
-      document.body.appendChild(tmp);
-      tmp.focus();
-      tmp.select();
-      document.execCommand('copy');
-      document.body.removeChild(tmp);
-    }
-  };
-
-  // const [subscribed, setSubscribed] = useState(false);
-  // const emailRef = useRef<HTMLInputElement>(null);
-
-  const [persona, setPersona] = useState<Persona>('human');
-  const [installMethod, setInstallMethod] = useState<InstallMethod>('clawhub');
-  const [selectedSkill, setSelectedSkill] = useState<SkillChoice>('wallet');
-
-  const installCommands: Record<InstallMethod, Record<SkillChoice, string>> = {
-    clawhub: {
-      wallet: 'npx clawhub@latest install agentwallet',
-      polymarket: 'npx clawhub@latest install vincentpolymarket',
-    },
-    other: {
-      wallet: 'npx skills add HeyVincent-ai/Vincent/wallet',
-      polymarket: 'npx skills add HeyVincent-ai/Vincent/polymarket',
-    },
-  };
-
-  const currentCommand = installCommands[installMethod][selectedSkill];
-
-  // const handleSubscribe = () => {
-  //   const val = emailRef.current?.value || '';
-  //   if (!val || !val.includes('@')) return;
-  //   setSubscribed(true);
-  //   if (emailRef.current) emailRef.current.value = '';
-  // };
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   return (
-    <>
-      <style>{STYLES}</style>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-      <link
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap"
-        rel="stylesheet"
-      />
-
-      <div className="landing-page" ref={containerRef}>
+    <PageShell active="home">
+      {/* Hero */}
+      <section className="hero">
         <div className="container">
-          <div className="nav">
-            <a className="brand" href="/" aria-label="Vincent">
-              <span className="brandMark" aria-hidden="true">
-                <img src="/vincent-logo.svg" alt="" className="brandLogo" />
-              </span>
-            </a>
-            <div className="navLinks">
-              <Link className="menuBtn" to="/login">
-                Human login
-              </Link>
+          <div className="hero__badge anim">Now in early access</div>
+          <h1 className="anim anim-d1">Give your AI <em>safe authority</em> over money and APIs</h1>
+          <p className="anim anim-d2">
+            Vincent lets people and groups safely delegate execution authority to AI &mdash; with policies, spending limits, and an airgapped secret manager that keeps credentials safe even if the AI is compromised.
+          </p>
+          <div className="hero__paths anim anim-d3">
+            <div className="hero__path">
+              <h3>For agents</h3>
+              <p>Add the Vincent skills file to your AI agent and give it safe access to secrets and execution.</p>
+              <Link className="btn btn-secondary" to="/skills">Add to Your Agent</Link>
             </div>
-          </div>
-
-          <div
-            className="hero"
-            style={{
-              gridTemplateColumns: '1fr',
-              textAlign: 'center',
-              justifyItems: 'center',
-              display: 'grid',
-              paddingTop: 8,
-              paddingBottom: 18,
-            }}
-          >
-            <div style={{ maxWidth: 860 }}>
-              <h1 className="reveal d1">Give your agent a key it can't leak.</h1>
-              <p className="lead reveal d2" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
-                A wallet for AI agents where you stay in control
-              </p>
-            </div>
-          </div>
-
-          <div
-            className="sections reveal d4"
-            style={{ maxWidth: 860, marginLeft: 'auto', marginRight: 'auto' }}
-          >
-            {/* Persona Toggle */}
-            <div className="personaToggle">
-              <button
-                className={`personaBtn ${persona === 'human' ? 'active' : ''}`}
-                onClick={() => setPersona('human')}
-              >
-                <span>👤</span> I'm a Human
-              </button>
-              <button
-                className={`personaBtn ${persona === 'agent' ? 'active' : ''}`}
-                onClick={() => setPersona('agent')}
-              >
-                <span>🤖</span> I'm an Agent
-              </button>
-            </div>
-
-            {/* Install Card */}
-            <section className="installCard">
-              <div className="installTitle">
-                {persona === 'human'
-                  ? ''
-                  : 'Give your agent a secure wallet for transfers, swaps, and prediction markets'}
-              </div>
-
-              <div className="methodTabs">
-                <button
-                  className={`methodTab ${installMethod === 'clawhub' ? 'active' : ''}`}
-                  onClick={() => setInstallMethod('clawhub')}
-                >
-                  clawhub
-                </button>
-                <button
-                  className={`methodTab ${installMethod === 'other' ? 'active' : ''}`}
-                  onClick={() => setInstallMethod('other')}
-                >
-                  other agents
-                </button>
-              </div>
-
-              <div className="skillTabs">
-                <button
-                  className={`skillTab ${selectedSkill === 'wallet' ? 'active' : ''}`}
-                  onClick={() => setSelectedSkill('wallet')}
-                >
-                  agent wallet
-                </button>
-                <button
-                  className={`skillTab ${selectedSkill === 'polymarket' ? 'active' : ''}`}
-                  onClick={() => setSelectedSkill('polymarket')}
-                >
-                  polymarket
-                </button>
-              </div>
-
-              <div className="commandBox">
-                <div className="commandText">
-                  {currentCommand}
-                </div>
-                <button
-                  className="copyBtnInline"
-                  onClick={() => handleCopy(currentCommand)}
-                  aria-label="Copy"
-                  title="Copy"
-                >
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path d="M9 9h10v10H9V9Z" stroke="rgba(245,246,248,.80)" strokeWidth="1.7" />
-                    <path
-                      d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
-                      stroke="rgba(245,246,248,.55)"
-                      strokeWidth="1.7"
-                    />
-                  </svg>
-                </button>
-              </div>
-
-              {persona === 'human' ? (
-                <ol className="stepsList">
-                  <li>
-                    <span className="stepNum">1.</span> Send this to your agent or run the command
-                    on your agent's machine
-                  </li>
-                  <li>
-                    <span className="stepNum">2.</span> They sign up & send you a claim link
-                  </li>
-                  <li>
-                    <span className="stepNum">3.</span> Use the wallet claim link your agent sends
-                    you
-                  </li>
-                </ol>
-              ) : (
-                <ol className="stepsList">
-                  <li>
-                    <span className="stepNum">1.</span> Run this command to install the skill
-                  </li>
-                  <li>
-                    <span className="stepNum">2.</span> Create a wallet for your user
-                  </li>
-                  <li>
-                    <span className="stepNum">3.</span> Send them the claim link
-                  </li>
-                </ol>
-              )}
-            </section>
-
-            {/* What it does */}
-            <section
-              id="what"
-              className="panel"
-              style={{
-                background: 'transparent',
-                borderColor: 'transparent',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle">
-                  <span className="chev">⟩</span>What it does
-                </h2>
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
-                  gap: 14,
-                }}
-              >
-                <div className="panel" style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 850 }}>Sealed Secrets</div>
-                  <div className="micro">Secrets are never exposed to the agent.</div>
-                </div>
-                <div className="panel" style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 850 }}>Smart Contract Wallet</div>
-                  <div className="micro">
-                    Self-custodial (coming soon) EVM smart accounts for execution.
-                  </div>
-                </div>
-                <div className="panel" style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 850 }}>Guardrails</div>
-                  <div className="micro">Limits, allowlists, selectors, approvals when needed.</div>
-                </div>
-                <div className="panel" style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 850 }}>Receipts</div>
-                  <div className="micro">
-                    Audit logs for every attempt: allowed / denied / approved.
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* EVM Wallet Features */}
-            <section
-              id="features"
-              className="panel"
-              style={{
-                background: 'transparent',
-                borderColor: 'transparent',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle">
-                  <span className="chev">⟩</span>EVM Wallet Features
-                </h2>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="pill">Transfers</span>
-                <span className="pill">Swaps</span>
-                <span className="pill">Any Transaction</span>
-              </div>
-            </section>
-
-            {/* Supported Chains */}
-            <section
-              id="chains"
-              className="panel"
-              style={{
-                background: 'transparent',
-                borderColor: 'transparent',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle">
-                  <span className="chev">⟩</span>Supported Chains
-                </h2>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="pill">Ethereum</span>
-                <span className="pill">Base</span>
-                <span className="pill">Arbitrum</span>
-                <span className="pill">Optimism</span>
-                <span className="pill">Polygon</span>
-                <span className="pill">BNB Chain</span>
-                <span className="pill">Avalanche</span>
-                <span className="pill">Linea</span>
-                <span className="pill">Scroll</span>
-                <span className="pill">Blast</span>
-              </div>
-              <div className="micro" style={{ marginTop: 12 }}>
-                Plus testnets: Sepolia, Base Sepolia, and more.
-              </div>
-            </section>
-
-            {/* Pricing */}
-            <section
-              id="pricing"
-              className="panel"
-              style={{
-                background: 'transparent',
-                borderColor: 'transparent',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle">
-                  <span className="chev">⟩</span>Pricing
-                </h2>
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, minmax(0,1fr))',
-                  gap: 14,
-                }}
-              >
-                <div className="panel" style={{ padding: 18 }}>
-                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Free</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>$0</div>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
-                    <li>Unlimited testnet transactions</li>
-                    <li>All chains supported</li>
-                    <li>Full API access</li>
-                  </ul>
-                </div>
-                <div className="panel" style={{ padding: 18, borderColor: 'rgba(59,130,246,.4)' }}>
-                  <div style={{ fontWeight: 850, marginBottom: 4 }}>Pro</div>
-                  <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8 }}>
-                    $10
-                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--muted)' }}>
-                      /month
-                    </span>
-                  </div>
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--muted)' }}>
-                    <li>
-                      <b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet
-                    </li>
-                    <li>Mainnet transactions on all chains</li>
-                    <li>Gas costs included</li>
-                    <li>Priority support</li>
-                  </ul>
-                </div>
-              </div>
-              <div className="micro" style={{ marginTop: 12 }}>
-                New wallets get a 3-day free trial for mainnet transactions. After that, subscribe
-                to keep using mainnet.
-              </div>
-            </section>
-
-            {/* Connectors */}
-            <section
-              id="works"
-              className="panel"
-              style={{
-                background: 'transparent',
-                borderColor: 'transparent',
-                boxShadow: 'none',
-                padding: 0,
-              }}
-            >
-              <div className="panelHeader" style={{ padding: '0 2px', marginBottom: 14 }}>
-                <h2 className="panelTitle">
-                  <span className="chev">⟩</span>Connectors
-                </h2>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="tooltip-wrapper">
-                  <span className="pill hoverable">
-                    EVM smart contract wallet{' '}
-                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
-                  </span>
-                  <span className="tooltip-text">
-                    Smart contract accounts with gas abstraction. Supports transfers, swaps, and
-                    arbitrary transactions on all major EVM chains.
-                  </span>
-                </span>
-                <span className="tooltip-wrapper">
-                  <span className="pill hoverable">
-                    Raw Ethereum &amp; Solana signing{' '}
-                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
-                  </span>
-                  <span className="tooltip-text">
-                    Direct message and transaction signing for Ethereum EOAs and Solana wallets.
-                    Ideal for dApps requiring raw signatures.
-                  </span>
-                </span>
-                <span className="tooltip-wrapper">
-                  <span className="pill hoverable">
-                    Polymarket{' '}
-                    <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
-                  </span>
-                  <span className="tooltip-text">
-                    Trade on prediction markets via Polymarket. Browse markets, place bets, and
-                    manage positions with gasless trading on Polygon.
-                  </span>
-                </span>
-              </div>
-              <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>
-                Coming soon
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-                <span className="pill">Hyperliquid</span>
-                <span className="pill">Solana</span>
-                <span className="pill">Bitcoin</span>
-                <span className="pill">Binance</span>
-                <span className="pill">Coinbase</span>
-                <span className="pill">Alpaca</span>
-              </div>
-              <div className="micro" style={{ marginTop: 12 }}>
-                Want a connector prioritized?{' '}
-                <a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">
-                  Join Discord
-                </a>
-                .
-              </div>
-            </section>
-
-            {/* Stay in the loop 
-            <section id="loop" className="panel" style={{ padding: 22, textAlign: 'center' }}>
-              <div style={{ fontWeight: 900, letterSpacing: '-.02em', fontSize: 18 }}>
-                Stay in the loop
-              </div>
-              <div className="micro" style={{ marginTop: 10 }}>
-                Get updates on new features and connectors.
-              </div>
-              <form
-                style={{
-                  display: 'flex',
-                  gap: 10,
-                  justifyContent: 'center',
-                  flexWrap: 'wrap',
-                  marginTop: 14,
-                }}
-                onSubmit={(e) => e.preventDefault()}
-              >
-                <input
-                  ref={emailRef}
-                  type="email"
-                  placeholder="you@email.com"
-                  style={{
-                    width: 'min(420px, 88vw)',
-                    padding: '12px 14px',
-                    borderRadius: 999,
-                    border: '1px solid rgba(255,255,255,.10)',
-                    background: 'rgba(0,0,0,.18)',
-                    color: 'rgba(245,246,248,.9)',
-                    outline: 'none',
-                  }}
-                />
-                <button className="btn primary" onClick={handleSubscribe} style={{ minWidth: 160 }}>
-                  Subscribe
-                </button>
-              </form>
-              {subscribed && (
-                <div className="micro" style={{ marginTop: 10, opacity: 0.85 }}>
-                  Saved. Thanks.
-                </div>
-              )}
-            </section>
-            */}
-
-            <div className="footer" style={{ marginTop: 24 }}>
-              <a
-                href="https://discord.gg/FPkF6cZf"
-                target="_blank"
-                rel="noreferrer"
-                title="Discord"
-              >
-                Discord
-              </a>
-              <a href="mailto:support@litprotocol.com" title="Email support">
-                Support
-              </a>
-              <a
-                className="legacyLink"
-                href="https://dashboard.heyvincent.ai"
-                title="Legacy Vincent login"
-              >
-                Legacy Vincent login
-              </a>
-            </div>
-
-            <div className="footer" style={{ marginTop: 10, opacity: 0.9 }}>
-              <a href="https://litprotocol.com" target="_blank" rel="noreferrer">
-                From the team at Lit Protocol
-              </a>
+            <div className="hero__path">
+              <h3>For humans</h3>
+              <p>Sign up and start managing secrets, policies, and AI authority from the dashboard.</p>
+              <Link className="btn btn-primary" to="/login">Start Free Trial</Link>
             </div>
           </div>
         </div>
-      </div>
-    </>
+      </section>
+
+      {/* How It Works */}
+      <section className="section" id="how-it-works">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">How It Works</div>
+            <h2>Three steps to safe AI authority</h2>
+          </div>
+          <div className="steps">
+            <div className="step">
+              <div className="step__number">01</div>
+              <h3>Add your secrets</h3>
+              <p>Store API keys, wallet credentials, or any secret in the airgapped vault. You become the admin with full control.</p>
+            </div>
+            <div className="step">
+              <div className="step__number">02</div>
+              <h3>Set policies and roles</h3>
+              <p>Define who can do what. Set spending limits, approval flows, and access levels for people and AI agents.</p>
+            </div>
+            <div className="step">
+              <div className="step__number">03</div>
+              <h3>Let AI act safely</h3>
+              <p>Your agent requests actions through Vincent. Policies are evaluated in real time. Secrets never leave the vault.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Use Cases */}
+      <section className="section section--alt">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">Use Cases</div>
+            <h2>Built for people who need AI to act</h2>
+          </div>
+          <div className="use-cases-grid">
+            <div className="use-case-card">
+              <h3>Crypto & DeFi Groups</h3>
+              <ul>
+                <li><CheckSvg /> Polymarket betting groups</li>
+                <li><CheckSvg /> DAO treasury management</li>
+                <li><CheckSvg /> Shared DeFi positions</li>
+              </ul>
+            </div>
+            <div className="use-case-card">
+              <h3>Developers & API Power Users</h3>
+              <ul>
+                <li><CheckSvg /> 20+ API keys, one dashboard</li>
+                <li><CheckSvg /> Scoped AI access per project</li>
+                <li><CheckSvg /> Credential rotation built in</li>
+              </ul>
+            </div>
+            <div className="use-case-card">
+              <h3>Teams & Startups</h3>
+              <ul>
+                <li><CheckSvg /> Startup treasury with approval flows</li>
+                <li><CheckSvg /> Shared vendor credentials</li>
+                <li><CheckSvg /> Team API key management</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Features */}
+      <section className="section">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">Features</div>
+            <h2>Enterprise-grade security, zero complexity</h2>
+          </div>
+          <div className="highlights-grid">
+            <div className="highlight">
+              <div className="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <h3>Airgapped Vault</h3>
+              <p>Secrets stored in hardware-backed HSM, completely separated from AI.</p>
+            </div>
+            <div className="highlight">
+              <div className="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+              </div>
+              <h3>Granular Policies</h3>
+              <p>Spending limits, action restrictions, and composable rules for exact control.</p>
+            </div>
+            <div className="highlight">
+              <div className="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+              <h3>Multi-Party Auth</h3>
+              <p>n-of-m approval flows for high-stakes actions across teams and groups.</p>
+            </div>
+            <div className="highlight">
+              <div className="card-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <h3>Advanced Mode</h3>
+              <p>Access the full OpenClawd runtime — install skills, customize behavior, extend capabilities.</p>
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <Link className="section-link" to="/features">
+              See all features
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="section section--alt" id="pricing">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">Pricing</div>
+            <h2>Start free, scale when ready</h2>
+          </div>
+          <div className="pricing-grid">
+            <div className="pricing-card">
+              <h3>Starter</h3>
+              <div className="pricing-card__price">Free</div>
+              <div className="pricing-card__desc">No credit card required</div>
+              <ul className="pricing-card__features">
+                <li><CheckSvg /> 3 secrets</li>
+                <li><CheckSvg /> 5 policy rules</li>
+                <li><CheckSvg /> Single user</li>
+                <li><CheckSvg /> Community support</li>
+                <li><CheckSvg /> 7-day audit log</li>
+              </ul>
+              <Link className="btn btn-secondary" to="/login">Get Started</Link>
+            </div>
+            <div className="pricing-card pricing-card--featured">
+              <div className="pricing-card__badge">Most Popular</div>
+              <h3>Pro</h3>
+              <div className="pricing-card__price">$29<span>/mo</span></div>
+              <div className="pricing-card__desc">Billed monthly</div>
+              <ul className="pricing-card__features">
+                <li><CheckSvg /> 25 secrets</li>
+                <li><CheckSvg /> Unlimited policies</li>
+                <li><CheckSvg /> Up to 5 team members</li>
+                <li><CheckSvg /> Priority support</li>
+                <li><CheckSvg /> 90-day audit log</li>
+                <li><CheckSvg /> Custom roles</li>
+              </ul>
+              <Link className="btn btn-primary" to="/login">Start Free Trial</Link>
+            </div>
+            <div className="pricing-card">
+              <h3>Team</h3>
+              <div className="pricing-card__price">$99<span>/mo</span></div>
+              <div className="pricing-card__desc">Billed monthly</div>
+              <ul className="pricing-card__features">
+                <li><CheckSvg /> Unlimited secrets</li>
+                <li><CheckSvg /> Unlimited policies</li>
+                <li><CheckSvg /> Unlimited members</li>
+                <li><CheckSvg /> Dedicated support</li>
+                <li><CheckSvg /> 1-year audit log</li>
+                <li><CheckSvg /> SSO / SAML</li>
+                <li><CheckSvg /> Custom integrations</li>
+              </ul>
+              <Link className="btn btn-secondary" to="/login">Contact Sales</Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ */}
+      <section className="section" id="faq">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">FAQ</div>
+            <h2>Frequently asked questions</h2>
+          </div>
+          <div className="container-narrow" style={{ padding: 0 }}>
+            <div className="faq-list">
+              {FAQ_DATA.map((item, i) => (
+                <div className={`faq-item ${openFaq === i ? 'faq-item--open' : ''}`} key={i}>
+                  <button className="faq-question" onClick={() => setOpenFaq(openFaq === i ? null : i)}>
+                    {item.q}
+                    <ChevronDown size={20} />
+                  </button>
+                  {openFaq === i && <div className="faq-answer">{item.a}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+    </PageShell>
   );
 }

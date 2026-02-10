@@ -10,6 +10,9 @@ import Claim from './pages/Claim';
 import Billing from './pages/Billing';
 import OpenClawDetail from './pages/OpenClawDetail';
 import Landing from './pages/Landing';
+import Features from './pages/Features';
+import Security from './pages/Security';
+import Skills from './pages/Skills';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -29,6 +32,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
+      <Route path="/features" element={<Features />} />
+      <Route path="/security" element={<Security />} />
+      <Route path="/skills" element={<Skills />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/claim/:id" element={<Claim />} />
