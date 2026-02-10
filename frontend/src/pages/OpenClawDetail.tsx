@@ -6,7 +6,7 @@ import {
   destroyOpenClawDeployment,
   restartOpenClawDeployment,
   retryOpenClawDeployment,
-  reprovisionOpenClawDeployment,
+
   downloadOpenClawSshKey,
   getOpenClawUsage,
   addOpenClawCredits,
@@ -162,18 +162,6 @@ export default function OpenClawDetail() {
     }
   };
 
-  const handleReprovision = async () => {
-    if (!id) return;
-    setActionLoading('reprovision');
-    try {
-      await reprovisionOpenClawDeployment(id);
-      load();
-    } catch {
-      setError('Failed to reprovision');
-    } finally {
-      setActionLoading(null);
-    }
-  };
 
   const handleDownloadSshKey = async () => {
     if (!id) return;
@@ -300,19 +288,12 @@ export default function OpenClawDetail() {
             >
               {actionLoading === 'restart' ? 'Restarting...' : 'Restart'}
             </button>
-            <button
-              onClick={handleReprovision}
-              disabled={actionLoading === 'reprovision'}
-              className="text-sm border border-gray-300 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors disabled:opacity-50"
-            >
-              {actionLoading === 'reprovision' ? 'Reprovisioning...' : 'Reprovision'}
-            </button>
             {deployment.ipAddress && (
               <button
                 onClick={() => setShowDevModal(true)}
                 className="text-sm border border-gray-300 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors"
               >
-                Developer
+                Advanced
               </button>
             )}
             {deployment.status === 'READY' && deployment.stripeSubscriptionId && (
