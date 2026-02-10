@@ -679,6 +679,12 @@ export async function deploy(
     throw new Error('STRIPE_OPENCLAW_PRICE_ID is not configured');
   }
 
+  // Check if user has ever had an OpenClaw deployment (any status) — free trial is for first deployment only
+  const existingDeployments = await prisma.openClawDeployment.count({
+    where: { userId },
+  });
+  const isFirstDeployment = existingDeployments === 0;
+
   // Create deployment record in PENDING_PAYMENT state
   const deployment = await prisma.openClawDeployment.create({
     data: {
@@ -697,7 +703,7 @@ export async function deploy(
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
-    subscription_data: { trial_period_days: 7 },
+    subscription_data: isFirstDeployment ? { trial_period_days: 7 } : {},
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
