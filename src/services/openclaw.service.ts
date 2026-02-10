@@ -1537,15 +1537,7 @@ export async function configureTelegramBot(
     deployment.ipAddress,
     SSH_USERNAME,
     deployment.sshPrivateKey,
-    `sudo openclaw config set channels.telegram --json '${telegramConfig}'`,
-    30_000
-  );
-
-  await sshExec(
-    deployment.ipAddress,
-    SSH_USERNAME,
-    deployment.sshPrivateKey,
-    'sudo systemctl restart openclaw-gateway',
+    `sudo openclaw config set channels.telegram --json '${telegramConfig}' && sudo openclaw config set plugins.entries.telegram.enabled true && sudo systemctl restart openclaw-gateway`,
     30_000
   );
 }
