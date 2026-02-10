@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import SecretDetail from './pages/SecretDetail';
 import Account from './pages/Account';
 import Claim from './pages/Claim';
+import Agents from './pages/Agents';
 import OpenClawDetail from './pages/OpenClawDetail';
 import Landing from './pages/Landing';
 import Features from './pages/Features';
@@ -39,6 +40,7 @@ function AppRoutes() {
       <Route path="/claim/:id" element={<Claim />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/agents" element={<ProtectedRoute><Agents /></ProtectedRoute>} />
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />

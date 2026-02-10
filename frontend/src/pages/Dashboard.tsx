@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret } from '../api';
-import OpenClawSection from '../components/OpenClawSection';
 
 interface Secret {
   id: string;
@@ -72,7 +71,7 @@ export default function Dashboard() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Your Secrets</h1>
+        <h1 className="text-2xl font-bold text-foreground">Accounts</h1>
         <button
           onClick={() => setShowCreate(true)}
           className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
@@ -191,9 +190,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      <div id="openclaw">
-        <OpenClawSection />
-      </div>
     </div>
   );
 }

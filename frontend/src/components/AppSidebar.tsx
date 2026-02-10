@@ -1,12 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Menu, X } from 'lucide-react';
+import { KeyRound, Bot, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '../auth';
 import { logout } from '../api';
 import { cn } from '../lib/utils';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Accounts', icon: KeyRound },
+  { to: '/agents', label: 'Agents', icon: Bot },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
