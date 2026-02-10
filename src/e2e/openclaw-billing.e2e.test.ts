@@ -44,7 +44,6 @@ let request: supertest.Agent;
 let stripe: Stripe;
 let testUser: User;
 let deploymentId: string | null = null;
-let checkoutSessionId: string | null = null;
 let stripeSubscriptionId: string | null = null;
 
 function sleep(ms: number) {
@@ -241,7 +240,14 @@ describe('OpenClaw Billing E2E', () => {
 
     // The status should be one of the provisioning states (PENDING, ORDERING, etc.)
     // or ERROR if OVH credentials are not configured. Either way, it's past PENDING_PAYMENT.
-    const validPostPaymentStatuses = ['PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING', 'READY', 'ERROR'];
+    const validPostPaymentStatuses = [
+      'PENDING',
+      'ORDERING',
+      'PROVISIONING',
+      'INSTALLING',
+      'READY',
+      'ERROR',
+    ];
     expect(validPostPaymentStatuses).toContain(deployment!.status);
   }, 60_000);
 
@@ -401,6 +407,8 @@ describe('OpenClaw Billing E2E', () => {
       .expect(400);
 
     expect(res.body.success).toBe(false);
-    console.log(`  Validation error: ${JSON.stringify(res.body.error?.code || res.body.error?.message)}`);
+    console.log(
+      `  Validation error: ${JSON.stringify(res.body.error?.code || res.body.error?.message)}`
+    );
   }, 10_000);
 });
