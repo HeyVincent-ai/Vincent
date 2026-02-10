@@ -619,18 +619,22 @@ export default function OpenClawDetail() {
 
             {telegramStep === 1 && (
               <>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Create a Telegram bot via{' '}
-                  <a
-                    href="https://t.me/BotFather"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:text-primary/80 underline"
-                  >
-                    @BotFather
-                  </a>{' '}
-                  and paste the bot token below.
-                </p>
+                <ol className="text-sm text-muted-foreground mb-3 list-decimal list-inside space-y-1">
+                  <li>Open Telegram and go to{' '}
+                    <a
+                      href="https://t.me/BotFather"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:text-primary/80 underline"
+                    >
+                      @BotFather
+                    </a>.
+                  </li>
+                  <li>Start a chat and type <code className="bg-muted px-1 rounded text-xs">/newbot</code>.</li>
+                  <li>Follow the prompts to name your bot and choose a username.</li>
+                  <li>BotFather will send you a message with your bot token. Copy the entire token (it looks like a long string of numbers and letters).</li>
+                  <li>Paste the token below and click <strong>Configure Bot</strong>.</li>
+                </ol>
                 <input
                   type="text"
                   value={botToken}
