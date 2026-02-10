@@ -150,49 +150,48 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
     }
   };
 
-  // Filter out deprecated APPROVAL_THRESHOLD from display
   const visiblePolicies = policies.filter((p) => p.policyType !== 'APPROVAL_THRESHOLD');
 
-  if (loading) return <p className="text-gray-500 text-sm">Loading policies...</p>;
+  if (loading) return <p className="text-muted-foreground text-sm">Loading policies...</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-800">Policies</h2>
+        <h2 className="text-lg font-semibold text-foreground">Policies</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 transition-colors"
+          className="text-sm bg-primary text-primary-foreground px-3 py-1.5 rounded hover:bg-primary/90 transition-colors"
         >
           {showForm ? 'Cancel' : 'Add Policy'}
         </button>
       </div>
 
       {showForm && (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+        <div className="bg-muted border border-border rounded-lg p-4 mb-4">
           <div className="mb-3">
-            <label className="block text-sm font-medium text-gray-700 mb-1">Policy Type</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Policy Type</label>
             <select
               value={selectedType}
               onChange={(e) => { setSelectedType(e.target.value); setConfigInput(''); setApprovalOverride(false); }}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground"
             >
               {POLICY_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}
             </select>
-            <p className="text-xs text-gray-500 mt-1">{typeDef.description}</p>
+            <p className="text-xs text-muted-foreground mt-1">{typeDef.description}</p>
           </div>
 
           {typeDef.configFields[0].type !== 'boolean' && (
             <div className="mb-3">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 {typeDef.configFields[0].type === 'array' ? 'Values (comma-separated)' : 'Value'}
               </label>
               <input
                 value={configInput}
                 onChange={(e) => setConfigInput(e.target.value)}
                 placeholder={typeDef.configFields[0].placeholder || ''}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           )}
@@ -204,11 +203,11 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
                 id="approvalOverride"
                 checked={approvalOverride}
                 onChange={(e) => setApprovalOverride(e.target.checked)}
-                className="mt-0.5 rounded border-gray-300"
+                className="mt-0.5 rounded border-border"
               />
               <label htmlFor="approvalOverride" className="text-sm">
-                <span className="font-medium text-gray-700">Approval override</span>
-                <p className="text-xs text-gray-500">
+                <span className="font-medium text-foreground">Approval override</span>
+                <p className="text-xs text-muted-foreground">
                   Instead of blocking, require human approval when this policy is violated
                 </p>
               </label>
@@ -222,8 +221,8 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
       )}
 
       {visiblePolicies.length === 0 ? (
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-          <p className="text-gray-500 text-sm">No policies configured. All actions are allowed by default.</p>
+        <div className="bg-muted border border-border rounded-lg p-4">
+          <p className="text-muted-foreground text-sm">No policies configured. All actions are allowed by default.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -232,25 +231,25 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
             const hasOverride = p.policyConfig.approvalOverride === true;
 
             return (
-              <div key={p.id} className="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+              <div key={p.id} className="bg-card border border-border rounded-lg p-4 flex items-center justify-between">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium text-sm text-gray-900">
+                    <span className="font-medium text-sm text-foreground">
                       {pTypeDef?.label || p.policyType}
                     </span>
                     {hasOverride && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded-full font-medium">
                         approval override
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {formatPolicyConfig(p.policyType, p.policyConfig)}
                   </p>
                 </div>
                 <button
                   onClick={() => handleDelete(p.id)}
-                  className="text-sm text-red-500 hover:text-red-700 ml-4 shrink-0 transition-colors"
+                  className="text-sm text-destructive hover:text-destructive/80 ml-4 shrink-0 transition-colors"
                 >
                   Delete
                 </button>

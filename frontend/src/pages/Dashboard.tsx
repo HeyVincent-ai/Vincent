@@ -67,95 +67,95 @@ export default function Dashboard() {
     setCreateMemo('');
   };
 
-  if (loading) return <p className="text-gray-500">Loading...</p>;
+  if (loading) return <p className="text-muted-foreground">Loading...</p>;
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Your Secrets</h1>
+        <h1 className="text-2xl font-bold text-foreground">Your Secrets</h1>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
         >
           + Create Secret
         </button>
       </div>
 
       {showCreate && (
-        <div className="bg-white rounded-lg border p-4 mb-6">
+        <div className="bg-card rounded-lg border border-border p-4 mb-6">
           {createdKey ? (
             <div>
-              <h3 className="font-medium text-green-700 mb-2">Secret created!</h3>
-              <p className="text-sm text-gray-600 mb-2">
+              <h3 className="font-medium text-green-400 mb-2">Secret created!</h3>
+              <p className="text-sm text-muted-foreground mb-2">
                 Save this API key now — it won't be shown again:
               </p>
               <div className="flex items-center gap-2">
-                <code className="bg-gray-100 px-3 py-1.5 rounded text-sm flex-1 break-all">
+                <code className="bg-muted px-3 py-1.5 rounded text-sm flex-1 break-all text-foreground">
                   {createdKey}
                 </code>
                 <button
                   onClick={() => navigator.clipboard.writeText(createdKey)}
-                  className="text-blue-600 text-sm hover:underline whitespace-nowrap"
+                  className="text-primary text-sm hover:underline whitespace-nowrap"
                 >
                   Copy
                 </button>
               </div>
               <button
                 onClick={closeCreate}
-                className="mt-3 text-sm text-gray-500 hover:text-gray-700"
+                className="mt-3 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 Done
               </button>
             </div>
           ) : (
             <div>
-              <h3 className="font-medium mb-3">Create a new secret</h3>
+              <h3 className="font-medium text-foreground mb-3">Create a new secret</h3>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">Type</label>
+                  <label className="block text-sm text-muted-foreground mb-1">Type</label>
                   <select
                     value={createType}
                     onChange={(e) => setCreateType(e.target.value)}
-                    className="border rounded px-3 py-1.5 text-sm"
+                    className="bg-background border border-border rounded px-3 py-1.5 text-sm text-foreground"
                   >
                     <option value="EVM_WALLET">EVM Wallet</option>
                     <option value="RAW_SIGNER">Raw Signer</option>
                   </select>
                 </div>
                 <div className="flex-1">
-                  <label className="block text-sm text-gray-600 mb-1">Memo (optional)</label>
+                  <label className="block text-sm text-muted-foreground mb-1">Memo (optional)</label>
                   <input
                     type="text"
                     value={createMemo}
                     onChange={(e) => setCreateMemo(e.target.value)}
                     placeholder="e.g. My trading bot wallet"
-                    className="border rounded px-3 py-1.5 text-sm w-full"
+                    className="bg-background border border-border rounded px-3 py-1.5 text-sm w-full text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handleCreate}
                     disabled={creating}
-                    className="bg-blue-600 text-white px-4 py-1.5 rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+                    className="bg-primary text-primary-foreground px-4 py-1.5 rounded text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     {creating ? 'Creating...' : 'Create'}
                   </button>
                   <button
                     onClick={closeCreate}
-                    className="text-gray-500 px-3 py-1.5 text-sm hover:text-gray-700"
+                    className="text-muted-foreground px-3 py-1.5 text-sm hover:text-foreground transition-colors"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
-              {createError && <p className="text-red-600 text-sm mt-2">{createError}</p>}
+              {createError && <p className="text-destructive text-sm mt-2">{createError}</p>}
             </div>
           )}
         </div>
       )}
 
       {secrets.length === 0 ? (
-        <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
+        <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
           <p>No secrets yet. Create one above or claim one from an agent.</p>
         </div>
       ) : (
@@ -164,27 +164,27 @@ export default function Dashboard() {
             <Link
               key={s.id}
               to={`/secrets/${s.id}`}
-              className="bg-white rounded-lg border p-4 hover:border-blue-300 transition-colors block"
+              className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors block"
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <span className="inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded mr-2">
+                  <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded mr-2">
                     {s.type}
                   </span>
-                  <span className="text-gray-900 font-medium">{s.memo || 'Unnamed secret'}</span>
+                  <span className="text-foreground font-medium">{s.memo || 'Unnamed secret'}</span>
                 </div>
-                <span className="text-gray-400 text-sm">
+                <span className="text-muted-foreground text-sm">
                   {new Date(s.createdAt).toLocaleDateString()}
                 </span>
               </div>
               {s.walletAddress && (
-                <p className="text-sm text-gray-500 mt-1 font-mono">{s.walletAddress}</p>
+                <p className="text-sm text-muted-foreground mt-1 font-mono">{s.walletAddress}</p>
               )}
               {s.ethAddress && (
-                <p className="text-sm text-gray-500 mt-1 font-mono">ETH: {s.ethAddress}</p>
+                <p className="text-sm text-muted-foreground mt-1 font-mono">ETH: {s.ethAddress}</p>
               )}
               {s.solanaAddress && (
-                <p className="text-sm text-gray-500 mt-1 font-mono">SOL: {s.solanaAddress}</p>
+                <p className="text-sm text-muted-foreground mt-1 font-mono">SOL: {s.solanaAddress}</p>
               )}
             </Link>
           ))}

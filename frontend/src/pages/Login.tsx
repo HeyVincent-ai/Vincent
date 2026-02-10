@@ -13,22 +13,17 @@ const loginConfig = {
   sessionOptions: {
     sessionDurationMinutes: 44640, // 31 days
   },
-  // oauthOptions: {
-  //   providers: [{ type: OAuthProviders.Google }],
-  //   loginRedirectURL: `${window.location.origin}/auth/callback`,
-  //   signupRedirectURL: `${window.location.origin}/auth/callback`,
-  // },
 };
 
 export default function Login() {
   return (
-    <div className="min-h-[60vh] flex flex-col items-center justify-center">
-      <div className="bg-white p-8 rounded-lg shadow-sm border max-w-md w-full">
-        <h1 className="text-2xl font-bold mb-6 text-center">Sign in to Vincent</h1>
+    <div className="min-h-screen bg-background dot-grid-bg flex flex-col items-center justify-center">
+      <div className="bg-card p-8 rounded-lg border border-border max-w-md w-full">
+        <h1 className="text-2xl font-bold mb-6 text-center text-foreground">Sign in to Vincent</h1>
         <StytchLogin config={loginConfig} />
       </div>
-      <Link to="/" className="mt-6 text-sm text-gray-500 hover:text-gray-700 transition-colors">
-        ← Back to home
+      <Link to="/" className="mt-6 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        &larr; Back to home
       </Link>
     </div>
   );

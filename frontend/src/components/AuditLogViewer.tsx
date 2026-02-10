@@ -79,12 +79,12 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
-      SUCCESS: 'bg-green-100 text-green-800',
-      FAILED: 'bg-red-100 text-red-800',
-      PENDING: 'bg-yellow-100 text-yellow-800',
+      SUCCESS: 'bg-green-500/10 text-green-400',
+      FAILED: 'bg-destructive/10 text-destructive',
+      PENDING: 'bg-yellow-500/10 text-yellow-400',
     };
     return (
-      <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[status] || 'bg-gray-100 text-gray-800'}`}>
+      <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[status] || 'bg-muted text-muted-foreground'}`}>
         {status}
       </span>
     );
@@ -95,11 +95,11 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Action</label>
+          <label className="block text-xs text-muted-foreground mb-1">Action</label>
           <select
             value={filterAction}
             onChange={(e) => { setFilterAction(e.target.value); setPage(1); }}
-            className="border rounded px-2 py-1 text-sm"
+            className="bg-background border border-border rounded px-2 py-1 text-sm text-foreground"
           >
             <option value="">All</option>
             {actions.map((a) => (
@@ -108,11 +108,11 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
           </select>
         </div>
         <div>
-          <label className="block text-xs text-gray-500 mb-1">Status</label>
+          <label className="block text-xs text-muted-foreground mb-1">Status</label>
           <select
             value={filterStatus}
             onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}
-            className="border rounded px-2 py-1 text-sm"
+            className="bg-background border border-border rounded px-2 py-1 text-sm text-foreground"
           >
             <option value="">All</option>
             <option value="SUCCESS">Success</option>
@@ -121,10 +121,10 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
           </select>
         </div>
         <div className="flex gap-2 ml-auto">
-          <button onClick={() => handleExport('csv')} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-1 rounded">
+          <button onClick={() => handleExport('csv')} className="text-xs text-primary hover:text-primary/80 border border-primary/30 px-2 py-1 rounded transition-colors">
             Export CSV
           </button>
-          <button onClick={() => handleExport('json')} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-2 py-1 rounded">
+          <button onClick={() => handleExport('json')} className="text-xs text-primary hover:text-primary/80 border border-primary/30 px-2 py-1 rounded transition-colors">
             Export JSON
           </button>
         </div>
@@ -132,47 +132,47 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
 
       {/* Logs */}
       {loading ? (
-        <p className="text-gray-500 text-sm">Loading...</p>
+        <p className="text-muted-foreground text-sm">Loading...</p>
       ) : logs.length === 0 ? (
-        <p className="text-gray-500 text-sm">No audit logs found.</p>
+        <p className="text-muted-foreground text-sm">No audit logs found.</p>
       ) : (
         <div className="space-y-2">
           {logs.map((log) => (
-            <div key={log.id} className="border rounded bg-white">
+            <div key={log.id} className="border border-border rounded bg-card">
               <button
                 onClick={() => setExpandedId(expandedId === log.id ? null : log.id)}
-                className="w-full flex items-center justify-between px-4 py-3 text-sm text-left hover:bg-gray-50"
+                className="w-full flex items-center justify-between px-4 py-3 text-sm text-left hover:bg-muted transition-colors"
               >
                 <div className="flex items-center gap-3">
                   {statusBadge(log.status)}
-                  <span className="font-mono text-xs">{log.action}</span>
+                  <span className="font-mono text-xs text-foreground">{log.action}</span>
                   {log.durationMs != null && (
-                    <span className="text-gray-400 text-xs">{log.durationMs}ms</span>
+                    <span className="text-muted-foreground text-xs">{log.durationMs}ms</span>
                   )}
                 </div>
-                <span className="text-gray-400 text-xs">{new Date(log.createdAt).toLocaleString()}</span>
+                <span className="text-muted-foreground text-xs">{new Date(log.createdAt).toLocaleString()}</span>
               </button>
               {expandedId === log.id && (
-                <div className="px-4 pb-4 border-t text-xs space-y-2">
+                <div className="px-4 pb-4 border-t border-border text-xs space-y-2">
                   {log.errorMessage && (
                     <div>
-                      <span className="font-semibold text-red-600">Error:</span> {log.errorMessage}
+                      <span className="font-semibold text-destructive">Error:</span> <span className="text-foreground">{log.errorMessage}</span>
                     </div>
                   )}
                   {!!log.inputData && (
                     <div>
-                      <span className="font-semibold">Input:</span>
-                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.inputData as Record<string, unknown>, null, 2)}</pre>
+                      <span className="font-semibold text-foreground">Input:</span>
+                      <pre className="bg-muted p-2 rounded mt-1 overflow-auto max-h-40 text-foreground">{JSON.stringify(log.inputData as Record<string, unknown>, null, 2)}</pre>
                     </div>
                   )}
                   {!!log.outputData && (
                     <div>
-                      <span className="font-semibold">Output:</span>
-                      <pre className="bg-gray-50 p-2 rounded mt-1 overflow-auto max-h-40">{JSON.stringify(log.outputData as Record<string, unknown>, null, 2)}</pre>
+                      <span className="font-semibold text-foreground">Output:</span>
+                      <pre className="bg-muted p-2 rounded mt-1 overflow-auto max-h-40 text-foreground">{JSON.stringify(log.outputData as Record<string, unknown>, null, 2)}</pre>
                     </div>
                   )}
                   {log.ipAddress && (
-                    <div><span className="font-semibold">IP:</span> {log.ipAddress}</div>
+                    <div><span className="font-semibold text-foreground">IP:</span> <span className="text-muted-foreground">{log.ipAddress}</span></div>
                   )}
                 </div>
               )}
@@ -184,24 +184,24 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-4 text-sm">
-          <span className="text-gray-500">
+          <span className="text-muted-foreground">
             {pagination.total} total entries
           </span>
           <div className="flex gap-2">
             <button
               onClick={() => setPage(page - 1)}
               disabled={page <= 1}
-              className="px-3 py-1 border rounded disabled:opacity-30"
+              className="px-3 py-1 border border-border rounded disabled:opacity-30 text-foreground hover:bg-muted transition-colors"
             >
               Prev
             </button>
-            <span className="px-3 py-1">
+            <span className="px-3 py-1 text-foreground">
               {page} / {pagination.totalPages}
             </span>
             <button
               onClick={() => setPage(page + 1)}
               disabled={page >= pagination.totalPages}
-              className="px-3 py-1 border rounded disabled:opacity-30"
+              className="px-3 py-1 border border-border rounded disabled:opacity-30 text-foreground hover:bg-muted transition-colors"
             >
               Next
             </button>
