@@ -369,11 +369,15 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 
   const collateral = await polymarket.getCollateralBalance(clientConfig);
 
+  // USDC.e has 6 decimals — convert from raw units to human-readable
+  const USDC_DECIMALS = 6;
+  const toHuman = (raw: string) => (Number(raw) / 10 ** USDC_DECIMALS).toString();
+
   return {
     walletAddress: wallet.walletAddress,
     collateral: {
-      balance: collateral.balance,
-      allowance: collateral.allowance,
+      balance: toHuman(collateral.balance),
+      allowance: toHuman(collateral.allowance),
     },
   };
 }
