@@ -5,31 +5,35 @@ import PageShell, { CheckSvg, ChevronDown } from '../components/PageShell';
 const FAQ_DATA = [
   {
     q: 'What is Vincent?',
-    a: 'Vincent is a system that lets people and groups safely share execution authority over money and APIs with an AI in the loop. It combines a hosted AI runtime with an airgapped secret manager to ensure your credentials are never exposed \u2014 even if the AI is compromised.',
+    a: 'Vincent deploys self-improving AI agents that can safely handle money and APIs on your behalf. Each agent runs on the OpenClaw runtime and comes with an airgapped secret manager \u2014 so your credentials are never exposed, even if the AI is compromised.',
   },
   {
-    q: 'How does the airgapped architecture work?',
-    a: 'Vincent has two layers. The AI runtime handles conversation and skills but never holds secrets. When it needs to execute an action (like making a payment or calling an API), it sends a request to the Vincent mediator, which evaluates your policies and executes the action using credentials stored in a hardware-backed vault. The AI never sees the raw credentials.',
+    q: 'What makes Vincent agents self-improving?',
+    a: 'Vincent agents learn from every interaction. They refine their strategies, remember what works, and adapt to your workflows over time \u2014 getting better without manual fine-tuning.',
   },
   {
-    q: 'Can I use Vincent with my own AI agent?',
-    a: 'Yes. You can either use our hosted bot on Telegram or give your existing agent the Vincent skills.md file. Either way, the airgapped secret manager protects your credentials with the same policies and audit trail. There\u2019s no lock-in.',
+    q: 'How are secrets kept safe?',
+    a: 'Your agent never holds secrets directly. When it needs to execute an action (like making a payment or calling an API), the request goes through a mediator that evaluates your policies and executes using credentials stored in a hardware-backed vault. The AI never sees raw credentials.',
+  },
+  {
+    q: 'Can I use Vincent skills with my own bot?',
+    a: 'Yes. If you already run your own agent, you can add the Vincent skills file to give it access to the airgapped secret manager and policy engine \u2014 no migration needed. That\u2019s what the Skills Only plan is for.',
   },
   {
     q: 'What happens if the AI is compromised?',
-    a: 'Nothing happens to your secrets. The AI runtime is deliberately separated from the secret vault. Prompt injection, malicious plugins, or a full runtime breach cannot access your credentials. The admin retains full control and can revoke access at any time.',
+    a: 'Nothing happens to your secrets. The agent runtime is deliberately separated from the secret vault. Prompt injection, malicious plugins, or a full runtime breach cannot access your credentials. You retain full control and can revoke access at any time.',
   },
   {
     q: 'What kinds of secrets can Vincent manage?',
-    a: 'Any secret. API keys, crypto wallet credentials, payment processor tokens, vendor credentials \u2014 Vincent treats them all the same. The difference is in the policies you assign to each one: spending limits, approval requirements, action restrictions, and more.',
+    a: 'Any secret. API keys, crypto wallet credentials, payment processor tokens, vendor credentials \u2014 Vincent treats them all the same. The difference is in the policies you assign: spending limits, approval requirements, action restrictions, and more.',
   },
   {
     q: 'How does multi-party approval work?',
-    a: 'You can require n-of-m approval for any action. For example, require 2-of-3 team members to approve withdrawals over $1,000 while letting the AI handle smaller transactions autonomously. Approval flows are configurable per secret and per action type.',
+    a: 'You can require n-of-m approval for any action. For example, require 2-of-3 team members to approve withdrawals over $1,000 while letting the agent handle smaller transactions autonomously. Approval flows are configurable per secret and per action type.',
   },
   {
     q: 'Is there a free trial?',
-    a: 'Yes. Every hosted agent comes with a 7-day free trial and $25 of free LLM credit to get started. You can also use the skills.md file with your own agent at no cost.',
+    a: 'Yes. Every hosted agent comes with a 7-day free trial and $25 of free LLM credit. You can also use the Skills Only plan to add Vincent capabilities to your own bot at a lower cost.',
   },
 ];
 
@@ -43,31 +47,32 @@ export default function Landing() {
         <div className="container">
           <div className="hero__badge anim">Now in early access</div>
           <h1 className="anim anim-d1">
-            Give your AI <em>safe authority</em> over money and APIs
+            Deploy a <em>self-improving AI agent</em> that&rsquo;s safe to use with money
           </h1>
           <p className="anim anim-d2">
-            Vincent lets people and groups safely delegate execution authority to AI &mdash; with
-            policies, spending limits, and an airgapped secret manager that keeps credentials safe
-            even if the AI is compromised.
+            Vincent deploys AI agents that get smarter over time &mdash; and come with built-in
+            secret management, spending policies, and an airgapped vault so you can trust them with
+            real credentials and real money.
           </p>
           <div className="hero__paths anim anim-d3">
             <div className="hero__path">
-              <h3>For agents</h3>
+              <h3>Deploy an agent</h3>
               <p>
-                Add the Vincent skills file to your AI agent and give it safe access to secrets and
-                execution.
-              </p>
-              <Link className="btn btn-secondary" to="/skills">
-                Add to Your Agent
-              </Link>
-            </div>
-            <div className="hero__path">
-              <h3>For humans</h3>
-              <p>
-                Sign up and start managing secrets, policies, and AI authority from the dashboard.
+                Get a fully hosted, self-improving AI agent with safe secret management and
+                policy controls out of the box.
               </p>
               <Link className="btn btn-primary" to="/login">
                 Start Free Trial
+              </Link>
+            </div>
+            <div className="hero__path">
+              <h3>Already have a bot?</h3>
+              <p>
+                Add Vincent skills to your existing agent to give it safe access to secrets and
+                policy-controlled execution.
+              </p>
+              <Link className="btn btn-secondary" to="/skills">
+                Get the Skills File
               </Link>
             </div>
           </div>
@@ -79,31 +84,31 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">How It Works</div>
-            <h2>Three steps to safe AI authority</h2>
+            <h2>From deploy to autonomous in minutes</h2>
           </div>
           <div className="steps">
             <div className="step">
               <div className="step__number">01</div>
-              <h3>Add your secrets</h3>
+              <h3>Deploy your agent</h3>
               <p>
-                Store API keys, wallet credentials, or any secret in the airgapped vault. You become
-                the admin with full control.
+                Launch a hosted AI agent in one click. It comes pre-configured with the OpenClaw
+                runtime and the airgapped secret vault.
               </p>
             </div>
             <div className="step">
               <div className="step__number">02</div>
-              <h3>Set policies and roles</h3>
+              <h3>Add secrets &amp; set policies</h3>
               <p>
-                Define who can do what. Set spending limits, approval flows, and access levels for
-                people and AI agents.
+                Store API keys, wallet credentials, or any secret. Set spending limits, approval
+                flows, and access controls.
               </p>
             </div>
             <div className="step">
               <div className="step__number">03</div>
-              <h3>Let AI act safely</h3>
+              <h3>Let it learn and act</h3>
               <p>
-                Your agent requests actions through Vincent. Policies are evaluated in real time.
-                Secrets never leave the vault.
+                Your agent executes tasks, learns from outcomes, and self-improves &mdash; while
+                policies and the vault keep everything safe.
               </p>
             </div>
           </div>
@@ -115,48 +120,48 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">Use Cases</div>
-            <h2>Built for people who need AI to act</h2>
+            <h2>Agents that handle real work, safely</h2>
           </div>
           <div className="use-cases-grid">
             <div className="use-case-card">
-              <h3>Crypto & DeFi Groups</h3>
+              <h3>Crypto &amp; DeFi</h3>
               <ul>
                 <li>
-                  <CheckSvg /> Polymarket betting groups
+                  <CheckSvg /> Autonomous trading with spending limits
                 </li>
                 <li>
                   <CheckSvg /> DAO treasury management
                 </li>
                 <li>
-                  <CheckSvg /> Shared DeFi positions
+                  <CheckSvg /> Multi-sig approval for high-value actions
                 </li>
               </ul>
             </div>
             <div className="use-case-card">
-              <h3>Developers & API Power Users</h3>
+              <h3>API Automation</h3>
               <ul>
                 <li>
-                  <CheckSvg /> 20+ API keys, one dashboard
+                  <CheckSvg /> Agent manages 20+ API keys securely
                 </li>
                 <li>
-                  <CheckSvg /> Scoped AI access per project
+                  <CheckSvg /> Scoped access per project or task
                 </li>
                 <li>
-                  <CheckSvg /> Credential rotation built in
+                  <CheckSvg /> Self-improving workflows across services
                 </li>
               </ul>
             </div>
             <div className="use-case-card">
-              <h3>Teams & Startups</h3>
+              <h3>Teams &amp; Startups</h3>
               <ul>
                 <li>
-                  <CheckSvg /> Startup treasury with approval flows
+                  <CheckSvg /> Shared agent with approval flows
                 </li>
                 <li>
-                  <CheckSvg /> Shared vendor credentials
+                  <CheckSvg /> Team credential management
                 </li>
                 <li>
-                  <CheckSvg /> Team API key management
+                  <CheckSvg /> Agent gets better as your team uses it
                 </li>
               </ul>
             </div>
@@ -169,9 +174,28 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">Features</div>
-            <h2>Enterprise-grade security, zero complexity</h2>
+            <h2>Self-improving agents, enterprise-grade security</h2>
           </div>
           <div className="highlights-grid">
+            <div className="highlight">
+              <div className="card-icon">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                </svg>
+              </div>
+              <h3>Self-Improving</h3>
+              <p>Agents learn from every interaction and get better over time, automatically.</p>
+            </div>
             <div className="highlight">
               <div className="card-icon">
                 <svg
@@ -190,7 +214,7 @@ export default function Landing() {
                 </svg>
               </div>
               <h3>Airgapped Vault</h3>
-              <p>Secrets stored in hardware-backed HSM, completely separated from AI.</p>
+              <p>Secrets stored in hardware-backed HSM, completely separated from the agent.</p>
             </div>
             <div className="highlight">
               <div className="card-icon">
@@ -237,28 +261,6 @@ export default function Landing() {
               <h3>Multi-Party Auth</h3>
               <p>n-of-m approval flows for high-stakes actions across teams and groups.</p>
             </div>
-            <div className="highlight">
-              <div className="card-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
-              </div>
-              <h3>Advanced Mode</h3>
-              <p>
-                Access the full OpenClawd runtime — install skills, customize behavior, extend
-                capabilities.
-              </p>
-            </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <Link className="section-link" to="/features">
@@ -287,29 +289,58 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">Pricing</div>
-            <h2>Start free</h2>
+            <h2>Start free, scale when you&rsquo;re ready</h2>
           </div>
-          <div style={{ maxWidth: 420, margin: '0 auto' }}>
+          <div className="pricing-grid" style={{ maxWidth: 700, margin: '0 auto' }}>
+            <div className="pricing-card">
+              <h3>Skills Only</h3>
+              <div className="pricing-card__price">
+                $10<span>/mo</span>
+              </div>
+              <div className="pricing-card__desc">For teams already running their own bot</div>
+              <ul className="pricing-card__features">
+                <li>
+                  <CheckSvg /> Airgapped secret manager
+                </li>
+                <li>
+                  <CheckSvg /> Policy engine &amp; spending limits
+                </li>
+                <li>
+                  <CheckSvg /> Multi-party approval flows
+                </li>
+                <li>
+                  <CheckSvg /> Skills file for any agent
+                </li>
+                <li>
+                  <CheckSvg /> Bring your own bot &amp; LLM
+                </li>
+              </ul>
+              <Link className="btn btn-secondary" to="/skills">
+                Get the Skills File
+              </Link>
+            </div>
             <div className="pricing-card pricing-card--featured">
+              <div className="pricing-card__badge">Most Popular</div>
+              <h3>Hosted Agent</h3>
               <div className="pricing-card__price">
                 $25<span>/mo</span>
               </div>
-              <div className="pricing-card__desc">Per hosted agent, billed monthly</div>
+              <div className="pricing-card__desc">Per agent, billed monthly</div>
               <ul className="pricing-card__features">
+                <li>
+                  <CheckSvg /> Everything in Skills Only
+                </li>
                 <li>
                   <CheckSvg /> 7-day free trial
                 </li>
                 <li>
-                  <CheckSvg /> 1 fully hosted agent
+                  <CheckSvg /> 1 fully hosted, self-improving agent
                 </li>
                 <li>
                   <CheckSvg /> $25 free LLM credit to start
                 </li>
                 <li>
                   <CheckSvg /> Priority support
-                </li>
-                <li>
-                  <CheckSvg /> LLM API fees not included
                 </li>
               </ul>
               <Link className="btn btn-primary" to="/login">
