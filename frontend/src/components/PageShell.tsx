@@ -209,7 +209,7 @@ export const SHARED_STYLES = `
   .vp .section-link svg { width: 18px; height: 18px; }
 
   /* Pricing */
-  .vp .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: stretch; }
+  .vp .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: stretch; }
   .vp .pricing-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 2.5rem 2rem; position: relative; display: flex; flex-direction: column;
@@ -466,8 +466,8 @@ function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }
           <Link className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`} to="/skills">Skills</Link>
         </nav>
         <div className="nav__right">
-          <Link className="btn btn-secondary" to="/skills">Add to Your Agent</Link>
-          <Link className="btn btn-primary" to="/login">Start Free Trial</Link>
+          <Link className="btn btn-secondary" to="/skills">Skills Only</Link>
+          <Link className="btn btn-primary" to="/login">Deploy an Agent</Link>
         </div>
       </div>
     </header>
@@ -479,11 +479,11 @@ function Footer() {
     <>
       <section className="footer-cta">
         <div className="container">
-          <h2>Ready to give your AI safe authority?</h2>
+          <h2>Ready to deploy your agent?</h2>
           <p>Start free. No credit card required.</p>
           <div className="cta-buttons">
-            <Link className="btn btn-primary btn-lg" to="/login">Start Free Trial</Link>
-            <Link className="btn btn-secondary btn-lg" to="/skills">Get the Skills File</Link>
+            <Link className="btn btn-primary btn-lg" to="/login">Deploy an Agent</Link>
+            <Link className="btn btn-secondary btn-lg" to="/skills">Skills Only</Link>
           </div>
         </div>
       </section>
@@ -492,7 +492,7 @@ function Footer() {
           <div className="footer-grid">
             <div className="footer-brand">
               <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
-              <p>Safe authority for AI</p>
+              <p>Self-improving AI agents, safe for money</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>
