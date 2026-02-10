@@ -28,8 +28,8 @@ const FAQ_DATA = [
     a: 'You can require n-of-m approval for any action. For example, require 2-of-3 team members to approve withdrawals over $1,000 while letting the AI handle smaller transactions autonomously. Approval flows are configurable per secret and per action type.',
   },
   {
-    q: 'Is there a free plan?',
-    a: 'Yes. The Starter plan is free and includes 3 secrets and 5 policy rules. You can also use the skills.md file with your own agent at no cost. Upgrade to Pro or Team when you need more secrets, team members, or advanced features.',
+    q: 'Is there a free trial?',
+    a: 'Yes. Every hosted agent comes with a 7-day free trial and $25 of free LLM credit to get started. You can also use the skills.md file with your own agent at no cost.',
   },
 ];
 
@@ -177,49 +177,18 @@ export default function Landing() {
             <div className="section-label">Pricing</div>
             <h2>Start free, scale when ready</h2>
           </div>
-          <div className="pricing-grid">
-            <div className="pricing-card">
-              <h3>Starter</h3>
-              <div className="pricing-card__price">Free</div>
-              <div className="pricing-card__desc">No credit card required</div>
-              <ul className="pricing-card__features">
-                <li><CheckSvg /> 3 secrets</li>
-                <li><CheckSvg /> 5 policy rules</li>
-                <li><CheckSvg /> Single user</li>
-                <li><CheckSvg /> Community support</li>
-                <li><CheckSvg /> 7-day audit log</li>
-              </ul>
-              <Link className="btn btn-secondary" to="/login">Get Started</Link>
-            </div>
+          <div style={{ maxWidth: 420, margin: '0 auto' }}>
             <div className="pricing-card pricing-card--featured">
-              <div className="pricing-card__badge">Most Popular</div>
-              <h3>Pro</h3>
-              <div className="pricing-card__price">$29<span>/mo</span></div>
-              <div className="pricing-card__desc">Billed monthly</div>
+              <div className="pricing-card__price">$25<span>/mo</span></div>
+              <div className="pricing-card__desc">Per hosted agent, billed monthly</div>
               <ul className="pricing-card__features">
-                <li><CheckSvg /> 25 secrets</li>
-                <li><CheckSvg /> Unlimited policies</li>
-                <li><CheckSvg /> Up to 5 team members</li>
+                <li><CheckSvg /> 7-day free trial</li>
+                <li><CheckSvg /> 1 fully hosted agent</li>
+                <li><CheckSvg /> $25 free LLM credit to start</li>
                 <li><CheckSvg /> Priority support</li>
-                <li><CheckSvg /> 90-day audit log</li>
-                <li><CheckSvg /> Custom roles</li>
+                <li><CheckSvg /> LLM API fees not included</li>
               </ul>
               <Link className="btn btn-primary" to="/login">Start Free Trial</Link>
-            </div>
-            <div className="pricing-card">
-              <h3>Team</h3>
-              <div className="pricing-card__price">$99<span>/mo</span></div>
-              <div className="pricing-card__desc">Billed monthly</div>
-              <ul className="pricing-card__features">
-                <li><CheckSvg /> Unlimited secrets</li>
-                <li><CheckSvg /> Unlimited policies</li>
-                <li><CheckSvg /> Unlimited members</li>
-                <li><CheckSvg /> Dedicated support</li>
-                <li><CheckSvg /> 1-year audit log</li>
-                <li><CheckSvg /> SSO / SAML</li>
-                <li><CheckSvg /> Custom integrations</li>
-              </ul>
-              <Link className="btn btn-secondary" to="/login">Contact Sales</Link>
             </div>
           </div>
         </div>
