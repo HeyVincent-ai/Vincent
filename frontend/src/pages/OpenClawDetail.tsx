@@ -422,43 +422,50 @@ export default function OpenClawDetail() {
         {deployment.readyAt && <span>Ready: {new Date(deployment.readyAt).toLocaleString()}</span>}
       </div>
 
-      {/* Usage card (when active) */}
+      {/* Usage card + channels tip (when active) */}
       {isActive && usage && (
-        <div className="bg-white rounded-lg border p-4 mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-gray-700">LLM Credits</h3>
-            <button
-              onClick={() => setShowCreditsModal(true)}
-              className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
-            >
-              Add Credits
-            </button>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-            <div
-              className={`h-2.5 rounded-full ${usage.remainingUsd <= 0 ? 'bg-red-500' : usage.remainingUsd < 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
-              style={{
-                width: `${Math.min(100, (usage.totalUsageUsd / usage.creditBalanceUsd) * 100)}%`,
-              }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-gray-500">
-            <span>Used: ${usage.totalUsageUsd.toFixed(2)}</span>
-            <span>
-              ${usage.remainingUsd.toFixed(2)} remaining of ${usage.creditBalanceUsd.toFixed(2)}
-            </span>
-          </div>
-          {(usage.usageDailyUsd > 0 || usage.usageMonthlyUsd > 0) && (
-            <div className="flex gap-4 mt-2 text-xs text-gray-400">
-              <span>Today: ${usage.usageDailyUsd.toFixed(2)}</span>
-              <span>This month: ${usage.usageMonthlyUsd.toFixed(2)}</span>
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="bg-white rounded-lg border p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-medium text-gray-700">LLM Credits</h3>
+              <button
+                onClick={() => setShowCreditsModal(true)}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors"
+              >
+                Add Credits
+              </button>
             </div>
-          )}
-          {usage.remainingUsd <= 0 && (
-            <p className="text-xs text-red-600 mt-2 font-medium">
-              Credits exhausted — add more to continue using LLM features.
+            <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+              <div
+                className={`h-2.5 rounded-full ${usage.remainingUsd <= 0 ? 'bg-red-500' : usage.remainingUsd < 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                style={{
+                  width: `${Math.min(100, (usage.totalUsageUsd / usage.creditBalanceUsd) * 100)}%`,
+                }}
+              />
+            </div>
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Used: ${usage.totalUsageUsd.toFixed(2)}</span>
+              <span>
+                ${usage.remainingUsd.toFixed(2)} remaining of ${usage.creditBalanceUsd.toFixed(2)}
+              </span>
+            </div>
+            {(usage.usageDailyUsd > 0 || usage.usageMonthlyUsd > 0) && (
+              <div className="flex gap-4 mt-2 text-xs text-gray-400">
+                <span>Today: ${usage.usageDailyUsd.toFixed(2)}</span>
+                <span>This month: ${usage.usageMonthlyUsd.toFixed(2)}</span>
+              </div>
+            )}
+            {usage.remainingUsd <= 0 && (
+              <p className="text-xs text-red-600 mt-2 font-medium">
+                Credits exhausted — add more to continue using LLM features.
+              </p>
+            )}
+          </div>
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center">
+            <p className="text-sm text-blue-800">
+              Ask your agent to set up communication over a channel that's convenient for you, like Telegram, Discord, or Slack.
             </p>
-          )}
+          </div>
         </div>
       )}
 
