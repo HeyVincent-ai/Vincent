@@ -307,6 +307,10 @@ npx --yes clawhub@latest install agentwallet || true
 npx --yes clawhub@latest install vincentpolymarket || true
 
 echo "=== [5/8] Configuring OpenClaw ==="
+# Always set the OpenRouter API key via env config — onboard may have been
+# skipped if the installer already created a config file (e.g. via doctor).
+openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
+
 # Set model (agents.defaults.model is an object with "primary" key)
 openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-flash-preview"}'
 
