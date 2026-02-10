@@ -277,7 +277,7 @@ export DEBIAN_FRONTEND=noninteractive
 echo "STARTED" > /root/.openclaw-setup-started
 
 echo "=== [1/8] System update ==="
-apt-get update -qq
+apt-get update -qq || true
 apt-get install -y -qq curl caddy ufw python3
 
 echo "=== [2/8] Running OpenClaw installer ==="
@@ -420,6 +420,7 @@ sleep 10
 # Extract access token and write marker files
 ACCESS_TOKEN=\$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
 echo "\${ACCESS_TOKEN}" > /root/.openclaw-setup-token
+rm -f /root/.openclaw-setup-error
 echo "COMPLETE" > /root/.openclaw-setup-complete
 
 echo "=== Setup complete ==="`;
@@ -480,22 +481,8 @@ async function pollSetupCompletion(
   while (Date.now() < deadline) {
     await sleep(SETUP_POLL_INTERVAL_MS);
 
-    // Check for error first
-    try {
-      const errorResult = await sshExec(
-        host, username, privateKey,
-        'sudo cat /root/.openclaw-setup-error 2>/dev/null',
-        15_000
-      );
-      if (errorResult.stdout.trim()) {
-        throw new Error(`Setup script failed: ${errorResult.stdout.trim()}`);
-      }
-    } catch (err: any) {
-      if (err.message?.startsWith('Setup script failed:')) throw err;
-      // SSH error — transient, will retry
-    }
-
-    // Check for completion
+    // Check for completion first — a transient error (e.g. apt-get update)
+    // may write the error marker even though the script recovers and finishes.
     try {
       const completeResult = await sshExec(
         host, username, privateKey,
@@ -514,6 +501,21 @@ async function pollSetupCompletion(
         return token;
       }
     } catch {
+      // SSH error — transient, will retry
+    }
+
+    // Check for error (only if not complete)
+    try {
+      const errorResult = await sshExec(
+        host, username, privateKey,
+        'sudo cat /root/.openclaw-setup-error 2>/dev/null',
+        15_000
+      );
+      if (errorResult.stdout.trim()) {
+        throw new Error(`Setup script failed: ${errorResult.stdout.trim()}`);
+      }
+    } catch (err: any) {
+      if (err.message?.startsWith('Setup script failed:')) throw err;
       // SSH error — transient, will retry
     }
 
