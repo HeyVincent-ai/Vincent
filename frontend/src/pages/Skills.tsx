@@ -167,7 +167,7 @@ export default function Skills() {
 
       <div className="skills-page">
         {/* Page Hero */}
-        <section className="page-hero">
+        <section className="page-hero" style={{ paddingBottom: '1.5rem' }}>
           <div className="container">
             <div className="section-label">Skills</div>
             <h1>Give your agent a key it can't leak.</h1>
@@ -175,7 +175,7 @@ export default function Skills() {
           </div>
         </section>
 
-        <section className="section">
+        <section className="section" style={{ paddingTop: '2rem' }}>
           <div className="container" style={{ maxWidth: 860 }}>
             {/* Persona Toggle */}
             <div className="personaToggle">
