@@ -1,7 +1,6 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
-import * as openclawService from '../services/openclaw.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -191,6 +190,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   if (checkoutType === 'openclaw' && deploymentId) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
+    const openclawService = await import('../services/openclaw.service.js');
     await openclawService.startProvisioning(
       deploymentId,
       stripeSubscription.id,
@@ -272,6 +272,7 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
   if (openclawDeployment) {
     console.log(`[stripe] OpenClaw subscription deleted for deployment ${openclawDeployment.id}`);
+    const openclawService = await import('../services/openclaw.service.js');
     await openclawService.handleSubscriptionExpired(subscription.id);
     return;
   }

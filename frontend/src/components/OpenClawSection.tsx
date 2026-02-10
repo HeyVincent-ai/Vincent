@@ -68,13 +68,11 @@ export default function OpenClawSection() {
   // Handle return from Stripe Checkout
   useEffect(() => {
     const deploySuccess = searchParams.get('openclaw_deploy');
-    const deploymentId = searchParams.get('openclaw_deployment_id');
-    if (deploySuccess === 'success' && deploymentId) {
+    if (deploySuccess === 'success') {
       // Clean up URL params
       searchParams.delete('openclaw_deploy');
-      searchParams.delete('openclaw_deployment_id');
       setSearchParams(searchParams, { replace: true });
-      // Poll for this specific deployment
+      // Refresh deployments list
       load();
     }
   }, [searchParams, setSearchParams, load]);
@@ -95,7 +93,7 @@ export default function OpenClawSection() {
     try {
       const currentUrl = window.location.origin + window.location.pathname;
       const res = await deployOpenClaw(
-        `${currentUrl}?openclaw_deploy=success&openclaw_deployment_id={CHECKOUT_SESSION_ID}`,
+        `${currentUrl}?openclaw_deploy=success`,
         `${currentUrl}?openclaw_deploy=canceled`
       );
       const { checkoutUrl } = res.data.data;

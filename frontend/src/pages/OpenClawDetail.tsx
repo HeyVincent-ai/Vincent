@@ -268,13 +268,10 @@ export default function OpenClawDetail() {
   ].includes(deployment.status);
   const currentStep = stepIndex(deployment.status);
   const isActive = deployment.status === 'READY' || deployment.status === 'CANCELING';
-  const iframeUrl = deployment.accessToken
-    ? deployment.hostname
+  const iframeUrl =
+    deployment.accessToken && deployment.hostname
       ? `https://${deployment.hostname}?token=${deployment.accessToken}`
-      : deployment.ipAddress
-        ? `http://${deployment.ipAddress}?token=${deployment.accessToken}`
-        : null
-    : null;
+      : null;
 
   return (
     <div>
@@ -463,7 +460,8 @@ export default function OpenClawDetail() {
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center">
             <p className="text-sm text-blue-800">
-              Ask your agent to set up communication over a channel that's convenient for you, like Telegram, Discord, or Slack.
+              Ask your agent to set up communication over a channel that's convenient for you, like
+              Telegram, Discord, or Slack.
             </p>
           </div>
         </div>
