@@ -28,7 +28,9 @@ export default function Claim() {
       setStatus('success');
       setTimeout(() => navigate(`/secrets/${id}`), 2000);
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Failed to claim secret';
+      const msg =
+        (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error
+          ?.message || 'Failed to claim secret';
       setError(msg);
       setStatus('error');
     }
@@ -43,13 +45,18 @@ export default function Claim() {
           <a
             href="/login"
             onClick={() => {
-              localStorage.setItem('pendingClaim', JSON.stringify({
-                url: window.location.pathname + window.location.search,
-                expiresAt: Date.now() + 15 * 60 * 1000,
-              }));
+              localStorage.setItem(
+                'pendingClaim',
+                JSON.stringify({
+                  url: window.location.pathname + window.location.search,
+                  expiresAt: Date.now() + 15 * 60 * 1000,
+                })
+              );
             }}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 inline-block"
-          >Sign In</a>
+          >
+            Sign In
+          </a>
         </div>
       </div>
     );
@@ -71,7 +78,9 @@ export default function Claim() {
         ) : (
           <>
             <h2 className="text-xl font-semibold mb-2">Claim Secret</h2>
-            <p className="text-gray-600 mb-4">You are about to claim ownership of this secret as <strong>{user.email}</strong>.</p>
+            <p className="text-gray-600 mb-4">
+              You are about to claim ownership of this secret as <strong>{user.email}</strong>.
+            </p>
             <button
               onClick={handleClaim}
               disabled={status === 'claiming'}

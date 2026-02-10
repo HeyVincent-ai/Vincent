@@ -6,6 +6,7 @@ import { createApp } from './app.js';
 import { env } from './utils/env.js';
 import prisma from './db/client.js';
 import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram/index.js';
+import { startUsagePoller, stopUsagePoller, startHardeningWorker, stopHardeningWorker, resumeInterruptedDeployments } from './services/openclaw.service.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {
@@ -29,18 +30,30 @@ async function main() {
   await startBot();
   startTimeoutChecker();
 
+  // Start OpenClaw background workers
+  startUsagePoller();
+  startHardeningWorker();
+
   // Start server
   const server = app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
     console.log(`Environment: ${env.NODE_ENV}`);
     console.log(`Health check: http://localhost:${env.PORT}/health`);
+
+    // Resume interrupted deployments after startup (runs in background)
+    resumeInterruptedDeployments().catch((err) => {
+      console.error('[openclaw] Failed to resume interrupted deployments:', err);
+    });
   });
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`${signal} received, shutting down gracefully...`);
+    console.log('[openclaw] In-flight deployments will be resumed by the next instance');
 
     stopTimeoutChecker();
+    stopUsagePoller();
+    stopHardeningWorker();
     await stopBot();
 
     server.close(async () => {

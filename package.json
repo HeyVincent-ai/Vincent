@@ -63,6 +63,7 @@
   },
   "dependencies": {
     "@noble/curves": "^2.0.1",
+    "@ovhcloud/node-ovh": "^3.0.0",
     "@polymarket/builder-relayer-client": "^0.0.8",
     "@polymarket/clob-client": "^5.2.1",
     "@prisma/client": "^5.22.0",
@@ -80,6 +81,8 @@
     "helmet": "^8.1.0",
     "https-proxy-agent": "^7.0.6",
     "prisma": "^5.22.0",
+    "resend": "^6.9.1",
+    "ssh2": "^1.17.0",
     "stripe": "^20.3.0",
     "stytch": "^13.1.0",
     "tweetnacl": "^1.0.3",

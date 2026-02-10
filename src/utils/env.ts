@@ -27,6 +27,7 @@ const envSchema = z.object({
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
+  STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
@@ -79,6 +80,18 @@ const envSchema = z.object({
 
   // Webshare Proxy (for geo-restricted API calls like Polymarket)
   WEBSHARE_API_KEY: z.string().optional(),
+
+  // OVH API (for OpenClaw VPS provisioning)
+  OVH_APP_KEY: z.string().optional(),
+  OVH_APP_SECRET: z.string().optional(),
+  OVH_CONSUMER_KEY: z.string().optional(),
+  OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+
+  // OpenRouter Provisioning Key (for per-deployment API key management)
+  OPENROUTER_PROVISIONING_KEY: z.string().optional(),
+
+  // Resend (email notifications)
+  RESEND_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

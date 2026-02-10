@@ -1,14 +1,15 @@
 import { Router } from 'express';
-import secretsRouter from './secrets.routes';
-import apiKeysRouter from './apiKeys.routes';
-import policiesRouter from './policies.routes';
-import authRouter from './auth.routes';
-import userRouter from './user.routes';
-import evmWalletRouter from './evmWallet.routes';
-import polymarketRouter from './polymarket.routes';
-import rawSignerRouter from './rawSigner.routes';
-import billingRouter from './billing.routes';
-import auditLogsRouter from './auditLogs.routes';
+import secretsRouter from './secrets.routes.js';
+import apiKeysRouter from './apiKeys.routes.js';
+import policiesRouter from './policies.routes.js';
+import authRouter from './auth.routes.js';
+import userRouter from './user.routes.js';
+import evmWalletRouter from './evmWallet.routes.js';
+import polymarketRouter from './polymarket.routes.js';
+import rawSignerRouter from './rawSigner.routes.js';
+import billingRouter from './billing.routes.js';
+import auditLogsRouter from './auditLogs.routes.js';
+import openclawRouter from './openclaw.routes.js';
 import ownershipRouter from './ownership.routes';
 
 const router = Router();
@@ -25,5 +26,6 @@ router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
 router.use('/billing', billingRouter); // Billing & subscription endpoints
+router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
 
 export default router;
