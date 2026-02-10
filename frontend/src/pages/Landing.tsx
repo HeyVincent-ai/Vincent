@@ -5,7 +5,7 @@ import PageShell, { CheckSvg, ChevronDown } from '../components/PageShell';
 const FAQ_DATA = [
   {
     q: 'What is Vincent?',
-    a: 'Vincent deploys self-improving AI agents that can safely handle money and APIs on your behalf. Each agent runs on the OpenClawd runtime and comes with an airgapped secret manager \u2014 so your credentials are never exposed, even if the AI is compromised.',
+    a: 'Vincent deploys self-improving AI agents that can safely handle money and APIs on your behalf. Each agent runs on the OpenClaw runtime and comes with an airgapped secret manager \u2014 so your credentials are never exposed, even if the AI is compromised.',
   },
   {
     q: 'What makes Vincent agents self-improving?',
@@ -91,7 +91,7 @@ export default function Landing() {
               <div className="step__number">01</div>
               <h3>Deploy your agent</h3>
               <p>
-                Launch a hosted AI agent in one click. It comes pre-configured with the OpenClawd
+                Launch a hosted AI agent in one click. It comes pre-configured with the OpenClaw
                 runtime and the airgapped secret vault.
               </p>
             </div>
