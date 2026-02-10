@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
-import Layout from './components/Layout';
+import Layout, { FullWidthLayout } from './components/Layout';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
@@ -37,6 +37,8 @@ function AppRoutes() {
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      </Route>
+      <Route element={<FullWidthLayout />}>
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
       </Route>
     </Routes>

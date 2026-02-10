@@ -9,6 +9,7 @@
  * POST   /api/openclaw/deployments/:id/restart  → Restart OpenClaw
  * POST   /api/openclaw/deployments/:id/retry    → Retry failed deployment
  * POST   /api/openclaw/deployments/:id/reprovision → Reinstall OpenClaw on existing VPS
+ * GET    /api/openclaw/deployments/:id/ssh-key  → Download SSH private key
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
  * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits
  */
@@ -194,6 +195,28 @@ router.post('/deployments/:id/reprovision', async (req: AuthenticatedRequest, re
       return res.status(400).json({ success: false, error: error.message });
     }
     console.error('OpenClaw reprovision error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/ssh-key
+ * Download the SSH private key for the deployment's VPS.
+ */
+router.get('/deployments/:id/ssh-key', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) {
+      return errors.notFound(res, 'Deployment');
+    }
+    if (!deployment.sshPrivateKey) {
+      return res.status(400).json({ success: false, error: 'No SSH key available for this deployment' });
+    }
+    res.setHeader('Content-Type', 'application/x-pem-file');
+    res.setHeader('Content-Disposition', `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`);
+    res.send(deployment.sshPrivateKey);
+  } catch (error: any) {
+    console.error('OpenClaw ssh-key error:', error);
     errors.internal(res, error.message);
   }
 });

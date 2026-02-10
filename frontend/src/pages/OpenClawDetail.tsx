@@ -7,6 +7,7 @@ import {
   restartOpenClawDeployment,
   retryOpenClawDeployment,
   reprovisionOpenClawDeployment,
+  downloadOpenClawSshKey,
   getOpenClawUsage,
   addOpenClawCredits,
 } from '../api';
@@ -75,6 +76,7 @@ export default function OpenClawDetail() {
   const [creditAmount, setCreditAmount] = useState('10');
   const [creditLoading, setCreditLoading] = useState(false);
   const [creditError, setCreditError] = useState<string | null>(null);
+  const [showDevModal, setShowDevModal] = useState(false);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -164,6 +166,22 @@ export default function OpenClawDetail() {
       setError('Failed to reprovision');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleDownloadSshKey = async () => {
+    if (!id) return;
+    try {
+      const res = await downloadOpenClawSshKey(id);
+      const blob = new Blob([res.data], { type: 'application/x-pem-file' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `openclaw-${id.slice(-8)}.pem`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError('Failed to download SSH key');
     }
   };
 
@@ -263,6 +281,14 @@ export default function OpenClawDetail() {
             >
               {actionLoading === 'reprovision' ? 'Reprovisioning...' : 'Reprovision'}
             </button>
+            {deployment.ipAddress && (
+              <button
+                onClick={() => setShowDevModal(true)}
+                className="text-sm border border-gray-300 px-3 py-1.5 rounded hover:bg-gray-50 transition-colors"
+              >
+                Developer
+              </button>
+            )}
             {deployment.status === 'READY' && deployment.stripeSubscriptionId && (
               <button
                 onClick={() => setShowCancelConfirm(true)}
@@ -435,6 +461,63 @@ export default function OpenClawDetail() {
                 className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
               >
                 {creditLoading ? 'Charging...' : `Add $${parseFloat(creditAmount) || 0} Credits`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Developer Mode Modal */}
+      {showDevModal && deployment.ipAddress && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDevModal(false)}>
+          <div className="bg-white rounded-lg p-6 w-[32rem] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold mb-4">Developer Access</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              SSH into your VPS to inspect logs, debug issues, or make manual changes.
+            </p>
+            <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
+              <div>
+                <p className="text-xs text-gray-500 mb-1">1. Download your SSH key</p>
+                <button
+                  onClick={handleDownloadSshKey}
+                  className="text-sm bg-gray-800 text-white px-4 py-1.5 rounded hover:bg-gray-900 transition-colors"
+                >
+                  Download SSH Key (.pem)
+                </button>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">2. Set permissions (run once)</p>
+                <code className="block text-sm bg-white border rounded px-3 py-2 font-mono text-gray-800 select-all">
+                  chmod 600 openclaw-{deployment.id.slice(-8)}.pem
+                </code>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">3. Connect via SSH</p>
+                <code className="block text-sm bg-white border rounded px-3 py-2 font-mono text-gray-800 select-all">
+                  ssh -i openclaw-{deployment.id.slice(-8)}.pem debian@{deployment.ipAddress}
+                </code>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 mb-1">Useful commands</p>
+                <div className="space-y-1">
+                  <code className="block text-xs bg-white border rounded px-2 py-1 font-mono text-gray-700 select-all">
+                    sudo journalctl -u openclaw-gateway -f
+                  </code>
+                  <code className="block text-xs bg-white border rounded px-2 py-1 font-mono text-gray-700 select-all">
+                    sudo systemctl restart openclaw-gateway
+                  </code>
+                  <code className="block text-xs bg-white border rounded px-2 py-1 font-mono text-gray-700 select-all">
+                    sudo cat /root/.openclaw/openclaw.json
+                  </code>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={() => setShowDevModal(false)}
+                className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700"
+              >
+                Close
               </button>
             </div>
           </div>
