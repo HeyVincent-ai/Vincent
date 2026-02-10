@@ -10,6 +10,9 @@ import {
   downloadOpenClawSshKey,
   getOpenClawUsage,
   addOpenClawCredits,
+  getOpenClawChannels,
+  setupOpenClawTelegram,
+  pairOpenClawTelegram,
 } from '../api';
 
 interface Deployment {
@@ -77,6 +80,14 @@ export default function OpenClawDetail() {
   const [creditLoading, setCreditLoading] = useState(false);
   const [creditError, setCreditError] = useState<string | null>(null);
   const [showDevModal, setShowDevModal] = useState(false);
+  const [telegramConfigured, setTelegramConfigured] = useState<boolean | null>(null);
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [telegramStep, setTelegramStep] = useState<1 | 2>(1);
+  const [botToken, setBotToken] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [telegramError, setTelegramError] = useState<string | null>(null);
+  const [gatewayRestarting, setGatewayRestarting] = useState(false);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -117,6 +128,25 @@ export default function OpenClawDetail() {
       .catch(() => {});
   }, [id, deployment?.status]);
 
+  // Check Telegram channel status when deployment is active
+  useEffect(() => {
+    if (!id || !deployment) return;
+    if (!['READY', 'CANCELING'].includes(deployment.status)) return;
+    getOpenClawChannels(id)
+      .then((res) => setTelegramConfigured(res.data.data.telegram.configured))
+      .catch(() => setTelegramConfigured(false));
+  }, [id, deployment?.status]);
+
+  // Auto-pop Telegram modal on first visit to this deployment
+  useEffect(() => {
+    if (!id || telegramConfigured === null || telegramConfigured) return;
+    const key = `telegram-modal-shown-${id}`;
+    if (!localStorage.getItem(key)) {
+      localStorage.setItem(key, '1');
+      setShowTelegramModal(true);
+    }
+  }, [id, telegramConfigured]);
+
   const handleAddCredits = async () => {
     if (!id) return;
     const amount = parseFloat(creditAmount);
@@ -146,6 +176,59 @@ export default function OpenClawDetail() {
       setCreditError(msg || 'Failed to add credits');
     } finally {
       setCreditLoading(false);
+    }
+  };
+
+  const handleTelegramSetup = async () => {
+    if (!id || !botToken.trim()) return;
+    setTelegramLoading(true);
+    setTelegramError(null);
+    try {
+      await setupOpenClawTelegram(id, botToken.trim());
+      setGatewayRestarting(true);
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          await getOpenClawChannels(id);
+          clearInterval(poll);
+          setGatewayRestarting(false);
+          setTelegramStep(2);
+          setTelegramLoading(false);
+        } catch {
+          if (attempts >= 20) {
+            clearInterval(poll);
+            setGatewayRestarting(false);
+            setTelegramStep(2);
+            setTelegramLoading(false);
+          }
+        }
+      }, 3000);
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
+      setTelegramError(msg || 'Failed to configure Telegram bot');
+      setTelegramLoading(false);
+    }
+  };
+
+  const handleTelegramPair = async () => {
+    if (!id || !pairingCode.trim()) return;
+    setTelegramLoading(true);
+    setTelegramError(null);
+    try {
+      await pairOpenClawTelegram(id, pairingCode.trim());
+      setTelegramConfigured(true);
+      setShowTelegramModal(false);
+      setTelegramStep(1);
+      setBotToken('');
+      setPairingCode('');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
+      setTelegramError(msg || 'Failed to approve pairing code');
+    } finally {
+      setTelegramLoading(false);
     }
   };
 
@@ -439,12 +522,32 @@ export default function OpenClawDetail() {
               </p>
             )}
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center">
-            <p className="text-sm text-blue-800">
-              Ask your agent to set up communication over a channel that's convenient for you, like
-              Telegram, Discord, or Slack.
-            </p>
-          </div>
+          {telegramConfigured ? (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+              <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <p className="text-sm text-green-800">
+                Telegram is connected. Message your bot to chat with your agent.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between">
+              <p className="text-sm text-blue-800">
+                Connect Telegram to chat with your agent from your phone.
+              </p>
+              <button
+                onClick={() => {
+                  setTelegramStep(1);
+                  setTelegramError(null);
+                  setShowTelegramModal(true);
+                }}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors flex-shrink-0 ml-3"
+              >
+                Set up Telegram
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -493,6 +596,112 @@ export default function OpenClawDetail() {
               >
                 {creditLoading ? 'Charging...' : `Add $${parseFloat(creditAmount) || 0} Credits`}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Telegram Setup Modal */}
+      {showTelegramModal && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => {
+            if (!telegramLoading) {
+              setShowTelegramModal(false);
+              setTelegramError(null);
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-[28rem] max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-1">Set up Telegram</h3>
+            <p className="text-xs text-gray-500 mb-4">Step {telegramStep} of 2</p>
+
+            {telegramStep === 1 && (
+              <>
+                <p className="text-sm text-gray-600 mb-3">
+                  Create a Telegram bot via{' '}
+                  <a
+                    href="https://t.me/BotFather"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800 underline"
+                  >
+                    @BotFather
+                  </a>{' '}
+                  and paste the bot token below.
+                </p>
+                <input
+                  type="text"
+                  value={botToken}
+                  onChange={(e) => setBotToken(e.target.value)}
+                  placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                  className="border rounded px-3 py-2 w-full text-sm font-mono mb-4"
+                  disabled={telegramLoading}
+                />
+                {gatewayRestarting && (
+                  <div className="flex items-center gap-2 text-sm text-blue-700 mb-3">
+                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Gateway restarting...
+                  </div>
+                )}
+              </>
+            )}
+
+            {telegramStep === 2 && (
+              <>
+                <p className="text-sm text-gray-600 mb-2">
+                  Open Telegram and send any message to your bot. It will reply with a pairing code.
+                </p>
+                <p className="text-sm text-gray-600 mb-3">
+                  Enter the pairing code below to link your Telegram account.
+                </p>
+                <input
+                  type="text"
+                  value={pairingCode}
+                  onChange={(e) => setPairingCode(e.target.value)}
+                  placeholder="ABCD-1234"
+                  className="border rounded px-3 py-2 w-full text-sm font-mono mb-4"
+                  disabled={telegramLoading}
+                />
+              </>
+            )}
+
+            {telegramError && <p className="text-sm text-red-600 mb-3">{telegramError}</p>}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowTelegramModal(false);
+                  setTelegramError(null);
+                }}
+                disabled={telegramLoading}
+                className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              {telegramStep === 1 ? (
+                <button
+                  onClick={handleTelegramSetup}
+                  disabled={telegramLoading || !botToken.trim()}
+                  className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {telegramLoading ? 'Configuring...' : 'Configure Bot'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleTelegramPair}
+                  disabled={telegramLoading || !pairingCode.trim()}
+                  className="text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {telegramLoading ? 'Pairing...' : 'Approve Pairing'}
+                </button>
+              )}
             </div>
           </div>
         </div>

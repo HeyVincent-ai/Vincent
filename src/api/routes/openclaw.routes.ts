@@ -12,6 +12,9 @@
  * GET    /api/openclaw/deployments/:id/ssh-key  → Download SSH private key
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
  * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits
+ * GET    /api/openclaw/deployments/:id/channels → Check configured channels
+ * POST   /api/openclaw/deployments/:id/telegram/setup → Configure Telegram bot token
+ * POST   /api/openclaw/deployments/:id/telegram/pair  → Approve Telegram pairing code
  */
 
 import { Router, Response } from 'express';
@@ -264,6 +267,91 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw credits error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+// ── Telegram Channel Setup ──────────────────────────────────
+
+/**
+ * GET /api/openclaw/deployments/:id/channels
+ * Check which channels are configured on the deployment.
+ */
+router.get('/deployments/:id/channels', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const channels = await openclawService.getChannelStatus(req.params.id as string, req.user!.id);
+    sendSuccess(res, channels);
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw channels error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+const telegramSetupSchema = z.object({
+  botToken: z.string().min(20).max(100),
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/telegram/setup
+ * Configure Telegram bot token and restart gateway.
+ */
+router.post('/deployments/:id/telegram/setup', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = telegramSetupSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return errors.validation(res, parsed.error.format());
+  }
+
+  try {
+    await openclawService.configureTelegramBot(
+      req.params.id as string,
+      req.user!.id,
+      parsed.data.botToken
+    );
+    sendSuccess(res, { message: 'Telegram bot configured and gateway restarting' });
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    if (error.message.includes('Invalid')) {
+      return errors.badRequest(res, error.message);
+    }
+    console.error('OpenClaw telegram setup error:', error);
+    errors.internal(res, error.message);
+  }
+});
+
+const telegramPairSchema = z.object({
+  code: z.string().min(1).max(50),
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/telegram/pair
+ * Approve a Telegram pairing code.
+ */
+router.post('/deployments/:id/telegram/pair', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = telegramPairSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return errors.validation(res, parsed.error.format());
+  }
+
+  try {
+    const result = await openclawService.approveTelegramPairing(
+      req.params.id as string,
+      req.user!.id,
+      parsed.data.code
+    );
+    sendSuccess(res, result);
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    if (error.message.includes('Invalid')) {
+      return errors.badRequest(res, error.message);
+    }
+    console.error('OpenClaw telegram pair error:', error);
     errors.internal(res, error.message);
   }
 });
