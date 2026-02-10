@@ -287,7 +287,7 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">Pricing</div>
-            <h2>Start free, scale when ready</h2>
+            <h2>Start free</h2>
           </div>
           <div style={{ maxWidth: 420, margin: '0 auto' }}>
             <div className="pricing-card pricing-card--featured">
