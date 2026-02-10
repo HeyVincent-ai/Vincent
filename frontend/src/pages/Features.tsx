@@ -306,7 +306,7 @@ export default function Features() {
               </p>
               <ul>
                 <li>
-                  <CheckSvg /> Full access to the OpenClawd runtime
+                  <CheckSvg /> Full access to the OpenClaw runtime
                 </li>
                 <li>
                   <CheckSvg /> Install community skills and connectors
