@@ -696,8 +696,8 @@ export async function deploy(
     customer: customerId,
     mode: 'subscription',
     payment_method_types: ['card'],
-    payment_method_collection: 'if_required',
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
+    subscription_data: { trial_period_days: 7 },
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {

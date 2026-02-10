@@ -96,7 +96,13 @@ export default function OpenClawDetail() {
   // Poll while in progress
   useEffect(() => {
     if (!deployment) return;
-    const inProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
+    const inProgress = [
+      'PENDING_PAYMENT',
+      'PENDING',
+      'ORDERING',
+      'PROVISIONING',
+      'INSTALLING',
+    ].includes(deployment.status);
     if (!inProgress) return;
     const timer = setInterval(load, 5000);
     return () => clearInterval(timer);
@@ -135,8 +141,8 @@ export default function OpenClawDetail() {
           .catch(() => {});
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message;
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
       setCreditError(msg || 'Failed to add credits');
     } finally {
       setCreditLoading(false);
@@ -217,8 +223,20 @@ export default function OpenClawDetail() {
     return (
       <div className="flex items-center gap-2 text-gray-400 text-sm py-8">
         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
         Loading deployment...
       </div>
@@ -229,7 +247,10 @@ export default function OpenClawDetail() {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
         {error}
-        <button onClick={() => navigate('/dashboard')} className="ml-3 text-red-600 hover:text-red-800 font-medium underline">
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="ml-3 text-red-600 hover:text-red-800 font-medium underline"
+        >
           Back to Dashboard
         </button>
       </div>
@@ -238,7 +259,13 @@ export default function OpenClawDetail() {
 
   if (!deployment) return null;
 
-  const isInProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(deployment.status);
+  const isInProgress = [
+    'PENDING_PAYMENT',
+    'PENDING',
+    'ORDERING',
+    'PROVISIONING',
+    'INSTALLING',
+  ].includes(deployment.status);
   const currentStep = stepIndex(deployment.status);
   const isActive = deployment.status === 'READY' || deployment.status === 'CANCELING';
   const iframeUrl = deployment.accessToken
@@ -261,7 +288,9 @@ export default function OpenClawDetail() {
             &larr; Dashboard
           </button>
           <h1 className="text-2xl font-bold">Agent</h1>
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[deployment.status] || 'bg-gray-100 text-gray-600'}`}>
+          <span
+            className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[deployment.status] || 'bg-gray-100 text-gray-600'}`}
+          >
             {deployment.status}
           </span>
         </div>
@@ -316,13 +345,12 @@ export default function OpenClawDetail() {
       {/* Cancel confirmation */}
       {showCancelConfirm && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
-          <p className="text-sm text-orange-800 font-medium mb-2">
-            Cancel your subscription?
-          </p>
+          <p className="text-sm text-orange-800 font-medium mb-2">Cancel your subscription?</p>
           <p className="text-sm text-orange-700 mb-3">
             Your instance will remain active until the end of your billing period
-            {deployment.currentPeriodEnd && ` (${new Date(deployment.currentPeriodEnd).toLocaleDateString()})`}.
-            After that, it will be automatically destroyed.
+            {deployment.currentPeriodEnd &&
+              ` (${new Date(deployment.currentPeriodEnd).toLocaleDateString()})`}
+            . After that, it will be automatically destroyed.
           </p>
           <div className="flex gap-2">
             <button
@@ -349,7 +377,8 @@ export default function OpenClawDetail() {
             Are you sure you want to destroy this instance?
           </p>
           <p className="text-sm text-red-700 mb-3">
-            This will immediately terminate your agent, cancel your subscription, and revoke the API key. This cannot be undone.
+            This will immediately terminate your agent, cancel your subscription, and revoke the API
+            key. This cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
@@ -372,22 +401,25 @@ export default function OpenClawDetail() {
       {/* Canceling banner */}
       {deployment.status === 'CANCELING' && deployment.currentPeriodEnd && (
         <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-sm text-orange-700">
-          Subscription canceled. Instance active until {new Date(deployment.currentPeriodEnd).toLocaleDateString()}.
+          Subscription canceled. Instance active until{' '}
+          {new Date(deployment.currentPeriodEnd).toLocaleDateString()}.
         </div>
       )}
 
       {/* Info bar */}
       <div className="bg-white rounded-lg border p-3 mb-4 flex items-center gap-4 text-sm text-gray-500">
         {deployment.hostname && (
-          <span>Host: <code className="font-mono text-gray-700">{deployment.hostname}</code></span>
+          <span>
+            Host: <code className="font-mono text-gray-700">{deployment.hostname}</code>
+          </span>
         )}
         {deployment.ipAddress && (
-          <span>IP: <code className="font-mono text-gray-700">{deployment.ipAddress}</code></span>
+          <span>
+            IP: <code className="font-mono text-gray-700">{deployment.ipAddress}</code>
+          </span>
         )}
         <span>Created: {new Date(deployment.createdAt).toLocaleString()}</span>
-        {deployment.readyAt && (
-          <span>Ready: {new Date(deployment.readyAt).toLocaleString()}</span>
-        )}
+        {deployment.readyAt && <span>Ready: {new Date(deployment.readyAt).toLocaleString()}</span>}
       </div>
 
       {/* Usage card (when active) */}
@@ -405,12 +437,16 @@ export default function OpenClawDetail() {
           <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
             <div
               className={`h-2.5 rounded-full ${usage.remainingUsd <= 0 ? 'bg-red-500' : usage.remainingUsd < 5 ? 'bg-yellow-500' : 'bg-green-500'}`}
-              style={{ width: `${Math.min(100, (usage.totalUsageUsd / usage.creditBalanceUsd) * 100)}%` }}
+              style={{
+                width: `${Math.min(100, (usage.totalUsageUsd / usage.creditBalanceUsd) * 100)}%`,
+              }}
             />
           </div>
           <div className="flex justify-between text-xs text-gray-500">
             <span>Used: ${usage.totalUsageUsd.toFixed(2)}</span>
-            <span>${usage.remainingUsd.toFixed(2)} remaining of ${usage.creditBalanceUsd.toFixed(2)}</span>
+            <span>
+              ${usage.remainingUsd.toFixed(2)} remaining of ${usage.creditBalanceUsd.toFixed(2)}
+            </span>
           </div>
           {(usage.usageDailyUsd > 0 || usage.usageMonthlyUsd > 0) && (
             <div className="flex gap-4 mt-2 text-xs text-gray-400">
@@ -419,15 +455,23 @@ export default function OpenClawDetail() {
             </div>
           )}
           {usage.remainingUsd <= 0 && (
-            <p className="text-xs text-red-600 mt-2 font-medium">Credits exhausted — add more to continue using LLM features.</p>
+            <p className="text-xs text-red-600 mt-2 font-medium">
+              Credits exhausted — add more to continue using LLM features.
+            </p>
           )}
         </div>
       )}
 
       {/* Add Credits Modal */}
       {showCreditsModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowCreditsModal(false)}>
-          <div className="bg-white rounded-lg p-6 w-96 max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowCreditsModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-96 max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-semibold mb-4">Add LLM Credits</h3>
             <p className="text-sm text-gray-600 mb-4">
               Credits will be charged to your card on file. Minimum $5, maximum $500.
@@ -445,12 +489,13 @@ export default function OpenClawDetail() {
                 placeholder="10"
               />
             </div>
-            {creditError && (
-              <p className="text-sm text-red-600 mb-3">{creditError}</p>
-            )}
+            {creditError && <p className="text-sm text-red-600 mb-3">{creditError}</p>}
             <div className="flex gap-2 justify-end">
               <button
-                onClick={() => { setShowCreditsModal(false); setCreditError(null); }}
+                onClick={() => {
+                  setShowCreditsModal(false);
+                  setCreditError(null);
+                }}
                 className="text-sm text-gray-500 px-4 py-2 hover:text-gray-700"
               >
                 Cancel
@@ -469,11 +514,19 @@ export default function OpenClawDetail() {
 
       {/* Developer Mode Modal */}
       {showDevModal && deployment.ipAddress && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowDevModal(false)}>
-          <div className="bg-white rounded-lg p-6 w-[32rem] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold mb-4">Developer Access</h3>
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={() => setShowDevModal(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-[32rem] max-w-[90vw]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Advanced Mode Access</h3>
             <p className="text-sm text-gray-600 mb-4">
               SSH into your agent's server to inspect logs, debug issues, or make manual changes.
+              This will give you full access to the underlying OpenClaw runtime, including the
+              ability to install community skills and connectors.
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
               <div>
@@ -529,8 +582,20 @@ export default function OpenClawDetail() {
         <div className="bg-white rounded-lg border p-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-4">
             <svg className="animate-spin h-5 w-5 text-blue-600" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+                fill="none"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+              />
             </svg>
             <p className="text-gray-700 font-medium">Deploying your agent...</p>
           </div>
@@ -540,8 +605,12 @@ export default function OpenClawDetail() {
               const active = i === currentStep;
               return (
                 <div key={i} className="flex items-center gap-1.5">
-                  <div className={`w-2.5 h-2.5 rounded-full ${done ? 'bg-green-500' : active ? 'bg-blue-500 animate-pulse' : 'bg-gray-200'}`} />
-                  <span className={`text-sm ${active ? 'text-blue-700 font-medium' : done ? 'text-green-700' : 'text-gray-400'}`}>
+                  <div
+                    className={`w-2.5 h-2.5 rounded-full ${done ? 'bg-green-500' : active ? 'bg-blue-500 animate-pulse' : 'bg-gray-200'}`}
+                  />
+                  <span
+                    className={`text-sm ${active ? 'text-blue-700 font-medium' : done ? 'text-green-700' : 'text-gray-400'}`}
+                  >
                     {step.label}
                   </span>
                   {i < PROGRESS_STEPS.length - 1 && (
@@ -606,8 +675,12 @@ export default function OpenClawDetail() {
 
       {isActive && !iframeUrl && (
         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-          <p className="text-yellow-800 font-medium">Instance is ready but missing connection details.</p>
-          <p className="text-sm text-yellow-700 mt-1">The access token or IP address is not available yet.</p>
+          <p className="text-yellow-800 font-medium">
+            Instance is ready but missing connection details.
+          </p>
+          <p className="text-sm text-yellow-700 mt-1">
+            The access token or IP address is not available yet.
+          </p>
         </div>
       )}
     </div>

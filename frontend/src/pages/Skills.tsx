@@ -239,24 +239,48 @@ export default function Skills() {
                   aria-label="Copy"
                   title="Copy"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
                     <path d="M9 9h10v10H9V9Z" stroke="rgba(245,246,248,.80)" strokeWidth="1.7" />
-                    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="rgba(245,246,248,.55)" strokeWidth="1.7" />
+                    <path
+                      d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"
+                      stroke="rgba(245,246,248,.55)"
+                      strokeWidth="1.7"
+                    />
                   </svg>
                 </button>
               </div>
 
               {persona === 'human' ? (
                 <ol className="stepsList">
-                  <li><span className="stepNum">1.</span> Send this to your agent or run the command on your agent's machine</li>
-                  <li><span className="stepNum">2.</span> They sign up & send you a claim link</li>
-                  <li><span className="stepNum">3.</span> Use the wallet claim link your agent sends you</li>
+                  <li>
+                    <span className="stepNum">1.</span> Send this to your agent or run the command
+                    on your agent's machine
+                  </li>
+                  <li>
+                    <span className="stepNum">2.</span> They sign up & send you a claim link
+                  </li>
+                  <li>
+                    <span className="stepNum">3.</span> Use the wallet claim link your agent sends
+                    you
+                  </li>
                 </ol>
               ) : (
                 <ol className="stepsList">
-                  <li><span className="stepNum">1.</span> Run this command to install the skill</li>
-                  <li><span className="stepNum">2.</span> Create a wallet for your user</li>
-                  <li><span className="stepNum">3.</span> Send them the claim link</li>
+                  <li>
+                    <span className="stepNum">1.</span> Run this command to install the skill
+                  </li>
+                  <li>
+                    <span className="stepNum">2.</span> Create a wallet for your user
+                  </li>
+                  <li>
+                    <span className="stepNum">3.</span> Send them the claim link
+                  </li>
                 </ol>
               )}
             </div>
@@ -266,15 +290,21 @@ export default function Skills() {
         {/* What it does */}
         <section className="section section--alt">
           <div className="container" style={{ maxWidth: 860 }}>
-            <h2 className="sp-section-title"><span className="sp-chev">⟩</span>What it does</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 14 }}>
+            <h2 className="sp-section-title">
+              <span className="sp-chev">⟩</span>What it does
+            </h2>
+            <div
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 14 }}
+            >
               <div className="sp-panel" style={{ padding: 18 }}>
                 <div style={{ fontWeight: 850, color: 'var(--text)' }}>Sealed Secrets</div>
                 <div className="micro">Secrets are never exposed to the agent.</div>
               </div>
               <div className="sp-panel" style={{ padding: 18 }}>
                 <div style={{ fontWeight: 850, color: 'var(--text)' }}>Smart Contract Wallet</div>
-                <div className="micro">Self-custodial (coming soon) EVM smart accounts for execution.</div>
+                <div className="micro">
+                  Self-custodial (coming soon) EVM smart accounts for execution.
+                </div>
               </div>
               <div className="sp-panel" style={{ padding: 18 }}>
                 <div style={{ fontWeight: 850, color: 'var(--text)' }}>Guardrails</div>
@@ -282,7 +312,9 @@ export default function Skills() {
               </div>
               <div className="sp-panel" style={{ padding: 18 }}>
                 <div style={{ fontWeight: 850, color: 'var(--text)' }}>Receipts</div>
-                <div className="micro">Audit logs for every attempt: allowed / denied / approved.</div>
+                <div className="micro">
+                  Audit logs for every attempt: allowed / denied / approved.
+                </div>
               </div>
             </div>
           </div>
@@ -291,7 +323,9 @@ export default function Skills() {
         {/* EVM Wallet Features */}
         <section className="section">
           <div className="container" style={{ maxWidth: 860 }}>
-            <h2 className="sp-section-title"><span className="sp-chev">⟩</span>EVM Wallet Features</h2>
+            <h2 className="sp-section-title">
+              <span className="sp-chev">⟩</span>EVM Wallet Features
+            </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <span className="pill">Transfers</span>
               <span className="pill">Swaps</span>
@@ -303,7 +337,9 @@ export default function Skills() {
         {/* Supported Chains */}
         <section className="section section--alt">
           <div className="container" style={{ maxWidth: 860 }}>
-            <h2 className="sp-section-title"><span className="sp-chev">⟩</span>Supported Chains</h2>
+            <h2 className="sp-section-title">
+              <span className="sp-chev">⟩</span>Supported Chains
+            </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <span className="pill">Ethereum</span>
               <span className="pill">Base</span>
@@ -325,12 +361,28 @@ export default function Skills() {
         {/* Pricing */}
         <section className="section">
           <div className="container" style={{ maxWidth: 860 }}>
-            <h2 className="sp-section-title"><span className="sp-chev">⟩</span>Pricing</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 14 }}>
+            <h2 className="sp-section-title">
+              <span className="sp-chev">⟩</span>Pricing
+            </h2>
+            <div
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0,1fr))', gap: 14 }}
+            >
               <div className="sp-panel" style={{ padding: 18 }}>
                 <div style={{ fontWeight: 850, marginBottom: 4, color: 'var(--text)' }}>Free</div>
-                <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--text)' }}>$0</div>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text-muted)', listStyle: 'disc' }}>
+                <div
+                  style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--text)' }}
+                >
+                  $0
+                </div>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 18,
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                    listStyle: 'disc',
+                  }}
+                >
                   <li>Unlimited testnet transactions</li>
                   <li>All chains supported</li>
                   <li>Full API access</li>
@@ -338,11 +390,26 @@ export default function Skills() {
               </div>
               <div className="sp-panel" style={{ padding: 18, borderColor: 'rgba(249,115,22,.4)' }}>
                 <div style={{ fontWeight: 850, marginBottom: 4, color: 'var(--text)' }}>Pro</div>
-                <div style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--text)' }}>
-                  $10<span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>/month</span>
+                <div
+                  style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--text)' }}
+                >
+                  $10
+                  <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>
+                    /month
+                  </span>
                 </div>
-                <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text-muted)', listStyle: 'disc' }}>
-                  <li><b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet</li>
+                <ul
+                  style={{
+                    margin: 0,
+                    paddingLeft: 18,
+                    fontSize: 13,
+                    color: 'var(--text-muted)',
+                    listStyle: 'disc',
+                  }}
+                >
+                  <li>
+                    <b style={{ color: 'var(--text)' }}>3-day free trial</b> for mainnet
+                  </li>
                   <li>Mainnet transactions on all chains</li>
                   <li>Gas costs included</li>
                   <li>Priority support</li>
@@ -350,7 +417,8 @@ export default function Skills() {
               </div>
             </div>
             <div className="micro" style={{ marginTop: 12 }}>
-              New wallets get a 3-day free trial for mainnet transactions. After that, subscribe to keep using mainnet.
+              New wallets get a 3-day free trial for mainnet transactions. After that, subscribe to
+              keep using mainnet.
             </div>
           </div>
         </section>
@@ -358,22 +426,28 @@ export default function Skills() {
         {/* Connectors */}
         <section className="section section--alt">
           <div className="container" style={{ maxWidth: 860 }}>
-            <h2 className="sp-section-title"><span className="sp-chev">⟩</span>Connectors</h2>
+            <h2 className="sp-section-title">
+              <span className="sp-chev">⟩</span>Connectors
+            </h2>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <span className="tooltip-wrapper">
                 <span className="pill hoverable">
-                  EVM smart contract wallet <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                  EVM smart contract wallet{' '}
+                  <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
                 </span>
                 <span className="tooltip-text">
-                  Smart contract accounts with gas abstraction. Supports transfers, swaps, and arbitrary transactions on all major EVM chains.
+                  Smart contract accounts with gas abstraction. Supports transfers, swaps, and
+                  arbitrary transactions on all major EVM chains.
                 </span>
               </span>
               <span className="tooltip-wrapper">
                 <span className="pill hoverable">
-                  Raw Ethereum &amp; Solana signing <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
+                  Raw Ethereum &amp; Solana signing{' '}
+                  <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
                 </span>
                 <span className="tooltip-text">
-                  Direct message and transaction signing for Ethereum EOAs and Solana wallets. Ideal for dApps requiring raw signatures.
+                  Direct message and transaction signing for Ethereum EOAs and Solana wallets. Ideal
+                  for dApps requiring raw signatures.
                 </span>
               </span>
               <span className="tooltip-wrapper">
@@ -381,11 +455,14 @@ export default function Skills() {
                   Polymarket <span style={{ color: 'rgba(34,197,94,.9)' }}>● live</span>
                 </span>
                 <span className="tooltip-text">
-                  Trade on prediction markets via Polymarket. Browse markets, place bets, and manage positions with gasless trading on Polygon.
+                  Trade on prediction markets via Polymarket. Browse markets, place bets, and manage
+                  positions with gasless trading on Polygon.
                 </span>
               </span>
             </div>
-            <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>Coming soon</div>
+            <div className="micro" style={{ marginTop: 14, marginBottom: 8 }}>
+              Coming soon
+            </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
               <span className="pill">Hyperliquid</span>
               <span className="pill">Solana</span>
@@ -396,9 +473,15 @@ export default function Skills() {
             </div>
             <div className="micro" style={{ marginTop: 12 }}>
               Want a connector prioritized?{' '}
-              <a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)' }}>
+              <a
+                href="https://discord.gg/FPkF6cZf"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent)' }}
+              >
                 Join Discord
-              </a>.
+              </a>
+              .
             </div>
           </div>
         </section>

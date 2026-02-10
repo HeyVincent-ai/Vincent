@@ -86,10 +86,18 @@ export default function SecretDetail() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <button onClick={() => navigate('/dashboard')} className="text-sm text-blue-600 hover:text-blue-800 mb-2">&larr; Back</button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="text-sm text-blue-600 hover:text-blue-800 mb-2"
+          >
+            &larr; Back
+          </button>
           <h1 className="text-2xl font-bold">{secret.memo || 'Unnamed Secret'}</h1>
         </div>
-        <button onClick={handleDelete} className="text-sm text-red-600 hover:text-red-800 border border-red-200 px-3 py-1 rounded">
+        <button
+          onClick={handleDelete}
+          className="text-sm text-red-600 hover:text-red-800 border border-red-200 px-3 py-1 rounded"
+        >
           Delete
         </button>
       </div>
@@ -132,27 +140,39 @@ export default function SecretDetail() {
 
       {/* Mainnet Access Status */}
       {secret.type === 'EVM_WALLET' && subStatus && (
-        <div className={`rounded-lg border p-4 mb-6 ${
-          subStatus.hasMainnetAccess
-            ? 'bg-green-50 border-green-200'
-            : 'bg-yellow-50 border-yellow-200'
-        }`}>
+        <div
+          className={`rounded-lg border p-4 mb-6 ${
+            subStatus.hasMainnetAccess
+              ? 'bg-green-50 border-green-200'
+              : 'bg-yellow-50 border-yellow-200'
+          }`}
+        >
           <div className="flex items-start justify-between">
             <div>
-              <h3 className={`font-medium ${
-                subStatus.hasMainnetAccess ? 'text-green-800' : 'text-yellow-800'
-              }`}>
+              <h3
+                className={`font-medium ${
+                  subStatus.hasMainnetAccess ? 'text-green-800' : 'text-yellow-800'
+                }`}
+              >
                 Mainnet Access
               </h3>
               {subStatus.trial.inTrial && !subStatus.subscription && (
                 <p className="text-sm text-green-700 mt-1">
-                  Free trial active — <span className="font-semibold">{subStatus.trial.daysRemaining} day{subStatus.trial.daysRemaining !== 1 ? 's' : ''}</span> remaining
-                  <span className="text-green-600 ml-1">(ends {new Date(subStatus.trial.endsAt).toLocaleDateString()})</span>
+                  Free trial active —{' '}
+                  <span className="font-semibold">
+                    {subStatus.trial.daysRemaining} day
+                    {subStatus.trial.daysRemaining !== 1 ? 's' : ''}
+                  </span>{' '}
+                  remaining
+                  <span className="text-green-600 ml-1">
+                    (ends {new Date(subStatus.trial.endsAt).toLocaleDateString()})
+                  </span>
                 </p>
               )}
               {subStatus.subscription?.status === 'ACTIVE' && (
                 <p className="text-sm text-green-700 mt-1">
-                  Subscribed — renews {subStatus.subscription.currentPeriodEnd
+                  Subscribed — renews{' '}
+                  {subStatus.subscription.currentPeriodEnd
                     ? new Date(subStatus.subscription.currentPeriodEnd).toLocaleDateString()
                     : 'N/A'}
                 </p>
@@ -177,20 +197,28 @@ export default function SecretDetail() {
             )}
           </div>
           <p className="text-xs text-gray-500 mt-2">
-            Testnets are always free. Mainnet requires a subscription ($10/month) after the 3-day trial.
+            Testnets are always free. Mainnet requires a subscription ($10/month) after the 3-day
+            trial.
           </p>
         </div>
       )}
 
       <div className="bg-white rounded-lg border p-6 mb-6">
         <h3 className="text-sm font-medium text-gray-700 mb-2">Re-link Agent</h3>
-        <p className="text-xs text-gray-500 mb-3">Generate a one-time token to give an agent access to this secret. The token expires in 10 minutes.</p>
+        <p className="text-xs text-gray-500 mb-3">
+          Generate a one-time token to give an agent access to this secret. The token expires in 10
+          minutes.
+        </p>
         {relinkToken ? (
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <code className="bg-gray-100 px-3 py-2 rounded text-sm font-mono flex-1 break-all">{relinkToken}</code>
+              <code className="bg-gray-100 px-3 py-2 rounded text-sm font-mono flex-1 break-all">
+                {relinkToken}
+              </code>
               <button
-                onClick={() => { navigator.clipboard.writeText(relinkToken); }}
+                onClick={() => {
+                  navigator.clipboard.writeText(relinkToken);
+                }}
                 className="text-sm text-blue-600 hover:text-blue-800 whitespace-nowrap"
               >
                 Copy

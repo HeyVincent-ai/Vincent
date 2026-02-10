@@ -357,6 +357,20 @@ export async function chargeCustomerOffSession(
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+  // Sync period dates for OpenClaw deployments (e.g. trial → active transition)
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscription.id },
+  });
+
+  if (openclawDeployment) {
+    const period = extractPeriodDates(subscription);
+    await prisma.openClawDeployment.update({
+      where: { id: openclawDeployment.id },
+      data: { currentPeriodEnd: period.end },
+    });
+  }
+
+  // Standard subscription handling
   const sub = await prisma.subscription.findUnique({
     where: { stripeSubscriptionId: subscription.id },
   });

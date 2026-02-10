@@ -135,7 +135,7 @@ export default function OpenClawSection() {
           disabled={deploying}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
         >
-          {deploying ? 'Redirecting...' : 'Deploy Agent \u2014 $25/mo'}
+          {deploying ? 'Redirecting...' : 'Deploy Agent \u2014 7-day free trial'}
         </button>
       </div>
 
@@ -168,7 +168,14 @@ export default function OpenClawSection() {
                         Active until {new Date(d.currentPeriodEnd).toLocaleDateString()}
                       </span>
                     )}
-                    {d.statusMessage && d.status !== 'CANCELING' && (
+                    {d.status === 'READY' && d.currentPeriodEnd && (
+                      <span className="text-sm text-gray-500">
+                        {new Date(d.currentPeriodEnd) > new Date() && new Date(d.currentPeriodEnd).getTime() - Date.now() < 8 * 24 * 60 * 60 * 1000
+                          ? `Trial ends ${new Date(d.currentPeriodEnd).toLocaleDateString()}`
+                          : `Renews ${new Date(d.currentPeriodEnd).toLocaleDateString()}`}
+                      </span>
+                    )}
+                    {d.statusMessage && d.status !== 'CANCELING' && d.status !== 'READY' && (
                       <span className="text-sm text-gray-500">{d.statusMessage}</span>
                     )}
                   </div>
