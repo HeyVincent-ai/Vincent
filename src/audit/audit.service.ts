@@ -1,5 +1,5 @@
 import { AuditLogStatus } from '@prisma/client';
-import prisma from '../db/client';
+import prisma from '../db/client.js';
 
 /** Strip ::ffff: prefix from IPv4-mapped IPv6 addresses */
 function normalizeIp(ip?: string): string | undefined {

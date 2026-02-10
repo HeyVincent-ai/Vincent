@@ -1,8 +1,8 @@
 import { Decimal } from '@prisma/client/runtime/library';
-import prisma from '../db/client';
-import * as priceService from '../services/price.service';
-import { TESTNET_CHAIN_IDS } from '../config/chains';
-import { env } from '../utils/env';
+import prisma from '../db/client.js';
+import * as priceService from '../services/price.service.js';
+import { TESTNET_CHAIN_IDS } from '../config/chains.js';
+import { env } from '../utils/env.js';
 
 // Default frontend URL if not configured
 const BILLING_URL = env.FRONTEND_URL ? `${env.FRONTEND_URL}/billing` : '/billing';

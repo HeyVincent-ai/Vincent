@@ -1,2 +1,2 @@
-export * from './stripe.service';
-export * from './gasAggregation.service';
+export * from './stripe.service.js';
+export * from './gasAggregation.service.js';

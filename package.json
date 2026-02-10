@@ -1,7 +1,8 @@
 {
   "name": "safeskills",
-  "version": "1.0.22",
+  "version": "1.0.31",
   "description": "Secure secret management service for AI agents",
+  "type": "module",
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec tsx src/index.ts",
@@ -23,7 +24,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
-    "test:base-mainnet": "vitest run src/e2e/baseMainnet.e2e.test.ts",
+    "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
     "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts"
   },
   "keywords": [
@@ -44,6 +45,7 @@
     "@types/uuid": "^11.0.0",
     "@vitest/coverage-v8": "^4.0.18",
     "concurrently": "^9.2.1",
+    "esbuild": "^0.27.2",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",

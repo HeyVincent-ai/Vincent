@@ -1,7 +1,7 @@
 import { ApiKey } from '@prisma/client';
 import { randomBytes, createHash } from 'crypto';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
 
 // Types for API key operations
 export interface CreateApiKeyInput {

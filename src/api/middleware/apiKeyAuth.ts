@@ -1,8 +1,8 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, toSecretSafeData } from '../../types';
-import { validateApiKey, trackApiKeyUsage } from '../../services/apiKey.service';
-import { errors } from '../../utils/response';
-import prisma from '../../db/client';
+import { AuthenticatedRequest, toSecretSafeData } from '../../types/index.js';
+import { validateApiKey, trackApiKeyUsage } from '../../services/apiKey.service.js';
+import { errors } from '../../utils/response.js';
+import prisma from '../../db/client.js';
 
 /**
  * Middleware to authenticate requests using API keys

@@ -1,5 +1,5 @@
-import { env } from '../utils/env';
-import { CHAIN_ID_TO_ALCHEMY_NETWORK } from '../config/chains';
+import { env } from '../utils/env.js';
+import { CHAIN_ID_TO_ALCHEMY_NETWORK } from '../config/chains.js';
 
 // Token metadata cache (permanent - token metadata doesn't change)
 interface TokenMetadata {

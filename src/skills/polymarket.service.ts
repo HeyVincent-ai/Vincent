@@ -10,9 +10,9 @@ import type {
   UserMarketOrder,
   Side,
 } from '@polymarket/clob-client';
-import prisma from '../db/client';
-import { env } from '../utils/env';
-import { initializePolymarketProxy } from '../utils/proxy';
+import prisma from '../db/client.js';
+import { env } from '../utils/env.js';
+import { initializePolymarketProxy } from '../utils/proxy.js';
 
 // ============================================================
 // ESM dynamic imports (these packages are ESM-only)
@@ -354,13 +354,172 @@ export async function getMidpoint(tokenId: string): Promise<string> {
 }
 
 /**
- * Browse markets (paginated).
+ * Browse markets (paginated) from CLOB API.
+ * Note: CLOB API doesn't support search - use searchMarketsGamma for search.
  */
 export async function getMarkets(nextCursor?: string) {
   const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
   return client.getSimplifiedMarkets(nextCursor);
+}
+
+// ============================================================
+// Gamma API (for search and richer market data)
+// ============================================================
+
+export interface GammaMarket {
+  id: string;
+  question: string;
+  conditionId: string;
+  slug: string;
+  outcomes: string; // JSON string array like '["Yes", "No"]'
+  outcomePrices: string; // JSON string array like '["0.55", "0.45"]'
+  clobTokenIds: string; // JSON string array of token IDs
+  active: boolean;
+  closed: boolean;
+  acceptingOrders: boolean;
+  endDate: string;
+  volume: string;
+  liquidity: string;
+  bestBid?: number;
+  bestAsk?: number;
+  lastTradePrice?: number;
+  description?: string;
+  image?: string;
+  negRisk?: boolean;
+}
+
+export interface GammaSearchResult {
+  markets: Array<{
+    id: string;
+    question: string;
+    conditionId: string;
+    slug: string;
+    outcomes: string[];
+    outcomePrices: string[];
+    tokenIds: string[];
+    active: boolean;
+    closed: boolean;
+    acceptingOrders: boolean;
+    endDate: string;
+    volume: string;
+    liquidity: string;
+    bestBid?: number;
+    bestAsk?: number;
+    lastTradePrice?: number;
+    description?: string;
+  }>;
+  hasMore: boolean;
+}
+
+/**
+ * Parse a value that may be a JSON string array or an already-parsed array into string[].
+ */
+function ensureStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    } catch { /* ignore */ }
+  }
+  return [];
+}
+
+/**
+ * Map a raw market object (from either /public-search or /markets) to our clean format.
+ */
+function mapGammaMarket(m: any) {
+  return {
+    id: m.id,
+    question: m.question,
+    conditionId: m.conditionId,
+    slug: m.slug,
+    outcomes: ensureStringArray(m.outcomes),
+    outcomePrices: ensureStringArray(m.outcomePrices),
+    tokenIds: ensureStringArray(m.clobTokenIds),
+    active: m.active,
+    closed: m.closed,
+    acceptingOrders: m.acceptingOrders,
+    endDate: m.endDate,
+    volume: m.volume,
+    liquidity: m.liquidity,
+    bestBid: m.bestBid,
+    bestAsk: m.bestAsk,
+    lastTradePrice: m.lastTradePrice,
+    description: m.description,
+  };
+}
+
+/**
+ * Search markets via Gamma API.
+ * Uses /public-search for text queries, /markets for browsing.
+ */
+export async function searchMarketsGamma(params: {
+  query?: string;
+  active?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<GammaSearchResult> {
+  const { query, active = true, limit = 50, offset = 0 } = params;
+
+  if (query) {
+    // Text search via /public-search endpoint
+    const url = new URL('https://gamma-api.polymarket.com/public-search');
+    url.searchParams.set('q', query);
+    url.searchParams.set('limit_per_type', String(limit));
+    if (active) {
+      url.searchParams.set('events_status', 'active');
+    }
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const events = data.events || [];
+
+    // Flatten events -> markets
+    const markets = events.flatMap((event: any) =>
+      (event.markets || [])
+        .filter((m: any) => !active || m.acceptingOrders)
+        .map(mapGammaMarket)
+    );
+
+    return {
+      markets,
+      hasMore: data.has_more ?? markets.length >= limit,
+    };
+  }
+
+  // Browse markets (no search query) via /markets endpoint
+  const url = new URL('https://gamma-api.polymarket.com/markets');
+  if (active) {
+    url.searchParams.set('active', 'true');
+    url.searchParams.set('closed', 'false');
+  }
+  url.searchParams.set('limit', String(limit));
+  url.searchParams.set('offset', String(offset));
+  url.searchParams.set('order', 'volume24hr');
+  url.searchParams.set('ascending', 'false');
+
+  const response = await fetch(url.toString());
+  if (!response.ok) {
+    throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+  }
+
+  const data = (await response.json()) as GammaMarket[];
+
+  const markets = data
+    .filter(m => !active || m.acceptingOrders)
+    .map(mapGammaMarket);
+
+  return {
+    markets,
+    hasMore: data.length === limit,
+  };
 }
 
 // ============================================================

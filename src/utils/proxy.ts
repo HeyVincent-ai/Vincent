@@ -7,7 +7,7 @@
 
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
-import { env } from './env';
+import { env } from './env.js';
 
 interface WebshareProxy {
   id: string;

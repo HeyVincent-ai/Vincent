@@ -1,14 +1,14 @@
 import { type Hex, type Address, parseEther, parseUnits } from 'viem';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
-import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
-import * as priceService from '../services/price.service';
-import * as zerodev from './zerodev.service';
-import * as zeroExService from './zeroEx.service';
-import * as gasService from './gas.service';
-import * as alchemyService from './alchemy.service';
-import { sendApprovalRequest } from '../telegram';
-import { getExplorerTxUrl } from '../config/chains';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
+import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
+import * as priceService from '../services/price.service.js';
+import * as zerodev from './zerodev.service.js';
+import * as zeroExService from './zeroEx.service.js';
+import * as gasService from './gas.service.js';
+import * as alchemyService from './alchemy.service.js';
+import { sendApprovalRequest } from '../telegram/index.js';
+import { getExplorerTxUrl } from '../config/chains.js';
 
 // ============================================================
 // Types

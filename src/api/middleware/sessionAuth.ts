@@ -1,8 +1,8 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest } from '../../types';
-import { validateSession } from '../../services/auth.service';
-import { verifySecretOwnership } from '../../services/secret.service';
-import { errors } from '../../utils/response';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { validateSession } from '../../services/auth.service.js';
+import { verifySecretOwnership } from '../../services/secret.service.js';
+import { errors } from '../../utils/response.js';
 
 /**
  * Extract session token from request.

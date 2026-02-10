@@ -1,11 +1,11 @@
 // Initialize Sentry first before any other imports
-import { initSentry, Sentry } from './sentry';
+import { initSentry, Sentry } from './sentry.js';
 initSentry();
 
-import { createApp } from './app';
-import { env } from './utils/env';
-import prisma from './db/client';
-import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram';
+import { createApp } from './app.js';
+import { env } from './utils/env.js';
+import prisma from './db/client.js';
+import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram/index.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {

@@ -1,5 +1,5 @@
 import { Policy, PolicyType } from '@prisma/client';
-import prisma from '../db/client';
+import prisma from '../db/client.js';
 import {
   AddressAllowlistConfig,
   FunctionAllowlistConfig,
@@ -7,8 +7,8 @@ import {
   SpendingLimitConfig,
   RequireApprovalConfig,
   ApprovalThresholdConfig,
-} from '../services/policy.service';
-import * as priceService from '../services/price.service';
+} from '../services/policy.service.js';
+import * as priceService from '../services/price.service.js';
 
 // ============================================================
 // Types

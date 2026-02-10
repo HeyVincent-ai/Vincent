@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { AuthenticatedRequest } from '../../types';
-import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth';
-import { asyncHandler } from '../middleware/errorHandler';
-import { sendSuccess, errors } from '../../utils/response';
-import * as polymarketSkill from '../../skills/polymarketSkill.service';
-import { auditService } from '../../audit';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import * as polymarketSkill from '../../skills/polymarketSkill.service.js';
+import { auditService } from '../../audit/index.js';
 
 const router = Router();
 
@@ -99,6 +99,7 @@ router.get(
 
 // ============================================================
 // GET /api/skills/polymarket/markets
+// Supports: ?query=text&active=true&limit=50&next_cursor=xyz
 // ============================================================
 
 router.get(
@@ -109,8 +110,14 @@ router.get(
       return;
     }
 
+    const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    const activeParam = req.query.active;
+    const active = activeParam === 'false' ? false : true; // Default to true
+    const limitParam = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+    const limit = limitParam && !isNaN(limitParam) ? Math.min(limitParam, 100) : 50;
     const nextCursor = typeof req.query.next_cursor === 'string' ? req.query.next_cursor : undefined;
-    const result = await polymarketSkill.searchMarkets(nextCursor);
+
+    const result = await polymarketSkill.searchMarkets({ query, active, limit, nextCursor });
     sendSuccess(res, result);
   })
 );

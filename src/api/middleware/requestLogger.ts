@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { randomUUID } from 'crypto';
-import { AuthenticatedRequest } from '../../types';
+import { AuthenticatedRequest } from '../../types/index.js';
 
 interface RequestLogEntry {
   traceId: string;

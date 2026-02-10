@@ -1,11 +1,11 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { asyncHandler } from '../middleware/errorHandler';
-import { AuthenticatedRequest } from '../../types';
-import { sendSuccess, errors } from '../../utils/response';
-import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth';
-import * as apiKeyService from '../../services/apiKey.service';
-import { auditService } from '../../audit';
+import { asyncHandler } from '../middleware/errorHandler.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import { sendSuccess, errors } from '../../utils/response.js';
+import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
+import * as apiKeyService from '../../services/apiKey.service.js';
+import { auditService } from '../../audit/index.js';
 
 const router = Router();
 

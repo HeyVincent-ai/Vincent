@@ -1,9 +1,36 @@
 import { type Hex } from 'viem';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
-import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
-import { sendApprovalRequest } from '../telegram';
-import * as polymarket from './polymarket.service';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
+import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
+import { sendApprovalRequest } from '../telegram/index.js';
+import * as polymarket from './polymarket.service.js';
+
+/**
+ * Safely stringify an object, handling circular references.
+ * Returns undefined if serialization fails.
+ */
+function safeStringify(obj: unknown): string | undefined {
+  if (obj === undefined || obj === null) return undefined;
+
+  const seen = new WeakSet();
+  try {
+    return JSON.stringify(obj, (_key, value) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      // Skip functions and other non-serializable types
+      if (typeof value === 'function') {
+        return '[Function]';
+      }
+      return value;
+    });
+  } catch {
+    return undefined;
+  }
+}
 
 // ============================================================
 // Types
@@ -244,11 +271,21 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorCode = error instanceof AppError ? error.code : 'BET_FAILED';
-    // Safely serialize error details for JSON storage
-    const errorDetails =
-      error instanceof AppError && error.details
-        ? JSON.parse(JSON.stringify(error.details))
-        : undefined;
+
+    // Safely serialize error details for JSON storage (handles circular refs)
+    // We use any here because Prisma's InputJsonValue is complex
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let errorDetails: any = undefined;
+    if (error instanceof AppError && error.details) {
+      const serialized = safeStringify(error.details);
+      if (serialized) {
+        try {
+          errorDetails = JSON.parse(serialized);
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
 
     await prisma.transactionLog.update({
       where: { id: txLog.id },
@@ -266,7 +303,13 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     if (error instanceof AppError) {
       throw error;
     }
-    throw new AppError('BET_FAILED', `Polymarket bet failed: ${errorMessage}`, 500);
+
+    // Extract meaningful error message, avoiding circular structure errors
+    const cleanMessage = errorMessage.includes('circular structure')
+      ? 'no match'
+      : errorMessage;
+
+    throw new AppError('BET_FAILED', `Polymarket bet failed: ${cleanMessage}`, 500);
   }
 }
 
@@ -295,8 +338,17 @@ export async function getMarketInfo(conditionId: string): Promise<MarketInfoOutp
   return { market };
 }
 
-export async function searchMarkets(nextCursor?: string) {
-  return polymarket.getMarkets(nextCursor);
+export async function searchMarkets(params: {
+  query?: string;
+  active?: boolean;
+  limit?: number;
+  nextCursor?: string;
+}) {
+  const { query, active = true, limit = 50 } = params;
+
+  // Use Gamma API for both search and browsing — it supports text search
+  // via /public-search and filtered browsing via /markets with proper params
+  return polymarket.searchMarketsGamma({ query, active, limit });
 }
 
 export async function getOrderBook(tokenId: string) {
@@ -317,11 +369,15 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 
   const collateral = await polymarket.getCollateralBalance(clientConfig);
 
+  // USDC.e has 6 decimals — convert from raw units to human-readable
+  const USDC_DECIMALS = 6;
+  const toHuman = (raw: string) => (Number(raw) / 10 ** USDC_DECIMALS).toString();
+
   return {
     walletAddress: wallet.walletAddress,
     collateral: {
-      balance: collateral.balance,
-      allowance: collateral.allowance,
+      balance: toHuman(collateral.balance),
+      allowance: toHuman(collateral.allowance),
     },
   };
 }

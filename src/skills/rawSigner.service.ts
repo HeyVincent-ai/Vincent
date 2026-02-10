@@ -1,9 +1,9 @@
 import { type Hex } from 'viem';
 import nacl from 'tweetnacl';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
-import { checkPolicies, type PolicyCheckAction } from '../policies/checker';
-import { sendApprovalRequest } from '../telegram';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
+import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
+import { sendApprovalRequest } from '../telegram/index.js';
 
 // ============================================================
 // Types
