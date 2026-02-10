@@ -51,9 +51,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const PROGRESS_STEPS = [
   { statuses: ['PENDING_PAYMENT'], label: 'Completing payment...' },
-  { statuses: ['PENDING', 'ORDERING'], label: 'Ordering VPS...' },
+  { statuses: ['PENDING', 'ORDERING'], label: 'Provisioning server...' },
   { statuses: ['PROVISIONING'], label: 'Setting up server...' },
-  { statuses: ['INSTALLING'], label: 'Installing OpenClaw...' },
+  { statuses: ['INSTALLING'], label: 'Installing agent...' },
   { statuses: ['READY'], label: 'Ready!' },
 ];
 
@@ -260,7 +260,7 @@ export default function OpenClawDetail() {
           >
             &larr; Dashboard
           </button>
-          <h1 className="text-2xl font-bold">OpenClaw</h1>
+          <h1 className="text-2xl font-bold">Agent</h1>
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[deployment.status] || 'bg-gray-100 text-gray-600'}`}>
             {deployment.status}
           </span>
@@ -349,7 +349,7 @@ export default function OpenClawDetail() {
             Are you sure you want to destroy this instance?
           </p>
           <p className="text-sm text-red-700 mb-3">
-            This will immediately terminate the VPS, cancel your subscription, and revoke the API key. This cannot be undone.
+            This will immediately terminate your agent, cancel your subscription, and revoke the API key. This cannot be undone.
           </p>
           <div className="flex gap-2">
             <button
@@ -473,7 +473,7 @@ export default function OpenClawDetail() {
           <div className="bg-white rounded-lg p-6 w-[32rem] max-w-[90vw]" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-4">Developer Access</h3>
             <p className="text-sm text-gray-600 mb-4">
-              SSH into your VPS to inspect logs, debug issues, or make manual changes.
+              SSH into your agent's server to inspect logs, debug issues, or make manual changes.
             </p>
             <div className="bg-gray-50 rounded-lg p-4 mb-4 space-y-3">
               <div>
@@ -532,7 +532,7 @@ export default function OpenClawDetail() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
             </svg>
-            <p className="text-gray-700 font-medium">Deploying your OpenClaw instance...</p>
+            <p className="text-gray-700 font-medium">Deploying your agent...</p>
           </div>
           <div className="flex items-center justify-center gap-3 mb-4">
             {PROGRESS_STEPS.map((step, i) => {
@@ -600,7 +600,7 @@ export default function OpenClawDetail() {
         <iframe
           src={iframeUrl}
           className="w-full h-[calc(100vh-280px)] border rounded-lg"
-          title="OpenClaw"
+          title="Agent"
         />
       )}
 

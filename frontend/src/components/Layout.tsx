@@ -35,7 +35,7 @@ export default function Layout() {
                 Settings
               </Link>
               <Link to="/dashboard#openclaw" className="text-sm text-gray-600 hover:text-gray-900">
-                OpenClaw
+                Agents
               </Link>
               <span className="text-sm text-gray-400">{user.email}</span>
               <button onClick={handleLogout} className="text-sm text-red-600 hover:text-red-800">
@@ -85,7 +85,7 @@ export function FullWidthLayout() {
                 Settings
               </Link>
               <Link to="/dashboard#openclaw" className="text-sm text-gray-600 hover:text-gray-900">
-                OpenClaw
+                Agents
               </Link>
               <span className="text-sm text-gray-400">{user.email}</span>
               <button onClick={handleLogout} className="text-sm text-red-600 hover:text-red-800">

@@ -33,9 +33,9 @@ const STATUS_COLORS: Record<string, string> = {
 
 const PROGRESS_STEPS = [
   { statuses: ['PENDING_PAYMENT'], label: 'Completing payment...' },
-  { statuses: ['PENDING', 'ORDERING'], label: 'Ordering VPS...' },
+  { statuses: ['PENDING', 'ORDERING'], label: 'Provisioning server...' },
   { statuses: ['PROVISIONING'], label: 'Setting up server...' },
-  { statuses: ['INSTALLING'], label: 'Installing OpenClaw...' },
+  { statuses: ['INSTALLING'], label: 'Installing agent...' },
   { statuses: ['READY'], label: 'Ready!' },
 ];
 
@@ -112,7 +112,7 @@ export default function OpenClawSection() {
   if (loading) {
     return (
       <div className="mt-10">
-        <h2 className="text-xl font-bold mb-4">OpenClaw</h2>
+        <h2 className="text-xl font-bold mb-4">Agents</h2>
         <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -129,13 +129,13 @@ export default function OpenClawSection() {
   return (
     <div className="mt-10" id="openclaw">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold">OpenClaw</h2>
+        <h2 className="text-xl font-bold">Agents</h2>
         <button
           onClick={handleDeploy}
           disabled={deploying}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
         >
-          {deploying ? 'Redirecting...' : 'Deploy OpenClaw \u2014 $25/mo'}
+          {deploying ? 'Redirecting...' : 'Deploy Agent \u2014 $25/mo'}
         </button>
       </div>
 
@@ -147,8 +147,8 @@ export default function OpenClawSection() {
 
       {active.length === 0 ? (
         <div className="bg-white rounded-lg border p-8 text-center text-gray-500">
-          <p className="mb-1">No OpenClaw instances yet.</p>
-          <p className="text-sm">Click "Deploy OpenClaw" to spin up an AI agent on its own VPS.</p>
+          <p className="mb-1">No agents deployed yet.</p>
+          <p className="text-sm">Click "Deploy Agent" to spin up your own AI agent.</p>
         </div>
       ) : (
         <div className="grid gap-4">
