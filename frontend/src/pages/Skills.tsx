@@ -154,8 +154,8 @@ export default function Skills() {
       polymarket: 'npx clawhub@latest install vincentpolymarket',
     },
     other: {
-      wallet: 'npx skills add HeyVincent-ai/Vincent/wallet',
-      polymarket: 'npx skills add HeyVincent-ai/Vincent/polymarket',
+      wallet: 'npx skills add HeyVincent-ai/agent-skills/wallet',
+      polymarket: 'npx skills add HeyVincent-ai/agent-skills/polymarket',
     },
   };
 
