@@ -64,6 +64,7 @@ export function createApp(): Express {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { trustProxy: false }, // Suppress ERR_ERL_PERMISSIVE_TRUST_PROXY — Railway is a trusted reverse proxy
   });
   app.use(limiter);
 
