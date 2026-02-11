@@ -13,6 +13,7 @@ import Landing from './pages/Landing';
 import Features from './pages/Features';
 import Security from './pages/Security';
 import Skills from './pages/Skills';
+import Terms from './pages/Terms';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -35,6 +36,7 @@ function AppRoutes() {
       <Route path="/features" element={<Features />} />
       <Route path="/security" element={<Security />} />
       <Route path="/skills" element={<Skills />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/claim/:id" element={<Claim />} />

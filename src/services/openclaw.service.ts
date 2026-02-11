@@ -1570,7 +1570,7 @@ export async function approveTelegramPairing(
     deployment.ipAddress,
     SSH_USERNAME,
     deployment.sshPrivateKey,
-    `sudo openclaw pairing approve telegram ${code}`,
+    `sudo openclaw pairing approve telegram ${code} && sudo systemctl restart openclaw-gateway`,
     30_000
   );
 
