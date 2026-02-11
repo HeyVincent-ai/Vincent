@@ -507,7 +507,7 @@ function Footer() {
               <h4>Resources</h4>
               <ul>
                 <li><Link to="/skills">Skills</Link></li>
-                <li><a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">Discord</a></li>
+                <li><a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">Discord</a></li>
                 <li><a href="mailto:support@litprotocol.com">Support</a></li>
               </ul>
             </div>

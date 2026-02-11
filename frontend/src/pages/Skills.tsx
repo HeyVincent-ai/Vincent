@@ -474,7 +474,7 @@ export default function Skills() {
             <div className="micro" style={{ marginTop: 12 }}>
               Want a connector prioritized?{' '}
               <a
-                href="https://discord.gg/FPkF6cZf"
+                href="https://discord.gg/WVcQRJsNdv"
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: 'var(--accent)' }}
