@@ -5,6 +5,7 @@ import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
 import * as priceService from '../services/price.service.js';
 import * as zerodev from './zerodev.service.js';
 import * as zeroExService from './zeroEx.service.js';
+import * as relayService from './relay.service.js';
 import * as gasService from './gas.service.js';
 import * as alchemyService from './alchemy.service.js';
 import { sendApprovalRequest } from '../telegram/index.js';
@@ -523,6 +524,69 @@ export interface SwapExecuteOutput {
 }
 
 // ============================================================
+// Fund Types
+// ============================================================
+
+export interface FundPreviewInput {
+  secretId: string;
+  tokenIn: string;
+  sourceChainId: number;
+  depositChainId: number;
+  depositWalletAddress: string;
+  tokenInAmount: string;
+  tokenOut: string;
+  slippage?: number;
+}
+
+export interface FundPreviewOutput {
+  isSimpleTransfer: boolean;
+  tokenIn: string;
+  tokenOut: string;
+  sourceChainId: number;
+  depositChainId: number;
+  depositWalletAddress: string;
+  amountIn: string;
+  amountOut: string;
+  route?: string;
+  timeEstimate?: number;
+  fees: {
+    gas: string;
+    relayer?: string;
+    total: string;
+  };
+  smartAccountAddress: string;
+  balanceCheck: {
+    sufficient: boolean;
+    currentBalance: string;
+    requiredBalance: string;
+    tokenSymbol: string;
+  };
+}
+
+export interface FundExecuteInput {
+  secretId: string;
+  apiKeyId?: string;
+  tokenIn: string;
+  sourceChainId: number;
+  depositChainId: number;
+  depositWalletAddress: string;
+  tokenInAmount: string;
+  tokenOut: string;
+  slippage?: number;
+}
+
+export interface FundExecuteOutput {
+  txHash: string | null;
+  status: 'executed' | 'pending_approval' | 'denied' | 'cross_chain_pending';
+  isSimpleTransfer: boolean;
+  relayRequestId?: string;
+  smartAccountAddress: string;
+  reason?: string;
+  transactionLogId: string;
+  explorerUrl?: string;
+}
+
+// ============================================================
 // Swap Preview
 // ============================================================
 
@@ -858,4 +922,42 @@ async function tokenAmountToWei(
 
   const decimals = await zerodev.getTokenDecimals(tokenAddress as Address, chainId);
   return parseUnits(amount, decimals).toString();
+}
+
+// ============================================================
+// Fund Helpers
+// ============================================================
+
+async function getTokenBalance(
+  address: Address,
+  token: string,
+  chainId: number
+): Promise<{ balance: string; symbol: string }> {
+  const isNative = relayService.isNativeToken(token) || token.toUpperCase() === 'ETH';
+
+  if (isNative) {
+    const result = await zerodev.getEthBalance(address, chainId);
+    return { balance: result.balance, symbol: 'ETH' };
+  }
+
+  const result = await zerodev.getErc20Balance(address, token as Address, chainId);
+  return { balance: result.balance, symbol: result.symbol };
+}
+
+function buildCallsFromRelaySteps(
+  steps: relayService.RelayStep[]
+): Array<{ to: Address; data: Hex; value: bigint }> {
+  const calls: Array<{ to: Address; data: Hex; value: bigint }> = [];
+  for (const step of steps) {
+    if (step.kind === 'transaction') {
+      for (const item of step.items) {
+        calls.push({
+          to: item.data.to as Address,
+          data: item.data.data as Hex,
+          value: BigInt(item.data.value || '0'),
+        });
+      }
+    }
+  }
+  return calls;
 }
