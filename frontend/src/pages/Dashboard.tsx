@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret } from '../api';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface Secret {
   id: string;
@@ -11,6 +12,251 @@ interface Secret {
   solanaAddress?: string;
   createdAt: string;
 }
+
+// ── Helpers ──────────────────────────────────────────────────────────
+
+function truncateAddress(addr: string) {
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
+}
+
+function getAddresses(s: Secret): { label: string; address: string }[] {
+  const out: { label: string; address: string }[] = [];
+  if (s.walletAddress) out.push({ label: 'Smart Account', address: s.walletAddress });
+  if (s.ethAddress) out.push({ label: 'ETH', address: s.ethAddress });
+  if (s.solanaAddress) out.push({ label: 'SOL', address: s.solanaAddress });
+  return out;
+}
+
+// ── Inline Icon Components ──────────────────────────────────────────
+
+function CopyIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  );
+}
+
+function ReceiveIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 13.5 12 21m0 0-7.5-7.5M12 21V3" />
+    </svg>
+  );
+}
+
+function WalletIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 0 0-2.25-2.25H15a3 3 0 1 1-6 0H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3" />
+    </svg>
+  );
+}
+
+// ── Copy Button ─────────────────────────────────────────────────────
+
+function CopyButton({
+  text,
+  label,
+  variant = 'icon',
+}: {
+  text: string;
+  label?: string;
+  variant?: 'icon' | 'button';
+}) {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleCopy = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (variant === 'button') {
+    return (
+      <button
+        onClick={handleCopy}
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 ${
+          copied
+            ? 'bg-green-500/15 text-green-400 border border-green-500/30'
+            : 'bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40'
+        }`}
+      >
+        {copied ? <CheckIcon className="w-3.5 h-3.5" /> : <CopyIcon className="w-3.5 h-3.5" />}
+        {copied ? 'Copied' : label || 'Copy'}
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy address"
+      className={`p-1 rounded transition-colors duration-150 ${
+        copied ? 'text-green-400' : 'text-muted-foreground hover:text-foreground'
+      }`}
+    >
+      {copied ? <CheckIcon className="w-3.5 h-3.5" /> : <CopyIcon className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
+
+// ── QR Modal ────────────────────────────────────────────────────────
+
+function QrModal({
+  address,
+  label,
+  onClose,
+}: {
+  address: string;
+  label: string;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <ReceiveIcon className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold text-foreground">Receive</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <p className="text-sm text-muted-foreground mb-4">
+          Scan this QR code to send funds to your <span className="text-foreground font-medium">{label}</span> address.
+        </p>
+
+        <div className="flex justify-center mb-4">
+          <div className="bg-white rounded-xl p-4">
+            <QRCodeSVG
+              value={address}
+              size={200}
+              bgColor="#ffffff"
+              fgColor="#000000"
+              level="M"
+              includeMargin={false}
+            />
+          </div>
+        </div>
+
+        <div className="bg-muted rounded-lg p-3">
+          <p className="text-xs text-muted-foreground mb-1">Wallet address</p>
+          <div className="flex items-center gap-2">
+            <code className="text-sm text-foreground font-mono break-all flex-1">{address}</code>
+            <CopyButton text={address} variant="button" label="Copy" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Secret Card ─────────────────────────────────────────────────────
+
+function SecretCard({ secret }: { secret: Secret }) {
+  const [qrAddress, setQrAddress] = useState<{ address: string; label: string } | null>(null);
+  const addresses = getAddresses(secret);
+
+  return (
+    <>
+      <div className="bg-card rounded-lg border border-border hover:border-primary/40 transition-colors">
+        <Link to={`/secrets/${secret.id}`} className="block p-4 pb-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+                <WalletIcon className="w-4.5 h-4.5 text-primary" />
+              </div>
+              <div>
+                <span className="text-foreground font-medium block leading-tight">
+                  {secret.memo || 'Unnamed secret'}
+                </span>
+                <span className="text-xs text-muted-foreground">{secret.type.replace('_', ' ')}</span>
+              </div>
+            </div>
+            <span className="text-muted-foreground text-xs tabular-nums">
+              {new Date(secret.createdAt).toLocaleDateString()}
+            </span>
+          </div>
+        </Link>
+
+        {addresses.length > 0 && (
+          <div className="px-4 pt-3 pb-3 space-y-2">
+            {addresses.map((a) => (
+              <div
+                key={a.address}
+                className="flex items-center justify-between gap-2 bg-muted/50 rounded-lg px-3 py-2"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-xs text-muted-foreground shrink-0 w-24">{a.label}</span>
+                  <code className="text-sm text-foreground/80 font-mono truncate" title={a.address}>
+                    {truncateAddress(a.address)}
+                  </code>
+                  <CopyButton text={a.address} />
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    setQrAddress(a);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all duration-150 shrink-0"
+                >
+                  <ReceiveIcon className="w-3.5 h-3.5" />
+                  Receive
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {qrAddress && (
+        <QrModal
+          address={qrAddress.address}
+          label={qrAddress.label}
+          onClose={() => setQrAddress(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ── Dashboard ───────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
@@ -40,7 +286,6 @@ export default function Dashboard() {
       const res = await createSecret(createType, createMemo || undefined);
       const { secret, apiKey, claimUrl } = res.data.data;
 
-      // Extract claim token from URL and auto-claim
       const url = new URL(claimUrl, window.location.origin);
       const token = url.searchParams.get('token');
       if (token) {
@@ -160,36 +405,10 @@ export default function Dashboard() {
       ) : (
         <div className="grid gap-4">
           {secrets.map((s) => (
-            <Link
-              key={s.id}
-              to={`/secrets/${s.id}`}
-              className="bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors block"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="inline-block bg-primary/10 text-primary text-xs font-medium px-2 py-0.5 rounded mr-2">
-                    {s.type}
-                  </span>
-                  <span className="text-foreground font-medium">{s.memo || 'Unnamed secret'}</span>
-                </div>
-                <span className="text-muted-foreground text-sm">
-                  {new Date(s.createdAt).toLocaleDateString()}
-                </span>
-              </div>
-              {s.walletAddress && (
-                <p className="text-sm text-muted-foreground mt-1 font-mono">{s.walletAddress}</p>
-              )}
-              {s.ethAddress && (
-                <p className="text-sm text-muted-foreground mt-1 font-mono">ETH: {s.ethAddress}</p>
-              )}
-              {s.solanaAddress && (
-                <p className="text-sm text-muted-foreground mt-1 font-mono">SOL: {s.solanaAddress}</p>
-              )}
-            </Link>
+            <SecretCard key={s.id} secret={s} />
           ))}
         </div>
       )}
-
     </div>
   );
 }
