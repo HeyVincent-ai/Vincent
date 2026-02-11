@@ -253,9 +253,14 @@ export default function SecretDetail() {
                 {relinkToken}
               </code>
               <button
-                onClick={() => {
-                  navigator.clipboard.writeText(relinkToken);
-                  toast('Token copied to clipboard');
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(relinkToken);
+                    toast('Token copied to clipboard');
+                  } catch (error) {
+                    console.error('Failed to copy token to clipboard', error);
+                    toast('Failed to copy token to clipboard');
+                  }
                 }}
                 className="text-sm text-primary hover:text-primary/80 whitespace-nowrap transition-colors"
               >
