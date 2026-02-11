@@ -36,9 +36,10 @@ export function createApp(): Express {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          connectSrc: ["'self'", 'https://api.stytch.com'],
+          connectSrc: ["'self'", 'https://*.stytch.com'],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          workerSrc: ["'self'", "blob:"],
           frameSrc: ["'self'", "https://*.vps.ovh.us"],
         },
       },

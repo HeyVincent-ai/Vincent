@@ -1,20 +1,42 @@
 ---
 name: Vincent - A wallet for agents
-description: Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction. Also supports raw signing.
+description: Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction. Also supports raw signing for Ethereum and Solana.
+homepage: https://heyvincent.ai
+source: https://github.com/user/vincent-skill
 ---
 
 # Vincent - A wallet for agents
 
 Use this skill to safely create a wallet the agent can use for transfers, swaps, and any EVM chain transaction without ever exposing private keys to the agent. Create a wallet, set spending policies, and your agent can transfer tokens, do swaps, and interact with smart contracts within the boundaries you define.
 
-**The agent never sees the private key.** All transactions are executed server-side through a smart account. The wallet owner controls what the agent can do via configurable policies.
+**The agent never sees the private key.** All transactions are executed server-side through a ZeroDev smart account. The agent receives a scoped API key that can only perform actions permitted by the wallet owner's policies. The private key never leaves the Vincent server.
+
+## Security Model
+
+This skill is designed for **autonomous agent operation with human oversight via server-side controls**. Understanding this model is important:
+
+**No environment variables or config paths are declared** because this skill uses agent-first onboarding: the agent creates its own wallet at runtime by calling the Vincent API, which returns a scoped API key. There is no pre-existing credential to configure. The agent generates and stores its own API key during wallet creation — no secrets need to exist before the skill runs.
+
+**The agent's API key is not a private key.** It is a scoped Bearer token that can only execute transactions within the policies set by the wallet owner. The Vincent server enforces all policies server-side — the agent cannot bypass them regardless of what it sends. If a transaction violates a policy, the server rejects it. If a transaction requires approval, the server holds it and notifies the wallet owner via Telegram for out-of-band human approval.
+
+**Model invocation is intentionally enabled.** The purpose of this skill is to give AI agents autonomous wallet capabilities. The agent is expected to invoke wallet actions (transfers, swaps, contract calls) on its own, within the boundaries the human operator defines. The human controls what the agent can do through policies (spending limits, address allowlists, token allowlists, function allowlists, approval thresholds) — not by gating individual invocations.
+
+**All API calls go exclusively to `heyvincent.ai`** over HTTPS/TLS. No other endpoints, services, or external hosts are contacted. The agent does not read, collect, or transmit any data beyond what is needed for wallet operations.
+
+**Key lifecycle:**
+
+- **Creation**: The agent calls `POST /api/secrets` to create a wallet. The API returns a scoped API key and a claim URL.
+- **Claim**: The human operator uses the claim URL to take ownership and configure policies.
+- **Revocation**: The wallet owner can revoke the agent's API key at any time from the Vincent frontend (`https://heyvincent.ai`). Revoked keys are rejected immediately by the server.
+- **Re-linking**: If the agent loses its API key, the wallet owner generates a one-time re-link token (expires after 10 minutes) and the agent exchanges it for a new key.
+- **Rotation**: The wallet owner can revoke the current key and issue a re-link token to rotate credentials at any time.
 
 ## Which Secret Type to Use
 
-| Type                | Use Case                                  | Network                 | Gas              |
-| ------------------- | ----------------------------------------- | ----------------------- | ---------------- |
-| `EVM_WALLET`        | Transfers, swaps, DeFi, contract calls    | Any EVM chain           | Sponsored (free) |
-| `RAW_SIGNER`        | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay          |
+| Type         | Use Case                                  | Network                 | Gas              |
+| ------------ | ----------------------------------------- | ----------------------- | ---------------- |
+| `EVM_WALLET` | Transfers, swaps, DeFi, contract calls    | Any EVM chain           | Sponsored (free) |
+| `RAW_SIGNER` | Raw message signing for special protocols | Any (Ethereum + Solana) | You pay          |
 
 **Choose `EVM_WALLET`** (default) for:
 
@@ -31,7 +53,9 @@ Use this skill to safely create a wallet the agent can use for transfers, swaps,
 
 ## Configuration
 
-All API requests require a Bearer token (the API key returned when creating a wallet). If you're an openclaw instance, store and retrieve it from `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+All API requests require a Bearer token (the scoped API key returned when creating a wallet). This key is not a private key — it is a server-enforced, policy-scoped credential that the wallet owner can revoke at any time.
+
+Store the API key locally after wallet creation. If you're an OpenClaw instance, store and retrieve it from `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
 
 ```
 Authorization: Bearer <API_KEY>
@@ -41,7 +65,7 @@ Authorization: Bearer <API_KEY>
 
 ### 1. Create a Wallet
 
-Create a new smart account wallet for your agent. This generates a private key server-side (you never see it), creates a ZeroDev smart account, and returns an API key for the agent plus a claim URL for the wallet owner.
+Create a new smart account wallet for your agent. This generates a private key server-side (the agent never sees it), creates a ZeroDev smart account, and returns a scoped API key for the agent plus a claim URL for the wallet owner.
 
 ```bash
 curl -X POST "https://heyvincent.ai/api/secrets" \
@@ -55,13 +79,13 @@ curl -X POST "https://heyvincent.ai/api/secrets" \
 
 Response includes:
 
-- `apiKey` -- store this securely; use it as the Bearer token for all future requests
+- `apiKey` -- a scoped API key; store this securely and use it as the Bearer token for all future requests
 - `claimUrl` -- share this with the user so they can claim the wallet and set policies
 - `address` -- the smart account address
 
 After creating, tell the user:
 
-> "Here is your wallet claim URL: `<claimUrl>`. Use this to claim ownership, set spending policies, and monitor your agent's wallet activity."
+> "Here is your wallet claim URL: `<claimUrl>`. Use this to claim ownership, set spending policies, and monitor your agent's wallet activity at https://heyvincent.ai."
 
 ### 2. Get Wallet Address
 
@@ -106,6 +130,8 @@ curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/transfer" \
     "token": "0xTokenContractAddress"
   }'
 ```
+
+If the transaction violates a policy, the server returns an error explaining which policy was triggered. If the transaction requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
 
 ### 5. Swap Tokens
 
@@ -158,9 +184,9 @@ curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/send-transaction" \
   }'
 ```
 
-## Policies
+## Policies (Server-Side Enforcement)
 
-The wallet owner controls what the agent can do by setting policies via the claim URL. If a transaction violates a policy, the API will reject it or require human approval via Telegram.
+The wallet owner controls what the agent can do by setting policies via the claim URL at `https://heyvincent.ai`. All policies are enforced server-side by the Vincent API — the agent cannot bypass or modify them. If a transaction violates a policy, the API rejects it. If a transaction triggers an approval threshold, the API holds it and sends the wallet owner a Telegram notification for out-of-band human approval.
 
 | Policy                      | What it does                                                        |
 | --------------------------- | ------------------------------------------------------------------- |
@@ -171,9 +197,9 @@ The wallet owner controls what the agent can do by setting policies via the clai
 | **Spending limit (daily)**  | Max USD value per rolling 24 hours                                  |
 | **Spending limit (weekly)** | Max USD value per rolling 7 days                                    |
 | **Require approval**        | Every transaction needs human approval via Telegram                 |
-| **Approval threshold**      | Transactions above a USD amount need human approval                 |
+| **Approval threshold**      | Transactions above a USD amount need human approval via Telegram    |
 
-If no policies are set, all actions are allowed by default. Once the owner claims the wallet and adds policies, the agent operates within those boundaries.
+Before the wallet is claimed, the agent can operate without policy restrictions. This is by design: agent-first onboarding allows the agent to begin accumulating and managing funds immediately. Once the human operator claims the wallet via the claim URL, they can add any combination of policies to constrain the agent's behavior. The wallet owner can also revoke the agent's API key entirely at any time.
 
 ## Re-linking (Recovering API Access)
 
@@ -181,9 +207,9 @@ If the agent loses its API key, the wallet owner can generate a **re-link token*
 
 **How it works:**
 
-1. The user generates a re-link token from the wallet detail page in the frontend
+1. The user generates a re-link token from the wallet detail page at `https://heyvincent.ai`
 2. The user gives the token to the agent (e.g. by pasting it in chat)
-3. The agent calls the re-link endpoint to exchange the token for a new API key
+3. The agent calls the re-link endpoint to exchange the token for a new scoped API key
 
 ```bash
 curl -X POST "https://heyvincent.ai/api/secrets/relink" \
@@ -197,7 +223,7 @@ curl -X POST "https://heyvincent.ai/api/secrets/relink" \
 Response includes:
 
 - `secret` -- the wallet metadata (id, type, address, chainId, etc.)
-- `apiKey.key` -- the new API key to use as Bearer token for all future requests
+- `apiKey.key` -- the new scoped API key to use as Bearer token for all future requests
 
 **Important:** Re-link tokens are one-time use and expire after 10 minutes. No authentication is required on this endpoint -- the token itself is the authorization.
 
@@ -207,10 +233,10 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
 - **No gas needed.** A paymaster is fully set up -- all transaction gas fees are sponsored automatically. The wallet does not need ETH for gas.
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
-- Always store the API key from wallet creation. If you're an openclaw instance, store it in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
-- Always search for the API keys in the credentials folder before using the API. If you're an openclaw instance, search for the API key in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can search for the API key in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+- Always store the API key from wallet creation. If you're an OpenClaw instance, store it in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+- Always search for the API keys in the credentials folder before using the API. If you're an OpenClaw instance, search for the API key in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, search for the API key in your current working directory at `agentwallet/<API_KEY_ID>.json`.
 - Always share the claim URL with the user after creating a wallet.
-- If a transaction is rejected, it may be blocked by a policy. Tell the user to check their policy settings via the frontend at `https://heyvincent.ai`.
+- If a transaction is rejected, it may be blocked by a server-side policy. Tell the user to check their policy settings at `https://heyvincent.ai`.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.
 
 ---
