@@ -925,6 +925,366 @@ async function tokenAmountToWei(
 }
 
 // ============================================================
+// Fund Preview
+// ============================================================
+
+export async function previewFund(input: FundPreviewInput): Promise<FundPreviewOutput> {
+  const wallet = await getWalletData(input.secretId);
+
+  // Balance check
+  const { balance: currentBalance, symbol: tokenSymbol } = await getTokenBalance(
+    wallet.smartAccountAddress,
+    input.tokenIn,
+    input.sourceChainId
+  );
+  const sufficient = parseFloat(currentBalance) >= parseFloat(input.tokenInAmount);
+
+  // Simple transfer: same token + same chain
+  const isSimpleTransfer =
+    input.tokenIn.toLowerCase() === input.tokenOut.toLowerCase() &&
+    input.sourceChainId === input.depositChainId;
+
+  const balanceCheck = {
+    sufficient,
+    currentBalance,
+    requiredBalance: input.tokenInAmount,
+    tokenSymbol,
+  };
+
+  if (isSimpleTransfer) {
+    return {
+      isSimpleTransfer: true,
+      tokenIn: input.tokenIn,
+      tokenOut: input.tokenOut,
+      sourceChainId: input.sourceChainId,
+      depositChainId: input.depositChainId,
+      depositWalletAddress: input.depositWalletAddress,
+      amountIn: input.tokenInAmount,
+      amountOut: input.tokenInAmount, // 1:1 for simple transfer
+      fees: { gas: '0', total: '0' }, // Gas sponsored by paymaster
+      smartAccountAddress: wallet.smartAccountAddress,
+      balanceCheck,
+    };
+  }
+
+  // Cross-chain: get Relay quote
+  const amountWei = await tokenAmountToWei(input.tokenIn, input.tokenInAmount, input.sourceChainId);
+
+  const quote = await relayService.getQuote({
+    user: wallet.smartAccountAddress,
+    originChainId: input.sourceChainId,
+    destinationChainId: input.depositChainId,
+    originCurrency: relayService.normalizeTokenAddress(input.tokenIn),
+    destinationCurrency: relayService.normalizeTokenAddress(input.tokenOut),
+    amount: amountWei,
+    tradeType: 'EXACT_INPUT',
+    recipient: input.depositWalletAddress,
+    slippageTolerance: input.slippage?.toString(),
+  });
+
+  return {
+    isSimpleTransfer: false,
+    tokenIn: input.tokenIn,
+    tokenOut: input.tokenOut,
+    sourceChainId: input.sourceChainId,
+    depositChainId: input.depositChainId,
+    depositWalletAddress: input.depositWalletAddress,
+    amountIn: amountWei,
+    amountOut: quote.details.currencyOut.amount,
+    route: quote.details.operation,
+    timeEstimate: quote.details.timeEstimate,
+    fees: {
+      gas: quote.fees.gas?.amountFormatted ?? '0',
+      relayer: quote.fees.relayer?.amountFormatted ?? '0',
+      total: String(
+        parseFloat(quote.fees.gas?.amountUsd ?? '0') +
+          parseFloat(quote.fees.relayer?.amountUsd ?? '0')
+      ),
+    },
+    smartAccountAddress: wallet.smartAccountAddress,
+    balanceCheck,
+  };
+}
+
+// ============================================================
+// Fund Execute
+// ============================================================
+
+export async function executeFund(input: FundExecuteInput): Promise<FundExecuteOutput> {
+  const wallet = await getWalletData(input.secretId);
+
+  // Subscription check
+  const subCheck = await gasService.checkSubscriptionForChain(
+    wallet.userId,
+    input.sourceChainId,
+    wallet.createdAt
+  );
+  if (!subCheck.allowed) {
+    throw new AppError('SUBSCRIPTION_REQUIRED', subCheck.reason!, 402);
+  }
+
+  // Preview + balance validation
+  const preview = await previewFund({
+    secretId: input.secretId,
+    tokenIn: input.tokenIn,
+    sourceChainId: input.sourceChainId,
+    depositChainId: input.depositChainId,
+    depositWalletAddress: input.depositWalletAddress,
+    tokenInAmount: input.tokenInAmount,
+    tokenOut: input.tokenOut,
+    slippage: input.slippage,
+  });
+
+  if (!preview.balanceCheck.sufficient) {
+    throw new AppError(
+      'INSUFFICIENT_BALANCE',
+      `Insufficient balance. Have ${preview.balanceCheck.currentBalance} ${preview.balanceCheck.tokenSymbol}, need ${preview.balanceCheck.requiredBalance}`,
+      400
+    );
+  }
+
+  // Policy check
+  const policyAction: PolicyCheckAction = {
+    type: preview.isSimpleTransfer ? 'transfer' : 'send_transaction',
+    to: input.depositWalletAddress.toLowerCase(),
+    chainId: input.sourceChainId,
+  };
+
+  if (!relayService.isNativeToken(input.tokenIn)) {
+    policyAction.tokenAddress = input.tokenIn.toLowerCase();
+    policyAction.tokenAmount = parseFloat(input.tokenInAmount);
+    try {
+      policyAction.tokenSymbol = await zerodev.getTokenSymbol(
+        input.tokenIn as Address,
+        input.sourceChainId
+      );
+    } catch {
+      // Non-critical
+    }
+  } else {
+    policyAction.value = parseFloat(input.tokenInAmount);
+  }
+
+  const policyResult = await checkPolicies(input.secretId, policyAction);
+
+  // USD value for logging
+  let usdValue: number | null = null;
+  try {
+    if (relayService.isNativeToken(input.tokenIn)) {
+      usdValue = await priceService.ethToUsd(parseFloat(input.tokenInAmount));
+    } else {
+      usdValue = await priceService.tokenToUsd(input.tokenIn, parseFloat(input.tokenInAmount));
+    }
+  } catch {
+    // Price unavailable
+  }
+
+  // Create transaction log
+  const txLog = await prisma.transactionLog.create({
+    data: {
+      secretId: input.secretId,
+      apiKeyId: input.apiKeyId,
+      actionType: 'fund',
+      requestData: {
+        tokenIn: input.tokenIn,
+        tokenOut: input.tokenOut,
+        sourceChainId: input.sourceChainId,
+        depositChainId: input.depositChainId,
+        depositWalletAddress: input.depositWalletAddress,
+        tokenInAmount: input.tokenInAmount,
+        slippage: input.slippage,
+        usdValue,
+        isSimpleTransfer: preview.isSimpleTransfer,
+      },
+      status: policyResult.verdict === 'allow' ? 'PENDING' : 'DENIED',
+    },
+  });
+
+  // Handle deny
+  if (policyResult.verdict === 'deny') {
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'DENIED',
+        responseData: { reason: policyResult.triggeredPolicy?.reason },
+      },
+    });
+
+    return {
+      txHash: null,
+      status: 'denied',
+      isSimpleTransfer: preview.isSimpleTransfer,
+      smartAccountAddress: wallet.smartAccountAddress,
+      reason: policyResult.triggeredPolicy?.reason,
+      transactionLogId: txLog.id,
+    };
+  }
+
+  // Handle require_approval
+  if (policyResult.verdict === 'require_approval') {
+    const pendingApproval = await prisma.pendingApproval.create({
+      data: {
+        transactionLogId: txLog.id,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    sendApprovalRequest(pendingApproval.id).catch((err) =>
+      console.error('Failed to send approval request:', err)
+    );
+
+    return {
+      txHash: null,
+      status: 'pending_approval',
+      isSimpleTransfer: preview.isSimpleTransfer,
+      smartAccountAddress: wallet.smartAccountAddress,
+      reason: policyResult.triggeredPolicy?.reason,
+      transactionLogId: txLog.id,
+    };
+  }
+
+  // Execute
+  try {
+    if (preview.isSimpleTransfer) {
+      // Direct transfer via executeTransfer
+      const isNative = relayService.isNativeToken(input.tokenIn);
+
+      let result;
+      if (isNative) {
+        result = await zerodev.executeTransfer({
+          privateKey: wallet.privateKey,
+          chainId: input.sourceChainId,
+          to: input.depositWalletAddress as Address,
+          value: parseEther(input.tokenInAmount),
+        });
+      } else {
+        const decimals = await zerodev.getTokenDecimals(
+          input.tokenIn as Address,
+          input.sourceChainId
+        );
+        result = await zerodev.executeTransfer({
+          privateKey: wallet.privateKey,
+          chainId: input.sourceChainId,
+          to: input.depositWalletAddress as Address,
+          tokenAddress: input.tokenIn as Address,
+          tokenAmount: parseUnits(input.tokenInAmount, decimals),
+        });
+      }
+
+      await prisma.transactionLog.update({
+        where: { id: txLog.id },
+        data: {
+          status: 'EXECUTED',
+          txHash: result.txHash,
+          responseData: {
+            txHash: result.txHash,
+            smartAccountAddress: result.smartAccountAddress,
+          },
+        },
+      });
+
+      return {
+        txHash: result.txHash,
+        status: 'executed',
+        isSimpleTransfer: true,
+        smartAccountAddress: result.smartAccountAddress,
+        transactionLogId: txLog.id,
+        explorerUrl: getExplorerTxUrl(input.sourceChainId, result.txHash),
+      };
+    }
+
+    // Cross-chain via Relay
+    const amountWei = await tokenAmountToWei(
+      input.tokenIn,
+      input.tokenInAmount,
+      input.sourceChainId
+    );
+
+    const quote = await relayService.getQuote({
+      user: wallet.smartAccountAddress,
+      originChainId: input.sourceChainId,
+      destinationChainId: input.depositChainId,
+      originCurrency: relayService.normalizeTokenAddress(input.tokenIn),
+      destinationCurrency: relayService.normalizeTokenAddress(input.tokenOut),
+      amount: amountWei,
+      tradeType: 'EXACT_INPUT',
+      recipient: input.depositWalletAddress,
+      slippageTolerance: input.slippage?.toString(),
+    });
+
+    const calls = buildCallsFromRelaySteps(quote.steps);
+
+    if (calls.length === 0) {
+      throw new AppError('RELAY_NO_STEPS', 'Relay returned no executable transaction steps', 502);
+    }
+
+    const result =
+      calls.length === 1
+        ? await zerodev.executeSendTransaction({
+            privateKey: wallet.privateKey,
+            chainId: input.sourceChainId,
+            to: calls[0].to,
+            data: calls[0].data,
+            value: calls[0].value,
+          })
+        : await zerodev.executeBatchTransaction({
+            privateKey: wallet.privateKey,
+            chainId: input.sourceChainId,
+            calls,
+          });
+
+    const relayRequestId = quote.steps.find((s) => s.requestId)?.requestId;
+
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'EXECUTED',
+        txHash: result.txHash,
+        responseData: {
+          txHash: result.txHash,
+          smartAccountAddress: result.smartAccountAddress,
+          relayRequestId,
+        },
+      },
+    });
+
+    return {
+      txHash: result.txHash,
+      status: 'cross_chain_pending',
+      isSimpleTransfer: false,
+      relayRequestId,
+      smartAccountAddress: result.smartAccountAddress,
+      transactionLogId: txLog.id,
+      explorerUrl: getExplorerTxUrl(input.sourceChainId, result.txHash),
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof AppError ? error.code : 'TX_FAILED';
+    const errorDetails =
+      error instanceof AppError && error.details
+        ? JSON.parse(JSON.stringify(error.details))
+        : undefined;
+
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'FAILED',
+        responseData: {
+          error: errorMessage,
+          code: errorCode,
+          ...(errorDetails && { details: errorDetails }),
+        },
+      },
+    });
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError('TX_FAILED', `Fund failed: ${errorMessage}`, 500);
+  }
+}
+
+// ============================================================
 // Fund Helpers
 // ============================================================
 
