@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useToast } from '../components/Toast';
 import {
   getOpenClawDeployment,
   cancelOpenClawDeployment,
@@ -40,13 +41,13 @@ interface UsageData {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  READY: 'bg-green-500/10 text-green-400',
-  PENDING_PAYMENT: 'bg-yellow-500/10 text-yellow-400',
-  PENDING: 'bg-yellow-500/10 text-yellow-400',
-  ORDERING: 'bg-yellow-500/10 text-yellow-400',
+  READY: 'bg-status-success-muted text-status-success',
+  PENDING_PAYMENT: 'bg-status-warning-muted text-status-warning',
+  PENDING: 'bg-status-warning-muted text-status-warning',
+  ORDERING: 'bg-status-warning-muted text-status-warning',
   PROVISIONING: 'bg-primary/10 text-primary',
   INSTALLING: 'bg-primary/10 text-primary',
-  CANCELING: 'bg-orange-500/10 text-orange-400',
+  CANCELING: 'bg-status-caution-muted text-status-caution',
   ERROR: 'bg-destructive/10 text-destructive',
   DESTROYING: 'bg-muted text-muted-foreground',
   DESTROYED: 'bg-muted text-muted-foreground',
@@ -88,6 +89,8 @@ export default function OpenClawDetail() {
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [telegramError, setTelegramError] = useState<string | null>(null);
   const [gatewayRestarting, setGatewayRestarting] = useState(false);
+
+  const { toast } = useToast();
 
   const load = useCallback(() => {
     if (!id) return;
@@ -235,9 +238,10 @@ export default function OpenClawDetail() {
     setActionLoading('restart');
     try {
       await restartOpenClawDeployment(id);
+      toast('Agent restarting');
       load();
     } catch {
-      setError('Failed to restart');
+      toast('Failed to restart', 'error');
     } finally {
       setActionLoading(null);
     }
@@ -344,15 +348,18 @@ export default function OpenClawDetail() {
 
   return (
     <div>
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-1.5 text-sm mb-4" aria-label="Breadcrumb">
+        <Link to="/agents" className="text-muted-foreground hover:text-foreground transition-colors">
+          Agents
+        </Link>
+        <span className="text-muted-foreground/50">/</span>
+        <span className="text-foreground font-medium">Agent</span>
+      </nav>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="text-muted-foreground hover:text-foreground text-sm transition-colors"
-          >
-            &larr; Dashboard
-          </button>
           <h1 className="text-2xl font-bold text-foreground">Agent</h1>
           <span
             className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[deployment.status] || 'bg-muted text-muted-foreground'}`}
@@ -552,11 +559,11 @@ export default function OpenClawDetail() {
       {/* Add Credits Modal */}
       {showCreditsModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowCreditsModal(false)}
         >
           <div
-            className="bg-card border border-border rounded-lg p-6 w-96 max-w-[90vw]"
+            className="bg-card border border-border rounded-lg p-6 w-full max-w-sm mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground mb-4">Add LLM Credits</h3>
@@ -602,7 +609,7 @@ export default function OpenClawDetail() {
       {/* Telegram Setup Modal */}
       {showTelegramModal && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => {
             if (!telegramLoading) {
               setShowTelegramModal(false);
@@ -611,7 +618,7 @@ export default function OpenClawDetail() {
           }}
         >
           <div
-            className="bg-card border border-border rounded-lg p-6 w-[28rem] max-w-[90vw]"
+            className="bg-card border border-border rounded-lg p-6 w-full max-w-md mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground mb-1">Set up Telegram</h3>
@@ -712,11 +719,11 @@ export default function OpenClawDetail() {
       {/* Developer Mode Modal */}
       {showDevModal && deployment.ipAddress && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={() => setShowDevModal(false)}
         >
           <div
-            className="bg-card border border-border rounded-lg p-6 w-[32rem] max-w-[90vw]"
+            className="bg-card border border-border rounded-lg p-6 w-full max-w-lg mx-4"
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-lg font-semibold text-foreground mb-4">Advanced Mode Access</h3>
@@ -737,13 +744,13 @@ export default function OpenClawDetail() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">2. Set permissions (run once)</p>
-                <code className="block text-sm bg-background border border-border rounded px-3 py-2 font-mono text-foreground select-all">
+                <code className="block text-sm bg-background border border-border rounded px-3 py-2 font-mono text-foreground select-all overflow-x-auto">
                   chmod 600 openclaw-{deployment.id.slice(-8)}.pem
                 </code>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground mb-1">3. Connect via SSH</p>
-                <code className="block text-sm bg-background border border-border rounded px-3 py-2 font-mono text-foreground select-all">
+                <code className="block text-sm bg-background border border-border rounded px-3 py-2 font-mono text-foreground select-all overflow-x-auto">
                   ssh -i openclaw-{deployment.id.slice(-8)}.pem debian@{deployment.ipAddress}
                 </code>
               </div>

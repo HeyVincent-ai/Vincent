@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listPolicies, createPolicy, deletePolicy } from '../api';
+import { useToast } from './Toast';
 
 interface Policy {
   id: string;
@@ -97,6 +98,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
   const [policies, setPolicies] = useState<Policy[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const { toast } = useToast();
   const [selectedType, setSelectedType] = useState(POLICY_TYPES[0].value);
   const [configInput, setConfigInput] = useState('');
   const [approvalOverride, setApprovalOverride] = useState(false);
@@ -133,10 +135,11 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
       setShowForm(false);
       setConfigInput('');
       setApprovalOverride(false);
+      toast('Policy created');
       load();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response?.data?.error?.message || 'Failed to create policy';
-      alert(msg);
+      toast(msg, 'error');
     }
   };
 
@@ -144,15 +147,20 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
     if (!confirm('Delete this policy?')) return;
     try {
       await deletePolicy(secretId, policyId);
+      toast('Policy deleted');
       load();
     } catch {
-      alert('Failed to delete policy');
+      toast('Failed to delete policy', 'error');
     }
   };
 
   const visiblePolicies = policies.filter((p) => p.policyType !== 'APPROVAL_THRESHOLD');
 
-  if (loading) return <p className="text-muted-foreground text-sm">Loading policies...</p>;
+  if (loading) return (
+    <div className="space-y-2">
+      {[1, 2].map((i) => <div key={i} className="skeleton h-14 w-full rounded-lg" />)}
+    </div>
+  );
 
   return (
     <div>
@@ -221,8 +229,12 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
       )}
 
       {visiblePolicies.length === 0 ? (
-        <div className="bg-muted border border-border rounded-lg p-4">
-          <p className="text-muted-foreground text-sm">No policies configured. All actions are allowed by default.</p>
+        <div className="bg-card rounded-lg border border-border p-8 text-center">
+          <svg className="w-10 h-10 mx-auto mb-2 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
+          </svg>
+          <p className="text-foreground font-medium text-sm mb-0.5">No policies configured</p>
+          <p className="text-muted-foreground text-xs">All actions are allowed by default. Add a policy to restrict or require approval.</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -238,7 +250,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
                       {pTypeDef?.label || p.policyType}
                     </span>
                     {hasOverride && (
-                      <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 rounded-full font-medium">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-status-caution-muted text-status-caution rounded-full font-medium">
                         approval override
                       </span>
                     )}

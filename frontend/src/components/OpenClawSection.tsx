@@ -19,13 +19,13 @@ interface Deployment {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  READY: 'bg-green-500/10 text-green-400',
-  PENDING_PAYMENT: 'bg-yellow-500/10 text-yellow-400',
-  PENDING: 'bg-yellow-500/10 text-yellow-400',
-  ORDERING: 'bg-yellow-500/10 text-yellow-400',
+  READY: 'bg-status-success-muted text-status-success',
+  PENDING_PAYMENT: 'bg-status-warning-muted text-status-warning',
+  PENDING: 'bg-status-warning-muted text-status-warning',
+  ORDERING: 'bg-status-warning-muted text-status-warning',
   PROVISIONING: 'bg-primary/10 text-primary',
   INSTALLING: 'bg-primary/10 text-primary',
-  CANCELING: 'bg-orange-500/10 text-orange-400',
+  CANCELING: 'bg-status-caution-muted text-status-caution',
   ERROR: 'bg-destructive/10 text-destructive',
   DESTROYING: 'bg-muted text-muted-foreground',
   DESTROYED: 'bg-muted text-muted-foreground',
@@ -141,9 +141,12 @@ export default function OpenClawSection() {
       )}
 
       {active.length === 0 ? (
-        <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-          <p className="mb-1">No agents deployed yet.</p>
-          <p className="text-sm">Click "Deploy Agent" to spin up your own AI agent.</p>
+        <div className="bg-card rounded-lg border border-border p-10 text-center">
+          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
+          </svg>
+          <p className="text-foreground font-medium mb-1">No agents deployed yet</p>
+          <p className="text-sm text-muted-foreground">Click "Deploy Agent" to spin up your own AI agent.</p>
         </div>
       ) : (
         <div className="grid gap-4">
