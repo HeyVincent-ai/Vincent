@@ -220,7 +220,7 @@ function SecretCard({ secret }: { secret: Secret }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-                <WalletIcon className="w-4.5 h-4.5 text-primary" />
+                <WalletIcon className="w-[18px] h-[18px] text-primary" />
               </div>
               <div>
                 <span className="text-foreground font-medium block leading-tight">
