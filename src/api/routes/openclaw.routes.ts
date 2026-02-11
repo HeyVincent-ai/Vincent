@@ -73,7 +73,7 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
     sendSuccess(res, { deploymentId: deployment.id, checkoutUrl }, 201);
   } catch (error: any) {
     console.error('OpenClaw deploy error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -87,7 +87,7 @@ router.get('/deployments', async (req: AuthenticatedRequest, res: Response) => {
     sendSuccess(res, { deployments: deployments.map(toPublicData) });
   } catch (error: any) {
     console.error('OpenClaw list error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -104,7 +104,7 @@ router.get('/deployments/:id', async (req: AuthenticatedRequest, res: Response) 
     sendSuccess(res, { deployment: toPublicData(deployment) });
   } catch (error: any) {
     console.error('OpenClaw get error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -124,7 +124,7 @@ router.post('/deployments/:id/cancel', async (req: AuthenticatedRequest, res: Re
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw cancel error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -141,7 +141,7 @@ router.delete('/deployments/:id', async (req: AuthenticatedRequest, res: Respons
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw destroy error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -158,7 +158,7 @@ router.post('/deployments/:id/restart', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw restart error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -178,7 +178,7 @@ router.post('/deployments/:id/retry', async (req: AuthenticatedRequest, res: Res
       return res.status(400).json({ success: false, error: error.message });
     }
     console.error('OpenClaw retry error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -198,7 +198,7 @@ router.post('/deployments/:id/reprovision', async (req: AuthenticatedRequest, re
       return res.status(400).json({ success: false, error: error.message });
     }
     console.error('OpenClaw reprovision error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -220,7 +220,7 @@ router.get('/deployments/:id/ssh-key', async (req: AuthenticatedRequest, res: Re
     res.send(deployment.sshPrivateKey);
   } catch (error: any) {
     console.error('OpenClaw ssh-key error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -237,7 +237,7 @@ router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Resp
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw usage error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -267,7 +267,7 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw credits error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -286,7 +286,7 @@ router.get('/deployments/:id/channels', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw channels error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -319,7 +319,7 @@ router.post('/deployments/:id/telegram/setup', async (req: AuthenticatedRequest,
       return errors.badRequest(res, error.message);
     }
     console.error('OpenClaw telegram setup error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
@@ -352,7 +352,7 @@ router.post('/deployments/:id/telegram/pair', async (req: AuthenticatedRequest, 
       return errors.badRequest(res, error.message);
     }
     console.error('OpenClaw telegram pair error:', error);
-    errors.internal(res, error.message);
+    errors.internal(res);
   }
 });
 
