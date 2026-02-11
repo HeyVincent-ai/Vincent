@@ -60,7 +60,7 @@ const NATIVE_ETH = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 // Test amounts - small to minimize costs
 const ETH_FUND_AMOUNT = '0.000001'; // ETH to fund smart account for testing
 const ETH_TRANSFER_AMOUNT = '0.0000001'; // Small ETH transfer
-const USDC_FUND_AMOUNT = '0.00001'; // USDC to fund smart account
+const USDC_FUND_AMOUNT = '0.25'; // USDC to fund smart account, smallest amount for reliable Relay.link swap is 0.2 USDC but it doesn't matter since it'll all be refunded back to the funder address
 const USDC_TRANSFER_AMOUNT = '0.000001'; // Small USDC transfer
 const SWAP_USDC_AMOUNT = '0.000001'; // USDC to swap for ETH
 
@@ -619,49 +619,13 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   }, 120_000);
 
   // ============================================================
-  // Test 11: Verify final balances
-  // ============================================================
-
-  it('should have reduced balances after operations', async () => {
-    const res = await request(app)
-      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
-      .set('Authorization', `Bearer ${apiKey}`)
-      .expect(200);
-
-    const tokens = res.body.data.tokens;
-
-    // Find native ETH
-    const ethToken = tokens.find(
-      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
-    );
-    const ethBalance = ethToken
-      ? parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals))
-      : 0;
-
-    // Find USDC
-    const usdcToken = tokens.find(
-      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
-    );
-    const usdcBalance = usdcToken
-      ? parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals))
-      : 0;
-
-    console.log(`Final balances - ETH: ${ethBalance}, USDC: ${usdcBalance}`);
-
-    // Should have less ETH than we funded (transfers + swaps)
-    expect(ethBalance).toBeLessThan(parseFloat(ETH_FUND_AMOUNT));
-    // Should still have some USDC (funded - transferred + swapped)
-    expect(usdcBalance).toBeGreaterThan(0);
-  }, 30_000);
-
-  // ============================================================
-  // Test 12: Cross-chain fund (Base USDC → Polygon USDC.e)
+  // Test 11: Cross-chain fund (Base USDC → Polygon USDC.e)
   // ============================================================
 
   it('should fund USDC from Base to Polygon deposit address', async () => {
     const POLYGON_CHAIN_ID = 137;
     const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
-    const FUND_AMOUNT = '0.001';
+    const FUND_AMOUNT = '0.2'; // 0.25 - 0.05 for other transactions
 
     // Preview
     const previewRes = await request(app)
@@ -722,9 +686,45 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
         .expect(200);
 
       expect(statusRes.body.success).toBe(true);
-      expect(statusRes.body.data.status).toBeDefined();
+      expect(statusRes.body.data.requests).toBeDefined();
 
-      console.log(`Relay status: ${statusRes.body.data.status}`);
+      console.log(`Relay status:`, statusRes.body.data.requests);
     }
   }, 120_000);
+
+  // ============================================================
+  // Test 12: Verify final balances
+  // ============================================================
+
+  it('should have reduced balances after operations', async () => {
+    const res = await request(app)
+      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    const tokens = res.body.data.tokens;
+
+    // Find native ETH
+    const ethToken = tokens.find(
+      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+    );
+    const ethBalance = ethToken
+      ? parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals))
+      : 0;
+
+    // Find USDC
+    const usdcToken = tokens.find(
+      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+    );
+    const usdcBalance = usdcToken
+      ? parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals))
+      : 0;
+
+    console.log(`Final balances - ETH: ${ethBalance}, USDC: ${usdcBalance}`);
+
+    // Should have less ETH than we funded (transfers + swaps)
+    expect(ethBalance).toBeLessThan(parseFloat(ETH_FUND_AMOUNT));
+    // Should still have some USDC (funded - transferred + swapped)
+    expect(usdcBalance).toBeGreaterThan(0);
+  }, 30_000);
 });
