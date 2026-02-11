@@ -520,7 +520,7 @@ function Footer() {
           </div>
           <div className="footer-bottom">
             <span>&copy; {new Date().getFullYear()} Vincent. All rights reserved.</span>
-            <span>heyvincent.ai</span>
+            <span><Link to="/terms">Terms of Service</Link></span>
           </div>
         </div>
       </footer>
