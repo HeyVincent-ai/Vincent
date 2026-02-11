@@ -13,7 +13,7 @@ interface Props {
   onOwnershipTransferred: () => void;
 }
 
-type Step = 'loading' | 'not-ready' | 'connect' | 'ready' | 'signing' | 'processing' | 'success' | 'error';
+type Step = 'loading' | 'not-eligible' | 'not-ready' | 'connect' | 'ready' | 'signing' | 'processing' | 'success' | 'error';
 
 const chainNames: Record<number, string> = {
   1: 'Ethereum',
@@ -40,8 +40,10 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
   useEffect(() => {
     getOwnershipStatus(secretId)
       .then((res) => {
-        const { ownershipTransferred, chainsUsed, ownerAddress: owner } = res.data.data;
-        if (ownershipTransferred) {
+        const { canTakeOwnership, ownershipTransferred, chainsUsed, ownerAddress: owner } = res.data.data;
+        if (!canTakeOwnership) {
+          setStep('not-eligible');
+        } else if (ownershipTransferred) {
           setOwnerAddress(owner);
           setStep('success');
         } else if (chainsUsed.length === 0) {
@@ -113,6 +115,16 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
   return (
     <div className="bg-white rounded-lg border p-6">
       <h3 className="text-lg font-semibold mb-2">Take Ownership</h3>
+
+      {step === 'not-eligible' && (
+        <div className="bg-muted/50 border border-border rounded p-4">
+          <p className="text-muted-foreground text-sm">
+            This wallet was created before the self-custody feature was available, so it cannot
+            be transferred to your personal wallet. To take ownership of a wallet, create a new
+            one and move your assets to it.
+          </p>
+        </div>
+      )}
 
       {step === 'not-ready' && (
         <div className="bg-yellow-50 border border-yellow-200 rounded p-4">

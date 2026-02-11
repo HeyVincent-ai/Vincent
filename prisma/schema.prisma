@@ -100,6 +100,7 @@ model WalletSecretMetadata {
   id                   String    @id @default(cuid())
   secretId             String    @unique @map("secret_id")
   smartAccountAddress  String    @map("smart_account_address")
+  canTakeOwnership     Boolean   @default(false) @map("can_take_ownership")
   ownershipTransferred Boolean   @default(false) @map("ownership_transferred")
   ownerAddress         String?   @map("owner_address") // User's EOA after ownership transfer
   transferredAt        DateTime? @map("transferred_at")

@@ -6,4 +6,4 @@ export * from './price.service.js';
 export * as ovhService from './ovh.service.js';
 export * as openRouterService from './openrouter.service.js';
 export * as openclawService from './openclaw.service.js';
-export * from './ownership.service';
+export * from './ownership.service.js';

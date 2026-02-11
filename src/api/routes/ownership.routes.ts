@@ -1,11 +1,11 @@
-import { Router } from 'express';
+import { Router, Response } from 'express';
 import { z } from 'zod';
-import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth';
-import { sendSuccess, errors } from '../../utils/response';
-import { asyncHandler, AppError } from '../middleware/errorHandler';
-import { AuthenticatedRequest } from '../../types';
-import * as ownershipService from '../../services/ownership.service';
-import { log as auditLog } from '../../audit/audit.service';
+import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
+import { sendSuccess } from '../../utils/response.js';
+import { asyncHandler, AppError } from '../middleware/errorHandler.js';
+import { AuthenticatedRequest } from '../../types/index.js';
+import * as ownershipService from '../../services/ownership.service.js';
+import { log as auditLog } from '../../audit/audit.service.js';
 
 const router = Router({ mergeParams: true });
 
@@ -36,7 +36,7 @@ router.post(
   '/challenge',
   sessionAuthMiddleware,
   requireSecretOwnership,
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { secretId } = req.params as { secretId: string };
     const parseResult = challengeSchema.safeParse(req.body);
 
@@ -76,7 +76,7 @@ router.post(
   '/verify',
   sessionAuthMiddleware,
   requireSecretOwnership,
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { secretId } = req.params as { secretId: string };
     const parseResult = verifySchema.safeParse(req.body);
 
@@ -140,7 +140,7 @@ router.get(
   '/status',
   sessionAuthMiddleware,
   requireSecretOwnership,
-  asyncHandler(async (req: AuthenticatedRequest, res) => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const { secretId } = req.params as { secretId: string };
 
     const status = await ownershipService.getOwnershipStatus(secretId);

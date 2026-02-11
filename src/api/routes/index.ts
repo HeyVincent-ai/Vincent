@@ -10,7 +10,7 @@ import rawSignerRouter from './rawSigner.routes.js';
 import billingRouter from './billing.routes.js';
 import auditLogsRouter from './auditLogs.routes.js';
 import openclawRouter from './openclaw.routes.js';
-import ownershipRouter from './ownership.routes';
+import ownershipRouter from './ownership.routes.js';
 
 const router = Router();
 

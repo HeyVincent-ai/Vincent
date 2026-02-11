@@ -241,6 +241,22 @@ export default function SecretDetail() {
         </div>
       )}
 
+      {/* Take Ownership (EVM Wallets only) */}
+      {secret.type === 'EVM_WALLET' && secret.walletAddress && (
+        <div className="mb-6">
+          <TakeOwnership
+            secretId={secret.id}
+            walletAddress={secret.walletAddress}
+            onOwnershipTransferred={() => {
+              // Refresh secret data
+              getSecret(secret.id)
+                .then((res) => setSecret(res.data.data.secret))
+                .catch(() => {});
+            }}
+          />
+        </div>
+      )}
+
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <h3 className="text-sm font-medium text-foreground mb-2">Re-link Agent</h3>
         <p className="text-xs text-muted-foreground mb-3">

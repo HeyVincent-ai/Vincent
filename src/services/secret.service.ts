@@ -102,6 +102,7 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     walletMetadata = {
       create: {
         smartAccountAddress,
+        canTakeOwnership: true,
         ownershipTransferred: false,
         chainsUsed: [], // Will be populated as transactions are made
       },

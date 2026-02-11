@@ -1,14 +1,15 @@
 import { randomBytes } from 'crypto';
 import { verifyMessage, type Address, type Hex } from 'viem';
-import prisma from '../db/client';
-import { AppError } from '../api/middleware/errorHandler';
-import * as zerodev from '../skills/zerodev.service';
+import prisma from '../db/client.js';
+import { AppError } from '../api/middleware/errorHandler.js';
+import * as zerodev from '../skills/zerodev.service.js';
 
 // ============================================================
 // Types
 // ============================================================
 
 export interface OwnershipStatus {
+  canTakeOwnership: boolean;
   ownershipTransferred: boolean;
   ownerAddress: string | null;
   transferredAt: Date | null;
@@ -141,6 +142,14 @@ export async function verifyAndTransferOwnership(
     throw new AppError('NOT_FOUND', 'Wallet not found', 404);
   }
 
+  if (!secret.walletMetadata.canTakeOwnership) {
+    throw new AppError(
+      'NOT_ELIGIBLE',
+      'This wallet is not eligible for ownership transfer',
+      400
+    );
+  }
+
   if (secret.walletMetadata.ownershipTransferred) {
     throw new AppError('ALREADY_TRANSFERRED', 'Ownership has already been transferred', 409);
   }
@@ -209,6 +218,7 @@ export async function getOwnershipStatus(secretId: string): Promise<OwnershipSta
   }
 
   return {
+    canTakeOwnership: metadata.canTakeOwnership,
     ownershipTransferred: metadata.ownershipTransferred,
     ownerAddress: metadata.ownerAddress,
     transferredAt: metadata.transferredAt,
@@ -230,6 +240,14 @@ export async function requestOwnershipChallenge(
 
   if (!metadata) {
     throw new AppError('NOT_FOUND', 'Wallet not found', 404);
+  }
+
+  if (!metadata.canTakeOwnership) {
+    throw new AppError(
+      'NOT_ELIGIBLE',
+      'This wallet was created before self-custody was available. Create a new wallet to use self-custody.',
+      400
+    );
   }
 
   if (metadata.ownershipTransferred) {
