@@ -178,6 +178,8 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     usdcTransferTxHash?: string;
     swapTxHash?: string;
     sendTxHash?: string;
+    fundTxHash?: string;
+    relayRequestId?: string;
     returnEthTxHash?: string;
     returnUsdcTxHash?: string;
     initialFunderEthBalance?: string;
@@ -651,4 +653,78 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     // Should still have some USDC (funded - transferred + swapped)
     expect(usdcBalance).toBeGreaterThan(0);
   }, 30_000);
+
+  // ============================================================
+  // Test 12: Cross-chain fund (Base USDC → Polygon USDC.e)
+  // ============================================================
+
+  it('should fund USDC from Base to Polygon deposit address', async () => {
+    const POLYGON_CHAIN_ID = 137;
+    const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+    const FUND_AMOUNT = '0.001';
+
+    // Preview
+    const previewRes = await request(app)
+      .post('/api/skills/evm-wallet/fund/preview')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        tokenIn: USDC_ADDRESS,
+        sourceChainId: BASE_MAINNET_CHAIN_ID,
+        depositChainId: POLYGON_CHAIN_ID,
+        depositWalletAddress: funderAddress,
+        tokenInAmount: FUND_AMOUNT,
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(previewRes.body.success).toBe(true);
+    expect(previewRes.body.data.isSimpleTransfer).toBe(false);
+    expect(previewRes.body.data.balanceCheck.sufficient).toBe(true);
+    expect(previewRes.body.data.amountOut).toBeDefined();
+    expect(previewRes.body.data.timeEstimate).toBeGreaterThan(0);
+
+    console.log(`Fund preview - bridge ${FUND_AMOUNT} USDC (Base) → USDC.e (Polygon)`);
+    console.log(`Estimated time: ${previewRes.body.data.timeEstimate}s`);
+    console.log(`Route: ${previewRes.body.data.route}`);
+
+    // Execute
+    const executeRes = await request(app)
+      .post('/api/skills/evm-wallet/fund/execute')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        tokenIn: USDC_ADDRESS,
+        sourceChainId: BASE_MAINNET_CHAIN_ID,
+        depositChainId: POLYGON_CHAIN_ID,
+        depositWalletAddress: funderAddress,
+        tokenInAmount: FUND_AMOUNT,
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(executeRes.body.success).toBe(true);
+    expect(executeRes.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+    expect(executeRes.body.data.status).toMatch(/executed|cross_chain_pending/);
+    expect(executeRes.body.data.relayRequestId).toBeDefined();
+
+    evidence.fundTxHash = executeRes.body.data.txHash;
+    evidence.relayRequestId = executeRes.body.data.relayRequestId;
+
+    console.log(`Fund tx: ${executeRes.body.data.explorerUrl}`);
+    console.log(`Relay request ID: ${executeRes.body.data.relayRequestId}`);
+
+    // Status check
+    if (executeRes.body.data.relayRequestId) {
+      const statusRes = await request(app)
+        .get(`/api/skills/evm-wallet/fund/status/${executeRes.body.data.relayRequestId}`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .expect(200);
+
+      expect(statusRes.body.success).toBe(true);
+      expect(statusRes.body.data.status).toBeDefined();
+
+      console.log(`Relay status: ${statusRes.body.data.status}`);
+    }
+  }, 120_000);
 });
