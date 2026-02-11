@@ -74,5 +74,28 @@ echo "Copied to frontend/public/vincentpolymarket/SKILL.md"
 echo "Publishing polymarket to clawhub..."
 clawhub publish skills/polymarket --slug vincentpolymarket --name "Vincent - Polymarket" --version "$NEW_VERSION"
 
+# --- Copy skills to ../agent-skills/ repo and push ---
+AGENT_SKILLS_REPO="$PROJECT_ROOT/../agent-skills"
+
+if [ ! -d "$AGENT_SKILLS_REPO" ]; then
+    echo "Error: agent-skills repo not found at $AGENT_SKILLS_REPO"
+    exit 1
+fi
+
+echo ""
+echo "=== Copying skills to agent-skills repo ==="
+
+# Copy each skill folder to the top level of agent-skills
+for SKILL_DIR in "$PROJECT_ROOT/skills"/*/; do
+    SKILL_NAME=$(basename "$SKILL_DIR")
+    mkdir -p "$AGENT_SKILLS_REPO/$SKILL_NAME"
+    cp "$SKILL_DIR"SKILL.md "$AGENT_SKILLS_REPO/$SKILL_NAME/SKILL.md"
+    echo "Copied $SKILL_NAME/SKILL.md to agent-skills repo"
+done
+
+echo "Pushing agent-skills repo..."
+(cd "$AGENT_SKILLS_REPO" && gacm "update skills" && git push)
+echo "agent-skills repo pushed."
+
 echo ""
 echo "Done! All skills published to all locations and clawhub (v$NEW_VERSION)."
