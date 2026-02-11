@@ -215,8 +215,11 @@ function SecretCard({ secret }: { secret: Secret }) {
 
   return (
     <>
-      <div className="bg-card rounded-lg border border-border hover:border-primary/40 transition-colors">
-        <Link to={`/secrets/${secret.id}`} className="block p-4 pb-0">
+      <Link
+        to={`/secrets/${secret.id}`}
+        className="block bg-card rounded-lg border border-border hover:border-primary/40 transition-colors"
+      >
+        <div className="p-4 pb-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
@@ -233,38 +236,38 @@ function SecretCard({ secret }: { secret: Secret }) {
               {new Date(secret.createdAt).toLocaleDateString()}
             </span>
           </div>
-        </Link>
+        </div>
 
         {addresses.length > 0 && (
           <div className="px-4 pt-3 pb-3 space-y-2">
             {addresses.map((a) => (
-              <div
-                key={a.address}
-                className="flex items-center justify-between gap-2 bg-muted/50 rounded-lg px-3 py-2"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs text-muted-foreground shrink-0 w-24">{a.label}</span>
-                  <code className="text-sm text-foreground/80 font-mono truncate" title={a.address}>
+              <div key={a.address} className="flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2 bg-muted/50 rounded-lg px-3 py-2 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span className="text-xs text-muted-foreground shrink-0">{a.label}</span>
+                  <code className="text-sm text-foreground/80 font-mono" title={a.address}>
                     {truncateAddress(a.address)}
                   </code>
                   <CopyButton text={a.address} />
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setQrAddress(a);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all duration-150"
+                  >
+                    <ReceiveIcon className="w-3 h-3" />
+                    Receive
+                  </button>
                 </div>
-
-                <button
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setQrAddress(a);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-border bg-muted text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all duration-150 shrink-0"
-                >
-                  <ReceiveIcon className="w-3.5 h-3.5" />
-                  Receive
-                </button>
               </div>
             ))}
           </div>
         )}
-      </div>
+      </Link>
 
       {qrAddress && (
         <QrModal

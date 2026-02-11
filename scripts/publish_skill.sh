@@ -94,7 +94,7 @@ for SKILL_DIR in "$PROJECT_ROOT/skills"/*/; do
 done
 
 echo "Pushing agent-skills repo..."
-(cd "$AGENT_SKILLS_REPO" && gacm "update skills" && git push)
+(cd "$AGENT_SKILLS_REPO" && git add -A . && git commit -a -m "update skills" && git push)
 echo "agent-skills repo pushed."
 
 echo ""
