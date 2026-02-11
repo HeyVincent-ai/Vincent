@@ -884,7 +884,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
             await updateDeployment(deploymentId, {
               status: 'ORDERING',
-              statusMessage: 'Placing VPS order with OVH',
+              statusMessage: 'Deploying agent server',
               provisionLog: log,
             });
 
@@ -1485,22 +1485,7 @@ export async function getChannelStatus(
     throw new Error('Deployment not found or not in READY state');
   }
 
-  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
-    throw new Error('Deployment missing IP or SSH key');
-  }
-
-  const result = await sshExec(
-    deployment.ipAddress,
-    SSH_USERNAME,
-    deployment.sshPrivateKey,
-    'sudo openclaw channels list 2>/dev/null || echo "NO_CHANNELS"',
-    15_000
-  );
-
-  const telegramConfigured =
-    result.stdout.toLowerCase().includes('telegram') && !result.stdout.includes('NO_CHANNELS');
-
-  return { telegram: { configured: telegramConfigured } };
+  return { telegram: { configured: deployment.telegramConfigured } };
 }
 
 /**
@@ -1577,6 +1562,11 @@ export async function approveTelegramPairing(
   if (result.code !== 0) {
     throw new Error(result.stderr.trim() || 'Failed to approve pairing code');
   }
+
+  await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: { telegramConfigured: true },
+  });
 
   return { success: true, message: result.stdout.trim() || 'Pairing approved' };
 }

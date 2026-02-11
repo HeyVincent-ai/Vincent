@@ -130,7 +130,7 @@ export default function OpenClawSection() {
           disabled={deploying}
           className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
         >
-          {deploying ? 'Redirecting...' : 'Deploy Agent \u2014 7-day free trial'}
+          {deploying ? 'Redirecting...' : deployments.length === 0 ? 'Deploy Agent \u2014 7-day free trial' : 'Deploy Agent \u2014 $25/mo'}
         </button>
       </div>
 

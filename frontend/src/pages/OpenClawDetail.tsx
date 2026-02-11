@@ -11,7 +11,6 @@ import {
   downloadOpenClawSshKey,
   getOpenClawUsage,
   addOpenClawCredits,
-  getOpenClawChannels,
   setupOpenClawTelegram,
   pairOpenClawTelegram,
 } from '../api';
@@ -29,6 +28,7 @@ interface Deployment {
   canceledAt: string | null;
   createdAt: string;
   readyAt: string | null;
+  telegramConfigured: boolean;
 }
 
 interface UsageData {
@@ -81,7 +81,6 @@ export default function OpenClawDetail() {
   const [creditLoading, setCreditLoading] = useState(false);
   const [creditError, setCreditError] = useState<string | null>(null);
   const [showDevModal, setShowDevModal] = useState(false);
-  const [telegramConfigured, setTelegramConfigured] = useState<boolean | null>(null);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [telegramStep, setTelegramStep] = useState<1 | 2>(1);
   const [botToken, setBotToken] = useState('');
@@ -131,24 +130,16 @@ export default function OpenClawDetail() {
       .catch(() => {});
   }, [id, deployment?.status]);
 
-  // Check Telegram channel status when deployment is active
+  // Auto-pop Telegram modal on first visit if not configured
   useEffect(() => {
-    if (!id || !deployment) return;
+    if (!id || !deployment || deployment.telegramConfigured) return;
     if (!['READY', 'CANCELING'].includes(deployment.status)) return;
-    getOpenClawChannels(id)
-      .then((res) => setTelegramConfigured(res.data.data.telegram.configured))
-      .catch(() => setTelegramConfigured(false));
-  }, [id, deployment?.status]);
-
-  // Auto-pop Telegram modal on first visit to this deployment
-  useEffect(() => {
-    if (!id || telegramConfigured === null || telegramConfigured) return;
     const key = `telegram-modal-shown-${id}`;
     if (!localStorage.getItem(key)) {
       localStorage.setItem(key, '1');
       setShowTelegramModal(true);
     }
-  }, [id, telegramConfigured]);
+  }, [id, deployment?.status, deployment?.telegramConfigured]);
 
   const handleAddCredits = async () => {
     if (!id) return;
@@ -187,24 +178,12 @@ export default function OpenClawDetail() {
     try {
       await setupOpenClawTelegram(id, botToken.trim());
       setGatewayRestarting(true);
-      let attempts = 0;
-      const poll = setInterval(async () => {
-        attempts++;
-        try {
-          await getOpenClawChannels(id);
-          clearInterval(poll);
-          setGatewayRestarting(false);
-          setTelegramStep(2);
-          setTelegramLoading(false);
-        } catch {
-          if (attempts >= 20) {
-            clearInterval(poll);
-            setGatewayRestarting(false);
-            setTelegramStep(2);
-            setTelegramLoading(false);
-          }
-        }
-      }, 3000);
+      // Gateway restarts after configuring the bot — wait a moment then proceed to step 2
+      setTimeout(() => {
+        setGatewayRestarting(false);
+        setTelegramStep(2);
+        setTelegramLoading(false);
+      }, 5000);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
         ?.data?.error?.message;
@@ -219,7 +198,7 @@ export default function OpenClawDetail() {
     setTelegramError(null);
     try {
       await pairOpenClawTelegram(id, pairingCode.trim());
-      setTelegramConfigured(true);
+      load(); // Reload deployment to pick up telegramConfigured=true from DB
       setShowTelegramModal(false);
       setTelegramStep(1);
       setBotToken('');
@@ -527,7 +506,7 @@ export default function OpenClawDetail() {
               </p>
             )}
           </div>
-          {telegramConfigured ? (
+          {deployment.telegramConfigured ? (
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 flex items-center gap-3">
               <svg className="w-5 h-5 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

@@ -343,6 +343,9 @@ model OpenClawDeployment {
   // OpenRouter
   openRouterKeyHash String?      @map("open_router_key_hash")
 
+  // Channel configuration
+  telegramConfigured Boolean      @default(false) @map("telegram_configured")
+
   // Status tracking
   status          OpenClawStatus @default(PENDING)
   statusMessage   String?        @map("status_message")
