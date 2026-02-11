@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listApiKeys, createApiKey, revokeApiKey } from '../api';
+import { useToast } from './Toast';
 
 interface ApiKey {
   id: string;
@@ -14,6 +15,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
   const [newKeyName, setNewKeyName] = useState('');
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const { toast } = useToast();
 
   const load = () => {
     listApiKeys(secretId)
@@ -30,9 +32,10 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
       const res = await createApiKey(secretId, newKeyName.trim());
       setCreatedKey(res.data.data.plainKey);
       setNewKeyName('');
+      toast('API key created');
       load();
     } catch {
-      alert('Failed to create API key');
+      toast('Failed to create API key', 'error');
     }
   };
 
@@ -40,9 +43,10 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
     if (!confirm('Revoke this API key? This cannot be undone.')) return;
     try {
       await revokeApiKey(secretId, keyId);
+      toast('API key revoked');
       load();
     } catch {
-      alert('Failed to revoke API key');
+      toast('Failed to revoke API key', 'error');
     }
   };
 
@@ -50,7 +54,11 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
     if (createdKey) navigator.clipboard.writeText(createdKey);
   };
 
-  if (loading) return <p className="text-muted-foreground">Loading...</p>;
+  if (loading) return (
+    <div className="space-y-2">
+      {[1, 2].map((i) => <div key={i} className="skeleton h-14 w-full rounded-lg" />)}
+    </div>
+  );
 
   return (
     <div>
@@ -92,7 +100,13 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
       )}
 
       {keys.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No API keys.</p>
+        <div className="bg-card rounded-lg border border-border p-8 text-center">
+          <svg className="w-10 h-10 mx-auto mb-2 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+          </svg>
+          <p className="text-foreground font-medium text-sm mb-0.5">No API keys</p>
+          <p className="text-muted-foreground text-xs">Create one to give an agent access to this secret.</p>
+        </div>
       ) : (
         <div className="space-y-2">
           {keys.map((k) => (

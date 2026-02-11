@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret } from '../api';
 import { QRCodeSVG } from 'qrcode.react';
+import { useToast } from '../components/Toast';
 
 interface Secret {
   id: string;
@@ -186,6 +187,26 @@ function QrModal({
   );
 }
 
+// ── Loading Skeleton ────────────────────────────────────────────────
+
+function SecretCardSkeleton() {
+  return (
+    <div className="bg-card rounded-lg border border-border p-4">
+      <div className="flex items-center gap-2.5">
+        <div className="skeleton w-8 h-8 rounded-lg" />
+        <div className="flex-1">
+          <div className="skeleton h-4 w-32 mb-1.5" />
+          <div className="skeleton h-3 w-20" />
+        </div>
+        <div className="skeleton h-3 w-16" />
+      </div>
+      <div className="mt-3 space-y-2">
+        <div className="skeleton h-9 w-full rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 // ── Secret Card ─────────────────────────────────────────────────────
 
 function SecretCard({ secret }: { secret: Secret }) {
@@ -267,6 +288,7 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const loadSecrets = () => {
     getUserSecrets()
@@ -294,6 +316,7 @@ export default function Dashboard() {
 
       setCreatedKey(apiKey.key);
       setCreateMemo('');
+      toast('Secret created successfully');
       loadSecrets();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
@@ -311,7 +334,20 @@ export default function Dashboard() {
     setCreateMemo('');
   };
 
-  if (loading) return <p className="text-muted-foreground">Loading...</p>;
+  if (loading) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div className="skeleton h-7 w-28" />
+          <div className="skeleton h-9 w-32 rounded-lg" />
+        </div>
+        <div className="grid gap-4">
+          <SecretCardSkeleton />
+          <SecretCardSkeleton />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -337,12 +373,7 @@ export default function Dashboard() {
                 <code className="bg-muted px-3 py-1.5 rounded text-sm flex-1 break-all text-foreground">
                   {createdKey}
                 </code>
-                <button
-                  onClick={() => navigator.clipboard.writeText(createdKey)}
-                  className="text-primary text-sm hover:underline whitespace-nowrap"
-                >
-                  Copy
-                </button>
+                <CopyButton text={createdKey} variant="button" label="Copy" />
               </div>
               <button
                 onClick={closeCreate}
@@ -399,8 +430,12 @@ export default function Dashboard() {
       )}
 
       {secrets.length === 0 ? (
-        <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
-          <p>No secrets yet. Create one above or claim one from an agent.</p>
+        <div className="bg-card rounded-lg border border-border p-10 text-center">
+          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
+          </svg>
+          <p className="text-foreground font-medium mb-1">No secrets yet</p>
+          <p className="text-sm text-muted-foreground">Create one above or claim one from an agent to get started.</p>
         </div>
       ) : (
         <div className="grid gap-4">
