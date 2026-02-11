@@ -72,7 +72,7 @@ export const SHARED_STYLES = `
   .vp .nav .container { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .vp .nav__logo { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
   .vp .nav__logo-img { height: 28px; width: auto; filter: invert(1); opacity: .9; }
-  .vp .nav__tabs { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 0.25rem; }
+  .vp .nav__tabs { display: flex; justify-content: center; gap: 0.25rem; flex: 1; min-width: 0; }
   .vp .nav__tab {
     padding: 0.5rem 1rem; font-size: 0.9375rem; font-weight: 500; color: var(--text-muted);
     border-radius: var(--radius-sm); transition: color 150ms ease, background 150ms ease; position: relative;
@@ -467,7 +467,7 @@ function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }
         </nav>
         <div className="nav__right">
           <Link className="btn btn-secondary" to="/skills">Skills Only</Link>
-          <Link className="btn btn-primary" to="/login">Deploy an Agent</Link>
+          <Link className="btn btn-primary" to="/login">Human Login</Link>
         </div>
       </div>
     </header>
