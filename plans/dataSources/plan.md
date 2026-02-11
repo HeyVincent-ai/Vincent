@@ -414,6 +414,44 @@ To add a new data source:
 
 No frontend changes needed — the data source appears automatically from the registry on the secret detail page.
 
+## Implementation Progress & Learnings
+
+### Phase 1-3 (Backend) — Completed
+
+**Files created:**
+- `prisma/migrations/20260211100000_add_data_sources/migration.sql` — Schema migration
+- `src/dataSources/registry.ts` — Data source config registry
+- `src/dataSources/middleware.ts` — Guard middleware (type check, claim check, credit gate)
+- `src/dataSources/credit.service.ts` — Credit check/deduct/add with atomic SQL
+- `src/dataSources/usage.service.ts` — Usage logging and aggregation
+- `src/dataSources/proxy.ts` — `wrapProxy()` wrapper with credit, audit, and _vincent metadata
+- `src/dataSources/router.ts` — Main router with API key auth + guard + rate limiting
+- `src/dataSources/twitter/handler.ts` — Twitter/X API v2 proxy functions
+- `src/dataSources/twitter/routes.ts` — Twitter route definitions
+- `src/dataSources/brave/handler.ts` — Brave Search API proxy functions
+- `src/dataSources/brave/routes.ts` — Brave Search route definitions
+- `src/api/routes/dataSourceManagement.routes.ts` — Session-auth management endpoints
+
+**Files modified:**
+- `prisma/schema.prisma` — Added DATA_SOURCES enum, User.dataSourceCreditUsd, DataSourceUsage, DataSourceCreditPurchase models
+- `src/utils/env.ts` — Added TWITTER_BEARER_TOKEN, BRAVE_SEARCH_API_KEY
+- `src/services/secret.service.ts` — DATA_SOURCES type handling (null value)
+- `src/api/routes/index.ts` — Mounted management + proxy routes
+
+**Learnings:**
+- `wrapProxy()` returns a standard Express handler (casts internally to DataSourceRequest) to avoid type compatibility issues with `asyncHandler`
+- Credit deduction uses raw SQL (`$executeRaw`) for atomic compare-and-decrement, avoiding race conditions
+- `Prisma.JsonNull` must be used (not `null`) for nullable JSON fields in Prisma create
+- Rate limiting is applied at the router level (60 req/min per API key) using express-rate-limit
+- Audit logging and usage logging are fire-and-forget (`.catch(console.error)`) to avoid blocking the response
+- Phase 6 tasks (6.2 rate limiting, 6.3 audit logging) were already addressed inline during Phases 1-3
+
+### Remaining Phases
+- **Phase 4 (Frontend):** Next up — API client functions, DataSourcesView component, SecretDetail integration
+- **Phase 5 (OpenClaw Pre-provisioning):** Requires openclaw.service.ts modifications
+- **Tasks 2.3, 3.3 (Clawhub skills):** Deferred — requires clawhub packaging infrastructure
+- **Phase 6 (Testing):** Backend tests still needed
+
 ## Future Considerations
 
 - **More data sources**: Reddit, GitHub, Google Search, weather APIs, stock data, etc.

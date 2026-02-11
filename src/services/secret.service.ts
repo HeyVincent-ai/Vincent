@@ -78,6 +78,11 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     | Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput
     | undefined;
 
+  // DATA_SOURCES secrets have no value — the secret record exists for API key ownership & billing
+  if (type === SecretType.DATA_SOURCES) {
+    // secretValue stays null, no metadata needed
+  }
+
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();

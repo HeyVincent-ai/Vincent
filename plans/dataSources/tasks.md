@@ -1,8 +1,8 @@
 # Data Sources - Implementation Tasks
 
-## Phase 1: Core Infrastructure
+## Phase 1: Core Infrastructure ✅
 
-### Task 1.1: Database Schema Changes
+### Task 1.1: Database Schema Changes ✅
 - Add `DATA_SOURCES` to `SecretType` enum in `prisma/schema.prisma`
 - Add `dataSourceCreditUsd` field (Decimal(10,2), default 10.00) to `User` model
 - Create `DataSourceUsage` model: id, userId, secretId, apiKeyId (nullable), dataSource, endpoint, costUsd (Decimal(10,6)), requestMetadata (Json?), createdAt
@@ -13,20 +13,20 @@
 - Run `npx prisma migrate dev`
 - **Files:** `prisma/schema.prisma`
 
-### Task 1.2: Handle DATA_SOURCES in Secret Creation
+### Task 1.2: Handle DATA_SOURCES in Secret Creation ✅
 - Update `createSecret()` in `secret.service.ts` to handle `DATA_SOURCES` type
 - For `DATA_SOURCES`: set `value` to `null`, no wallet metadata, no key generation
 - Just creates the secret record + claim token + API key (like existing types but simpler)
 - **Files:** `src/services/secret.service.ts`
 
-### Task 1.3: Data Source Registry
+### Task 1.3: Data Source Registry ✅
 - Create `src/dataSources/registry.ts` with typed `DataSourceConfig` interface
 - Define Twitter config: id="twitter", endpoints: search ($0.01), get-tweet ($0.005), get-user ($0.005), user-tweets ($0.01)
 - Define Brave Search config: id="brave", endpoints: web ($0.005), news ($0.005)
 - Export `getDataSource(id)`, `getAllDataSources()`, `getEndpointCost(dataSourceId, endpoint)` helpers
 - **Files:** `src/dataSources/registry.ts`
 
-### Task 1.4: Data Source Guard Middleware
+### Task 1.4: Data Source Guard Middleware ✅
 - Create `src/dataSources/middleware.ts`
 - Middleware runs AFTER existing `apiKeyAuthMiddleware` (so `req.secret` and `req.apiKey` are available)
 - Checks:
@@ -37,7 +37,7 @@
 - Attach `req.dataSourceUser` to the request (the User record) for downstream use
 - **Files:** `src/dataSources/middleware.ts`
 
-### Task 1.5: Credit & Usage Service
+### Task 1.5: Credit & Usage Service ✅
 - Create `src/dataSources/credit.service.ts`:
   - `checkCredit(userId, costUsd)` — returns boolean
   - `deductCredit(userId, costUsd)` — atomic Prisma transaction: read balance, check >= cost, decrement. Throws 402 on insufficient.
@@ -51,7 +51,7 @@
   - `getUsageBySecret(secretId)` — usage for a specific DATA_SOURCES secret
 - **Files:** `src/dataSources/credit.service.ts`, `src/dataSources/usage.service.ts`
 
-### Task 1.6: Proxy Wrapper
+### Task 1.6: Proxy Wrapper ✅
 - Create `src/dataSources/proxy.ts`
 - `wrapProxy(dataSourceId, endpointId, handlerFn)` — returns an Express handler that:
   1. Gets endpoint cost from registry
@@ -62,7 +62,7 @@
   6. On upstream error: do NOT deduct, return upstream error
 - **Files:** `src/dataSources/proxy.ts`
 
-### Task 1.7: Management API Endpoints
+### Task 1.7: Management API Endpoints ✅
 - Create `src/api/routes/dataSourceManagement.routes.ts` (session auth + secret ownership)
 - `GET /api/secrets/:secretId/data-sources` — list all data sources from registry + current month usage per source
 - `GET /api/secrets/:secretId/data-sources/credits` — balance + recent purchases
@@ -71,16 +71,16 @@
 - Mount in `src/api/routes/index.ts` under secrets routes
 - **Files:** `src/api/routes/dataSourceManagement.routes.ts`, `src/api/routes/index.ts`
 
-### Task 1.8: Environment Variables
+### Task 1.8: Environment Variables ✅
 - Add `TWITTER_BEARER_TOKEN` (optional string) to `src/utils/env.ts` Zod schema
 - Add `BRAVE_SEARCH_API_KEY` (optional string) to `src/utils/env.ts` Zod schema
 - **Files:** `src/utils/env.ts`
 
 ---
 
-## Phase 2: Twitter / X.com Data Source
+## Phase 2: Twitter / X.com Data Source ✅ (backend)
 
-### Task 2.1: Twitter Proxy Handler
+### Task 2.1: Twitter Proxy Handler ✅
 - Create `src/dataSources/twitter/handler.ts`
 - Implement functions using X API v2 (all use `TWITTER_BEARER_TOKEN` for auth):
   - `searchTweets(query, options)` → `GET https://api.twitter.com/2/tweets/search/recent`
@@ -95,7 +95,7 @@
 - Validate all inputs with Zod before forwarding
 - **Files:** `src/dataSources/twitter/handler.ts`
 
-### Task 2.2: Twitter Routes
+### Task 2.2: Twitter Routes ✅
 - Create `src/dataSources/twitter/routes.ts`
 - All routes use: `apiKeyAuthMiddleware` → `dataSourceGuard` → `wrapProxy()`
 - Endpoints:
@@ -122,9 +122,9 @@
 
 ---
 
-## Phase 3: Brave Search Data Source
+## Phase 3: Brave Search Data Source ✅ (backend)
 
-### Task 3.1: Brave Search Proxy Handler
+### Task 3.1: Brave Search Proxy Handler ✅
 - Create `src/dataSources/brave/handler.ts`
 - Implement functions:
   - `webSearch(query, options)` → `GET https://api.search.brave.com/res/v1/web/search`
@@ -136,7 +136,7 @@
 - Validate inputs with Zod
 - **Files:** `src/dataSources/brave/handler.ts`
 
-### Task 3.2: Brave Search Routes
+### Task 3.2: Brave Search Routes ✅
 - Create `src/dataSources/brave/routes.ts`
 - All routes use: `apiKeyAuthMiddleware` → `dataSourceGuard` → `wrapProxy()`
 - Endpoints:
@@ -246,20 +246,20 @@
 - Test pre-provisioning flow (create + claim + keys)
 - **Files:** `src/__tests__/dataSources/` or `src/dataSources/__tests__/`
 
-### Task 6.2: Rate Limiting
+### Task 6.2: Rate Limiting ✅ (implemented in `src/dataSources/router.ts`)
 - Per-API-key rate limiting on data source proxy routes
 - Use express-rate-limit, key by API key ID (from `req.apiKey.id`)
 - 60 req/min default, configurable per data source in registry
 - Return 429 with Retry-After header
 - **Files:** `src/dataSources/router.ts` or `src/dataSources/middleware.ts`
 
-### Task 6.3: Audit Logging Integration
+### Task 6.3: Audit Logging Integration ✅ (implemented in `src/dataSources/proxy.ts`)
 - Log all data source proxy requests to AuditLog (fire-and-forget, like other skills)
 - Action types: `datasource.twitter.search`, `datasource.brave.web`, etc.
 - Include: query params, cost, balance after, upstream response status
 - **Files:** `src/dataSources/proxy.ts`
 
-### Task 6.4: Error Handling
+### Task 6.4: Error Handling ✅ (implemented in handlers + proxy + middleware)
 - Graceful upstream API error handling (timeouts, 429s, 500s from Twitter/Brave)
 - Clear error messages for all failure modes:
   - 503 if upstream API not configured (missing env var)
