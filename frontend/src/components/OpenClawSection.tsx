@@ -152,13 +152,12 @@ export default function OpenClawSection() {
             const currentStep = stepIndex(d.status);
 
             const isClickable = d.status === 'READY' || d.status === 'CANCELING';
-            const CardWrapper = isClickable ? Link : 'div';
-            const cardProps = isClickable
-              ? { to: `/openclaw/${d.id}`, key: d.id, className: 'bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors block' }
-              : { key: d.id, className: 'bg-card rounded-lg border border-border p-4' };
+            const cardClassName = isClickable
+              ? 'bg-card rounded-lg border border-border p-4 hover:border-primary/50 transition-colors block'
+              : 'bg-card rounded-lg border border-border p-4';
 
-            return (
-              <CardWrapper {...cardProps as React.ComponentProps<typeof Link>}>
+            const cardContent = (
+              <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[d.status] || 'bg-muted text-muted-foreground'}`}>
@@ -260,7 +259,17 @@ export default function OpenClawSection() {
                     )}
                   </div>
                 )}
-              </CardWrapper>
+              </>
+            );
+
+            return isClickable ? (
+              <Link key={d.id} to={`/openclaw/${d.id}`} className={cardClassName}>
+                {cardContent}
+              </Link>
+            ) : (
+              <div key={d.id} className={cardClassName}>
+                {cardContent}
+              </div>
             );
           })}
         </div>
