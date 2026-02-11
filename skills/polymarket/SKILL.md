@@ -1,17 +1,48 @@
 ---
 name: Vincent - Polymarket for agents
 description: Use this skill to create a Polymarket wallet for your agent and trade on prediction markets. Browse markets, place bets, manage positions — all without exposing private keys.
+homepage: https://heyvincent.ai
+source: https://github.com/HeyVincent-ai/Vincent
+metadata:
+  clawdbot:
+    homepage: https://heyvincent.ai
+    requires:
+      config:
+        - ~/.openclaw/credentials/agentwallet
+        - ./agentwallet
 ---
 
 # Vincent - Polymarket for agents
 
 Use this skill to create a Polymarket wallet for your agent and trade on prediction markets. Browse markets, place bets, track positions, and manage orders — all without exposing private keys to the agent. Wallets use Gnosis Safe on Polygon with gasless trading through Polymarket's relayer.
 
-**The agent never sees the private key.** All operations are executed server-side. The wallet owner controls what the agent can do via configurable policies.
+**The agent never sees the private key.** All operations are executed server-side. The agent receives a scoped API key that can only perform actions permitted by the wallet owner's policies. The private key never leaves the Vincent server.
+
+## Security Model
+
+This skill is designed for **autonomous agent trading with human oversight via server-side controls**. Understanding this model is important:
+
+**No environment variables are required** because this skill uses agent-first onboarding: the agent creates its own Polymarket wallet at runtime by calling the Vincent API, which returns a scoped API key. There is no pre-existing credential to configure. The agent generates and stores its own API key during wallet creation — no secrets need to exist before the skill runs. The config paths where the agent persists the returned API key (`~/.openclaw/credentials/agentwallet/` or `./agentwallet/`) are declared in this skill's metadata.
+
+**The agent's API key is not a private key.** It is a scoped Bearer token that can only execute actions within the policies set by the wallet owner. The Vincent server enforces all policies server-side — the agent cannot bypass them regardless of what it sends. If a trade violates a policy, the server rejects it. If a trade requires approval, the server holds it and notifies the wallet owner via Telegram for out-of-band human approval.
+
+**Model invocation is intentionally enabled.** The purpose of this skill is to give AI agents autonomous Polymarket trading capabilities. The agent is expected to invoke trading actions (browse markets, place bets, manage positions) on its own, within the boundaries the human operator defines. The human controls what the agent can do through policies (spending limits, approval thresholds) — not by gating individual invocations. The agent persists its scoped API key to the declared config paths so it can resume trading across sessions; this is expected behavior for an autonomous trading agent. The stored key is scoped and policy-constrained — even if another process reads it, it can only perform actions the wallet owner's policies allow, and the owner can revoke it instantly.
+
+**All API calls go exclusively to `heyvincent.ai`** over HTTPS/TLS. No other endpoints, services, or external hosts are contacted. The agent does not read, collect, or transmit any data beyond what is needed for Polymarket wallet operations.
+
+**Key lifecycle:**
+
+- **Creation**: The agent calls `POST /api/secrets` to create a wallet. The API returns a scoped API key and a claim URL.
+- **Claim**: The human operator uses the claim URL to take ownership and configure policies at `https://heyvincent.ai`.
+- **Revocation**: The wallet owner can revoke the agent's API key at any time from the Vincent frontend. Revoked keys are rejected immediately by the server.
+- **Re-linking**: If the agent loses its API key, the wallet owner generates a one-time re-link token (expires after 10 minutes) and the agent exchanges it for a new key.
+- **Rotation**: The wallet owner can revoke the current key and issue a re-link token to rotate credentials at any time.
 
 ## Configuration
 
-All API requests require a Bearer token (the API key returned when creating a wallet). If you're an openclaw instance, store and retrieve it from `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+All API requests require a Bearer token (the scoped API key returned when creating a wallet). This key is not a private key — it is a server-enforced, policy-scoped credential that the wallet owner can revoke at any time.
+
+Store the API key locally after wallet creation in one of the declared config paths. If you're an OpenClaw instance, store and retrieve it from `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`. These paths are declared in this skill's metadata so the host environment can audit and manage credential storage.
 
 ```
 Authorization: Bearer <API_KEY>
@@ -20,6 +51,8 @@ Authorization: Bearer <API_KEY>
 ## Quick Start
 
 ### 1. Create a Polymarket Wallet
+
+Create a new Polymarket wallet for your agent. This generates a private key server-side (the agent never sees it), creates a Gnosis Safe on Polygon, and returns a scoped API key for the agent plus a claim URL for the wallet owner.
 
 ```bash
 curl -X POST "https://heyvincent.ai/api/secrets" \
@@ -32,13 +65,13 @@ curl -X POST "https://heyvincent.ai/api/secrets" \
 
 Response includes:
 
-- `apiKey` -- use as Bearer token for all Polymarket requests
+- `apiKey` -- a scoped API key; store this securely and use it as the Bearer token for all future requests
 - `claimUrl` -- share with the user to claim ownership and set policies
 - `walletAddress` -- the EOA address (Safe is deployed lazily on first use)
 
 After creating, tell the user:
 
-> "Here is your wallet claim URL: `<claimUrl>`. Use this to claim ownership, set spending policies, and monitor your agent's wallet activity."
+> "Here is your wallet claim URL: `<claimUrl>`. Use this to claim ownership, set spending policies, and monitor your agent's wallet activity at https://heyvincent.ai."
 
 **Important:** After creation, the wallet has no funds. The user must send **USDC.e (bridged USDC)** on Polygon to the Safe address before placing bets.
 
@@ -141,6 +174,8 @@ Parameters:
 
 **Important timing:** After a BUY fills, wait a few seconds before selling. Shares need time to settle on-chain.
 
+If a trade violates a policy, the server returns an error explaining which policy was triggered. If a trade requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
+
 ### 7. View Positions & Orders
 
 ```bash
@@ -165,29 +200,29 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
   -H "Authorization: Bearer <API_KEY>"
 ```
 
-## Policies
+## Policies (Server-Side Enforcement)
 
-The wallet owner controls what the agent can do by setting policies via the claim URL. If a transaction violates a policy, the API will reject it or require human approval via Telegram.
+The wallet owner controls what the agent can do by setting policies via the claim URL at `https://heyvincent.ai`. All policies are enforced server-side by the Vincent API — the agent cannot bypass or modify them. If a trade violates a policy, the API rejects it. If a trade triggers an approval threshold, the API holds it and sends the wallet owner a Telegram notification for out-of-band human approval.
 
-| Policy                      | What it does                                                        |
-| --------------------------- | ------------------------------------------------------------------- |
-| **Spending limit (per tx)** | Max USD value per transaction                                       |
-| **Spending limit (daily)**  | Max USD value per rolling 24 hours                                  |
-| **Spending limit (weekly)** | Max USD value per rolling 7 days                                    |
-| **Require approval**        | Every transaction needs human approval via Telegram                 |
-| **Approval threshold**      | Transactions above a USD amount need human approval                 |
+| Policy                      | What it does                                                     |
+| --------------------------- | ---------------------------------------------------------------- |
+| **Spending limit (per tx)** | Max USD value per transaction                                    |
+| **Spending limit (daily)**  | Max USD value per rolling 24 hours                               |
+| **Spending limit (weekly)** | Max USD value per rolling 7 days                                 |
+| **Require approval**        | Every transaction needs human approval via Telegram              |
+| **Approval threshold**      | Transactions above a USD amount need human approval via Telegram |
 
-If no policies are set, all actions are allowed by default. Once the owner claims the wallet and adds policies, the agent operates within those boundaries.
+Before the wallet is claimed, the agent can operate without policy restrictions. This is by design: agent-first onboarding allows the agent to begin trading immediately. Once the human operator claims the wallet via the claim URL, they can add any combination of policies to constrain the agent's behavior. The wallet owner can also revoke the agent's API key entirely at any time.
 
 ## Re-linking (Recovering API Access)
 
-If the agent loses its API key, the wallet owner can generate a **re-link token** from the frontend. The agent then exchanges this token for a new API key.
+If the agent loses its API key, the wallet owner can generate a **re-link token** from the frontend. The agent then exchanges this token for a new scoped API key.
 
 **How it works:**
 
-1. The user generates a re-link token from the wallet detail page in the frontend
+1. The user generates a re-link token from the wallet detail page at `https://heyvincent.ai`
 2. The user gives the token to the agent (e.g. by pasting it in chat)
-3. The agent calls the re-link endpoint to exchange the token for a new API key
+3. The agent calls the re-link endpoint to exchange the token for a new scoped API key
 
 ```bash
 curl -X POST "https://heyvincent.ai/api/secrets/relink" \
@@ -201,7 +236,7 @@ curl -X POST "https://heyvincent.ai/api/secrets/relink" \
 Response includes:
 
 - `secret` -- the wallet metadata (id, type, address, chainId, etc.)
-- `apiKey.key` -- the new API key to use as Bearer token for all future requests
+- `apiKey.key` -- the new scoped API key to use as Bearer token for all future requests
 
 **Important:** Re-link tokens are one-time use and expire after 10 minutes. No authentication is required on this endpoint -- the token itself is the authorization.
 
@@ -276,9 +311,10 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 - **After any bet or trade**, share the user's Polymarket profile link so they can verify and view their positions: `https://polymarket.com/profile/<polymarketWalletAddress>` (use the wallet's Safe address).
 - **No gas needed.** All Polymarket transactions are gasless via Polymarket's relayer.
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
-- Always store the API key from wallet creation. If you're an openclaw instance, store it in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
-- Always search for the API keys in the credentials folder before using the API. If you're an openclaw instance, search for the API key in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, you can search for the API key in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+- Always store the API key from wallet creation in the declared config paths. If you're an OpenClaw instance, store it in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+- Always search for existing API keys in the declared config paths before creating a new wallet. If you're an OpenClaw instance, search in `~/.openclaw/credentials/agentwallet/`. Otherwise, search in `./agentwallet/`.
 - Always share the claim URL with the user after creating a wallet.
+- If a transaction is rejected, it may be blocked by a server-side policy. Tell the user to check their policy settings at `https://heyvincent.ai`.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.
 
 **Common Errors:**

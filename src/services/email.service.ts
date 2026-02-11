@@ -31,12 +31,12 @@ export async function sendOpenClawReadyEmail(
   const { error } = await resend.emails.send({
     from: 'Vincent <notifications@heyvincent.ai>',
     to: [to],
-    subject: 'Your OpenClaw instance is ready!',
+    subject: 'Your agent is ready!',
     html: `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 16px;">
-        <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 16px;">Your OpenClaw instance is ready</h1>
+        <h1 style="font-size: 24px; font-weight: 600; margin-bottom: 16px;">Your agent instance is ready</h1>
         <p style="font-size: 16px; color: #374151; line-height: 1.5; margin-bottom: 24px;">
-          Your OpenClaw deployment has finished provisioning and is live.
+          Your agent deployment has finished provisioning and is live.  Visit the dashboard to complete Telegram setup so you can chat with your agent anywhere.
         </p>
         <a href="${dashboardLink}"
            style="display: inline-block; background-color: #2563eb; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; font-weight: 500;">

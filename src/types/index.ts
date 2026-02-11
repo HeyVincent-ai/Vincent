@@ -12,7 +12,6 @@ export interface SecretSafeData {
   type: SecretType;
   // NOTE: `value` is intentionally omitted - the private key must never be attached to requests
   memo: string | null;
-  claimToken: string | null;
   claimedAt: Date | null;
   deletedAt: Date | null;
   createdAt: Date;
@@ -30,7 +29,6 @@ export function toSecretSafeData(secret: Secret): SecretSafeData {
     userId: secret.userId,
     type: secret.type,
     memo: secret.memo,
-    claimToken: secret.claimToken,
     claimedAt: secret.claimedAt,
     deletedAt: secret.deletedAt,
     createdAt: secret.createdAt,

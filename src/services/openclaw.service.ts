@@ -679,6 +679,12 @@ export async function deploy(
     throw new Error('STRIPE_OPENCLAW_PRICE_ID is not configured');
   }
 
+  // Check if user has ever had an OpenClaw deployment (any status) — free trial is for first deployment only
+  const existingDeployments = await prisma.openClawDeployment.count({
+    where: { userId },
+  });
+  const isFirstDeployment = existingDeployments === 0;
+
   // Create deployment record in PENDING_PAYMENT state
   const deployment = await prisma.openClawDeployment.create({
     data: {
@@ -697,7 +703,7 @@ export async function deploy(
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
-    subscription_data: { trial_period_days: 7 },
+    subscription_data: isFirstDeployment ? { trial_period_days: 7 } : {},
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
@@ -878,7 +884,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
             await updateDeployment(deploymentId, {
               status: 'ORDERING',
-              statusMessage: 'Placing VPS order with OVH',
+              statusMessage: 'Deploying agent server',
               provisionLog: log,
             });
 
@@ -1458,6 +1464,111 @@ export async function restart(deploymentId: string, userId: string): Promise<Ope
   );
 
   return deployment;
+}
+
+// ============================================================
+// Telegram Channel Setup
+// ============================================================
+
+/**
+ * Check which channels are configured on a deployment via SSH.
+ */
+export async function getChannelStatus(
+  deploymentId: string,
+  userId: string
+): Promise<{ telegram: { configured: boolean } }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  return { telegram: { configured: deployment.telegramConfigured } };
+}
+
+/**
+ * Configure a Telegram bot token on a deployment and restart the gateway.
+ */
+export async function configureTelegramBot(
+  deploymentId: string,
+  userId: string,
+  botToken: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^\d+:[A-Za-z0-9_-]+$/.test(botToken)) {
+    throw new Error('Invalid Telegram bot token format');
+  }
+
+  const telegramConfig = JSON.stringify({
+    enabled: true,
+    botToken,
+    dmPolicy: 'pairing',
+  });
+
+  await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw config set channels.telegram --json '${telegramConfig}' && sudo openclaw config set plugins.entries.telegram.enabled true && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+}
+
+/**
+ * Approve a Telegram pairing code on a deployment via SSH.
+ */
+export async function approveTelegramPairing(
+  deploymentId: string,
+  userId: string,
+  code: string
+): Promise<{ success: boolean; message: string }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^[A-Za-z0-9-]+$/.test(code)) {
+    throw new Error('Invalid pairing code format');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw pairing approve telegram ${code} && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || 'Failed to approve pairing code');
+  }
+
+  await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: { telegramConfigured: true },
+  });
+
+  return { success: true, message: result.stdout.trim() || 'Pairing approved' };
 }
 
 // ============================================================
