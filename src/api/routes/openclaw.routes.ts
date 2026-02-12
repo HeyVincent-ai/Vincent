@@ -11,7 +11,8 @@
  * POST   /api/openclaw/deployments/:id/reprovision → Reinstall OpenClaw on existing VPS
  * GET    /api/openclaw/deployments/:id/ssh-key  → Download SSH private key
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
- * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits
+ * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits (off-session charge)
+ * POST   /api/openclaw/deployments/:id/credits/checkout → Create Stripe Checkout for credits
  * GET    /api/openclaw/deployments/:id/channels → Check configured channels
  * POST   /api/openclaw/deployments/:id/telegram/setup → Configure Telegram bot token
  * POST   /api/openclaw/deployments/:id/telegram/pair  → Approve Telegram pairing code
@@ -23,6 +24,7 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as openclawService from '../../services/openclaw.service.js';
+import { createCreditsCheckoutSession } from '../../billing/stripe.service.js';
 
 const { toPublicData } = openclawService;
 
@@ -267,6 +269,38 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw credits error:', error);
+    errors.internal(res);
+  }
+});
+
+// ── Credit Checkout (Stripe Checkout) ────────────────────────
+
+const checkoutSchema = z.object({
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/credits/checkout
+ * Create a Stripe Checkout session for a credit purchase.
+ * The customer enters their desired amount on the Stripe Checkout page.
+ */
+router.post('/deployments/:id/credits/checkout', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = checkoutSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return errors.validation(res, parsed.error.format());
+  }
+
+  try {
+    const result = await createCreditsCheckoutSession(
+      req.user!.id,
+      req.params.id as string,
+      parsed.data.successUrl,
+      parsed.data.cancelUrl
+    );
+    sendSuccess(res, result);
+  } catch (error: any) {
+    console.error('OpenClaw credits checkout error:', error);
     errors.internal(res);
   }
 });

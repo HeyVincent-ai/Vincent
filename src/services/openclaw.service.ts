@@ -1725,6 +1725,52 @@ export async function addCredits(
   };
 }
 
+/**
+ * Fulfill a credit purchase after Stripe Checkout completes (called from webhook).
+ * Payment has already been collected — just update the balance and records.
+ */
+export async function fulfillCreditPurchase(
+  deploymentId: string,
+  amountUsd: number,
+  stripePaymentIntentId: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
+  });
+
+  if (!deployment) {
+    console.error(`[openclaw] fulfillCreditPurchase: deployment ${deploymentId} not found`);
+    return;
+  }
+
+  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
+
+  await prisma.$transaction([
+    prisma.openClawDeployment.update({
+      where: { id: deploymentId },
+      data: { creditBalanceUsd: newBalance },
+    }),
+    prisma.openClawCreditPurchase.create({
+      data: {
+        deploymentId,
+        amountUsd,
+        stripePaymentIntentId,
+      },
+    }),
+  ]);
+
+  // Update OpenRouter key spending limit to match new credit balance
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
+    } catch (err) {
+      console.error(`[openclaw] Failed to update OpenRouter key limit:`, err);
+    }
+  }
+
+  console.log(`[openclaw] Credited $${amountUsd} to deployment ${deploymentId}, new balance: $${newBalance}`);
+}
+
 // ============================================================
 // Reprovision (reinstall OpenClaw on existing VPS)
 // ============================================================

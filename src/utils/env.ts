@@ -28,6 +28,8 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
+  // Stripe Price ID with custom_unit_amount enabled (customer chooses amount)
+  STRIPE_CREDIT_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),

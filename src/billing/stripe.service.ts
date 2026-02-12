@@ -175,6 +175,26 @@ export async function handleWebhookEvent(
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
+  const checkoutType = session.metadata?.type;
+  const deploymentId = session.metadata?.deploymentId;
+
+  // Handle one-time credit purchases (no subscription involved)
+  if (checkoutType === 'openclaw_credits' && deploymentId && userId) {
+    const amountCents = session.amount_total;
+    if (!amountCents) return;
+    const amountUsd = amountCents / 100;
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    console.log(`[stripe] OpenClaw credit checkout completed: $${amountUsd} for deployment ${deploymentId}`);
+    const openclawService = await import('../services/openclaw.service.js');
+    await openclawService.fulfillCreditPurchase(deploymentId, amountUsd, paymentIntentId);
+    return;
+  }
+
   if (!userId || !session.subscription) return;
 
   const stripe = getStripe();
@@ -185,9 +205,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const period = extractPeriodDates(stripeSubscription);
 
   // Check if this is an OpenClaw deployment checkout
-  const deploymentId = session.metadata?.deploymentId;
-  const checkoutType = session.metadata?.type;
-
   if (checkoutType === 'openclaw' && deploymentId) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
     const openclawService = await import('../services/openclaw.service.js');
@@ -355,6 +372,41 @@ export async function chargeCustomerOffSession(
     }
     throw err;
   }
+}
+
+/**
+ * Create a Stripe Checkout session for a one-time credit purchase.
+ * Uses a custom_unit_amount price so the customer enters their desired amount
+ * on the Stripe Checkout page. Works even without a saved payment method.
+ */
+export async function createCreditsCheckoutSession(
+  userId: string,
+  deploymentId: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ sessionId: string; url: string }> {
+  if (!env.STRIPE_CREDIT_PRICE_ID) {
+    throw new Error('STRIPE_CREDIT_PRICE_ID is not configured');
+  }
+
+  const stripe = getStripe();
+  const customerId = await getOrCreateStripeCustomer(userId);
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [{ price: env.STRIPE_CREDIT_PRICE_ID, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      userId,
+      deploymentId,
+      type: 'openclaw_credits',
+    },
+  });
+
+  return { sessionId: session.id, url: session.url! };
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
