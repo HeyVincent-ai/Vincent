@@ -1725,6 +1725,59 @@ export async function addCredits(
   };
 }
 
+/**
+ * Add credits to a deployment from a verified onchain USDC deposit.
+ * Skips Stripe — the payment was already made onchain.
+ * Idempotent: duplicate txHash calls are rejected by the unique constraint.
+ */
+export async function addCryptoCredit(
+  deploymentId: string,
+  amountUsd: number,
+  txHash: string,
+  blockNumber: bigint,
+  fromAddress: string,
+  amountUsdc: number
+): Promise<{ success: boolean; newBalanceUsd: number }> {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+
+  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
+
+  await prisma.$transaction([
+    prisma.openClawDeployment.update({
+      where: { id: deploymentId },
+      data: { creditBalanceUsd: newBalance },
+    }),
+    prisma.cryptoDeposit.create({
+      data: {
+        deploymentId,
+        txHash,
+        blockNumber,
+        fromAddress,
+        amountUsdc,
+        amountCredited: amountUsd,
+      },
+    }),
+  ]);
+
+  // Update OpenRouter key spending limit to match new credit balance
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
+    } catch (err) {
+      console.error(`[openclaw] Failed to update OpenRouter key limit after crypto deposit:`, err);
+    }
+  }
+
+  return {
+    success: true,
+    newBalanceUsd: newBalance,
+  };
+}
+
 // ============================================================
 // Reprovision (reinstall OpenClaw on existing VPS)
 // ============================================================

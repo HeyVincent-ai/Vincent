@@ -12,6 +12,11 @@
  * GET    /api/openclaw/deployments/:id/ssh-key  → Download SSH private key
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
  * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits
+ * POST   /api/openclaw/deployments/:id/deposit-wallets → Register deposit wallet
+ * GET    /api/openclaw/deployments/:id/deposit-wallets  → List deposit wallets
+ * DELETE /api/openclaw/deployments/:id/deposit-wallets/:wid → Revoke deposit wallet
+ * GET    /api/openclaw/deployments/:id/deposit-info    → Get deposit address + instructions
+ * GET    /api/openclaw/deployments/:id/deposits        → List crypto deposits
  * GET    /api/openclaw/deployments/:id/channels → Check configured channels
  * POST   /api/openclaw/deployments/:id/telegram/setup → Configure Telegram bot token
  * POST   /api/openclaw/deployments/:id/telegram/pair  → Approve Telegram pairing code
@@ -23,6 +28,9 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as openclawService from '../../services/openclaw.service.js';
+import * as depositWalletService from '../../services/depositWallet.service.js';
+import prisma from '../../db/client.js';
+import { env } from '../../utils/env.js';
 
 const { toPublicData } = openclawService;
 
@@ -267,6 +275,138 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw credits error:', error);
+    errors.internal(res);
+  }
+});
+
+// ── USDC Deposit Wallets & Credits ───────────────────────────
+
+const depositWalletSchema = z.object({
+  address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+  label: z.string().max(100).optional(),
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/deposit-wallets
+ * Register a wallet address for USDC deposit attribution.
+ */
+router.post('/deployments/:id/deposit-wallets', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = depositWalletSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return errors.validation(res, parsed.error.format());
+  }
+
+  try {
+    const wallet = await depositWalletService.registerWallet(
+      req.user!.id,
+      req.params.id as string,
+      parsed.data.address,
+      parsed.data.label
+    );
+    sendSuccess(res, { wallet }, 201);
+  } catch (error: any) {
+    if (error.message === 'Deployment not found') {
+      return errors.notFound(res, 'Deployment');
+    }
+    if (error.message === 'Invalid Ethereum address') {
+      return errors.badRequest(res, error.message);
+    }
+    // Unique constraint violation — address already registered
+    if (error?.code === 'P2002') {
+      return errors.conflict(res, 'This wallet address is already registered');
+    }
+    console.error('Deposit wallet register error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/deposit-wallets
+ * List registered deposit wallets for a deployment.
+ */
+router.get('/deployments/:id/deposit-wallets', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const wallets = await depositWalletService.listWallets(req.user!.id, req.params.id as string);
+    sendSuccess(res, { wallets });
+  } catch (error: any) {
+    console.error('Deposit wallet list error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * DELETE /api/openclaw/deployments/:id/deposit-wallets/:wid
+ * Revoke a deposit wallet registration.
+ */
+router.delete('/deployments/:id/deposit-wallets/:wid', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await depositWalletService.revokeWallet(req.user!.id, req.params.wid as string);
+    sendSuccess(res, { message: 'Wallet registration revoked' });
+  } catch (error: any) {
+    if (error.message === 'Wallet not found') {
+      return errors.notFound(res, 'Wallet');
+    }
+    console.error('Deposit wallet revoke error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/deposit-info
+ * Get the USDC deposit address and chain info.
+ */
+router.get('/deployments/:id/deposit-info', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) {
+      return errors.notFound(res, 'Deployment');
+    }
+
+    sendSuccess(res, {
+      depositAddress: env.USDC_DEPOSIT_ADDRESS || null,
+      chain: 'Base',
+      chainId: 8453,
+      token: 'USDC',
+      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+      instructions: env.USDC_DEPOSIT_ADDRESS
+        ? 'Send USDC on Base to the deposit address from a registered wallet. Credits are applied automatically within ~60 seconds.'
+        : 'Crypto deposits are not configured. Use Stripe to add credits.',
+    });
+  } catch (error: any) {
+    console.error('Deposit info error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/deposits
+ * List crypto deposits for a deployment.
+ */
+router.get('/deployments/:id/deposits', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) {
+      return errors.notFound(res, 'Deployment');
+    }
+
+    const deposits = await prisma.cryptoDeposit.findMany({
+      where: { deploymentId: req.params.id as string },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    sendSuccess(res, {
+      deposits: deposits.map((d) => ({
+        id: d.id,
+        txHash: d.txHash,
+        blockNumber: d.blockNumber.toString(),
+        fromAddress: d.fromAddress,
+        amountUsdc: Number(d.amountUsdc),
+        amountCredited: Number(d.amountCredited),
+        createdAt: d.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Deposits list error:', error);
     errors.internal(res);
   }
 });

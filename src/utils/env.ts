@@ -92,6 +92,13 @@ const envSchema = z.object({
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
+
+  // USDC Deposit Credits
+  USDC_DEPOSIT_ADDRESS: z.string().optional(),
+  USDC_DEPOSIT_POLL_INTERVAL_MS: z
+    .string()
+    .optional()
+    .transform((val) => (val ? parseInt(val, 10) : 30000)),
 });
 
 export type Env = z.infer<typeof envSchema>;
