@@ -446,9 +446,48 @@ No frontend changes needed — the data source appears automatically from the re
 - Audit logging and usage logging are fire-and-forget (`.catch(console.error)`) to avoid blocking the response
 - Phase 6 tasks (6.2 rate limiting, 6.3 audit logging) were already addressed inline during Phases 1-3
 
+### Phase 4 (Frontend) — Completed
+
+**Files created:**
+- `frontend/src/components/DataSourcesView.tsx` — Credit balance, data source cards, usage history, add credits modal
+
+**Files modified:**
+- `frontend/src/api.ts` — Added `getDataSourceInfo`, `getDataSourceCredits`, `addDataSourceCredits`, `getDataSourceUsage`
+- `frontend/src/pages/SecretDetail.tsx` — Renders `DataSourcesView` when `secret.type === 'DATA_SOURCES'`
+- `frontend/src/pages/Dashboard.tsx` — Added `DATA_SOURCES` to create secret dropdown, added `DataSourceIcon` for card display
+
+**Learnings:**
+- TypeScript interfaces defined locally in `DataSourcesView.tsx` to match backend response shapes (no shared types package)
+- Credit balance progress bar uses the same pattern as OpenClawDetail LLM credits (conditional color, `h-2.5 rounded-full`)
+- Add Credits modal follows the same pattern (fixed overlay, `bg-black/60 backdrop-blur-sm`, stopPropagation)
+- 3D Secure handling is a simple error message telling the user to complete verification — same as OpenClaw credits
+- Backend wraps responses in `sendSuccess(res, data)` so frontend accesses at `res.data.data`
+
+### Phase 5 (OpenClaw Pre-provisioning) — Completed
+
+**Files created:**
+- `prisma/migrations/20260211200000_add_vincent_secret_ids/migration.sql` — Adds `vincent_secret_ids` JSONB column
+
+**Files modified:**
+- `prisma/schema.prisma` — Added `vincentSecretIds Json?` to `OpenClawDeployment`
+- `src/services/openclaw.service.ts` — Major changes:
+  - Added `secrets_created` provisioning stage (after `ssh_key_generated`)
+  - Creates DATA_SOURCES, EVM_WALLET, POLYMARKET_WALLET secrets, claims them to user, stores IDs on deployment
+  - `buildSetupScript()` now accepts optional `vincentApiKeys` parameter
+  - Setup script installs `vincent-twitter` and `vincent-brave-search` skills
+  - Setup script writes credential files for all three Vincent services
+  - `reprovisionAsync()` regenerates API keys for existing secrets and passes them to setup
+  - Resume logic: if `vincentApiKeys` not in memory at `setup_script_launched`, regenerates them from stored secret IDs
+  - Idempotent: skips secret creation if `vincentSecretIds` already populated on deployment
+- `frontend/src/pages/OpenClawDetail.tsx` — Added "Vincent Accounts" section with links to pre-provisioned secret detail pages
+
+**Learnings:**
+- Plain API keys can't be recovered from DB (bcrypt hashed), so on resume/reprovision we generate new API keys for the existing secrets
+- Secrets are left intact on destroy — the user owns them and may want to reuse with another deployment
+- `vincentSecretIds` stored as JSON with keys: `dataSourcesSecretId`, `walletSecretId`, `polymarketSecretId`
+- Template literals in `buildSetupScript()` work naturally with optional sections (using ternary for conditional bash blocks)
+
 ### Remaining Phases
-- **Phase 4 (Frontend):** Next up — API client functions, DataSourcesView component, SecretDetail integration
-- **Phase 5 (OpenClaw Pre-provisioning):** Requires openclaw.service.ts modifications
 - **Tasks 2.3, 3.3 (Clawhub skills):** Deferred — requires clawhub packaging infrastructure
 - **Phase 6 (Testing):** Backend tests still needed
 

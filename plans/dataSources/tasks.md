@@ -157,9 +157,9 @@
 
 ---
 
-## Phase 4: Frontend
+## Phase 4: Frontend ✅
 
-### Task 4.1: API Client Functions
+### Task 4.1: API Client Functions ✅
 - Add to `frontend/src/api.ts`:
   - `getDataSourceInfo(secretId)` — `GET /api/secrets/:id/data-sources`
   - `getDataSourceCredits(secretId)` — `GET /api/secrets/:id/data-sources/credits`
@@ -168,7 +168,7 @@
 - Define TypeScript interfaces for responses
 - **Files:** `frontend/src/api.ts`
 
-### Task 4.2: DataSourcesView Component
+### Task 4.2: DataSourcesView Component ✅
 - Create `frontend/src/components/DataSourcesView.tsx`
 - Shown on SecretDetail page when `secret.type === 'DATA_SOURCES'`
 - **Credit Balance Section:**
@@ -181,7 +181,7 @@
   - Monthly breakdown table (month, requests, cost)
 - **Files:** `frontend/src/components/DataSourcesView.tsx`
 
-### Task 4.3: Integrate into SecretDetail Page
+### Task 4.3: Integrate into SecretDetail Page ✅
 - In `SecretDetail.tsx`, detect `DATA_SOURCES` secret type
 - Render `DataSourcesView` component (instead of wallet balance, etc.)
 - Existing API Keys and Audit Logs tabs remain
@@ -190,9 +190,9 @@
 
 ---
 
-## Phase 5: OpenClaw Pre-provisioned Secrets
+## Phase 5: OpenClaw Pre-provisioned Secrets ✅
 
-### Task 5.1: Pre-create Secrets During Provisioning
+### Task 5.1: Pre-create Secrets During Provisioning ✅
 - In `openclaw.service.ts`, add a new provision stage `secrets_created` (after `ssh_key_generated`, before `setup_script_launched`)
 - In this stage:
   1. Call `secretService.createSecret({ type: 'DATA_SOURCES', memo: 'OpenClaw Data Sources' })` → get secretId, apiKey, claimToken
@@ -203,7 +203,7 @@
 - Handle idempotency: if stage is re-run, skip if secrets already exist for this deployment
 - **Files:** `src/services/openclaw.service.ts`, `prisma/schema.prisma` (if adding field to deployment)
 
-### Task 5.2: Pass API Keys to Setup Script
+### Task 5.2: Pass API Keys to Setup Script ✅
 - Update `buildSetupScript()` signature to accept `vincentApiKeys: { dataSourcesKey, walletKey, polymarketKey }`
 - After skill installation step, write credential files:
   ```bash
@@ -214,7 +214,7 @@
 - Update callers of `buildSetupScript()` to pass the new keys (both in `provisionAsync` and `reprovision`)
 - **Files:** `src/services/openclaw.service.ts`
 
-### Task 5.3: Install Data Source Skills in Setup Script
+### Task 5.3: Install Data Source Skills in Setup Script ✅
 - Add to `buildSetupScript()` after existing skill installs:
   ```bash
   npx --yes clawhub@latest install vincent-twitter || true
@@ -222,12 +222,12 @@
   ```
 - **Files:** `src/services/openclaw.service.ts`
 
-### Task 5.4: Handle Reprovision & Destroy
+### Task 5.4: Handle Reprovision & Destroy ✅
 - On **reprovision**: re-create secrets if they don't exist, or reuse existing ones. Pass same API keys to new setup script.
 - On **destroy**: optionally soft-delete the pre-created secrets (or leave them — user still owns them). At minimum, revoke the API keys that were installed on the VPS.
 - **Files:** `src/services/openclaw.service.ts`
 
-### Task 5.5: Frontend — Show Pre-provisioned Secrets on OpenClaw Detail
+### Task 5.5: Frontend — Show Pre-provisioned Secrets on OpenClaw Detail ✅
 - On the OpenClaw deployment detail page, show links to the pre-provisioned secrets
 - "Your agent has these Vincent accounts pre-configured:" with links to each secret detail page
 - Query secrets by the stored IDs on the deployment record

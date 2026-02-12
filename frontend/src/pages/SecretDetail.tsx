@@ -6,6 +6,7 @@ import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
 import BalancesDisplay from '../components/BalancesDisplay';
+import DataSourcesView from '../components/DataSourcesView';
 
 interface SecretData {
   id: string;
@@ -174,6 +175,13 @@ export default function SecretDetail() {
           )}
         </dl>
       </div>
+
+      {/* Data Sources View */}
+      {secret.type === 'DATA_SOURCES' && (
+        <div className="mb-6">
+          <DataSourcesView secretId={secret.id} />
+        </div>
+      )}
 
       {/* Mainnet Access Status */}
       {secret.type === 'EVM_WALLET' && subStatus && (

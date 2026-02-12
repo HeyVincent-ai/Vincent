@@ -29,6 +29,11 @@ interface Deployment {
   createdAt: string;
   readyAt: string | null;
   telegramConfigured: boolean;
+  vincentSecretIds: {
+    dataSourcesSecretId?: string;
+    walletSecretId?: string;
+    polymarketSecretId?: string;
+  } | null;
 }
 
 interface UsageData {
@@ -532,6 +537,42 @@ export default function OpenClawDetail() {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Pre-provisioned Vincent Accounts */}
+      {isActive && deployment.vincentSecretIds && (
+        <div className="bg-card rounded-lg border border-border p-4 mb-4">
+          <h3 className="text-sm font-medium text-foreground mb-3">Vincent Accounts</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Your agent has these Vincent accounts pre-configured:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {deployment.vincentSecretIds.walletSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.walletSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                Wallet
+              </Link>
+            )}
+            {deployment.vincentSecretIds.polymarketSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.polymarketSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                Polymarket
+              </Link>
+            )}
+            {deployment.vincentSecretIds.dataSourcesSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.dataSourcesSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                Data Sources
+              </Link>
+            )}
+          </div>
         </div>
       )}
 

@@ -349,6 +349,9 @@ model OpenClawDeployment {
   // OpenRouter
   openRouterKeyHash String?      @map("open_router_key_hash")
 
+  // Pre-provisioned Vincent secrets (JSON: { dataSourcesSecretId, walletSecretId, polymarketSecretId })
+  vincentSecretIds   Json?        @map("vincent_secret_ids")
+
   // Channel configuration
   telegramConfigured Boolean      @default(false) @map("telegram_configured")
 
