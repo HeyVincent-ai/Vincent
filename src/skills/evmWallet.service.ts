@@ -524,27 +524,27 @@ export interface SwapExecuteOutput {
 }
 
 // ============================================================
-// Fund Types
+// Transfer Between Secrets Types
 // ============================================================
 
-export interface FundPreviewInput {
-  secretId: string;
+export interface TransferBetweenSecretsPreviewInput {
+  fromSecretId: string;
+  toSecretId: string;
+  fromChainId: number;
+  toChainId: number;
   tokenIn: string;
-  sourceChainId: number;
-  depositChainId: number;
-  depositWalletAddress: string;
   tokenInAmount: string;
   tokenOut: string;
   slippage?: number;
 }
 
-export interface FundPreviewOutput {
+export interface TransferBetweenSecretsPreviewOutput {
   isSimpleTransfer: boolean;
   tokenIn: string;
   tokenOut: string;
-  sourceChainId: number;
-  depositChainId: number;
-  depositWalletAddress: string;
+  fromChainId: number;
+  toChainId: number;
+  toWalletAddress: string;
   amountIn: string;
   amountOut: string;
   route?: string;
@@ -563,19 +563,11 @@ export interface FundPreviewOutput {
   };
 }
 
-export interface FundExecuteInput {
-  secretId: string;
+export interface TransferBetweenSecretsExecuteInput extends TransferBetweenSecretsPreviewInput {
   apiKeyId?: string;
-  tokenIn: string;
-  sourceChainId: number;
-  depositChainId: number;
-  depositWalletAddress: string;
-  tokenInAmount: string;
-  tokenOut: string;
-  slippage?: number;
 }
 
-export interface FundExecuteOutput {
+export interface TransferBetweenSecretsExecuteOutput {
   txHash: string | null;
   status: 'executed' | 'pending_approval' | 'denied' | 'cross_chain_pending';
   isSimpleTransfer: boolean;
@@ -925,24 +917,127 @@ async function tokenAmountToWei(
 }
 
 // ============================================================
-// Fund Preview
+// Transfer Between Secrets Helpers
 // ============================================================
 
-export async function previewFund(input: FundPreviewInput): Promise<FundPreviewOutput> {
-  const wallet = await getWalletData(input.secretId);
+const POLYGON_CHAIN_ID = 137;
+const POLYGON_USDC_E = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+
+async function resolveDestinationWallet(
+  toSecretId: string,
+  fromUserId: string
+): Promise<{ address: Address; secretType: string }> {
+  const toSecret = await prisma.secret.findFirst({
+    where: { id: toSecretId, deletedAt: null },
+    include: { walletMetadata: true, polymarketWalletMetadata: true },
+  });
+
+  if (!toSecret) {
+    throw new AppError('NOT_FOUND', 'Destination secret not found', 404);
+  }
+
+  if (toSecret.userId !== fromUserId) {
+    throw new AppError('FORBIDDEN', 'Destination secret must be owned by the same user', 403);
+  }
+
+  if (toSecret.type === 'EVM_WALLET') {
+    if (!toSecret.walletMetadata?.smartAccountAddress) {
+      throw new AppError('NO_METADATA', 'Destination wallet metadata not found', 500);
+    }
+    return {
+      address: toSecret.walletMetadata.smartAccountAddress as Address,
+      secretType: toSecret.type,
+    };
+  }
+
+  if (toSecret.type === 'POLYMARKET_WALLET') {
+    if (!toSecret.polymarketWalletMetadata) {
+      throw new AppError('NO_METADATA', 'Destination polymarket wallet metadata not found', 500);
+    }
+
+    let safeAddress = toSecret.polymarketWalletMetadata.safeAddress;
+
+    // Lazy Safe deployment on first use
+    if (!safeAddress) {
+      if (!toSecret.value) {
+        throw new AppError('NO_VALUE', 'Destination wallet private key not available', 500);
+      }
+
+      const polymarket = await import('./polymarket.service.js');
+      console.log(`Deploying Safe for destination secret ${toSecretId}...`);
+      safeAddress = await polymarket.deploySafe(toSecret.value);
+
+      await prisma.polymarketWalletMetadata.update({
+        where: { secretId: toSecretId },
+        data: { safeAddress },
+      });
+
+      console.log(`Approving collateral for Safe ${safeAddress}...`);
+      await polymarket.approveCollateral(toSecret.value);
+    }
+
+    return {
+      address: safeAddress as Address,
+      secretType: toSecret.type,
+    };
+  }
+
+  throw new AppError('INVALID_TYPE', `Unsupported destination secret type: ${toSecret.type}`, 400);
+}
+
+function validatePolymarketDestination(
+  secretType: string,
+  toChainId: number,
+  tokenOut: string
+): void {
+  if (secretType !== 'POLYMARKET_WALLET') return;
+
+  if (toChainId !== POLYGON_CHAIN_ID) {
+    throw new AppError(
+      'INVALID_CHAIN',
+      `Polymarket wallets only support Polygon (chainId ${POLYGON_CHAIN_ID})`,
+      400
+    );
+  }
+
+  if (tokenOut.toLowerCase() !== POLYGON_USDC_E.toLowerCase()) {
+    throw new AppError(
+      'INVALID_TOKEN',
+      `Polymarket wallets only accept USDC.e (${POLYGON_USDC_E})`,
+      400
+    );
+  }
+}
+
+// ============================================================
+// Transfer Between Secrets Preview
+// ============================================================
+
+export async function previewTransferBetweenSecrets(
+  input: TransferBetweenSecretsPreviewInput
+): Promise<TransferBetweenSecretsPreviewOutput> {
+  const wallet = await getWalletData(input.fromSecretId);
+
+  if (!wallet.userId) {
+    throw new AppError('NO_USER', 'Source secret has no associated user', 400);
+  }
+
+  // Resolve destination
+  const destination = await resolveDestinationWallet(input.toSecretId, wallet.userId);
+  validatePolymarketDestination(destination.secretType, input.toChainId, input.tokenOut);
 
   // Balance check
   const { balance: currentBalance, symbol: tokenSymbol } = await getTokenBalance(
     wallet.smartAccountAddress,
     input.tokenIn,
-    input.sourceChainId
+    input.fromChainId
   );
   const sufficient = parseFloat(currentBalance) >= parseFloat(input.tokenInAmount);
 
   // Simple transfer: same token + same chain
   const isSimpleTransfer =
     input.tokenIn.toLowerCase() === input.tokenOut.toLowerCase() &&
-    input.sourceChainId === input.depositChainId;
+    input.fromChainId === input.toChainId;
 
   const balanceCheck = {
     sufficient,
@@ -956,9 +1051,9 @@ export async function previewFund(input: FundPreviewInput): Promise<FundPreviewO
       isSimpleTransfer: true,
       tokenIn: input.tokenIn,
       tokenOut: input.tokenOut,
-      sourceChainId: input.sourceChainId,
-      depositChainId: input.depositChainId,
-      depositWalletAddress: input.depositWalletAddress,
+      fromChainId: input.fromChainId,
+      toChainId: input.toChainId,
+      toWalletAddress: destination.address,
       amountIn: input.tokenInAmount,
       amountOut: input.tokenInAmount, // 1:1 for simple transfer
       fees: { gas: '0', total: '0' }, // Gas sponsored by paymaster
@@ -968,17 +1063,17 @@ export async function previewFund(input: FundPreviewInput): Promise<FundPreviewO
   }
 
   // Cross-chain: get Relay quote
-  const amountWei = await tokenAmountToWei(input.tokenIn, input.tokenInAmount, input.sourceChainId);
+  const amountWei = await tokenAmountToWei(input.tokenIn, input.tokenInAmount, input.fromChainId);
 
   const quote = await relayService.getQuote({
     user: wallet.smartAccountAddress,
-    originChainId: input.sourceChainId,
-    destinationChainId: input.depositChainId,
+    originChainId: input.fromChainId,
+    destinationChainId: input.toChainId,
     originCurrency: relayService.normalizeTokenAddress(input.tokenIn),
     destinationCurrency: relayService.normalizeTokenAddress(input.tokenOut),
     amount: amountWei,
     tradeType: 'EXACT_INPUT',
-    recipient: input.depositWalletAddress,
+    recipient: destination.address,
     slippageTolerance: input.slippage?.toString(),
   });
 
@@ -986,9 +1081,9 @@ export async function previewFund(input: FundPreviewInput): Promise<FundPreviewO
     isSimpleTransfer: false,
     tokenIn: input.tokenIn,
     tokenOut: input.tokenOut,
-    sourceChainId: input.sourceChainId,
-    depositChainId: input.depositChainId,
-    depositWalletAddress: input.depositWalletAddress,
+    fromChainId: input.fromChainId,
+    toChainId: input.toChainId,
+    toWalletAddress: destination.address,
     amountIn: amountWei,
     amountOut: quote.details.currencyOut.amount,
     route: quote.details.operation,
@@ -1007,16 +1102,27 @@ export async function previewFund(input: FundPreviewInput): Promise<FundPreviewO
 }
 
 // ============================================================
-// Fund Execute
+// Transfer Between Secrets Execute
 // ============================================================
 
-export async function executeFund(input: FundExecuteInput): Promise<FundExecuteOutput> {
-  const wallet = await getWalletData(input.secretId);
+export async function executeTransferBetweenSecrets(
+  input: TransferBetweenSecretsExecuteInput
+): Promise<TransferBetweenSecretsExecuteOutput> {
+  // TODO: support POLYMARKET_WALLET as source
+  const wallet = await getWalletData(input.fromSecretId);
+
+  if (!wallet.userId) {
+    throw new AppError('NO_USER', 'Source secret has no associated user', 400);
+  }
+
+  // Resolve destination
+  const destination = await resolveDestinationWallet(input.toSecretId, wallet.userId);
+  validatePolymarketDestination(destination.secretType, input.toChainId, input.tokenOut);
 
   // Subscription check
   const subCheck = await gasService.checkSubscriptionForChain(
     wallet.userId,
-    input.sourceChainId,
+    input.fromChainId,
     wallet.createdAt
   );
   if (!subCheck.allowed) {
@@ -1024,12 +1130,12 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
   }
 
   // Preview + balance validation
-  const preview = await previewFund({
-    secretId: input.secretId,
+  const preview = await previewTransferBetweenSecrets({
+    fromSecretId: input.fromSecretId,
+    toSecretId: input.toSecretId,
     tokenIn: input.tokenIn,
-    sourceChainId: input.sourceChainId,
-    depositChainId: input.depositChainId,
-    depositWalletAddress: input.depositWalletAddress,
+    fromChainId: input.fromChainId,
+    toChainId: input.toChainId,
     tokenInAmount: input.tokenInAmount,
     tokenOut: input.tokenOut,
     slippage: input.slippage,
@@ -1046,8 +1152,8 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
   // Policy check
   const policyAction: PolicyCheckAction = {
     type: preview.isSimpleTransfer ? 'transfer' : 'send_transaction',
-    to: input.depositWalletAddress.toLowerCase(),
-    chainId: input.sourceChainId,
+    to: destination.address.toLowerCase(),
+    chainId: input.fromChainId,
   };
 
   if (!relayService.isNativeToken(input.tokenIn)) {
@@ -1056,7 +1162,7 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
     try {
       policyAction.tokenSymbol = await zerodev.getTokenSymbol(
         input.tokenIn as Address,
-        input.sourceChainId
+        input.fromChainId
       );
     } catch {
       // Non-critical
@@ -1065,7 +1171,7 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
     policyAction.value = parseFloat(input.tokenInAmount);
   }
 
-  const policyResult = await checkPolicies(input.secretId, policyAction);
+  const policyResult = await checkPolicies(input.fromSecretId, policyAction);
 
   // USD value for logging
   let usdValue: number | null = null;
@@ -1082,15 +1188,16 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
   // Create transaction log
   const txLog = await prisma.transactionLog.create({
     data: {
-      secretId: input.secretId,
+      secretId: input.fromSecretId,
       apiKeyId: input.apiKeyId,
-      actionType: 'fund',
+      actionType: 'transfer_between_secrets',
       requestData: {
         tokenIn: input.tokenIn,
         tokenOut: input.tokenOut,
-        sourceChainId: input.sourceChainId,
-        depositChainId: input.depositChainId,
-        depositWalletAddress: input.depositWalletAddress,
+        fromChainId: input.fromChainId,
+        toChainId: input.toChainId,
+        toSecretId: input.toSecretId,
+        toWalletAddress: destination.address,
         tokenInAmount: input.tokenInAmount,
         slippage: input.slippage,
         usdValue,
@@ -1146,26 +1253,25 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
   // Execute
   try {
     if (preview.isSimpleTransfer) {
-      // Direct transfer via executeTransfer
       const isNative = relayService.isNativeToken(input.tokenIn);
 
       let result;
       if (isNative) {
         result = await zerodev.executeTransfer({
           privateKey: wallet.privateKey,
-          chainId: input.sourceChainId,
-          to: input.depositWalletAddress as Address,
+          chainId: input.fromChainId,
+          to: destination.address,
           value: parseEther(input.tokenInAmount),
         });
       } else {
         const decimals = await zerodev.getTokenDecimals(
           input.tokenIn as Address,
-          input.sourceChainId
+          input.fromChainId
         );
         result = await zerodev.executeTransfer({
           privateKey: wallet.privateKey,
-          chainId: input.sourceChainId,
-          to: input.depositWalletAddress as Address,
+          chainId: input.fromChainId,
+          to: destination.address,
           tokenAddress: input.tokenIn as Address,
           tokenAmount: parseUnits(input.tokenInAmount, decimals),
         });
@@ -1189,7 +1295,7 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
         isSimpleTransfer: true,
         smartAccountAddress: result.smartAccountAddress,
         transactionLogId: txLog.id,
-        explorerUrl: getExplorerTxUrl(input.sourceChainId, result.txHash),
+        explorerUrl: getExplorerTxUrl(input.fromChainId, result.txHash),
       };
     }
 
@@ -1197,18 +1303,18 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
     const amountWei = await tokenAmountToWei(
       input.tokenIn,
       input.tokenInAmount,
-      input.sourceChainId
+      input.fromChainId
     );
 
     const quote = await relayService.getQuote({
       user: wallet.smartAccountAddress,
-      originChainId: input.sourceChainId,
-      destinationChainId: input.depositChainId,
+      originChainId: input.fromChainId,
+      destinationChainId: input.toChainId,
       originCurrency: relayService.normalizeTokenAddress(input.tokenIn),
       destinationCurrency: relayService.normalizeTokenAddress(input.tokenOut),
       amount: amountWei,
       tradeType: 'EXACT_INPUT',
-      recipient: input.depositWalletAddress,
+      recipient: destination.address,
       slippageTolerance: input.slippage?.toString(),
     });
 
@@ -1222,14 +1328,14 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
       calls.length === 1
         ? await zerodev.executeSendTransaction({
             privateKey: wallet.privateKey,
-            chainId: input.sourceChainId,
+            chainId: input.fromChainId,
             to: calls[0].to,
             data: calls[0].data,
             value: calls[0].value,
           })
         : await zerodev.executeBatchTransaction({
             privateKey: wallet.privateKey,
-            chainId: input.sourceChainId,
+            chainId: input.fromChainId,
             calls,
           });
 
@@ -1255,7 +1361,7 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
       relayRequestId,
       smartAccountAddress: result.smartAccountAddress,
       transactionLogId: txLog.id,
-      explorerUrl: getExplorerTxUrl(input.sourceChainId, result.txHash),
+      explorerUrl: getExplorerTxUrl(input.fromChainId, result.txHash),
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -1280,12 +1386,12 @@ export async function executeFund(input: FundExecuteInput): Promise<FundExecuteO
     if (error instanceof AppError) {
       throw error;
     }
-    throw new AppError('TX_FAILED', `Fund failed: ${errorMessage}`, 500);
+    throw new AppError('TX_FAILED', `Transfer between secrets failed: ${errorMessage}`, 500);
   }
 }
 
 // ============================================================
-// Fund Helpers
+// Transfer Between Secrets Internal Helpers
 // ============================================================
 
 async function getTokenBalance(

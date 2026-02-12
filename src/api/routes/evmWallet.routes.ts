@@ -256,23 +256,23 @@ router.post(
 );
 
 // ============================================================
-// POST /api/skills/evm-wallet/fund/preview
+// POST /api/skills/evm-wallet/transfer-between-secrets/preview
 // ============================================================
 
-const fundSchema = z.object({
+const transferBetweenSecretsSchema = z.object({
+  toSecretId: z.string(),
+  fromChainId: z.number().int().positive(),
+  toChainId: z.number().int().positive(),
   tokenIn: z.string(),
-  sourceChainId: z.number().int().positive(),
-  depositChainId: z.number().int().positive(),
-  depositWalletAddress: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid address'),
   tokenInAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be numeric'),
   tokenOut: z.string(),
   slippage: z.number().int().min(0).max(10000).optional(),
 });
 
 router.post(
-  '/fund/preview',
+  '/transfer-between-secrets/preview',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const body = fundSchema.parse(req.body);
+    const body = transferBetweenSecretsSchema.parse(req.body);
 
     if (!req.secret) {
       errors.unauthorized(res, 'No secret associated with API key');
@@ -280,15 +280,15 @@ router.post(
     }
 
     const start = Date.now();
-    const result = await evmWallet.previewFund({
-      secretId: req.secret.id,
+    const result = await evmWallet.previewTransferBetweenSecrets({
+      fromSecretId: req.secret.id,
       ...body,
     });
 
     auditService.log({
       secretId: req.secret.id,
       apiKeyId: req.apiKey?.id,
-      action: 'skill.fund_preview',
+      action: 'skill.transfer_between_secrets_preview',
       inputData: body,
       outputData: result,
       status: 'SUCCESS',
@@ -302,13 +302,13 @@ router.post(
 );
 
 // ============================================================
-// POST /api/skills/evm-wallet/fund/execute
+// POST /api/skills/evm-wallet/transfer-between-secrets/execute
 // ============================================================
 
 router.post(
-  '/fund/execute',
+  '/transfer-between-secrets/execute',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const body = fundSchema.parse(req.body);
+    const body = transferBetweenSecretsSchema.parse(req.body);
 
     if (!req.secret) {
       errors.unauthorized(res, 'No secret associated with API key');
@@ -316,8 +316,8 @@ router.post(
     }
 
     const start = Date.now();
-    const result = await evmWallet.executeFund({
-      secretId: req.secret.id,
+    const result = await evmWallet.executeTransferBetweenSecrets({
+      fromSecretId: req.secret.id,
       apiKeyId: req.apiKey?.id,
       ...body,
     });
@@ -325,7 +325,7 @@ router.post(
     auditService.log({
       secretId: req.secret.id,
       apiKeyId: req.apiKey?.id,
-      action: 'skill.fund_execute',
+      action: 'skill.transfer_between_secrets_execute',
       inputData: body,
       outputData: result,
       status:
@@ -350,11 +350,11 @@ router.post(
 );
 
 // ============================================================
-// GET /api/skills/evm-wallet/fund/status/:requestId
+// GET /api/skills/evm-wallet/transfer-between-secrets/status/:requestId
 // ============================================================
 
 router.get(
-  '/fund/status/:requestId',
+  '/transfer-between-secrets/status/:requestId',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const requestId = req.params.requestId as string;
 
@@ -364,7 +364,7 @@ router.get(
     auditService.log({
       secretId: req.secret?.id,
       apiKeyId: req.apiKey?.id,
-      action: 'skill.fund_status',
+      action: 'skill.transfer_between_secrets_status',
       inputData: { requestId },
       outputData: result,
       status: 'SUCCESS',

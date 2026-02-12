@@ -619,23 +619,36 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   }, 120_000);
 
   // ============================================================
-  // Test 11: Cross-chain fund (Base USDC → Polygon USDC.e)
+  // Test 11: Cross-chain transfer between secrets (Base USDC → Polygon USDC.e)
   // ============================================================
 
-  it('should fund USDC from Base to Polygon deposit address', async () => {
+  it('should transfer USDC between secrets from Base to Polygon', async () => {
     const POLYGON_CHAIN_ID = 137;
     const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
     const FUND_AMOUNT = '0.2'; // 0.25 - 0.05 for other transactions
 
+    // Create a second EVM_WALLET secret (destination) owned by same user
+    const toWalletRes = await request(app)
+      .post('/api/secrets')
+      .send({
+        type: 'EVM_WALLET',
+        memo: 'E2E test destination wallet',
+      })
+      .expect(201);
+
+    const toSecretId = toWalletRes.body.data.secret.id;
+    const toSmartAccountAddress = toWalletRes.body.data.secret.walletAddress;
+    console.log(`Created destination wallet: ${toSmartAccountAddress} (secret: ${toSecretId})`);
+
     // Preview
     const previewRes = await request(app)
-      .post('/api/skills/evm-wallet/fund/preview')
+      .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
+        toSecretId,
         tokenIn: USDC_ADDRESS,
-        sourceChainId: BASE_MAINNET_CHAIN_ID,
-        depositChainId: POLYGON_CHAIN_ID,
-        depositWalletAddress: funderAddress,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
         tokenInAmount: FUND_AMOUNT,
         tokenOut: USDC_E_POLYGON,
         slippage: 100,
@@ -645,22 +658,23 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     expect(previewRes.body.success).toBe(true);
     expect(previewRes.body.data.isSimpleTransfer).toBe(false);
     expect(previewRes.body.data.balanceCheck.sufficient).toBe(true);
+    expect(previewRes.body.data.toWalletAddress).toBe(toSmartAccountAddress);
     expect(previewRes.body.data.amountOut).toBeDefined();
     expect(previewRes.body.data.timeEstimate).toBeGreaterThan(0);
 
-    console.log(`Fund preview - bridge ${FUND_AMOUNT} USDC (Base) → USDC.e (Polygon)`);
+    console.log(`Transfer preview - bridge ${FUND_AMOUNT} USDC (Base) → USDC.e (Polygon)`);
     console.log(`Estimated time: ${previewRes.body.data.timeEstimate}s`);
     console.log(`Route: ${previewRes.body.data.route}`);
 
     // Execute
     const executeRes = await request(app)
-      .post('/api/skills/evm-wallet/fund/execute')
+      .post('/api/skills/evm-wallet/transfer-between-secrets/execute')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
+        toSecretId,
         tokenIn: USDC_ADDRESS,
-        sourceChainId: BASE_MAINNET_CHAIN_ID,
-        depositChainId: POLYGON_CHAIN_ID,
-        depositWalletAddress: funderAddress,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
         tokenInAmount: FUND_AMOUNT,
         tokenOut: USDC_E_POLYGON,
         slippage: 100,
@@ -675,13 +689,15 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     evidence.fundTxHash = executeRes.body.data.txHash;
     evidence.relayRequestId = executeRes.body.data.relayRequestId;
 
-    console.log(`Fund tx: ${executeRes.body.data.explorerUrl}`);
+    console.log(`Transfer tx: ${executeRes.body.data.explorerUrl}`);
     console.log(`Relay request ID: ${executeRes.body.data.relayRequestId}`);
 
     // Status check
     if (executeRes.body.data.relayRequestId) {
       const statusRes = await request(app)
-        .get(`/api/skills/evm-wallet/fund/status/${executeRes.body.data.relayRequestId}`)
+        .get(
+          `/api/skills/evm-wallet/transfer-between-secrets/status/${executeRes.body.data.relayRequestId}`
+        )
         .set('Authorization', `Bearer ${apiKey}`)
         .expect(200);
 
@@ -690,7 +706,18 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
 
       console.log(`Relay status:`, statusRes.body.data.requests);
     }
-  }, 120_000);
+
+    // Cleanup: delete destination secret
+    try {
+      await prisma.auditLog.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.transactionLog.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.apiKey.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.walletSecretMetadata.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.secret.delete({ where: { id: toSecretId } }).catch(() => {});
+    } catch (err) {
+      console.error('Destination wallet cleanup failed:', err);
+    }
+  }, 180_000);
 
   // ============================================================
   // Test 12: Verify final balances
