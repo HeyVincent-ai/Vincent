@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.10",
+    "@reown/walletkit": "^1.5.1",
     "@sentry/react": "^10.38.0",
     "@stytch/react": "^19.18.1",
     "@stytch/vanilla-js": "^5.45.0",
     "@tanstack/react-query": "^5.90.21",
+    "@walletconnect/utils": "^2.23.5",
     "axios": "^1.13.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",

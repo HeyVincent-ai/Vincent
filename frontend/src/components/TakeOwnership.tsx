@@ -6,6 +6,7 @@ import {
   verifyOwnershipSignature,
   getOwnershipStatus,
 } from '../api';
+import WalletConnectManager from './WalletConnectManager';
 
 interface Props {
   secretId: string;
@@ -94,7 +95,6 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       onOwnershipTransferred();
     } catch (err: any) {
       if (err.code === 4001 || err.message?.includes('rejected')) {
-        // User rejected signature
         setError('Signature rejected. Please try again.');
         setStep('ready');
       } else {
@@ -106,29 +106,27 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
 
   if (step === 'loading') {
     return (
-      <div className="bg-white rounded-lg border p-6">
-        <p className="text-gray-500">Loading ownership status...</p>
+      <div className="bg-card rounded-lg border border-border p-6">
+        <p className="text-muted-foreground">Loading ownership status...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg border p-6">
-      <h3 className="text-lg font-semibold mb-2">Take Ownership</h3>
+    <div className="bg-card rounded-lg border border-border p-6">
+      <h3 className="text-sm font-medium text-foreground mb-2">Take Ownership</h3>
 
       {step === 'not-eligible' && (
-        <div className="bg-muted/50 border border-border rounded p-4">
-          <p className="text-muted-foreground text-sm">
-            This wallet was created before the self-custody feature was available, so it cannot
-            be transferred to your personal wallet. To take ownership of a wallet, create a new
-            one and move your assets to it.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          This wallet was created before the self-custody feature was available, so it cannot
+          be transferred to your personal wallet. To take ownership of a wallet, create a new
+          one and move your assets to it.
+        </p>
       )}
 
       {step === 'not-ready' && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-4">
-          <p className="text-yellow-800 text-sm">
+        <div className="bg-status-warning-muted border border-status-warning/20 rounded p-4">
+          <p className="text-status-warning text-sm">
             This wallet hasn't been used on any chain yet. Make at least one transaction
             before taking ownership.
           </p>
@@ -136,42 +134,50 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       )}
 
       {step === 'success' && (
-        <div className="bg-green-50 border border-green-200 rounded p-4">
-          <p className="text-green-800 font-medium mb-2">Ownership Transferred</p>
-          <p className="text-green-700 text-sm mb-3">
-            You are now the owner of this smart wallet. SafeSkills can still execute
-            transactions on your behalf (subject to your policies).
-          </p>
-          {ownerAddress && (
-            <p className="text-green-700 text-xs mb-3">
-              Owner: <code className="bg-green-100 px-1 rounded">{ownerAddress}</code>
+        <>
+          <div className="bg-status-success-muted border border-status-success/20 rounded p-4">
+            <p className="text-status-success font-medium mb-2">Ownership Transferred</p>
+            <p className="text-status-success text-sm mb-3">
+              You are now the owner of this smart wallet. SafeSkills can still execute
+              transactions on your behalf (subject to your policies).
             </p>
-          )}
-          {Object.entries(txHashes).length > 0 && (
-            <div className="text-xs text-green-600">
-              <p className="font-medium mb-1">Transaction hashes:</p>
-              {Object.entries(txHashes).map(([chainId, hash]) => (
-                <p key={chainId}>
-                  {chainNames[Number(chainId)] || `Chain ${chainId}`}:{' '}
-                  <code className="bg-green-100 px-1 rounded">{hash.slice(0, 10)}...</code>
-                </p>
-              ))}
-            </div>
-          )}
-        </div>
+            {ownerAddress && (
+              <p className="text-status-success/80 text-xs mb-3">
+                Owner: <code className="bg-muted px-1 rounded text-foreground">{ownerAddress}</code>
+              </p>
+            )}
+            {Object.entries(txHashes).length > 0 && (
+              <div className="text-xs text-status-success/80">
+                <p className="font-medium mb-1">Transaction hashes:</p>
+                {Object.entries(txHashes).map(([chainId, hash]) => (
+                  <p key={chainId}>
+                    {chainNames[Number(chainId)] || `Chain ${chainId}`}:{' '}
+                    <code className="bg-muted px-1 rounded text-foreground">{hash.slice(0, 10)}...</code>
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* WalletConnect dApp integration */}
+          <div className="border-t border-border mt-4 pt-4">
+            <h3 className="text-sm font-medium text-foreground mb-3">Connect to dApps</h3>
+            <WalletConnectManager secretId={secretId} walletAddress={walletAddress} />
+          </div>
+        </>
       )}
 
       {(step === 'connect' || step === 'ready' || step === 'signing' || step === 'processing') && (
         <>
-          <p className="text-sm text-gray-600 mb-4">
+          <p className="text-sm text-muted-foreground mb-4">
             Transfer ownership of this smart wallet to your personal wallet.
             After transfer, you'll be the owner of the account at{' '}
-            <code className="bg-gray-100 px-1 rounded text-xs">{walletAddress}</code>.
+            <code className="bg-muted px-1 rounded text-xs text-foreground">{walletAddress}</code>.
           </p>
 
           {chainsToTransfer.length > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded p-3 mb-4">
-              <p className="text-blue-800 text-sm">
+            <div className="bg-muted/50 border border-border rounded p-3 mb-4">
+              <p className="text-foreground text-sm">
                 <span className="font-medium">Chains to transfer:</span>{' '}
                 {chainsToTransfer.map((c) => chainNames[c] || `Chain ${c}`).join(', ')}
               </p>
@@ -180,18 +186,18 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
 
           {!isConnected ? (
             <div>
-              <p className="text-sm text-gray-500 mb-3">Connect your wallet to take ownership:</p>
+              <p className="text-sm text-muted-foreground mb-3">Connect your wallet to take ownership:</p>
               <ConnectButton />
             </div>
           ) : (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <p className="text-sm text-gray-700">
-                  Connected: <code className="bg-gray-100 px-1 rounded">{address}</code>
+                <p className="text-sm text-foreground">
+                  Connected: <code className="bg-muted px-1 rounded">{address}</code>
                 </p>
                 <button
                   onClick={() => disconnect()}
-                  className="text-xs text-gray-500 hover:text-gray-700"
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                 >
                   Disconnect
                 </button>
@@ -200,14 +206,14 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
               {step === 'ready' && (
                 <button
                   onClick={handleTakeOwnership}
-                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                  className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors"
                 >
                   Take Ownership
                 </button>
               )}
 
               {step === 'signing' && (
-                <div className="flex items-center gap-2 text-yellow-600">
+                <div className="flex items-center gap-2 text-status-warning">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -217,7 +223,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
               )}
 
               {step === 'processing' && (
-                <div className="flex items-center gap-2 text-blue-600">
+                <div className="flex items-center gap-2 text-primary">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -231,11 +237,11 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       )}
 
       {step === 'error' && (
-        <div className="bg-red-50 border border-red-200 rounded p-4">
-          <p className="text-red-800 mb-2">{error}</p>
+        <div className="bg-destructive/10 border border-destructive/20 rounded p-4">
+          <p className="text-destructive mb-2">{error}</p>
           <button
             onClick={() => setStep(isConnected ? 'ready' : 'connect')}
-            className="text-sm text-blue-600 hover:underline"
+            className="text-sm text-primary hover:underline"
           >
             Try again
           </button>
@@ -243,7 +249,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       )}
 
       {error && step !== 'error' && (
-        <p className="text-red-600 text-sm mt-2">{error}</p>
+        <p className="text-destructive text-sm mt-2">{error}</p>
       )}
     </div>
   );

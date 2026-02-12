@@ -144,6 +144,12 @@ export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
 
+// WalletConnect
+export const executeWalletConnectTx = (
+  secretId: string,
+  data: { to: string; data: string; value: string; chainId: number }
+) => api.post(`/secrets/${secretId}/walletconnect/execute`, data);
+
 // Ownership
 export const requestOwnershipChallenge = (secretId: string, address: string) =>
   api.post(`/secrets/${secretId}/take-ownership/challenge`, { address });
