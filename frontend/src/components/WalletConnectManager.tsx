@@ -2,9 +2,23 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Core } from '@walletconnect/core';
 import { WalletKit, type WalletKitTypes } from '@reown/walletkit';
 import { buildApprovedNamespaces, getSdkError } from '@walletconnect/utils';
-import { useSignMessage, useSignTypedData } from 'wagmi';
+import { useSignMessage, useSignTypedData, useWalletClient } from 'wagmi';
+import {
+  createPublicClient,
+  http,
+  type Address,
+  type Hex,
+  type Chain,
+} from 'viem';
+import * as viemChains from 'viem/chains';
+import {
+  createKernelAccount,
+  createKernelAccountClient,
+  createZeroDevPaymasterClient,
+  constants,
+} from '@zerodev/sdk';
+import { signerToEcdsaValidator } from '@zerodev/ecdsa-validator';
 import { useToast } from './Toast';
-import { executeWalletConnectTx } from '../api';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -50,12 +64,31 @@ const CHAIN_NAMES: Record<number, string> = {
   10: 'Optimism',
 };
 
+const CHAIN_MAP: Record<number, Chain> = {
+  1: viemChains.mainnet,
+  8453: viemChains.base,
+  84532: viemChains.baseSepolia,
+  11155111: viemChains.sepolia,
+  137: viemChains.polygon,
+  42161: viemChains.arbitrum,
+  10: viemChains.optimism,
+};
+
+const ZERODEV_PROJECT_ID = (import.meta as any).env.VITE_ZERODEV_PROJECT_ID || '';
+const entryPoint = constants.getEntryPoint('0.7');
+const kernelVersion = constants.KERNEL_V3_1;
+
+function getZeroDevUrl(chainId: number): string {
+  return `https://rpc.zerodev.app/api/v3/${ZERODEV_PROJECT_ID}/chain/${chainId}`;
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
 export default function WalletConnectManager({ secretId, walletAddress }: Props) {
   const { toast } = useToast();
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
+  const { data: walletClient } = useWalletClient();
 
   const walletKitRef = useRef<InstanceType<typeof WalletKit> | null>(null);
   const initializingRef = useRef(false);
@@ -65,6 +98,48 @@ export default function WalletConnectManager({ secretId, walletAddress }: Props)
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [executing, setExecuting] = useState(false);
+
+  // ── Build kernel client for a given chain ──────────────────────
+
+  const buildKernelClient = useCallback(
+    async (chainId: number) => {
+      if (!walletClient) throw new Error('Wallet not connected');
+
+      const chain = CHAIN_MAP[chainId];
+      if (!chain) throw new Error(`Unsupported chain: ${chainId}`);
+
+      const publicClient = createPublicClient({
+        chain,
+        transport: http(getZeroDevUrl(chainId)),
+      });
+
+      const ecdsaValidator = await signerToEcdsaValidator(publicClient, {
+        signer: walletClient,
+        entryPoint,
+        kernelVersion,
+      });
+
+      const account = await createKernelAccount(publicClient, {
+        plugins: { sudo: ecdsaValidator },
+        entryPoint,
+        kernelVersion,
+        address: walletAddress as Address,
+      });
+
+      const paymasterClient = createZeroDevPaymasterClient({
+        chain,
+        transport: http(getZeroDevUrl(chainId)),
+      });
+
+      return createKernelAccountClient({
+        account,
+        chain,
+        bundlerTransport: http(getZeroDevUrl(chainId)),
+        paymaster: paymasterClient,
+      });
+    },
+    [walletClient, walletAddress]
+  );
 
   // ── Helpers ──────────────────────────────────────────────────────
 
@@ -273,13 +348,13 @@ export default function WalletConnectManager({ secretId, walletAddress }: Props)
       switch (pendingRequest.method) {
         case 'eth_sendTransaction': {
           const tx = pendingRequest.params[0];
-          const res = await executeWalletConnectTx(secretId, {
-            to: tx.to,
-            data: tx.data || '0x',
-            value: tx.value || '0x0',
-            chainId: pendingRequest.chainId,
+          const kernelClient = await buildKernelClient(pendingRequest.chainId);
+          const txHash = await kernelClient.sendTransaction({
+            to: tx.to as Address,
+            data: (tx.data || '0x') as Hex,
+            value: tx.value ? BigInt(tx.value) : 0n,
           });
-          result = res.data.data.txHash;
+          result = txHash;
           break;
         }
 
@@ -313,7 +388,6 @@ export default function WalletConnectManager({ secretId, walletAddress }: Props)
     } catch (err: any) {
       console.error('Failed to handle request:', err);
 
-      // If user rejected signing, notify the dApp
       if (err.code === 4001 || err.message?.includes('rejected')) {
         await wk.respondSessionRequest({
           topic: pendingRequest.topic,
@@ -490,7 +564,6 @@ export default function WalletConnectManager({ secretId, walletAddress }: Props)
                     <span className="font-medium text-foreground">Message:</span>{' '}
                     {(() => {
                       try {
-                        // Try to decode hex message to UTF-8
                         const hex = pendingRequest.params[0] as string;
                         const bytes = new Uint8Array(
                           hex
