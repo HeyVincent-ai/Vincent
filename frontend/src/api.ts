@@ -128,8 +128,6 @@ export const reprovisionOpenClawDeployment = (id: string) =>
 export const downloadOpenClawSshKey = (id: string) =>
   api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
 export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
-export const addOpenClawCredits = (id: string, amountUsd: number) =>
-  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
 export const createOpenClawCreditsCheckout = (
   id: string,
   successUrl: string,

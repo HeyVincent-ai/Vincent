@@ -41,7 +41,7 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
@@ -1644,84 +1644,6 @@ export async function getUsage(
     usageDailyUsd: dailyUsage,
     usageMonthlyUsd: monthlyUsage,
     lastPolledAt: deployment.lastUsagePollAt || null,
-  };
-}
-
-/**
- * Add LLM credits to a deployment by charging the user's Stripe payment method.
- */
-export async function addCredits(
-  deploymentId: string,
-  userId: string,
-  amountUsd: number
-): Promise<{
-  success: boolean;
-  newBalanceUsd: number;
-  paymentIntentId?: string;
-  requiresAction?: boolean;
-  clientSecret?: string;
-}> {
-  if (amountUsd < 5 || amountUsd > 500) {
-    throw new Error('Credit amount must be between $5 and $500');
-  }
-
-  const deployment = await prisma.openClawDeployment.findFirst({
-    where: { id: deploymentId, userId },
-  });
-
-  if (!deployment) throw new Error('Deployment not found');
-  if (!['READY', 'CANCELING'].includes(deployment.status)) {
-    throw new Error('Deployment must be READY to add credits');
-  }
-
-  const amountCents = Math.round(amountUsd * 100);
-  const result = await chargeCustomerOffSession(
-    userId,
-    amountCents,
-    `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
-    { deploymentId, type: 'openclaw_credits' }
-  );
-
-  if (result.requiresAction) {
-    return {
-      success: false,
-      newBalanceUsd: Number(deployment.creditBalanceUsd),
-      requiresAction: true,
-      clientSecret: result.clientSecret,
-      paymentIntentId: result.paymentIntentId,
-    };
-  }
-
-  // Payment succeeded — update credit balance and OpenRouter key limit
-  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
-
-  await prisma.$transaction([
-    prisma.openClawDeployment.update({
-      where: { id: deploymentId },
-      data: { creditBalanceUsd: newBalance },
-    }),
-    prisma.openClawCreditPurchase.create({
-      data: {
-        deploymentId,
-        amountUsd,
-        stripePaymentIntentId: result.paymentIntentId!,
-      },
-    }),
-  ]);
-
-  // Update OpenRouter key spending limit to match new credit balance
-  if (deployment.openRouterKeyHash) {
-    try {
-      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
-    } catch (err) {
-      console.error(`[openclaw] Failed to update OpenRouter key limit:`, err);
-    }
-  }
-
-  return {
-    success: true,
-    newBalanceUsd: newBalance,
-    paymentIntentId: result.paymentIntentId,
   };
 }
 
