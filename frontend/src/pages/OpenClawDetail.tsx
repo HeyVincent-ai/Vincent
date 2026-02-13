@@ -77,6 +77,8 @@ export default function OpenClawDetail() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
+  const [showCreditPicker, setShowCreditPicker] = useState(false);
+  const [creditAmount, setCreditAmount] = useState(25);
   const [showDevModal, setShowDevModal] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [telegramStep, setTelegramStep] = useState<1 | 2>(1);
@@ -159,7 +161,7 @@ export default function OpenClawDetail() {
     try {
       const successUrl = `${window.location.origin}/openclaw/${id}?credits=success`;
       const cancelUrl = `${window.location.origin}/openclaw/${id}`;
-      const res = await addOpenClawCredits(id, 25, { successUrl, cancelUrl });
+      const res = await addOpenClawCredits(id, creditAmount, { successUrl, cancelUrl });
       const data = res.data.data;
 
       if (data.checkoutUrl) {
@@ -171,6 +173,7 @@ export default function OpenClawDetail() {
       // Charged immediately — refresh usage
       toast('Credits added successfully!');
       setCreditLoading(false);
+      setShowCreditPicker(false);
       getOpenClawUsage(id)
         .then((r) => setUsage(r.data.data))
         .catch(() => {});
@@ -482,13 +485,41 @@ export default function OpenClawDetail() {
           <div className="bg-card rounded-lg border border-border p-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-foreground">LLM Credits</h3>
-              <button
-                onClick={handleAddCredits}
-                disabled={creditLoading}
-                className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {creditLoading ? 'Redirecting...' : 'Add Credits'}
-              </button>
+              {showCreditPicker ? (
+                <div className="flex items-center gap-2">
+                  <select
+                    value={creditAmount}
+                    onChange={(e) => setCreditAmount(Number(e.target.value))}
+                    disabled={creditLoading}
+                    className="text-xs bg-background border border-border rounded px-2 py-1 text-foreground"
+                  >
+                    {[10, 25, 50, 100, 200, 500].map((v) => (
+                      <option key={v} value={v}>${v}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={handleAddCredits}
+                    disabled={creditLoading}
+                    className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                  >
+                    {creditLoading ? 'Processing...' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setShowCreditPicker(false)}
+                    disabled={creditLoading}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCreditPicker(true)}
+                  className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 transition-colors"
+                >
+                  Add Credits
+                </button>
+              )}
             </div>
             <div className="w-full bg-muted rounded-full h-2.5 mb-2">
               <div
