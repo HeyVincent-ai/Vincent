@@ -74,6 +74,24 @@ echo "Copied to frontend/public/vincentpolymarket/SKILL.md"
 echo "Publishing polymarket to clawhub..."
 clawhub publish skills/polymarket --slug vincentpolymarket --name "Vincent - Polymarket" --version "$NEW_VERSION"
 
+# --- Agent skills plugin ---
+PLUGIN_SOURCE="$PROJECT_ROOT/plugins/agent-skills"
+if [ ! -d "$PLUGIN_SOURCE" ]; then
+    echo "Error: Agent skills plugin not found: $PLUGIN_SOURCE"
+    exit 1
+fi
+
+echo ""
+echo "=== Publishing agent-skills plugin ==="
+
+# Update plugin package.json version
+sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PLUGIN_SOURCE/package.json"
+echo "Updated plugin package.json to v$NEW_VERSION"
+
+# Publish to clawhub
+echo "Publishing agent-skills plugin to clawhub..."
+clawhub publish plugins/agent-skills --slug vincent-agent-skills --name "Vincent Agent Skills" --version "$NEW_VERSION"
+
 # --- Copy skills to ../agent-skills/ repo and push ---
 AGENT_SKILLS_REPO="$PROJECT_ROOT/../agent-skills"
 

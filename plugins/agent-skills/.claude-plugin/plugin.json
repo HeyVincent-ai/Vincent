@@ -1,0 +1,8 @@
+{
+  "name": "vincent",
+  "description": "Wallet and Polymarket trading for autonomous agents. Transfer, swap, and trade without exposing private keys.",
+  "author": {
+    "name": "HeyVincent",
+    "email": "support@heyvincent.ai"
+  }
+}

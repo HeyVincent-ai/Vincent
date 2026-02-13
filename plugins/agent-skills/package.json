@@ -1,0 +1,11 @@
+{
+  "name": "vincent-agent-skills",
+  "version": "1.0.0",
+  "description": "Vincent agent skills plugin - wallet and Polymarket trading capabilities for autonomous agents",
+  "homepage": "https://heyvincent.ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HeyVincent-ai/Vincent"
+  },
+  "license": "MIT"
+}

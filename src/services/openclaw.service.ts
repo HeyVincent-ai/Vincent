@@ -302,9 +302,8 @@ else
   echo "OpenClaw config already exists, skipping onboard"
 fi
 
-echo "=== [4/8] Installing Vincent agent wallet skill ==="
-npx --yes clawhub@latest install agentwallet || true
-npx --yes clawhub@latest install vincentpolymarket || true
+echo "=== [4/8] Installing Vincent agent skills plugin ==="
+npx --yes clawhub@latest install vincent-agent-skills || true
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Always set the OpenRouter API key via env config — onboard may have been
