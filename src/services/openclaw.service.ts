@@ -65,6 +65,7 @@ const DEFAULT_OS = 'Debian 12';
 const REBUILD_IMAGE_NAME = 'Debian 12';
 const SSH_USERNAME = 'debian'; // Debian 12 default user
 export const OPENCLAW_PORT = 18789;
+export const CLAWHUB_VERSION = '0.9.4'; // pin to known-good version
 
 // Polling intervals
 const ORDER_POLL_INTERVAL_MS = 30_000; // 30s
@@ -267,21 +268,50 @@ export function buildSetupScript(openRouterApiKey: string, hostname: string): st
   //   /root/.openclaw-setup-complete — written on success
   //   /root/.openclaw-setup-token    — access token on success
   //   /root/.openclaw-setup-error    — written on failure
+  // Escape the API key for safe embedding in shell strings.
+  // Replace single quotes with '\'' (end quote, escaped quote, start quote).
+  const escapedApiKey = openRouterApiKey.replace(/'/g, "'\\''");
+
   return `#!/bin/bash
 set -euo pipefail
-trap 'echo "FAILED: line \$LINENO: \$BASH_COMMAND" > /root/.openclaw-setup-error' ERR
+
+# --- Hardened error handler: capture error + log tail for debugging ---
+trap 'echo "FAILED: line \$LINENO: \$BASH_COMMAND" > /root/.openclaw-setup-error; tail -50 /root/openclaw-setup.log >> /root/.openclaw-setup-error 2>/dev/null || true' ERR
+
 export HOME=/root
 cd /root
 export DEBIAN_FRONTEND=noninteractive
 
 echo "STARTED" > /root/.openclaw-setup-started
 
+# --- Retry helper: retries a command with exponential backoff ---
+retry_with_backoff() {
+  local max_attempts=\${1}; shift
+  local cmd="\$@"
+  local attempt=1
+  local delay=5
+  while [ \$attempt -le \$max_attempts ]; do
+    echo "  Attempt \$attempt/\$max_attempts: \$cmd"
+    if eval "\$cmd"; then
+      return 0
+    fi
+    if [ \$attempt -lt \$max_attempts ]; then
+      echo "  Failed, retrying in \${delay}s..."
+      sleep \$delay
+      delay=\$((delay * 2))
+    fi
+    attempt=\$((attempt + 1))
+  done
+  echo "  All \$max_attempts attempts failed for: \$cmd"
+  return 1
+}
+
 echo "=== [1/8] System update ==="
 apt-get update -qq || true
-apt-get install -y -qq curl caddy ufw python3
+apt-get install -y -qq curl caddy ufw python3 jq
 
 echo "=== [2/8] Running OpenClaw installer ==="
-curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
+retry_with_backoff 3 "curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard"
 
 echo "=== [3/8] Running OpenClaw onboard ==="
 # Skip onboard if config already exists (idempotent for re-runs)
@@ -291,7 +321,7 @@ if [ ! -f /root/.openclaw/openclaw.json ]; then
     --accept-risk \\
     --mode local \\
     --auth-choice openrouter-api-key \\
-    --openrouter-api-key '${openRouterApiKey}' \\
+    --openrouter-api-key '${escapedApiKey}' \\
     --gateway-bind loopback \\
     --skip-channels \\
     --skip-skills \\
@@ -303,14 +333,29 @@ else
 fi
 
 echo "=== [4/8] Installing Vincent agent skills plugin ==="
-npx --yes clawhub@latest install vincent-agent-skills || true
+# Pin clawhub to known-good version and retry with backoff.
+# Failures are tracked but non-fatal — the agent boots without skills
+# rather than failing the entire setup.
+SKILLS_INSTALLED=true
+if ! retry_with_backoff 3 "npx --yes clawhub@${CLAWHUB_VERSION} install vincent-agent-skills"; then
+  echo "WARNING: Vincent agent skills plugin failed to install after 3 attempts."
+  echo "The agent will boot without wallet/Polymarket skills."
+  SKILLS_INSTALLED=false
+fi
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Always set the OpenRouter API key via env config — onboard may have been
 # skipped if the installer already created a config file (e.g. via doctor).
-openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
+openclaw config set env.OPENROUTER_API_KEY '${escapedApiKey}'
 
-# Also write the key directly to the agent's auth-profiles.json.
+# Write the API key to a temp file and use Python to read it safely.
+# This avoids interpolating the key directly into Python source, which
+# breaks if the key contains quotes or backslashes.
+OPENROUTER_KEY_FILE=\$(mktemp)
+printf '%s' '${escapedApiKey}' > "\${OPENROUTER_KEY_FILE}"
+chmod 600 "\${OPENROUTER_KEY_FILE}"
+
+# Write the key to the agent's auth-profiles.json.
 # OpenClaw's embedded agent reads API keys from this file, not from
 # env.OPENROUTER_API_KEY. When onboard is skipped (config already exists),
 # auth-profiles.json retains the old/revoked key and agent calls fail 401.
@@ -319,21 +364,27 @@ AUTH_PROFILES_FILE="\${AUTH_PROFILES_DIR}/auth-profiles.json"
 mkdir -p "\${AUTH_PROFILES_DIR}"
 if [ -f "\${AUTH_PROFILES_FILE}" ]; then
   python3 -c "
-import json
-with open('\${AUTH_PROFILES_FILE}') as f:
+import json, sys
+key_file = sys.argv[1]
+profiles_file = sys.argv[2]
+with open(key_file) as f:
+    api_key = f.read().strip()
+with open(profiles_file) as f:
     ap = json.load(f)
 ap.setdefault('profiles', {})
 ap['profiles']['openrouter:default'] = {
     'type': 'api_key',
     'provider': 'openrouter',
-    'key': '${openRouterApiKey}'
+    'key': api_key
 }
 ap['lastGood'] = {'openrouter': 'openrouter:default'}
-with open('\${AUTH_PROFILES_FILE}', 'w') as f:
+with open(profiles_file, 'w') as f:
     json.dump(ap, f, indent=2)
 print('Updated auth-profiles.json with new OpenRouter key')
-"
+" "\${OPENROUTER_KEY_FILE}" "\${AUTH_PROFILES_FILE}"
 else
+  # Read key from temp file for the heredoc
+  OPENROUTER_KEY=\$(cat "\${OPENROUTER_KEY_FILE}")
   cat > "\${AUTH_PROFILES_FILE}" << AUTHEOF
 {
   "version": 1,
@@ -341,7 +392,7 @@ else
     "openrouter:default": {
       "type": "api_key",
       "provider": "openrouter",
-      "key": "${openRouterApiKey}"
+      "key": "\${OPENROUTER_KEY}"
     }
   },
   "lastGood": {
@@ -353,6 +404,7 @@ AUTHEOF
   chmod 600 "\${AUTH_PROFILES_FILE}"
   echo "Created auth-profiles.json with OpenRouter key"
 fi
+rm -f "\${OPENROUTER_KEY_FILE}"
 
 # Set model (agents.defaults.model is an object with "primary" key)
 openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-pro-preview"}'
@@ -413,16 +465,40 @@ systemctl enable openclaw-gateway
 systemctl stop openclaw-gateway 2>/dev/null || true
 systemctl start openclaw-gateway
 
-# Wait for the gateway to start and generate its token
-sleep 10
+# --- Health-check loop: wait for gateway to generate its token ---
+# Replaces arbitrary "sleep 10" with a proper readiness poll.
+# v2026.2.12 auto-generates auth token during install, but we still
+# need to wait for the gateway process to start and write it.
+echo "Waiting for gateway to become ready..."
+GATEWAY_TIMEOUT=60
+GATEWAY_ELAPSED=0
+ACCESS_TOKEN=""
+while [ \$GATEWAY_ELAPSED -lt \$GATEWAY_TIMEOUT ]; do
+  ACCESS_TOKEN=\$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+  if [ -n "\${ACCESS_TOKEN}" ] && [ "\${ACCESS_TOKEN}" != "undefined" ]; then
+    echo "Gateway ready after \${GATEWAY_ELAPSED}s"
+    break
+  fi
+  sleep 2
+  GATEWAY_ELAPSED=\$((GATEWAY_ELAPSED + 2))
+done
 
-# Extract access token and write marker files
-ACCESS_TOKEN=\$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+if [ -z "\${ACCESS_TOKEN}" ] || [ "\${ACCESS_TOKEN}" = "undefined" ]; then
+  echo "WARNING: Gateway did not produce an auth token within \${GATEWAY_TIMEOUT}s"
+  # Pull systemd journal for debugging
+  journalctl -u openclaw-gateway --no-pager -n 30 2>/dev/null || true
+fi
+
 echo "\${ACCESS_TOKEN}" > /root/.openclaw-setup-token
 rm -f /root/.openclaw-setup-error
 echo "COMPLETE" > /root/.openclaw-setup-complete
 
-echo "=== Setup complete ==="`;
+# Log skill install status
+if [ "\${SKILLS_INSTALLED}" = "true" ]; then
+  echo "=== Setup complete (skills installed) ==="
+else
+  echo "=== Setup complete (skills NOT installed — agent has no wallet/Polymarket skills) ==="
+fi`;
 }
 
 // ============================================================
@@ -532,7 +608,22 @@ async function pollSetupCompletion(
     addLog(`Setup still running, ~${remaining} min remaining...`);
   }
 
-  throw new Error(`Setup script did not complete within ${SETUP_POLL_TIMEOUT_MS / 60_000} minutes`);
+  // Timeout — pull log tail for debugging before throwing
+  let logTail = '';
+  try {
+    const logResult = await sshExec(
+      host,
+      username,
+      privateKey,
+      'sudo tail -50 /root/openclaw-setup.log 2>/dev/null',
+      15_000
+    );
+    logTail = logResult.stdout.trim();
+    if (logTail) addLog(`Setup log tail:\n${logTail}`);
+  } catch {
+    // SSH error — can't pull logs
+  }
+  throw new Error(`Setup script did not complete within ${SETUP_POLL_TIMEOUT_MS / 60_000} minutes${logTail ? `\nLog tail:\n${logTail}` : ''}`);
 }
 
 // ============================================================
