@@ -106,6 +106,7 @@ model WalletSecretMetadata {
   transferredAt        DateTime? @map("transferred_at")
   transferTxHash       String?   @map("transfer_tx_hash")
   chainsUsed           Int[]     @default([]) @map("chains_used") // Track which chains have been used
+  sessionKeyData       String?   @map("session_key_data")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 

@@ -27,6 +27,12 @@ export async function executeApprovedTransaction(
   const requestData = txLog.requestData as Record<string, unknown>;
   const chainId = requestData.chainId as number;
 
+  // Derive session key data for post-ownership-transfer signing
+  const sessionKeyData = secret.walletMetadata!.ownershipTransferred
+    ? secret.walletMetadata!.sessionKeyData ?? undefined
+    : undefined;
+  const smartAccountAddress = secret.walletMetadata!.smartAccountAddress as Address;
+
   try {
     let result: { txHash: string; smartAccountAddress: string };
 
@@ -42,6 +48,8 @@ export async function executeApprovedTransaction(
           chainId,
           to: to as Address,
           value: parseEther(amount),
+          sessionKeyData,
+          smartAccountAddress,
         });
       } else {
         const decimals = await zerodev.getTokenDecimals(token as Address, chainId);
@@ -51,6 +59,8 @@ export async function executeApprovedTransaction(
           to: to as Address,
           tokenAddress: token as Address,
           tokenAmount: parseUnits(amount, decimals),
+          sessionKeyData,
+          smartAccountAddress,
         });
       }
     } else if (txLog.actionType === 'send_transaction') {
@@ -64,6 +74,8 @@ export async function executeApprovedTransaction(
         to: to as Address,
         data: data as Hex,
         value: value ? parseEther(value) : 0n,
+        sessionKeyData,
+        smartAccountAddress,
       });
     } else if (txLog.actionType === 'swap') {
       const sellToken = requestData.sellToken as string;
@@ -115,12 +127,16 @@ export async function executeApprovedTransaction(
           to: calls[0].to,
           data: calls[0].data,
           value: calls[0].value,
+          sessionKeyData,
+          smartAccountAddress,
         });
       } else {
         result = await zerodev.executeBatchTransaction({
           privateKey,
           chainId,
           calls,
+          sessionKeyData,
+          smartAccountAddress,
         });
       }
     } else {

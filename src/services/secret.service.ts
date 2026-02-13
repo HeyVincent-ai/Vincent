@@ -87,14 +87,17 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     // here doesn't matter — the wallet works on any chain.
     const derivationChainId = 84532; // Base Sepolia
 
-    // Create ZeroDev smart account with recovery guardian enabled
-    // This sets up the backend EOA as both sudo (owner) and guardian
+    // Create ZeroDev smart account with recovery guardian and session key enabled
+    // This sets up the backend EOA as sudo (owner), guardian, and session key signer
     let smartAccountAddress: string;
+    let sessionKeyData: string | undefined;
     if (env.ZERODEV_PROJECT_ID) {
-      smartAccountAddress = await zerodev.createSmartAccountWithRecovery(
+      const result = await zerodev.createSmartAccountWithRecovery(
         secretValue as Hex,
         derivationChainId
       );
+      smartAccountAddress = result.address;
+      sessionKeyData = result.sessionKeyData;
     } else {
       smartAccountAddress = generatePlaceholderAddress();
     }
@@ -105,6 +108,7 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
         canTakeOwnership: true,
         ownershipTransferred: false,
         chainsUsed: [], // Will be populated as transactions are made
+        sessionKeyData,
       },
     };
   }
