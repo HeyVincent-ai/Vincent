@@ -245,6 +245,8 @@ router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Resp
 
 const creditsSchema = z.object({
   amountUsd: z.number().min(5).max(500),
+  successUrl: z.string().url().optional(),
+  cancelUrl: z.string().url().optional(),
 });
 
 /**
@@ -261,12 +263,20 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
     const result = await openclawService.addCredits(
       req.params.id as string,
       req.user!.id,
-      parsed.data.amountUsd
+      parsed.data.amountUsd,
+      { successUrl: parsed.data.successUrl, cancelUrl: parsed.data.cancelUrl }
     );
     sendSuccess(res, result);
   } catch (error: any) {
     if (error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
+    }
+    if (error.message === 'No payment method on file') {
+      return res.status(402).json({
+        success: false,
+        error: 'No payment method on file. Please provide successUrl and cancelUrl to use Stripe Checkout.',
+        code: 'PAYMENT_METHOD_REQUIRED',
+      });
     }
     console.error('OpenClaw credits error:', error);
     errors.internal(res);

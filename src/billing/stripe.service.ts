@@ -324,16 +324,15 @@ export async function chargeCustomerOffSession(
   paymentIntentId?: string;
   requiresAction?: boolean;
   clientSecret?: string;
+  requiresPaymentMethod?: boolean;
 }> {
   const stripe = getStripe();
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-  if (!user.stripeCustomerId) {
-    throw new Error('User has no Stripe customer — subscribe first');
-  }
+  // Ensure the user has a Stripe customer record (create one if missing)
+  const customerId = await getOrCreateStripeCustomer(userId);
 
   // Get the customer's default payment method
-  const customer = await stripe.customers.retrieve(user.stripeCustomerId);
+  const customer = await stripe.customers.retrieve(customerId);
   if (customer.deleted) throw new Error('Stripe customer has been deleted');
 
   const defaultPm =
@@ -341,7 +340,7 @@ export async function chargeCustomerOffSession(
     customer.default_source;
 
   if (!defaultPm) {
-    throw new Error('No default payment method on file — please add a card first');
+    return { success: false, requiresPaymentMethod: true };
   }
 
   const pmId = typeof defaultPm === 'string' ? defaultPm : defaultPm.id;
@@ -350,7 +349,7 @@ export async function chargeCustomerOffSession(
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amountCents,
       currency: 'usd',
-      customer: user.stripeCustomerId,
+      customer: customerId,
       payment_method: pmId,
       off_session: true,
       confirm: true,

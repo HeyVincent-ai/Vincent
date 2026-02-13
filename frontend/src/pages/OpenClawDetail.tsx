@@ -10,7 +10,7 @@ import {
 
   downloadOpenClawSshKey,
   getOpenClawUsage,
-  createOpenClawCreditsCheckout,
+  addOpenClawCredits,
   setupOpenClawTelegram,
   pairOpenClawTelegram,
 } from '../api';
@@ -159,10 +159,23 @@ export default function OpenClawDetail() {
     try {
       const successUrl = `${window.location.origin}/openclaw/${id}?credits=success`;
       const cancelUrl = `${window.location.origin}/openclaw/${id}`;
-      const res = await createOpenClawCreditsCheckout(id, successUrl, cancelUrl);
-      window.location.href = res.data.data.url;
+      const res = await addOpenClawCredits(id, 25, { successUrl, cancelUrl });
+      const data = res.data.data;
+
+      if (data.checkoutUrl) {
+        // No saved card — redirect to Stripe Checkout
+        window.location.href = data.checkoutUrl;
+        return;
+      }
+
+      // Charged immediately — refresh usage
+      toast('Credits added successfully!');
+      setCreditLoading(false);
+      getOpenClawUsage(id)
+        .then((r) => setUsage(r.data.data))
+        .catch(() => {});
     } catch {
-      toast('Failed to start checkout. Please try again.');
+      toast('Failed to add credits. Please try again.');
       setCreditLoading(false);
     }
   };

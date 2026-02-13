@@ -41,7 +41,7 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import { getOrCreateStripeCustomer, chargeCustomerOffSession, createCreditsCheckoutSession } from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
@@ -1649,17 +1649,21 @@ export async function getUsage(
 
 /**
  * Add LLM credits to a deployment by charging the user's Stripe payment method.
+ * If no payment method is on file and successUrl/cancelUrl are provided, falls
+ * back to creating a Stripe Checkout session so the user can enter their card.
  */
 export async function addCredits(
   deploymentId: string,
   userId: string,
-  amountUsd: number
+  amountUsd: number,
+  opts?: { successUrl?: string; cancelUrl?: string }
 ): Promise<{
   success: boolean;
   newBalanceUsd: number;
   paymentIntentId?: string;
   requiresAction?: boolean;
   clientSecret?: string;
+  checkoutUrl?: string;
 }> {
   if (amountUsd < 5 || amountUsd > 500) {
     throw new Error('Credit amount must be between $5 and $500');
@@ -1681,6 +1685,24 @@ export async function addCredits(
     `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
     { deploymentId, type: 'openclaw_credits' }
   );
+
+  // No saved payment method — fall back to Stripe Checkout
+  if (result.requiresPaymentMethod) {
+    if (opts?.successUrl && opts?.cancelUrl) {
+      const checkout = await createCreditsCheckoutSession(
+        userId,
+        deploymentId,
+        opts.successUrl,
+        opts.cancelUrl
+      );
+      return {
+        success: false,
+        newBalanceUsd: Number(deployment.creditBalanceUsd),
+        checkoutUrl: checkout.url,
+      };
+    }
+    throw new Error('No payment method on file');
+  }
 
   if (result.requiresAction) {
     return {
