@@ -213,11 +213,16 @@ async function approveCollateral(privateKey: string): Promise<void> {
 }
 
 async function main() {
-  // Find all polymarket wallet metadata rows missing a safe address
-  const rows = await prisma.polymarketWalletMetadata.findMany({
-    where: { safeAddress: null as any },
-    include: { secret: true },
-  });
+  // Find all polymarket wallet metadata rows missing a safe address.
+  // Use raw SQL because the Prisma client now types safeAddress as non-nullable.
+  const rows = await prisma.$queryRaw<
+    Array<{ secret_id: string; value: string | null }>
+  >`
+    SELECT m.secret_id, s.value
+    FROM polymarket_wallet_metadata m
+    JOIN secrets s ON s.id = m.secret_id
+    WHERE m.safe_address IS NULL
+  `;
 
   console.log(
     `Found ${rows.length} POLYMARKET_WALLET secret(s) with NULL safe_address.\n`
@@ -232,20 +237,21 @@ async function main() {
   let failed = 0;
 
   for (const row of rows) {
-    const { secretId, secret } = row;
+    const secretId = row.secret_id;
+    const privateKey = row.value;
     console.log(`[${secretId}] Processing...`);
 
-    if (!secret.value) {
+    if (!privateKey) {
       console.log(`[${secretId}] SKIP - no private key stored`);
       failed++;
       continue;
     }
 
     try {
-      const safeAddress = await deploySafe(secret.value);
+      const safeAddress = await deploySafe(privateKey);
 
       console.log(`[${secretId}] Approving collateral...`);
-      await approveCollateral(secret.value);
+      await approveCollateral(privateKey);
 
       await prisma.polymarketWalletMetadata.update({
         where: { secretId },
