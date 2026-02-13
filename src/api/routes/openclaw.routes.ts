@@ -11,7 +11,6 @@
  * POST   /api/openclaw/deployments/:id/reprovision → Reinstall OpenClaw on existing VPS
  * GET    /api/openclaw/deployments/:id/ssh-key  → Download SSH private key
  * GET    /api/openclaw/deployments/:id/usage    → Get LLM token usage stats
- * POST   /api/openclaw/deployments/:id/credits  → Add LLM credits (off-session charge)
  * POST   /api/openclaw/deployments/:id/credits/checkout → Create Stripe Checkout for credits
  * GET    /api/openclaw/deployments/:id/channels → Check configured channels
  * POST   /api/openclaw/deployments/:id/telegram/setup → Configure Telegram bot token
@@ -239,36 +238,6 @@ router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Resp
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw usage error:', error);
-    errors.internal(res);
-  }
-});
-
-const creditsSchema = z.object({
-  amountUsd: z.number().min(5).max(500),
-});
-
-/**
- * POST /api/openclaw/deployments/:id/credits
- * Add LLM credits by charging the user's Stripe payment method.
- */
-router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: Response) => {
-  const parsed = creditsSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return errors.validation(res, parsed.error.format());
-  }
-
-  try {
-    const result = await openclawService.addCredits(
-      req.params.id as string,
-      req.user!.id,
-      parsed.data.amountUsd
-    );
-    sendSuccess(res, result);
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
-      return errors.notFound(res, 'Deployment');
-    }
-    console.error('OpenClaw credits error:', error);
     errors.internal(res);
   }
 });
