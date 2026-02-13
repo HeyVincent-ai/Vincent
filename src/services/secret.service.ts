@@ -58,14 +58,10 @@ function generatePrivateKey(): string {
   return '0x' + randomBytes(32).toString('hex');
 }
 
-// Generate a placeholder smart account address (fallback when ZeroDev not configured)
-function generatePlaceholderAddress(): string {
-  return '0x' + randomBytes(20).toString('hex');
-}
-
 /**
  * Create a new secret
- * - For EVM_WALLET: generates EOA private key and placeholder smart account
+ * - For EVM_WALLET: generates EOA private key and smart account
+ * - For POLYMARKET_WALLET: generates EOA private key and deploys Safe
  * - For other types: creates placeholder awaiting user-provided value
  */
 export async function createSecret(input: CreateSecretInput): Promise<CreateSecretResult> {
