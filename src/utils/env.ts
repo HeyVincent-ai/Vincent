@@ -20,7 +20,7 @@ const envSchema = z.object({
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
   // ZeroDev Configuration
-  ZERODEV_PROJECT_ID: z.string(),
+  ZERODEV_PROJECT_ID: z.string().min(1),
 
   // Stripe Billing (optional in development)
   STRIPE_SECRET_KEY: z.string().optional(),
