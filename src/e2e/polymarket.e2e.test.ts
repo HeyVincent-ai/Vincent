@@ -279,7 +279,7 @@ async function sendUsdcEFromSafeViaRelayer(
   safeOwnerPrivateKey: Hex,
   to: Address,
   amount: string,
-  safeAddress: Address
+  _safeAddress: Address
 ): Promise<string | null> {
   try {
     const { Wallet } = await import('@ethersproject/wallet');

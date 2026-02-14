@@ -7,9 +7,12 @@ import * as zeroExService from '../skills/zeroEx.service.js';
  * Execute a transaction that has been approved via Telegram.
  * Re-reads the secret/wallet data and executes based on the TransactionLog.
  */
-export async function executeApprovedTransaction(
-  txLog: { id: string; secretId: string; actionType: string; requestData: unknown }
-): Promise<{ txHash: string }> {
+export async function executeApprovedTransaction(txLog: {
+  id: string;
+  secretId: string;
+  actionType: string;
+  requestData: unknown;
+}): Promise<{ txHash: string }> {
   const secret = await prisma.secret.findFirst({
     where: { id: txLog.secretId, deletedAt: null },
     include: { walletMetadata: true },
@@ -27,6 +30,24 @@ export async function executeApprovedTransaction(
   const requestData = txLog.requestData as Record<string, unknown>;
   const chainId = requestData.chainId as number;
 
+  // Derive session key data for post-ownership-transfer signing
+  const wallet = secret.walletMetadata!;
+  let sessionKeyData: string | undefined;
+  if (wallet.ownershipTransferred) {
+    if (!wallet.sessionKeyData) {
+      throw new Error(
+        'This wallet was created before session key support. Backend signing is not available after ownership transfer.'
+      );
+    }
+    sessionKeyData = wallet.sessionKeyData;
+  }
+  const smartAccountAddress = wallet.smartAccountAddress as Address;
+  // Only pass smartAccountAddress to ZeroDev for wallets created with session key
+  // initConfig (canTakeOwnership=true). Legacy wallets used a different kernel config
+  // and passing their address would trigger an incorrect initConfig rebuild,
+  // risking counterfactual address mismatches on undeployed chains.
+  const smartAccountAddressForExec = wallet.canTakeOwnership ? smartAccountAddress : undefined;
+
   try {
     let result: { txHash: string; smartAccountAddress: string };
 
@@ -42,6 +63,8 @@ export async function executeApprovedTransaction(
           chainId,
           to: to as Address,
           value: parseEther(amount),
+          sessionKeyData,
+          smartAccountAddress: smartAccountAddressForExec,
         });
       } else {
         const decimals = await zerodev.getTokenDecimals(token as Address, chainId);
@@ -51,6 +74,8 @@ export async function executeApprovedTransaction(
           to: to as Address,
           tokenAddress: token as Address,
           tokenAmount: parseUnits(amount, decimals),
+          sessionKeyData,
+          smartAccountAddress: smartAccountAddressForExec,
         });
       }
     } else if (txLog.actionType === 'send_transaction') {
@@ -64,6 +89,8 @@ export async function executeApprovedTransaction(
         to: to as Address,
         data: data as Hex,
         value: value ? parseEther(value) : 0n,
+        sessionKeyData,
+        smartAccountAddress: smartAccountAddressForExec,
       });
     } else if (txLog.actionType === 'swap') {
       const sellToken = requestData.sellToken as string;
@@ -75,9 +102,19 @@ export async function executeApprovedTransaction(
       if (!zeroExService.isNativeToken(sellToken)) {
         sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
       }
-      const sellAmountWei = parseUnits(requestData.sellAmount as string, sellAmountDecimals).toString();
+      const sellAmountWei = parseUnits(
+        requestData.sellAmount as string,
+        sellAmountDecimals
+      ).toString();
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
-      console.log(`getting quote with data`, { sellToken, buyToken, sellAmountWei, takerAddress, chainId, slippageBps });
+      console.log(`getting quote with data`, {
+        sellToken,
+        buyToken,
+        sellAmountWei,
+        takerAddress,
+        chainId,
+        slippageBps,
+      });
       const quote = await zeroExService.getQuote({
         sellToken,
         buyToken,
@@ -115,12 +152,16 @@ export async function executeApprovedTransaction(
           to: calls[0].to,
           data: calls[0].data,
           value: calls[0].value,
+          sessionKeyData,
+          smartAccountAddress: smartAccountAddressForExec,
         });
       } else {
         result = await zerodev.executeBatchTransaction({
           privateKey,
           chainId,
           calls,
+          sessionKeyData,
+          smartAccountAddress: smartAccountAddressForExec,
         });
       }
     } else {

@@ -96,9 +96,6 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
     const duration = Date.now() - startTime;
     const status = res.statusCode;
 
-    // Get API key and secret IDs if available (set by auth middleware)
-    const authReq = req as AuthenticatedRequest;
-
     const responseLog: ResponseLogEntry = {
       traceId,
       timestamp: new Date().toISOString(),

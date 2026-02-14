@@ -6,7 +6,13 @@ import { createApp } from './app.js';
 import { env } from './utils/env.js';
 import prisma from './db/client.js';
 import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram/index.js';
-import { startUsagePoller, stopUsagePoller, startHardeningWorker, stopHardeningWorker, resumeInterruptedDeployments } from './services/openclaw.service.js';
+import {
+  startUsagePoller,
+  stopUsagePoller,
+  startHardeningWorker,
+  stopHardeningWorker,
+  resumeInterruptedDeployments,
+} from './services/openclaw.service.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {

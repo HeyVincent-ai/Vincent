@@ -39,8 +39,8 @@ export function createApp(): Express {
           connectSrc: ["'self'", 'https://*.stytch.com'],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          workerSrc: ["'self'", "blob:"],
-          frameSrc: ["'self'", "https://*.vps.ovh.us"],
+          workerSrc: ["'self'", 'blob:'],
+          frameSrc: ["'self'", 'https://*.vps.ovh.us'],
         },
       },
     })

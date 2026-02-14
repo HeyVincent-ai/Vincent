@@ -189,7 +189,9 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
         : session.payment_intent?.id;
     if (!paymentIntentId) return;
 
-    console.log(`[stripe] OpenClaw credit checkout completed: $${amountUsd} for deployment ${deploymentId}`);
+    console.log(
+      `[stripe] OpenClaw credit checkout completed: $${amountUsd} for deployment ${deploymentId}`
+    );
     const openclawService = await import('../services/openclaw.service.js');
     await openclawService.fulfillCreditPurchase(deploymentId, amountUsd, paymentIntentId);
     return;
@@ -225,11 +227,7 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   if (checkoutType === 'openclaw' && deploymentId) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
     const openclawService = await import('../services/openclaw.service.js');
-    await openclawService.startProvisioning(
-      deploymentId,
-      stripeSubscription.id,
-      period.end
-    );
+    await openclawService.startProvisioning(deploymentId, stripeSubscription.id, period.end);
     return;
   }
 

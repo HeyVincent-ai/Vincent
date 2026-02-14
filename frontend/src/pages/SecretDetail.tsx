@@ -6,6 +6,7 @@ import PolicyManager from '../components/PolicyManager';
 import ApiKeyManager from '../components/ApiKeyManager';
 import AuditLogViewer from '../components/AuditLogViewer';
 import BalancesDisplay from '../components/BalancesDisplay';
+import TakeOwnership from '../components/TakeOwnership';
 import DataSourcesView from '../components/DataSourcesView';
 
 interface SecretData {
@@ -245,6 +246,22 @@ export default function SecretDetail() {
             Testnets are always free. Mainnet requires a subscription ($10/month) after the 3-day
             trial.
           </p>
+        </div>
+      )}
+
+      {/* Take Ownership (EVM Wallets only) */}
+      {secret.type === 'EVM_WALLET' && secret.walletAddress && (
+        <div className="mb-6">
+          <TakeOwnership
+            secretId={secret.id}
+            walletAddress={secret.walletAddress}
+            onOwnershipTransferred={() => {
+              // Refresh secret data
+              getSecret(secret.id)
+                .then((res) => setSecret(res.data.data.secret))
+                .catch(() => {});
+            }}
+          />
         </div>
       )}
 

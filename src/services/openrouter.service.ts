@@ -16,8 +16,8 @@ const OPENROUTER_API_BASE = 'https://openrouter.ai/api/v1';
 // ============================================================
 
 export interface OpenRouterKeyResult {
-  key: string;   // The actual API key (only returned on creation)
-  hash: string;  // Key hash for future management
+  key: string; // The actual API key (only returned on creation)
+  hash: string; // Key hash for future management
   name: string;
 }
 
@@ -46,7 +46,7 @@ async function openRouterFetch(path: string, options: RequestInit = {}): Promise
   const res = await fetch(url, {
     ...options,
     headers: {
-      'Authorization': `Bearer ${getProvisioningKey()}`,
+      Authorization: `Bearer ${getProvisioningKey()}`,
       'Content-Type': 'application/json',
       ...options.headers,
     },
@@ -67,11 +67,14 @@ async function openRouterFetch(path: string, options: RequestInit = {}): Promise
 /**
  * Create a new OpenRouter API key for a deployment.
  */
-export async function createKey(name: string, options?: {
-  limit?: number;
-  limit_reset?: 'daily' | 'weekly' | 'monthly' | null;
-  expires_at?: string;
-}): Promise<OpenRouterKeyResult> {
+export async function createKey(
+  name: string,
+  options?: {
+    limit?: number;
+    limit_reset?: 'daily' | 'weekly' | 'monthly' | null;
+    expires_at?: string;
+  }
+): Promise<OpenRouterKeyResult> {
   const body: any = { name };
   if (options?.limit !== undefined) body.limit = options.limit;
   if (options?.limit_reset) body.limit_reset = options.limit_reset;

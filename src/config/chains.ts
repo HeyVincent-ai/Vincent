@@ -205,11 +205,11 @@ export function getExplorerAddressUrl(chainId: number, address: string): string 
 }
 
 /** All chain IDs that are testnets. */
-export const TESTNET_CHAIN_IDS: number[] = chains.filter(c => c.isTestnet).map(c => c.chainId);
+export const TESTNET_CHAIN_IDS: number[] = chains.filter((c) => c.isTestnet).map((c) => c.chainId);
 
 /** Map from chain ID → Alchemy network name (only chains Alchemy supports). */
 export const CHAIN_ID_TO_ALCHEMY_NETWORK: Record<number, string> = Object.fromEntries(
-  chains.filter(c => c.alchemyNetwork).map(c => [c.chainId, c.alchemyNetwork!])
+  chains.filter((c) => c.alchemyNetwork).map((c) => [c.chainId, c.alchemyNetwork!])
 );
 
 /** All chain configs. */

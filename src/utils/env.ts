@@ -20,7 +20,7 @@ const envSchema = z.object({
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
   // ZeroDev Configuration
-  ZERODEV_PROJECT_ID: z.string(),
+  ZERODEV_PROJECT_ID: z.string().min(1),
 
   // Stripe Billing (optional in development)
   STRIPE_SECRET_KEY: z.string().optional(),
@@ -89,6 +89,7 @@ const envSchema = z.object({
   OVH_APP_SECRET: z.string().optional(),
   OVH_CONSUMER_KEY: z.string().optional(),
   OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+  OVH_EU_SUBSIDIARY: z.string().optional(),
 
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),

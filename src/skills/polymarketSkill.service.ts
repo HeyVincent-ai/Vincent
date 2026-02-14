@@ -275,9 +275,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     }
 
     // Extract meaningful error message, avoiding circular structure errors
-    const cleanMessage = errorMessage.includes('circular structure')
-      ? 'no match'
-      : errorMessage;
+    const cleanMessage = errorMessage.includes('circular structure') ? 'no match' : errorMessage;
 
     throw new AppError('BET_FAILED', `Polymarket bet failed: ${cleanMessage}`, 500);
   }

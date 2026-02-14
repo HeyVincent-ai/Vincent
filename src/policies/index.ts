@@ -1,1 +1,6 @@
-export { checkPolicies, type PolicyCheckAction, type PolicyCheckResult, type PolicyVerdict } from './checker.js';
+export {
+  checkPolicies,
+  type PolicyCheckAction,
+  type PolicyCheckResult,
+  type PolicyVerdict,
+} from './checker.js';
