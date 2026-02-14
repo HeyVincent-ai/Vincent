@@ -1,9 +1,8 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserSecrets, createSecret, claimSecret, getOpenClawDeployments, deployOpenClaw } from '../api';
+import { getUserSecrets, createSecret, claimSecret } from '../api';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../components/Toast';
-import WelcomeOnboarding from '../components/WelcomeOnboarding';
 
 interface Secret {
   id: string;
@@ -285,7 +284,6 @@ function SecretCard({ secret }: { secret: Secret }) {
 
 export default function Dashboard() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
-  const [deployments, setDeployments] = useState<{ id: string; status: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [createType, setCreateType] = useState('EVM_WALLET');
@@ -293,45 +291,18 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [deploying, setDeploying] = useState(false);
-  const [deployError, setDeployError] = useState<string | null>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    Promise.all([
-      getUserSecrets()
-        .then((res) => setSecrets(res.data.data.secrets))
-        .catch(() => {}),
-      getOpenClawDeployments()
-        .then((res) => setDeployments(res.data.data.deployments))
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
-  }, []);
 
   const loadSecrets = () => {
     getUserSecrets()
       .then((res) => setSecrets(res.data.data.secrets))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   };
 
-  const handleDeploy = async () => {
-    setDeploying(true);
-    setDeployError(null);
-    try {
-      const currentUrl = window.location.origin + '/agents';
-      const res = await deployOpenClaw(
-        `${currentUrl}?openclaw_deploy=success`,
-        `${currentUrl}?openclaw_deploy=canceled`
-      );
-      const { checkoutUrl } = res.data.data;
-      window.location.href = checkoutUrl;
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message;
-      setDeployError(msg || 'Failed to start deployment');
-      setDeploying(false);
-    }
-  };
+  useEffect(() => {
+    loadSecrets();
+  }, []);
 
   const handleCreate = async () => {
     setCreating(true);
@@ -378,20 +349,6 @@ export default function Dashboard() {
           <SecretCardSkeleton />
         </div>
       </div>
-    );
-  }
-
-  const hasDeployments = deployments.some((d) => d.status !== 'DESTROYED');
-  const hasSecrets = secrets.length > 0;
-
-  if (!hasDeployments && !hasSecrets) {
-    return (
-      <WelcomeOnboarding
-        onDeploy={handleDeploy}
-        deploying={deploying}
-        error={deployError}
-        onCreateSecret={() => setShowCreate(true)}
-      />
     );
   }
 
