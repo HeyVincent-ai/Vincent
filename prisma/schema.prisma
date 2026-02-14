@@ -362,6 +362,7 @@ model OpenClawDeployment {
   lastKnownUsageUsd    Decimal  @default(0)     @map("last_known_usage_usd") @db.Decimal(10, 2)
   lastUsagePollAt      DateTime?                @map("last_usage_poll_at")
   creditPurchases      OpenClawCreditPurchase[]
+  strategies           Strategy[]
 
   // Timestamps
   createdAt       DateTime       @default(now()) @map("created_at")
@@ -386,4 +387,75 @@ model OpenClawCreditPurchase {
 
   @@index([deploymentId])
   @@map("openclaw_credit_purchases")
+}
+
+// ============================================================
+// Strategy & Alert Rule Models
+// ============================================================
+
+// Strategy type: polymarket-specific vs custom crypto-native agent strategies
+enum StrategyType {
+  POLYMARKET
+  CUSTOM
+}
+
+// Strategy lifecycle status
+enum StrategyStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+// Risk profile selection
+enum RiskProfile {
+  CONSERVATIVE
+  MODERATE
+  AGGRESSIVE
+}
+
+// Alert rule trigger types
+enum TriggerType {
+  PRICE_THRESHOLD
+  CRON_SCHEDULE
+  POLYMARKET_ODDS
+}
+
+// Trading strategy tied to an OpenClaw deployment (running agent)
+model Strategy {
+  id                  String           @id @default(cuid())
+  deploymentId        String           @map("deployment_id")
+  strategyType        StrategyType     @map("strategy_type")
+  templateId          String?          @map("template_id")
+  thesisText          String           @map("thesis_text") @db.Text
+  conditionTokenId    String?          @map("condition_token_id")
+  strategyConfig      Json             @map("strategy_config")
+  riskProfile         RiskProfile      @default(MODERATE) @map("risk_profile")
+  status              StrategyStatus   @default(ACTIVE)
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  deployment          OpenClawDeployment @relation(fields: [deploymentId], references: [id], onDelete: Cascade)
+  alertRules          AlertRule[]
+
+  @@index([deploymentId])
+  @@map("strategies")
+}
+
+// Alert rule defining when to trigger an agent action
+model AlertRule {
+  id                String       @id @default(cuid())
+  strategyId        String       @map("strategy_id")
+  triggerType       TriggerType  @map("trigger_type")
+  triggerConfig     Json         @map("trigger_config")
+  instruction       String       @map("instruction") @db.Text
+  enabled           Boolean      @default(true)
+  lastTriggeredAt   DateTime?    @map("last_triggered_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  strategy          Strategy     @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+
+  @@index([strategyId])
+  @@index([triggerType, enabled])
+  @@map("alert_rules")
 }

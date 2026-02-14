@@ -10,6 +10,7 @@ import rawSignerRouter from './rawSigner.routes.js';
 import billingRouter from './billing.routes.js';
 import auditLogsRouter from './auditLogs.routes.js';
 import openclawRouter from './openclaw.routes.js';
+import strategiesRouter from './strategies.routes.js';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoint
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
 router.use('/billing', billingRouter); // Billing & subscription endpoints
 router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
+router.use('/openclaw/deployments/:deploymentId/strategies', strategiesRouter); // Strategy + alert rule endpoints
 
 export default router;

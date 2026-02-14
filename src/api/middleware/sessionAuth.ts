@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { validateSession } from '../../services/auth.service.js';
 import { verifySecretOwnership } from '../../services/secret.service.js';
 import { errors } from '../../utils/response.js';
+import prisma from '../../db/client.js';
 
 /**
  * Extract session token from request.
@@ -101,7 +102,8 @@ export async function requireSecretOwnership(
     return;
   }
 
-  const secretId = (req.params as Record<string, string>).secretId || (req.params as Record<string, string>).id;
+  const secretId =
+    (req.params as Record<string, string>).secretId || (req.params as Record<string, string>).id;
 
   if (!secretId) {
     errors.badRequest(res, 'Missing secret ID in request');
@@ -112,6 +114,39 @@ export async function requireSecretOwnership(
 
   if (!isOwner) {
     errors.forbidden(res, 'You do not own this secret');
+    return;
+  }
+
+  next();
+}
+
+/**
+ * Middleware to verify the authenticated user owns the deployment specified in :deploymentId.
+ * Must be used after sessionAuthMiddleware.
+ */
+export async function requireDeploymentOwnership(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  if (!req.user) {
+    errors.unauthorized(res, 'Not authenticated');
+    return;
+  }
+
+  const deploymentId = (req.params as Record<string, string>).deploymentId;
+
+  if (!deploymentId) {
+    errors.badRequest(res, 'Missing deployment ID in request');
+    return;
+  }
+
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId: req.user.id },
+  });
+
+  if (!deployment) {
+    errors.forbidden(res, 'You do not own this deployment');
     return;
   }
 
