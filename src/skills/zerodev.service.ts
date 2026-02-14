@@ -320,9 +320,29 @@ export async function createSmartAccount(privateKey: Hex, chainId: number): Prom
 }
 
 /**
+ * Build the session key permission plugin initConfig for a given signer address.
+ * This must be identical to what was used during account creation so the
+ * counterfactual address (CREATE2) matches.
+ */
+async function buildSessionKeyInitConfig(signerAddress: Address, publicClient: ReturnType<typeof getPublicClient>) {
+  const emptySessionKeySigner = await toECDSASigner({
+    signer: addressToEmptyAccount(signerAddress),
+  });
+
+  const permissionPlugin = await toPermissionValidator(publicClient, {
+    signer: emptySessionKeySigner,
+    policies: [toSudoPolicy({})],
+    entryPoint,
+    kernelVersion,
+  });
+
+  return { initConfig: await toInitConfig(permissionPlugin), permissionPlugin };
+}
+
+/**
  * Build a kernel account client for executing transactions.
- * When smartAccountAddress is provided, pins to that address (needed when
- * the account was created with initConfig that affects the counterfactual address).
+ * When smartAccountAddress is provided, reconstructs the initConfig so the
+ * initCode matches the counterfactual address (needed for first deployment).
  */
 async function getKernelClient(privateKey: Hex, chainId: number, smartAccountAddress?: Address) {
   const projectId = env.ZERODEV_PROJECT_ID;
@@ -340,11 +360,19 @@ async function getKernelClient(privateKey: Hex, chainId: number, smartAccountAdd
     kernelVersion,
   });
 
+  // When we have a stored address, rebuild the initConfig so the factory
+  // deploys to the correct counterfactual address on first use.
+  let initConfig: Hex[] | undefined;
+  if (smartAccountAddress) {
+    const result = await buildSessionKeyInitConfig(signer.address, publicClient);
+    initConfig = result.initConfig;
+  }
+
   const account = await createKernelAccount(publicClient, {
     plugins: { sudo: ecdsaValidator },
     entryPoint,
     kernelVersion,
-    ...(smartAccountAddress && { address: smartAccountAddress }),
+    ...(smartAccountAddress && { address: smartAccountAddress, initConfig }),
   });
 
   const paymasterClient = createZeroDevPaymasterClient({
@@ -647,17 +675,7 @@ export async function createSmartAccountWithRecovery(
   });
 
   // 3. Create permission validator (session key) with sudo policy for the backend EOA
-  // Uses an empty signer (address-only) since we don't need to sign during creation
-  const emptySessionKeySigner = await toECDSASigner({
-    signer: addressToEmptyAccount(signer.address),
-  });
-
-  const permissionPlugin = await toPermissionValidator(publicClient, {
-    signer: emptySessionKeySigner,
-    policies: [toSudoPolicy({})],
-    entryPoint,
-    kernelVersion,
-  });
+  const { initConfig, permissionPlugin } = await buildSessionKeyInitConfig(signer.address, publicClient);
 
   // 4. Create kernel account with sudo, guardian, recovery action, and session key via initConfig
   const account = await createKernelAccount(publicClient, {
@@ -668,7 +686,7 @@ export async function createSmartAccountWithRecovery(
       regular: guardianValidator,
       action: getRecoveryAction(entryPoint.version),
     },
-    initConfig: await toInitConfig(permissionPlugin),
+    initConfig,
   });
 
   // 5. Serialize the permission account for later deserialization
