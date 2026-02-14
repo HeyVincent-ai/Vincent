@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react';
+import { shouldIgnoreSentryEvent } from './sentryFilters';
 import { env } from './env';
 
 export function initSentry() {
@@ -18,6 +19,13 @@ export function initSentry() {
       Sentry.replayIntegration(),
     ],
     enabled: import.meta.env.PROD || !!import.meta.env.VITE_SENTRY_ENABLED,
+    beforeSend(event) {
+      if (shouldIgnoreSentryEvent(event)) {
+        return null;
+      }
+
+      return event;
+    },
   });
 }
 
