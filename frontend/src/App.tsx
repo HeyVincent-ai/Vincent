@@ -1,29 +1,31 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
-import Layout, { FullWidthLayout } from './components/Layout';
+import { ToastProvider } from './components/Toast';
+import Layout from './components/Layout';
 import Login from './pages/Login';
 import AuthCallback from './pages/AuthCallback';
 import Dashboard from './pages/Dashboard';
 import SecretDetail from './pages/SecretDetail';
-import Settings from './pages/Settings';
+import Account from './pages/Account';
 import Claim from './pages/Claim';
-import Billing from './pages/Billing';
+import Agents from './pages/Agents';
 import OpenClawDetail from './pages/OpenClawDetail';
 import Landing from './pages/Landing';
 import Features from './pages/Features';
 import Security from './pages/Security';
 import Skills from './pages/Skills';
+import Terms from './pages/Terms';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
+  if (loading) return <div className="p-8 text-muted-foreground">Loading...</div>;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  if (loading) return <div className="p-8 text-gray-500">Loading...</div>;
+  if (loading) return <div className="p-8 text-muted-foreground">Loading...</div>;
   if (user) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
@@ -35,18 +37,20 @@ function AppRoutes() {
       <Route path="/features" element={<Features />} />
       <Route path="/security" element={<Security />} />
       <Route path="/skills" element={<Skills />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/claim/:id" element={<Claim />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/agents" element={<ProtectedRoute><Agents /></ProtectedRoute>} />
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
-        <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
-        <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
-      </Route>
-      <Route element={<FullWidthLayout />}>
+        <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
       </Route>
+      {/* Redirects for old routes */}
+      <Route path="/settings" element={<Navigate to="/account" replace />} />
+      <Route path="/billing" element={<Navigate to="/account" replace />} />
     </Routes>
   );
 }
@@ -55,7 +59,9 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <AppRoutes />
+        <ToastProvider>
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   );

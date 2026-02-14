@@ -6,12 +6,31 @@ import { createApp } from './app.js';
 import { env } from './utils/env.js';
 import prisma from './db/client.js';
 import { startBot, stopBot, startTimeoutChecker, stopTimeoutChecker } from './telegram/index.js';
-import { startUsagePoller, stopUsagePoller, startHardeningWorker, stopHardeningWorker, resumeInterruptedDeployments } from './services/openclaw.service.js';
+import {
+  startUsagePoller,
+  stopUsagePoller,
+  startHardeningWorker,
+  stopHardeningWorker,
+  resumeInterruptedDeployments,
+} from './services/openclaw.service.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason);
   Sentry.captureException(reason);
+});
+
+// Log uncaught exceptions so crashes are never silent
+process.on('uncaughtException', (err) => {
+  console.error('FATAL: Uncaught exception — process will exit:', err);
+  Sentry.captureException(err, { tags: { fatal: 'true' } });
+  // Give Sentry time to flush before exiting
+  Sentry.flush(2000).finally(() => process.exit(1));
+});
+
+// Log every process exit with the exit code
+process.on('exit', (code) => {
+  console.log(`Process exiting with code ${code}`);
 });
 
 async function main() {

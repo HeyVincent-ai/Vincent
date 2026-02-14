@@ -20,14 +20,15 @@ const envSchema = z.object({
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
   // ZeroDev Configuration (optional in development)
-  ZERODEV_PROJECT_ID: z.string().optional(),
-  ZERODEV_API_KEY: z.string().optional(),
+  ZERODEV_PROJECT_ID: z.string(),
 
   // Stripe Billing (optional in development)
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
+  // Stripe Price ID with custom_unit_amount enabled (customer chooses amount)
+  STRIPE_CREDIT_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
@@ -86,6 +87,7 @@ const envSchema = z.object({
   OVH_APP_SECRET: z.string().optional(),
   OVH_CONSUMER_KEY: z.string().optional(),
   OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+  OVH_EU_SUBSIDIARY: z.string().optional(),
 
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),

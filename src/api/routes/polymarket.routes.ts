@@ -49,7 +49,12 @@ router.post(
       action: 'skill.polymarket_bet',
       inputData: body,
       outputData: result,
-      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
       errorMessage: result.status === 'denied' ? result.reason : undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
@@ -113,9 +118,11 @@ router.get(
     const query = typeof req.query.query === 'string' ? req.query.query : undefined;
     const activeParam = req.query.active;
     const active = activeParam === 'false' ? false : true; // Default to true
-    const limitParam = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
+    const limitParam =
+      typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : undefined;
     const limit = limitParam && !isNaN(limitParam) ? Math.min(limitParam, 100) : 50;
-    const nextCursor = typeof req.query.next_cursor === 'string' ? req.query.next_cursor : undefined;
+    const nextCursor =
+      typeof req.query.next_cursor === 'string' ? req.query.next_cursor : undefined;
 
     const result = await polymarketSkill.searchMarkets({ query, active, limit, nextCursor });
     sendSuccess(res, result);

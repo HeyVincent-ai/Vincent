@@ -41,7 +41,7 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
@@ -50,8 +50,8 @@ import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 // Constants
 // ============================================================
 
-// Plans to try in priority order
-const VPS_PLANS_PRIORITY = [
+// Plans to try in priority order (NA first, then EU fallbacks)
+export const VPS_PLANS_PRIORITY = [
   'vps-2025-model1.LZ',
   'vps-2025-model1-ca',
   'vps-2025-model1',
@@ -59,6 +59,11 @@ const VPS_PLANS_PRIORITY = [
   'vps-2025-model3-ca',
   'vps-2025-model2',
   'vps-2025-model3',
+  // EU plans
+  'vps-2025-model1.LZ-eu',
+  'vps-2025-model1-eu',
+  'vps-2025-model2-eu',
+  'vps-2025-model3-eu',
 ];
 
 const DEFAULT_OS = 'Debian 12';
@@ -269,7 +274,7 @@ export function buildSetupScript(openRouterApiKey: string, hostname: string): st
   //   /root/.openclaw-setup-error    — written on failure
   return `#!/bin/bash
 set -euo pipefail
-trap 'echo "FAILED: line \$LINENO: \$BASH_COMMAND" > /root/.openclaw-setup-error' ERR
+trap 'echo "FAILED: line $LINENO: $BASH_COMMAND" > /root/.openclaw-setup-error' ERR
 export HOME=/root
 cd /root
 export DEBIAN_FRONTEND=noninteractive
@@ -386,7 +391,7 @@ ufw --force enable
 
 echo "=== [8/8] Starting OpenClaw gateway ==="
 # Find the openclaw binary (installed to /usr/bin by npm global)
-OPENCLAW_BIN=\$(which openclaw)
+OPENCLAW_BIN=$(which openclaw)
 echo "OpenClaw binary: \${OPENCLAW_BIN}"
 
 # Create systemd service using "gateway run" (foreground mode).
@@ -418,7 +423,7 @@ systemctl start openclaw-gateway
 sleep 10
 
 # Extract access token and write marker files
-ACCESS_TOKEN=\$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
+ACCESS_TOKEN=$(openclaw config get gateway.auth.token 2>/dev/null || echo "")
 echo "\${ACCESS_TOKEN}" > /root/.openclaw-setup-token
 rm -f /root/.openclaw-setup-error
 echo "COMPLETE" > /root/.openclaw-setup-complete
@@ -596,11 +601,9 @@ async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter:
     }
   }
 
-  // Fallback: use first plan with whatever cart datacenter is available
-  const fallbackPlan = VPS_PLANS_PRIORITY[0];
-  const cartDcs = await ovhService.getCartDatacenters(fallbackPlan);
-  const dc = cartDcs[0] || 'US-EAST-LZ-MIA';
-  return { planCode: fallbackPlan, datacenter: dc };
+  throw new Error(
+    'No VPS plans available — all plans are out of stock in their allowed datacenters'
+  );
 }
 
 // ============================================================
@@ -679,6 +682,12 @@ export async function deploy(
     throw new Error('STRIPE_OPENCLAW_PRICE_ID is not configured');
   }
 
+  // Check if user has ever had an OpenClaw deployment (any status) — free trial is for first deployment only
+  const existingDeployments = await prisma.openClawDeployment.count({
+    where: { userId },
+  });
+  const isFirstDeployment = existingDeployments === 0;
+
   // Create deployment record in PENDING_PAYMENT state
   const deployment = await prisma.openClawDeployment.create({
     data: {
@@ -697,7 +706,7 @@ export async function deploy(
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
-    subscription_data: { trial_period_days: 7 },
+    subscription_data: isFirstDeployment ? { trial_period_days: 7 } : {},
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
@@ -878,7 +887,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
             await updateDeployment(deploymentId, {
               status: 'ORDERING',
-              statusMessage: 'Placing VPS order with OVH',
+              statusMessage: 'Deploying agent server',
               provisionLog: log,
             });
 
@@ -906,18 +915,37 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             if (!orderId) throw new Error('No order ID found for delivery polling');
 
             addLog('Waiting for VPS delivery...');
-            const deliveredServiceName = await pollForDelivery(orderId, addLog);
-            ctx.serviceName = deliveredServiceName;
-            addLog(`VPS delivered: ${deliveredServiceName}`);
+
+            // Retry loop: if another deployment claims the VPS first (unique constraint),
+            // keep polling until we find our own VPS.
+            let claimed = false;
+            while (!claimed) {
+              const deliveredServiceName = await pollForDelivery(orderId, addLog);
+              try {
+                await updateDeployment(deploymentId, {
+                  ovhServiceName: deliveredServiceName,
+                });
+                ctx.serviceName = deliveredServiceName;
+                claimed = true;
+                addLog(`VPS delivered: ${deliveredServiceName}`);
+              } catch (err: any) {
+                if (err.code === 'P2002' && err.meta?.target?.includes('ovh_service_name')) {
+                  addLog(
+                    `VPS ${deliveredServiceName} already claimed by another deployment, retrying...`
+                  );
+                  continue;
+                }
+                throw err;
+              }
+            }
           }
 
-          ctx.hostname = ovhService.getVpsHostname(ctx.serviceName);
+          ctx.hostname = ovhService.getVpsHostname(ctx.serviceName!);
           addLog(`VPS hostname: ${ctx.hostname}`);
 
           await updateDeployment(deploymentId, {
             status: 'PROVISIONING',
             statusMessage: 'VPS delivered, retrieving IP address',
-            ovhServiceName: ctx.serviceName,
             hostname: ctx.hostname,
             provisionLog: log,
             provisionStage: stage,
@@ -1030,7 +1058,14 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             if (current?.openRouterKeyHash) {
               try {
                 await openRouterService.deleteKey(current.openRouterKeyHash);
-              } catch {}
+              } catch (err) {
+                // Best-effort cleanup: the old key may already be deleted or the
+                // OpenRouter API may be temporarily down. Either way we proceed
+                // with creating a fresh key — the stale one will just expire.
+                addLog(
+                  `[warn] Failed to delete old OpenRouter key (hash: ${current.openRouterKeyHash}): ${err}`
+                );
+              }
             }
             const shortId = deploymentId.slice(-8);
             const orKey = await openRouterService.createKey(`openclaw-${shortId}`, { limit: 25 });
@@ -1149,19 +1184,37 @@ async function pollForDelivery(orderId: number, addLog: (msg: string) => void): 
     // Secondary: check if a new VPS appeared in the list
     try {
       const vpsNow = await ovhService.listVps();
-      for (const name of vpsNow) {
-        if (!vpsBefore.has(name)) {
-          return name;
+      const newVpses = vpsNow.filter((name) => !vpsBefore.has(name));
+      if (newVpses.length > 0) {
+        // Exclude VPSes already claimed by other deployments
+        const claimed = await prisma.openClawDeployment.findMany({
+          where: { ovhServiceName: { in: newVpses } },
+          select: { ovhServiceName: true },
+        });
+        const claimedSet = new Set(claimed.map((d) => d.ovhServiceName));
+        const unclaimed = newVpses.filter((name) => !claimedSet.has(name));
+        if (unclaimed.length > 0) {
+          return unclaimed[0];
         }
       }
-    } catch {}
+    } catch (err) {
+      // VPS list API can 404 or timeout while the order is still being
+      // processed by OVH. We keep polling — the next iteration will retry.
+      addLog(`[warn] Failed to list VPS while waiting for delivery: ${err}`);
+    }
 
     // Log order status
     try {
-      const status = await ovhService.getOrderStatus(orderId);
+      const orderStatus = await ovhService.getOrderStatus(orderId);
       const elapsed = Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000);
-      addLog(`[${elapsed}s] Order ${orderId} status: ${status.status}`);
-    } catch {}
+      addLog(
+        `[${elapsed}s] Order ${orderId} step: ${orderStatus.step}, status: ${orderStatus.status}`
+      );
+    } catch (err) {
+      // Order status endpoint may return 404 briefly after placement.
+      // Non-fatal — we continue polling until the deadline.
+      addLog(`[warn] Failed to fetch order status for ${orderId}: ${err}`);
+    }
   }
 
   throw new Error(`VPS delivery timed out after ${ORDER_POLL_TIMEOUT_MS / 60_000} minutes`);
@@ -1181,7 +1234,11 @@ async function pollForIp(serviceName: string, addLog: (msg: string) => void): Pr
       if (ips.length > 0) {
         return ips.find(isIpv4) || ips[0];
       }
-    } catch {}
+    } catch (err) {
+      // IP assignment can lag behind VPS delivery — the OVH API may 404 or
+      // return an empty result for a short window. We retry until the deadline.
+      addLog(`[warn] getVpsIps failed for ${serviceName} (attempt ${attempt + 1}): ${err}`);
+    }
 
     // Fallback to getVpsDetails
     try {
@@ -1189,7 +1246,10 @@ async function pollForIp(serviceName: string, addLog: (msg: string) => void): Pr
       if (details.ips && details.ips.length > 0) {
         return details.ips.find(isIpv4) || details.ips[0];
       }
-    } catch {}
+    } catch (err) {
+      // Same as above — VPS details may not be queryable yet right after delivery.
+      addLog(`[warn] getVpsDetails failed for ${serviceName} (attempt ${attempt + 1}): ${err}`);
+    }
 
     addLog(`Waiting for IP (attempt ${attempt + 1})...`);
     await sleep(IP_POLL_INTERVAL_MS);
@@ -1213,7 +1273,11 @@ export async function findRebuildImage(
         addLog(`Found rebuild image: ${img.name} (${imgId})`);
         return imgId;
       }
-    } catch {}
+    } catch (err) {
+      // Individual image metadata can fail if OVH removes or hides the image
+      // between the list call and the detail call. We skip it and try the rest.
+      addLog(`[warn] Failed to fetch image details for ${imgId} on ${serviceName}: ${err}`);
+    }
   }
 
   addLog(`Image "${REBUILD_IMAGE_NAME}" not found, using first available`);
@@ -1461,6 +1525,111 @@ export async function restart(deploymentId: string, userId: string): Promise<Ope
 }
 
 // ============================================================
+// Telegram Channel Setup
+// ============================================================
+
+/**
+ * Check which channels are configured on a deployment via SSH.
+ */
+export async function getChannelStatus(
+  deploymentId: string,
+  userId: string
+): Promise<{ telegram: { configured: boolean } }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  return { telegram: { configured: deployment.telegramConfigured } };
+}
+
+/**
+ * Configure a Telegram bot token on a deployment and restart the gateway.
+ */
+export async function configureTelegramBot(
+  deploymentId: string,
+  userId: string,
+  botToken: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^\d+:[A-Za-z0-9_-]+$/.test(botToken)) {
+    throw new Error('Invalid Telegram bot token format');
+  }
+
+  const telegramConfig = JSON.stringify({
+    enabled: true,
+    botToken,
+    dmPolicy: 'pairing',
+  });
+
+  await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw config set channels.telegram --json '${telegramConfig}' && sudo openclaw config set plugins.entries.telegram.enabled true && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+}
+
+/**
+ * Approve a Telegram pairing code on a deployment via SSH.
+ */
+export async function approveTelegramPairing(
+  deploymentId: string,
+  userId: string,
+  code: string
+): Promise<{ success: boolean; message: string }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^[A-Za-z0-9-]+$/.test(code)) {
+    throw new Error('Invalid pairing code format');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw pairing approve telegram ${code} && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || 'Failed to approve pairing code');
+  }
+
+  await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: { telegramConfigured: true },
+  });
+
+  return { success: true, message: result.stdout.trim() || 'Pairing approved' };
+}
+
+// ============================================================
 // Token Billing (LLM Credits)
 // ============================================================
 
@@ -1537,51 +1706,23 @@ export async function getUsage(
 }
 
 /**
- * Add LLM credits to a deployment by charging the user's Stripe payment method.
+ * Fulfill a credit purchase after Stripe Checkout completes (called from webhook).
+ * Payment has already been collected — just update the balance and records.
  */
-export async function addCredits(
+export async function fulfillCreditPurchase(
   deploymentId: string,
-  userId: string,
-  amountUsd: number
-): Promise<{
-  success: boolean;
-  newBalanceUsd: number;
-  paymentIntentId?: string;
-  requiresAction?: boolean;
-  clientSecret?: string;
-}> {
-  if (amountUsd < 5 || amountUsd > 500) {
-    throw new Error('Credit amount must be between $5 and $500');
-  }
-
-  const deployment = await prisma.openClawDeployment.findFirst({
-    where: { id: deploymentId, userId },
+  amountUsd: number,
+  stripePaymentIntentId: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
   });
 
-  if (!deployment) throw new Error('Deployment not found');
-  if (!['READY', 'CANCELING'].includes(deployment.status)) {
-    throw new Error('Deployment must be READY to add credits');
+  if (!deployment) {
+    console.error(`[openclaw] fulfillCreditPurchase: deployment ${deploymentId} not found`);
+    return;
   }
 
-  const amountCents = Math.round(amountUsd * 100);
-  const result = await chargeCustomerOffSession(
-    userId,
-    amountCents,
-    `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
-    { deploymentId, type: 'openclaw_credits' }
-  );
-
-  if (result.requiresAction) {
-    return {
-      success: false,
-      newBalanceUsd: Number(deployment.creditBalanceUsd),
-      requiresAction: true,
-      clientSecret: result.clientSecret,
-      paymentIntentId: result.paymentIntentId,
-    };
-  }
-
-  // Payment succeeded — update credit balance and OpenRouter key limit
   const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
 
   await prisma.$transaction([
@@ -1593,7 +1734,7 @@ export async function addCredits(
       data: {
         deploymentId,
         amountUsd,
-        stripePaymentIntentId: result.paymentIntentId!,
+        stripePaymentIntentId,
       },
     }),
   ]);
@@ -1607,11 +1748,9 @@ export async function addCredits(
     }
   }
 
-  return {
-    success: true,
-    newBalanceUsd: newBalance,
-    paymentIntentId: result.paymentIntentId,
-  };
+  console.log(
+    `[openclaw] Credited $${amountUsd} to deployment ${deploymentId}, new balance: $${newBalance}`
+  );
 }
 
 // ============================================================
@@ -2254,13 +2393,13 @@ export function stopUsagePoller(): void {
 
 export function toPublicData(deployment: OpenClawDeployment) {
   const {
-    sshPrivateKey,
-    sshPublicKey,
-    openRouterKeyHash,
-    ovhOrderId,
-    ovhCartId,
-    provisionLog,
-    provisionStage,
+    sshPrivateKey: _sshPrivateKey,
+    sshPublicKey: _sshPublicKey,
+    openRouterKeyHash: _openRouterKeyHash,
+    ovhOrderId: _ovhOrderId,
+    ovhCartId: _ovhCartId,
+    provisionLog: _provisionLog,
+    provisionStage: _provisionStage,
     ...publicFields
   } = deployment;
   return publicFields;

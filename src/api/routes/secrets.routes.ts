@@ -22,7 +22,10 @@ const secretCreationLimiter = rateLimit({
   max: 5,
   message: {
     success: false,
-    error: { code: 'RATE_LIMIT_EXCEEDED', message: 'Too many secret creation requests. Try again later.' },
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Too many secret creation requests. Try again later.',
+    },
   },
   standardHeaders: true,
   legacyHeaders: false,
@@ -226,11 +229,13 @@ router.get(
         daysRemaining: trialStatus.trialDaysRemaining,
         endsAt: trialStatus.trialEndsAt.toISOString(),
       },
-      subscription: subscription ? {
-        status: subscription.status,
-        currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
-        currentPeriodEnd: subscription.currentPeriodEnd?.toISOString(),
-      } : null,
+      subscription: subscription
+        ? {
+            status: subscription.status,
+            currentPeriodStart: subscription.currentPeriodStart?.toISOString(),
+            currentPeriodEnd: subscription.currentPeriodEnd?.toISOString(),
+          }
+        : null,
       hasMainnetAccess,
     });
   })
@@ -304,9 +309,13 @@ router.get(
     const id = (req.params as Record<string, string>).id;
 
     const chainIdsParam = req.query.chainIds;
-    const chainIds = typeof chainIdsParam === 'string' && chainIdsParam
-      ? chainIdsParam.split(',').map((c) => parseInt(c.trim(), 10)).filter((c) => !isNaN(c))
-      : undefined;
+    const chainIds =
+      typeof chainIdsParam === 'string' && chainIdsParam
+        ? chainIdsParam
+            .split(',')
+            .map((c) => parseInt(c.trim(), 10))
+            .filter((c) => !isNaN(c))
+        : undefined;
 
     const result = await evmWallet.getPortfolioBalances(id, chainIds);
     sendSuccess(res, result);
@@ -325,13 +334,15 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const id = (req.params as Record<string, string>).id;
 
-    const body = z.object({
-      sellToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid sell token address'),
-      buyToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid buy token address'),
-      sellAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
-      chainId: z.number().int().positive(),
-      slippageBps: z.number().int().min(0).max(10000).optional(),
-    }).parse(req.body);
+    const body = z
+      .object({
+        sellToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid sell token address'),
+        buyToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid buy token address'),
+        sellAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
+        chainId: z.number().int().positive(),
+        slippageBps: z.number().int().min(0).max(10000).optional(),
+      })
+      .parse(req.body);
 
     const result = await evmWallet.previewSwap({
       secretId: id,
@@ -358,13 +369,15 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const id = (req.params as Record<string, string>).id;
 
-    const body = z.object({
-      sellToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid sell token address'),
-      buyToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid buy token address'),
-      sellAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
-      chainId: z.number().int().positive(),
-      slippageBps: z.number().int().min(0).max(10000).optional(),
-    }).parse(req.body);
+    const body = z
+      .object({
+        sellToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid sell token address'),
+        buyToken: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid buy token address'),
+        sellAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
+        chainId: z.number().int().positive(),
+        slippageBps: z.number().int().min(0).max(10000).optional(),
+      })
+      .parse(req.body);
 
     const start = Date.now();
     const result = await evmWallet.executeSwap({
@@ -382,7 +395,12 @@ router.post(
       action: 'skill.swap_execute',
       inputData: body,
       outputData: result,
-      status: result.status === 'denied' ? 'FAILED' : result.status === 'pending_approval' ? 'PENDING' : 'SUCCESS',
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
       errorMessage: result.status === 'denied' ? result.reason : undefined,
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),

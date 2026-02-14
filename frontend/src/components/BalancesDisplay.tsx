@@ -50,16 +50,16 @@ const NETWORK_LABELS: Record<string, string> = {
 };
 
 const NETWORK_ICONS: Record<string, string> = {
-  'eth-mainnet': '⟠',
-  'eth-sepolia': '⟠',
-  'polygon-mainnet': '⬡',
-  'polygon-amoy': '⬡',
-  'arb-mainnet': '◆',
-  'arb-sepolia': '◆',
-  'opt-mainnet': '●',
-  'opt-sepolia': '●',
-  'base-mainnet': '◉',
-  'base-sepolia': '◉',
+  'eth-mainnet': '\u27E0',
+  'eth-sepolia': '\u27E0',
+  'polygon-mainnet': '\u2B21',
+  'polygon-amoy': '\u2B21',
+  'arb-mainnet': '\u25C6',
+  'arb-sepolia': '\u25C6',
+  'opt-mainnet': '\u25CF',
+  'opt-sepolia': '\u25CF',
+  'base-mainnet': '\u25C9',
+  'base-sepolia': '\u25C9',
 };
 
 const NETWORK_TO_CHAIN_ID: Record<string, number> = {
@@ -146,7 +146,7 @@ function TokenIcon({ token }: { token: TokenBalance }) {
       <img
         src={token.logo}
         alt={token.symbol}
-        className="w-8 h-8 rounded-full bg-gray-100"
+        className="w-8 h-8 rounded-full bg-muted"
         onError={() => setImgError(true)}
       />
     );
@@ -166,7 +166,7 @@ function TokenIcon({ token }: { token: TokenBalance }) {
   );
 }
 
-// ─── Inline Swap Form ────────────────────────────────────────────────
+// Inline Swap Form
 
 interface SwapFormProps {
   token: TokenBalance;
@@ -245,13 +245,13 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
   };
 
   return (
-    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+    <div className="px-4 py-3 bg-muted border-t border-border">
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-medium text-gray-500">Swap {token.symbol} →</span>
+        <span className="text-xs font-medium text-muted-foreground">Swap {token.symbol} &rarr;</span>
         <select
           value={buyToken}
           onChange={(e) => { setBuyToken(e.target.value); setPreview(null); setResult(null); }}
-          className="border border-gray-300 rounded px-2 py-1 text-xs"
+          className="bg-background border border-border rounded px-2 py-1 text-xs text-foreground"
         >
           {availableTokens.length === 0 && <option value="">No tokens available</option>}
           {availableTokens.map((t) => (
@@ -265,7 +265,7 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
             placeholder="0x..."
             value={customBuyToken}
             onChange={(e) => { setCustomBuyToken(e.target.value); setPreview(null); }}
-            className="border border-gray-300 rounded px-2 py-1 text-xs font-mono w-36"
+            className="bg-background border border-border rounded px-2 py-1 text-xs font-mono w-36 text-foreground placeholder:text-muted-foreground"
           />
         )}
       </div>
@@ -276,14 +276,14 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
           placeholder={`Amount (${token.symbol})`}
           value={sellAmount}
           onChange={(e) => { setSellAmount(e.target.value); setPreview(null); setResult(null); }}
-          className="border border-gray-300 rounded px-2 py-1.5 text-sm flex-1"
+          className="bg-background border border-border rounded px-2 py-1.5 text-sm flex-1 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
         />
         <div className="flex gap-1">
           {[50, 100, 200].map((bps) => (
             <button
               key={bps}
               onClick={() => setSlippageBps(bps)}
-              className={`px-2 py-1 text-[10px] rounded border ${slippageBps === bps ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-500 hover:bg-gray-100'}`}
+              className={`px-2 py-1 text-[10px] rounded border ${slippageBps === bps ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
             >
               {(bps / 100).toFixed(1)}%
             </button>
@@ -292,33 +292,33 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
         <button
           onClick={handlePreview}
           disabled={!canPreview || loading}
-          className="px-3 py-1.5 text-xs font-medium bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-40"
+          className="px-3 py-1.5 text-xs font-medium bg-muted text-foreground rounded hover:bg-surface-hover disabled:opacity-40 transition-colors"
         >
           {loading && !preview ? '...' : 'Quote'}
         </button>
       </div>
 
       {error && (
-        <div className="text-xs text-red-600 mb-2">{error}</div>
+        <div className="text-xs text-destructive mb-2">{error}</div>
       )}
 
       {preview && (
-        <div className="bg-white border border-gray-200 rounded p-3 mb-2 text-xs space-y-1">
+        <div className="bg-card border border-border rounded p-3 mb-2 text-xs space-y-1">
           <div className="flex justify-between">
-            <span className="text-gray-500">You receive (est.)</span>
-            <span className="font-medium">{formatTokenAmount(preview.buyAmount)} {buySymbol}</span>
+            <span className="text-muted-foreground">You receive (est.)</span>
+            <span className="font-medium text-foreground">{formatTokenAmount(preview.buyAmount)} {buySymbol}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-500">Min. received</span>
-            <span className="text-gray-600">{formatTokenAmount(preview.minBuyAmount)} {buySymbol}</span>
+            <span className="text-muted-foreground">Min. received</span>
+            <span className="text-muted-foreground">{formatTokenAmount(preview.minBuyAmount)} {buySymbol}</span>
           </div>
           {!preview.liquidityAvailable && (
-            <p className="text-yellow-700 bg-yellow-50 rounded px-2 py-1">Insufficient liquidity</p>
+            <p className="text-yellow-400 bg-yellow-500/10 rounded px-2 py-1">Insufficient liquidity</p>
           )}
           <button
             onClick={handleExecute}
             disabled={loading || !preview.liquidityAvailable}
-            className="w-full mt-2 bg-blue-600 text-white font-medium py-1.5 rounded text-xs hover:bg-blue-700 disabled:opacity-50"
+            className="w-full mt-2 bg-primary text-primary-foreground font-medium py-1.5 rounded text-xs hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {loading ? 'Executing...' : 'Execute Swap'}
           </button>
@@ -326,30 +326,30 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
       )}
 
       {result && (
-        <div className={`border rounded p-3 text-xs space-y-1 ${result.status === 'executed' ? 'bg-green-50 border-green-200' : result.status === 'denied' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'}`}>
+        <div className={`border rounded p-3 text-xs space-y-1 ${result.status === 'executed' ? 'bg-green-500/10 border-green-500/20' : result.status === 'denied' ? 'bg-destructive/10 border-destructive/20' : 'bg-yellow-500/10 border-yellow-500/20'}`}>
           <div className="flex justify-between">
-            <span className="text-gray-600">Status</span>
-            <span className={`font-medium ${result.status === 'executed' ? 'text-green-700' : result.status === 'denied' ? 'text-red-700' : 'text-yellow-700'}`}>
+            <span className="text-muted-foreground">Status</span>
+            <span className={`font-medium ${result.status === 'executed' ? 'text-green-400' : result.status === 'denied' ? 'text-destructive' : 'text-yellow-400'}`}>
               {result.status === 'executed' ? 'Executed' : result.status === 'pending_approval' ? 'Pending Approval' : 'Denied'}
             </span>
           </div>
-          {result.reason && <div className="text-red-600">{result.reason}</div>}
+          {result.reason && <div className="text-destructive">{result.reason}</div>}
           {result.txHash && (
             <div className="flex justify-between">
-              <span className="text-gray-600">Tx</span>
+              <span className="text-muted-foreground">Tx</span>
               {result.explorerUrl ? (
-                <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-blue-600 hover:underline">
+                <a href={result.explorerUrl} target="_blank" rel="noopener noreferrer" className="font-mono text-primary hover:underline">
                   {result.txHash.slice(0, 10)}...{result.txHash.slice(-6)}
                 </a>
               ) : (
-                <span className="font-mono text-gray-600">{result.txHash.slice(0, 10)}...{result.txHash.slice(-6)}</span>
+                <span className="font-mono text-muted-foreground">{result.txHash.slice(0, 10)}...{result.txHash.slice(-6)}</span>
               )}
             </div>
           )}
           {result.status === 'executed' && (
             <div className="flex justify-between">
-              <span className="text-gray-600">Received</span>
-              <span className="font-medium">{formatTokenAmount(result.buyAmount)} {buySymbol}</span>
+              <span className="text-muted-foreground">Received</span>
+              <span className="font-medium text-foreground">{formatTokenAmount(result.buyAmount)} {buySymbol}</span>
             </div>
           )}
         </div>
@@ -358,13 +358,13 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────
+// Main Component
 
 export default function BalancesDisplay({ secretId }: Props) {
   const [tokens, setTokens] = useState<TokenBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [swapKey, setSwapKey] = useState<string | null>(null); // "network|tokenAddress" of open swap form
+  const [swapKey, setSwapKey] = useState<string | null>(null);
 
   const fetchBalances = useCallback(async () => {
     setLoading(true);
@@ -412,7 +412,7 @@ export default function BalancesDisplay({ secretId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-gray-400 text-sm py-4">
+      <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
         <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
@@ -424,9 +424,9 @@ export default function BalancesDisplay({ secretId }: Props) {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 flex items-center justify-between">
+      <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 text-sm text-destructive flex items-center justify-between">
         <span>{error}</span>
-        <button onClick={fetchBalances} className="text-red-600 hover:text-red-800 font-medium underline ml-2">
+        <button onClick={fetchBalances} className="text-destructive hover:text-destructive/80 font-medium underline ml-2">
           Retry
         </button>
       </div>
@@ -435,9 +435,9 @@ export default function BalancesDisplay({ secretId }: Props) {
 
   if (tokens.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-        <p className="text-sm text-gray-500 mb-2">No token balances found</p>
-        <button onClick={fetchBalances} className="text-xs text-blue-600 hover:text-blue-800 font-medium">
+      <div className="bg-muted border border-border rounded-lg p-6 text-center">
+        <p className="text-sm text-muted-foreground mb-2">No token balances found</p>
+        <button onClick={fetchBalances} className="text-xs text-primary hover:text-primary/80 font-medium transition-colors">
           Refresh
         </button>
       </div>
@@ -449,16 +449,16 @@ export default function BalancesDisplay({ secretId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-semibold text-gray-800">Token Balances</h3>
+          <h3 className="text-sm font-semibold text-foreground">Token Balances</h3>
           {totalValue > 0 && (
-            <p className="text-lg font-bold text-gray-900">
+            <p className="text-lg font-bold text-foreground">
               ${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           )}
         </div>
         <button
           onClick={fetchBalances}
-          className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
         >
           Refresh
         </button>
@@ -476,51 +476,51 @@ export default function BalancesDisplay({ secretId }: Props) {
             <div key={network}>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs">{NETWORK_ICONS[network] || '○'}</span>
-                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <span className="text-xs">{NETWORK_ICONS[network] || '\u25CB'}</span>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     {NETWORK_LABELS[network] || network}
                   </span>
                   {isTestnet && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded-full font-medium">
+                    <span className="text-[10px] px-1.5 py-0.5 bg-yellow-500/10 text-yellow-400 rounded-full font-medium">
                       testnet
                     </span>
                   )}
                 </div>
                 {networkValue > 0 && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-muted-foreground">
                     {formatUsd(networkValue)}
                   </span>
                 )}
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-lg divide-y divide-gray-100 overflow-hidden">
+              <div className="bg-card border border-border rounded-lg divide-y divide-border overflow-hidden">
                 {networkTokens.map((token, i) => {
                   const tk = tokenKey(token);
                   const isSwapOpen = swapKey === tk;
 
                   return (
                     <div key={`${token.tokenAddress ?? 'native'}-${i}`}>
-                      <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center justify-between px-4 py-3 hover:bg-muted transition-colors">
                         <div className="flex items-center gap-3">
                           <TokenIcon token={token} />
                           <div>
-                            <div className="text-sm font-semibold text-gray-900">{token.symbol}</div>
-                            <div className="text-xs text-gray-400">{token.name}</div>
+                            <div className="text-sm font-semibold text-foreground">{token.symbol}</div>
+                            <div className="text-xs text-muted-foreground">{token.name}</div>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="text-right">
-                            <div className="text-sm font-medium text-gray-900 font-mono">
+                            <div className="text-sm font-medium text-foreground font-mono">
                               {formatBalance(token.tokenBalance, token.decimals)}
                             </div>
                             {token.value != null && token.value > 0 && (
-                              <div className="text-xs text-gray-400">{formatUsd(token.value)}</div>
+                              <div className="text-xs text-muted-foreground">{formatUsd(token.value)}</div>
                             )}
                           </div>
                           {chainId && (
                             <button
                               onClick={() => setSwapKey(isSwapOpen ? null : tk)}
-                              className={`text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors ${isSwapOpen ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 text-gray-500 hover:text-gray-700 hover:border-gray-400'}`}
+                              className={`text-[11px] font-medium px-2.5 py-1 rounded-md border transition-colors ${isSwapOpen ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'}`}
                             >
                               Swap
                             </button>
