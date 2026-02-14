@@ -73,6 +73,9 @@ const envSchema = z.object({
   // Polymarket
   POLYMARKET_CLOB_HOST: z.string().optional().default('https://clob.polymarket.com'),
 
+  // Encryption key for sensitive credentials (base64 or hex)
+  ENCRYPTION_KEY: z.string().optional(),
+
   // Polymarket Builder / Relayer
   POLY_BUILDER_API_KEY: z.string().optional(),
   POLY_BUILDER_SECRET: z.string().optional(),

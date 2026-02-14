@@ -15,6 +15,7 @@ import Features from './pages/Features';
 import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
+import IntegrationsAlpaca from './pages/IntegrationsAlpaca';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -46,6 +47,7 @@ function AppRoutes() {
         <Route path="/agents" element={<ProtectedRoute><Agents /></ProtectedRoute>} />
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+        <Route path="/settings/integrations/alpaca" element={<ProtectedRoute><IntegrationsAlpaca /></ProtectedRoute>} />
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
       </Route>
       {/* Redirects for old routes */}

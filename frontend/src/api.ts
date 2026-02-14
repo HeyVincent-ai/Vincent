@@ -147,4 +147,40 @@ export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
 
+// Alpaca Integrations
+export const getAlpacaConnection = (includeAccount?: boolean) =>
+  api.get('/integrations/alpaca', {
+    params: includeAccount ? { includeAccount: 'true' } : undefined,
+  });
+export const testAlpacaConnection = (payload: {
+  environment: 'paper' | 'live';
+  apiKeyId: string;
+  apiSecretKey: string;
+  name?: string;
+}) => api.post('/integrations/alpaca/test', payload);
+export const connectAlpaca = (payload: {
+  environment: 'paper' | 'live';
+  apiKeyId: string;
+  apiSecretKey: string;
+  name?: string;
+}) => api.post('/integrations/alpaca/connect', payload);
+export const disconnectAlpaca = (connectionId: string) =>
+  api.delete(`/integrations/alpaca/${connectionId}`);
+
+// Trading Policies
+export const getTradingPolicy = () =>
+  api.get('/guardrails/trading', { params: { venue: 'alpaca' } });
+export const updateTradingPolicy = (payload: {
+  venue?: 'alpaca';
+  enabled?: boolean;
+  allowedSymbols?: string[];
+  allowedOrderTypes?: Array<'market' | 'limit'>;
+  longOnly?: boolean;
+  restrictToRth?: boolean;
+  timezone?: string;
+  maxOrderNotionalUsd?: number | null;
+  maxPositionNotionalUsdPerSymbol?: number | null;
+  maxDailyNotionalUsd?: number | null;
+}) => api.put('/guardrails/trading', payload, { params: { venue: 'alpaca' } });
+
 export default api;
