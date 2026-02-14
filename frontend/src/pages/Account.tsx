@@ -9,7 +9,9 @@ import {
   cancelSubscription,
   getOpenClawDeployments,
   getOpenClawUsage,
+  getReferral,
 } from '../api';
+import { copyToClipboard } from '../utils/format';
 
 interface Subscription {
   id: string;
@@ -63,6 +65,11 @@ export default function Account() {
   const [deploymentsLoading, setDeploymentsLoading] = useState(true);
   const [usageMap, setUsageMap] = useState<Record<string, UsageData>>({});
 
+  // --- Referral state ---
+  const [referralLink, setReferralLink] = useState('');
+  const [referralStats, setReferralStats] = useState<{ totalReferred: number; totalEarnedUsd: number; pendingRewards: number } | null>(null);
+  const [refCopied, setRefCopied] = useState(false);
+
   useEffect(() => {
     getSubscription()
       .then((subRes) => {
@@ -91,6 +98,13 @@ export default function Account() {
       })
       .catch(() => {})
       .finally(() => setDeploymentsLoading(false));
+
+    getReferral()
+      .then((res) => {
+        setReferralLink(res.data.data.referralLink);
+        setReferralStats(res.data.data.stats);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSaveTelegram = async () => {
@@ -252,6 +266,44 @@ export default function Account() {
           )}
         </div>
       </section>
+
+      {/* Refer a Friend Section */}
+      {referralLink && (
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Refer a Friend</h2>
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground mb-4">
+              Share your referral link. When someone signs up and makes their first payment, you get $10 in LLM credits.
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input
+                readOnly
+                value={referralLink}
+                className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground font-mono focus:outline-none"
+              />
+              <button
+                onClick={async () => {
+                  await copyToClipboard(referralLink);
+                  setRefCopied(true);
+                  setTimeout(() => setRefCopied(false), 2000);
+                }}
+                className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors"
+              >
+                {refCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            {referralStats && (
+              <div className="flex gap-6 text-sm text-muted-foreground">
+                <span>{referralStats.totalReferred} referred</span>
+                <span>${referralStats.totalEarnedUsd} earned</span>
+                {referralStats.pendingRewards > 0 && (
+                  <span className="text-yellow-400">{referralStats.pendingRewards} pending</span>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Billing Section */}
       <section className="mb-8">

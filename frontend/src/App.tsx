@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './auth';
 import { ToastProvider } from './components/Toast';
@@ -15,6 +16,7 @@ import Features from './pages/Features';
 import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
+import AdminReferrals from './pages/AdminReferrals';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -31,6 +33,18 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  // Capture referral code from URL query params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      localStorage.setItem('referralCode', ref);
+      const url = new URL(window.location.href);
+      url.searchParams.delete('ref');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
@@ -47,6 +61,7 @@ function AppRoutes() {
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
+        <Route path="/admin/referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
       </Route>
       {/* Redirects for old routes */}
       <Route path="/settings" element={<Navigate to="/account" replace />} />

@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
+import * as referralService from '../services/referral.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -213,6 +214,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       stripeSubscription.id,
       period.end
     );
+
+    // Trigger referral reward for referred user
+    try {
+      await referralService.fulfillReferralReward(userId);
+    } catch (err: any) {
+      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    }
     return;
   }
 
@@ -232,6 +240,13 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       currentPeriodEnd: period.end,
     },
   });
+
+  // Trigger referral reward for referred user (standard subscription)
+  try {
+    await referralService.fulfillReferralReward(userId);
+  } catch (err: any) {
+    console.error('[stripe] Failed to fulfill referral reward:', err.message);
+  }
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {

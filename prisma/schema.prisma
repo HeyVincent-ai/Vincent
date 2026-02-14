@@ -18,12 +18,16 @@ model User {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
+  referralCode     String?    @unique @map("referral_code")
+
   secrets            Secret[]
   subscriptions      Subscription[]
   gasUsages          GasUsage[]
   monthlyGasSummaries MonthlyGasSummary[]
   auditLogs          AuditLog[]
   openclawDeployments OpenClawDeployment[]
+  referralsMade       Referral[] @relation("ReferrerRelation")
+  referralReceived    Referral?  @relation("ReferredRelation")
 
   @@map("users")
 }
@@ -386,4 +390,31 @@ model OpenClawCreditPurchase {
 
   @@index([deploymentId])
   @@map("openclaw_credit_purchases")
+}
+
+// Referral status enum
+enum ReferralStatus {
+  PENDING        // Referred user signed up, hasn't paid yet
+  REWARD_PENDING // Referred user paid, but referrer has no active deployment
+  FULFILLED      // $10 credit applied to referrer's deployment
+}
+
+// Referral tracking
+model Referral {
+  id              String         @id @default(cuid())
+  referrerId      String         @map("referrer_id")
+  referredUserId  String         @unique @map("referred_user_id")
+  status          ReferralStatus @default(PENDING)
+  rewardAmountUsd Decimal        @default(10.00) @map("reward_amount_usd") @db.Decimal(10, 2)
+  deploymentId    String?        @map("deployment_id")
+  fulfilledAt     DateTime?      @map("fulfilled_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  referrer     User @relation("ReferrerRelation", fields: [referrerId], references: [id])
+  referredUser User @relation("ReferredRelation", fields: [referredUserId], references: [id])
+
+  @@index([referrerId])
+  @@index([status])
+  @@map("referrals")
 }

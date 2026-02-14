@@ -23,6 +23,7 @@ const authLimiter = rateLimit({
 
 const sessionSchema = z.object({
   sessionToken: z.string().min(1),
+  referralCode: z.string().max(20).optional(),
 });
 
 /**
@@ -36,7 +37,7 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const body = sessionSchema.parse(req.body);
 
-    const user = await authService.syncSession(body.sessionToken);
+    const user = await authService.syncSession(body.sessionToken, body.referralCode);
 
     if (!user) {
       errors.unauthorized(res, 'Invalid session');
