@@ -15,6 +15,7 @@ import {
   pairOpenClawTelegram,
 } from '../api';
 import StrategyManager from '../components/StrategyManager';
+import AgentConfig from '../components/AgentConfig';
 
 interface Deployment {
   id: string;
@@ -852,6 +853,13 @@ export default function OpenClawDetail() {
       {isActive && id && (
         <div className="mb-4">
           <StrategyManager deploymentId={id} />
+        </div>
+      )}
+
+      {/* Agent Config: Updates, Personality, Memory */}
+      {isActive && id && (
+        <div className="mb-4">
+          <AgentConfig deploymentId={id} />
         </div>
       )}
 

@@ -364,6 +364,12 @@ model OpenClawDeployment {
   creditPurchases      OpenClawCreditPurchase[]
   strategies           Strategy[]
 
+  // Configuration versioning (incremental update system)
+  configVersion        Int       @default(0) @map("config_version")
+  soulMd               String?   @map("soul_md") @db.Text
+  lastUpdateAt         DateTime? @map("last_update_at")
+  lastUpdateError      String?   @map("last_update_error") @db.Text
+
   // Timestamps
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
@@ -458,4 +464,35 @@ model AlertRule {
   @@index([strategyId])
   @@index([triggerType, enabled])
   @@map("alert_rules")
+}
+
+// ============================================================
+// Deployment Update System (incremental config pushes)
+// ============================================================
+
+// Definition of a versioned update (SSH commands to apply to VPS instances)
+model DeploymentUpdate {
+  id          String   @id @default(cuid())
+  version     Int      @unique
+  name        String
+  description String?  @db.Text
+  commands    Json     // String[] of SSH commands
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("deployment_updates")
+}
+
+// Log of updates applied (or failed) per deployment
+model DeploymentUpdateLog {
+  id            String   @id @default(cuid())
+  deploymentId  String   @map("deployment_id")
+  updateVersion Int      @map("update_version")
+  status        String   // SUCCESS | FAILED | SKIPPED
+  output        String?  @db.Text
+  errorMessage  String?  @map("error_message") @db.Text
+  appliedAt     DateTime @default(now()) @map("applied_at")
+
+  @@unique([deploymentId, updateVersion])
+  @@index([deploymentId])
+  @@map("deployment_update_logs")
 }

@@ -15,6 +15,12 @@
  * GET    /api/openclaw/deployments/:id/channels → Check configured channels
  * POST   /api/openclaw/deployments/:id/telegram/setup → Configure Telegram bot token
  * POST   /api/openclaw/deployments/:id/telegram/pair  → Approve Telegram pairing code
+ * GET    /api/openclaw/deployments/:id/updates        → List config update status
+ * POST   /api/openclaw/deployments/:id/updates/apply  → Force-apply pending updates
+ * GET    /api/openclaw/deployments/:id/soul            → Get SOUL.md content
+ * PUT    /api/openclaw/deployments/:id/soul            → Update SOUL.md
+ * GET    /api/openclaw/deployments/:id/memory          → List memory files
+ * GET    /api/openclaw/deployments/:id/memory/:filename → Read a memory file
  */
 
 import { Router, Response } from 'express';
@@ -23,6 +29,7 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as openclawService from '../../services/openclaw.service.js';
+import * as updateService from '../../services/deployment-update.service.js';
 
 const { toPublicData } = openclawService;
 
@@ -55,9 +62,7 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Limit: max 3 active (non-destroyed, non-error) deployments per user
     const activeCount = await openclawService.listDeployments(userId);
-    const activeDeployments = activeCount.filter(
-      d => !['DESTROYED', 'ERROR'].includes(d.status)
-    );
+    const activeDeployments = activeCount.filter((d) => !['DESTROYED', 'ERROR'].includes(d.status));
     if (activeDeployments.length >= MAX_ACTIVE_DEPLOYMENTS) {
       return res.status(429).json({
         success: false,
@@ -213,10 +218,15 @@ router.get('/deployments/:id/ssh-key', async (req: AuthenticatedRequest, res: Re
       return errors.notFound(res, 'Deployment');
     }
     if (!deployment.sshPrivateKey) {
-      return res.status(400).json({ success: false, error: 'No SSH key available for this deployment' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'No SSH key available for this deployment' });
     }
     res.setHeader('Content-Type', 'application/x-pem-file');
-    res.setHeader('Content-Disposition', `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`
+    );
     res.send(deployment.sshPrivateKey);
   } catch (error: any) {
     console.error('OpenClaw ssh-key error:', error);
@@ -352,6 +362,197 @@ router.post('/deployments/:id/telegram/pair', async (req: AuthenticatedRequest, 
       return errors.badRequest(res, error.message);
     }
     console.error('OpenClaw telegram pair error:', error);
+    errors.internal(res);
+  }
+});
+
+// ============================================================
+// Config Update Endpoints
+// ============================================================
+
+/**
+ * GET /api/openclaw/deployments/:id/updates
+ * Get config update status for a deployment.
+ */
+router.get('/deployments/:id/updates', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) return errors.notFound(res, 'Deployment');
+
+    const status = await updateService.getUpdateStatus(deployment.id);
+    sendSuccess(res, status);
+  } catch (error: any) {
+    console.error('OpenClaw get updates error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * POST /api/openclaw/deployments/:id/updates/apply
+ * Force-apply all pending config updates to a deployment.
+ */
+router.post('/deployments/:id/updates/apply', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) return errors.notFound(res, 'Deployment');
+
+    const result = await updateService.applyPendingUpdates(deployment.id);
+    sendSuccess(res, result);
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw apply updates error:', error);
+    errors.internal(res);
+  }
+});
+
+// ============================================================
+// SOUL.md Personality Endpoints
+// ============================================================
+
+const soulSchema = z.object({
+  content: z.string().max(50000),
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/soul
+ * Get SOUL.md content for a deployment.
+ */
+router.get('/deployments/:id/soul', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) return errors.notFound(res, 'Deployment');
+
+    sendSuccess(res, { content: deployment.soulMd || '' });
+  } catch (error: any) {
+    console.error('OpenClaw get soul error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * PUT /api/openclaw/deployments/:id/soul
+ * Update SOUL.md content — saves to DB and pushes to VPS.
+ */
+router.put('/deployments/:id/soul', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = soulSchema.safeParse(req.body);
+  if (!parsed.success) return errors.validation(res, parsed.error.format());
+
+  try {
+    const result = await openclawService.updateSoulMd(
+      req.params.id as string,
+      req.user!.id,
+      parsed.data.content
+    );
+    sendSuccess(res, { content: result.soulMd || '' });
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw update soul error:', error);
+    errors.internal(res);
+  }
+});
+
+// ============================================================
+// Memory File Endpoints
+// ============================================================
+
+/**
+ * GET /api/openclaw/deployments/:id/memory
+ * List memory files on the VPS.
+ */
+router.get('/deployments/:id/memory', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const files = await openclawService.listMemoryFiles(req.params.id as string, req.user!.id);
+    sendSuccess(res, { files });
+  } catch (error: any) {
+    if (error.message.includes('not found')) {
+      return errors.notFound(res, 'Deployment');
+    }
+    console.error('OpenClaw list memory error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/memory/:filename
+ * Read a specific memory file from the VPS.
+ */
+router.get(
+  '/deployments/:id/memory/:filename',
+  async (req: AuthenticatedRequest, res: Response) => {
+    const filename = req.params.filename as string;
+
+    // Prevent path traversal
+    if (filename.includes('..') || filename.includes('/')) {
+      return errors.badRequest(res, 'Invalid filename');
+    }
+
+    try {
+      const content = await openclawService.readMemoryFile(
+        req.params.id as string,
+        req.user!.id,
+        filename
+      );
+      sendSuccess(res, { filename, content });
+    } catch (error: any) {
+      if (error.message.includes('not found')) {
+        return errors.notFound(res, 'Deployment');
+      }
+      if (error.message.includes('does not exist')) {
+        return errors.notFound(res, 'File');
+      }
+      console.error('OpenClaw read memory error:', error);
+      errors.internal(res);
+    }
+  }
+);
+
+// ============================================================
+// Scheduled Tasks (opt-in crons that use LLM credits)
+// ============================================================
+
+const toggleTaskSchema = z.object({
+  enabled: z.boolean(),
+});
+
+/**
+ * GET /api/openclaw/deployments/:id/tasks
+ * Get status of opt-in scheduled tasks.
+ */
+router.get('/deployments/:id/tasks', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tasks = await openclawService.getScheduledTasks(req.params.id as string, req.user!.id);
+    sendSuccess(res, { tasks });
+  } catch (error: any) {
+    if (error.message.includes('not found')) return errors.notFound(res, 'Deployment');
+    console.error('OpenClaw get tasks error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
+ * PUT /api/openclaw/deployments/:id/tasks/:taskName
+ * Enable or disable a scheduled task.
+ */
+router.put('/deployments/:id/tasks/:taskName', async (req: AuthenticatedRequest, res: Response) => {
+  const parsed = toggleTaskSchema.safeParse(req.body);
+  if (!parsed.success) return errors.validation(res, parsed.error.format());
+
+  try {
+    await openclawService.toggleScheduledTask(
+      req.params.id as string,
+      req.user!.id,
+      req.params.taskName as string,
+      parsed.data.enabled
+    );
+    sendSuccess(res, { taskName: req.params.taskName, enabled: parsed.data.enabled });
+  } catch (error: any) {
+    if (error.message.includes('not found')) return errors.notFound(res, 'Deployment');
+    if (error.message.includes('Unknown task')) return errors.badRequest(res, error.message);
+    console.error('OpenClaw toggle task error:', error);
     errors.internal(res);
   }
 });

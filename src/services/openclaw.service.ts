@@ -276,14 +276,14 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "STARTED" > /root/.openclaw-setup-started
 
-echo "=== [1/8] System update ==="
+echo "=== [1/9] System update ==="
 apt-get update -qq || true
 apt-get install -y -qq curl caddy ufw python3
 
-echo "=== [2/8] Running OpenClaw installer ==="
+echo "=== [2/9] Running OpenClaw installer ==="
 curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard
 
-echo "=== [3/8] Running OpenClaw onboard ==="
+echo "=== [3/9] Running OpenClaw onboard ==="
 # Skip onboard if config already exists (idempotent for re-runs)
 if [ ! -f /root/.openclaw/openclaw.json ]; then
   openclaw onboard \\
@@ -302,11 +302,11 @@ else
   echo "OpenClaw config already exists, skipping onboard"
 fi
 
-echo "=== [4/8] Installing Vincent agent wallet skill ==="
+echo "=== [4/9] Installing Vincent agent wallet skill ==="
 npx --yes clawhub@latest install agentwallet || true
 npx --yes clawhub@latest install vincentpolymarket || true
 
-echo "=== [5/8] Configuring OpenClaw ==="
+echo "=== [5/9] Configuring OpenClaw ==="
 # Always set the OpenRouter API key via env config — onboard may have been
 # skipped if the installer already created a config file (e.g. via doctor).
 openclaw config set env.OPENROUTER_API_KEY '${openRouterApiKey}'
@@ -362,7 +362,7 @@ openclaw config set agents.defaults.model --json '{"primary": "openrouter/google
 openclaw config set gateway.controlUi.allowInsecureAuth true
 openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 
-echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
+echo "=== [6/9] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
     reverse_proxy localhost:${OPENCLAW_PORT} {
@@ -376,7 +376,7 @@ CADDYEOF
 systemctl enable caddy
 systemctl restart caddy
 
-echo "=== [7/8] Configuring firewall ==="
+echo "=== [7/9] Configuring firewall ==="
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
@@ -384,7 +384,76 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-echo "=== [8/8] Starting OpenClaw gateway ==="
+echo "=== [8/9] Setting up agent memory files ==="
+mkdir -p /root/.openclaw/memory/daily-logs
+
+cat > /root/.openclaw/memory/active-tasks.md << 'MEMEOF'
+# Active Tasks
+
+_This file is read on startup for crash recovery. Keep it updated with current work._
+
+## In Progress
+- (none)
+
+## Queued
+- (none)
+
+## Completed Recently
+- (none)
+MEMEOF
+
+cat > /root/.openclaw/memory/lessons.md << 'MEMEOF'
+# Lessons Learned
+
+_Accumulated learnings and past mistakes. Review before starting new tasks._
+
+## General
+- (none yet)
+MEMEOF
+
+cat > /root/.openclaw/memory/self-review.md << 'MEMEOF'
+# Self-Review Log
+
+_Periodic self-critique results. Updated every 4 hours by scheduled review._
+MEMEOF
+
+cat > /root/.openclaw/memory/projects.md << 'MEMEOF'
+# Project Registry
+
+_Active and completed projects._
+
+## Active
+- (none)
+
+## Completed
+- (none)
+MEMEOF
+
+cat > /root/CLAUDE.md << 'MEMEOF'
+# Agent Memory System
+
+You have a structured memory system at /root/.openclaw/memory/
+
+## Memory Files
+- \`active-tasks.md\` — Your current tasks. READ THIS ON EVERY STARTUP to resume work.
+- \`lessons.md\` — Things you've learned. Update after mistakes or discoveries.
+- \`self-review.md\` — Self-critique log. Updated by scheduled review.
+- \`projects.md\` — Project registry. Track ongoing and completed projects.
+- \`daily-logs/YYYY-MM-DD.md\` — Daily activity logs. Create a new one each day.
+
+## Rules
+1. On startup, ALWAYS read active-tasks.md and resume any in-progress work.
+2. Before starting a new task, update active-tasks.md with the task details.
+3. After completing a task, move it from "In Progress" to "Completed Recently".
+4. Log significant actions to today's daily log.
+5. When you make a mistake, add it to lessons.md so you don't repeat it.
+6. Read lessons.md before starting unfamiliar work.
+
+## Personality
+If a file exists at /root/.openclaw/SOUL.md, read it for your personality and behavioral guidelines.
+MEMEOF
+
+echo "=== [9/9] Starting OpenClaw gateway ==="
 # Find the openclaw binary (installed to /usr/bin by npm global)
 OPENCLAW_BIN=\$(which openclaw)
 echo "OpenClaw binary: \${OPENCLAW_BIN}"
@@ -1106,6 +1175,20 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       addLog(`Failed to send ready email: ${emailErr.message}`);
     }
 
+    // Apply any pending config updates to bring new deployment up to latest version
+    try {
+      const { applyPendingUpdates } = await import('./deployment-update.service.js');
+      const updateResult = await applyPendingUpdates(deploymentId);
+      if (updateResult.applied > 0) {
+        addLog(`Applied ${updateResult.applied} config update(s)`);
+      }
+      if (updateResult.failed > 0) {
+        addLog(`Warning: ${updateResult.failed} config update(s) failed`);
+      }
+    } catch (updateErr: any) {
+      addLog(`Config update failed (non-fatal): ${updateErr.message}`);
+    }
+
     addLog('Deployment complete!');
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
@@ -1464,6 +1547,196 @@ export async function restart(deploymentId: string, userId: string): Promise<Ope
   );
 
   return deployment;
+}
+
+// ============================================================
+// SOUL.md + Memory Files
+// ============================================================
+
+/**
+ * Update SOUL.md personality content — saves to DB and pushes to VPS via SSH.
+ */
+export async function updateSoulMd(
+  deploymentId: string,
+  userId: string,
+  content: string
+): Promise<OpenClawDeployment> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) throw new Error('Deployment not found or not in READY state');
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  // Push to VPS via SSH
+  await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo mkdir -p /root/.openclaw && sudo tee /root/.openclaw/SOUL.md > /dev/null << 'SOULEOF'\n${content}\nSOULEOF`,
+    30_000
+  );
+
+  // Save to DB
+  return prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: { soulMd: content },
+  });
+}
+
+/**
+ * List memory files on the VPS.
+ */
+export async function listMemoryFiles(
+  deploymentId: string,
+  userId: string
+): Promise<string[]> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    'ls -1 /root/.openclaw/memory/ 2>/dev/null || echo ""',
+    15_000
+  );
+
+  return result.stdout
+    .trim()
+    .split('\n')
+    .filter((f) => f.length > 0);
+}
+
+/**
+ * Read a specific memory file from the VPS.
+ */
+export async function readMemoryFile(
+  deploymentId: string,
+  userId: string,
+  filename: string
+): Promise<string> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  // Sanitize filename — only allow alphanumeric, dash, underscore, dot
+  if (!/^[\w.-]+$/.test(filename)) {
+    throw new Error('Invalid filename');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `cat /root/.openclaw/memory/${filename} 2>/dev/null || echo "FILE_DOES_NOT_EXIST"`,
+    15_000
+  );
+
+  if (result.stdout.trim() === 'FILE_DOES_NOT_EXIST') {
+    throw new Error('File does not exist');
+  }
+
+  return result.stdout;
+}
+
+// ============================================================
+// Scheduled Tasks (opt-in cron toggles)
+// ============================================================
+
+// Available cron jobs that users can enable/disable.
+// These use LLM credits so they're opt-in.
+const CRON_JOBS: Record<string, { schedule: string; script: string; label: string }> = {
+  'self-review': {
+    schedule: '30 */4 * * *',
+    script: '/root/.openclaw/scripts/self-review.sh',
+    label: 'Self-review every 4 hours',
+  },
+  'daily-recap': {
+    schedule: '55 23 * * *',
+    script: '/root/.openclaw/scripts/daily-recap.sh',
+    label: 'Daily recap at 11:55pm',
+  },
+};
+
+/**
+ * Get status of opt-in scheduled tasks for a deployment.
+ */
+export async function getScheduledTasks(
+  deploymentId: string,
+  userId: string
+): Promise<Record<string, { enabled: boolean; label: string }>> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    'sudo crontab -l 2>/dev/null || echo ""',
+    15_000
+  );
+
+  const crontab = result.stdout;
+  const status: Record<string, { enabled: boolean; label: string }> = {};
+  for (const [name, config] of Object.entries(CRON_JOBS)) {
+    status[name] = {
+      enabled: crontab.includes(config.script),
+      label: config.label,
+    };
+  }
+  return status;
+}
+
+/**
+ * Enable or disable an opt-in scheduled task.
+ * Uses LLM credits when enabled — user must explicitly opt in.
+ */
+export async function toggleScheduledTask(
+  deploymentId: string,
+  userId: string,
+  taskName: string,
+  enabled: boolean
+): Promise<void> {
+  const config = CRON_JOBS[taskName];
+  if (!config) throw new Error(`Unknown task: ${taskName}`);
+
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) throw new Error('Deployment not found');
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  const scriptBasename = config.script.split('/').pop();
+  const cmd = enabled
+    ? // Add cron entry (remove first to avoid duplicates, then add)
+      `(sudo crontab -l 2>/dev/null | grep -v ${scriptBasename}; echo "${config.schedule} ${config.script}") | sudo crontab -`
+    : // Remove cron entry
+      `(sudo crontab -l 2>/dev/null | grep -v ${scriptBasename}) | sudo crontab -`;
+
+  await sshExec(deployment.ipAddress, SSH_USERNAME, deployment.sshPrivateKey, cmd, 15_000);
 }
 
 // ============================================================
@@ -1868,6 +2141,33 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
       provisionLog: log,
     });
 
+    // Apply pending config updates + re-push SOUL.md if set
+    try {
+      const { applyPendingUpdates } = await import('./deployment-update.service.js');
+      const updateResult = await applyPendingUpdates(deploymentId);
+      if (updateResult.applied > 0) {
+        addLog(`Applied ${updateResult.applied} config update(s)`);
+      }
+
+      // Re-push SOUL.md from DB (survives reprovision)
+      const dep = await prisma.openClawDeployment.findUnique({
+        where: { id: deploymentId },
+        select: { soulMd: true },
+      });
+      if (dep?.soulMd) {
+        await sshExec(
+          ip,
+          sshUser,
+          privateKey,
+          `sudo tee /root/.openclaw/SOUL.md > /dev/null << 'SOULEOF'\n${dep.soulMd}\nSOULEOF`,
+          30_000
+        );
+        addLog('Restored SOUL.md from database');
+      }
+    } catch (updateErr: any) {
+      addLog(`Config update after reprovision failed (non-fatal): ${updateErr.message}`);
+    }
+
     addLog('Reprovision complete!');
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
@@ -2234,6 +2534,10 @@ async function runHardeningChecks(): Promise<void> {
     await checkStaleDeployments();
     await cleanupOrphanedResources();
     await checkDeploymentHealth();
+
+    // Roll out pending config updates to all READY deployments
+    const { rollOutUpdates } = await import('./deployment-update.service.js');
+    await rollOutUpdates();
   } catch (err) {
     console.error('[openclaw:hardening] Background check error:', err);
   }

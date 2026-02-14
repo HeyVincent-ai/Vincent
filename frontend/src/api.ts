@@ -190,6 +190,30 @@ export const deleteAlertRule = (deploymentId: string, strategyId: string, alertI
     `/openclaw/deployments/${deploymentId}/strategies/${strategyId}/alerts/${alertId}`
   );
 
+// Config Updates
+export const getUpdateStatus = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/updates`);
+export const applyUpdates = (deploymentId: string) =>
+  api.post(`/openclaw/deployments/${deploymentId}/updates/apply`);
+
+// SOUL.md Personality
+export const getSoulMd = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/soul`);
+export const updateSoulMd = (deploymentId: string, content: string) =>
+  api.put(`/openclaw/deployments/${deploymentId}/soul`, { content });
+
+// Memory Files
+export const listMemoryFiles = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/memory`);
+export const readMemoryFile = (deploymentId: string, filename: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/memory/${filename}`);
+
+// Scheduled Tasks (opt-in crons)
+export const getScheduledTasks = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/tasks`);
+export const toggleScheduledTask = (deploymentId: string, taskName: string, enabled: boolean) =>
+  api.put(`/openclaw/deployments/${deploymentId}/tasks/${taskName}`, { enabled });
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>
