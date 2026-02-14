@@ -356,14 +356,25 @@ export async function getAvailableDatacenters(planCode: string): Promise<any> {
 }
 
 /**
- * Find the first in-stock datacenter for a plan.
- * Returns the datacenter name or null if all are out of stock.
+ * Find the first in-stock datacenter for a plan that is also allowed by the
+ * cart configuration API.  The stock endpoint may return datacenters that are
+ * incompatible with the plan (e.g. a European DC for a `-ca` plan), so we
+ * cross-reference with the cart's allowedValues to avoid checkout failures.
  */
 export async function findAvailableDatacenter(planCode: string): Promise<string | null> {
-  const result = await getAvailableDatacenters(planCode);
-  if (!result?.datacenters) return null;
-  const available = result.datacenters.find(
-    (dc: any) => dc.linuxStatus === 'available',
+  const [stockResult, allowedDcs] = await Promise.all([
+    getAvailableDatacenters(planCode),
+    getCartDatacenters(planCode),
+  ]);
+  if (!stockResult?.datacenters) return null;
+
+  const allowedSet = new Set(allowedDcs);
+
+  // Only consider datacenters that are both in-stock AND allowed for this plan
+  const available = stockResult.datacenters.find(
+    (dc: any) =>
+      dc.linuxStatus === 'available' &&
+      (allowedSet.size === 0 || allowedSet.has(dc.datacenter)),
   );
   return available?.datacenter || null;
 }
