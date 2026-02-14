@@ -7,6 +7,9 @@ import userRouter from './user.routes.js';
 import evmWalletRouter from './evmWallet.routes.js';
 import polymarketRouter from './polymarket.routes.js';
 import rawSignerRouter from './rawSigner.routes.js';
+import alpacaIntegrationsRouter from './alpacaIntegrations.routes.js';
+import tradingGuardrailsRouter from './tradingGuardrails.routes.js';
+import alpacaTradingRouter from './alpacaTrading.routes.js';
 import billingRouter from './billing.routes.js';
 import auditLogsRouter from './auditLogs.routes.js';
 import openclawRouter from './openclaw.routes.js';
@@ -24,6 +27,9 @@ router.use('/secrets/:secretId/audit-logs', auditLogsRouter); // Audit log route
 router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
+router.use('/integrations/alpaca', alpacaIntegrationsRouter); // Alpaca integrations
+router.use('/guardrails/trading', tradingGuardrailsRouter); // Trading policies for Alpaca
+router.use('/trading/alpaca', alpacaTradingRouter); // Alpaca trade intent gateway
 router.use('/billing', billingRouter); // Billing & subscription endpoints
 router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
 router.use('/admin', adminRouter); // Admin dashboard endpoints

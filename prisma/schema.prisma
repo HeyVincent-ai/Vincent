@@ -28,6 +28,9 @@ model User {
   openclawDeployments OpenClawDeployment[]
   referralsMade       Referral[] @relation("ReferrerRelation")
   referralReceived    Referral?  @relation("ReferredRelation")
+  alpacaConnections   AlpacaConnection[]
+  tradingPolicies     TradingPolicy[]
+  tradeIntents        TradeIntent[]
 
   @@map("users")
 }
@@ -169,6 +172,129 @@ model Policy {
   secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 
   @@map("policies")
+}
+
+// Alpaca connection environment enum
+enum AlpacaEnvironment {
+  PAPER
+  LIVE
+}
+
+// Trading venues enum
+enum TradingVenue {
+  ALPACA
+}
+
+// Trade side enum
+enum TradeSide {
+  BUY
+  SELL
+}
+
+// Trade order types enum
+enum TradeOrderType {
+  MARKET
+  LIMIT
+}
+
+// Trade intent status enum
+enum TradeIntentStatus {
+  PENDING_POLICY
+  REJECTED
+  SUBMITTED
+  FILLED
+  CANCELED
+  FAILED
+}
+
+// Alpaca connections per user
+model AlpacaConnection {
+  id                        String             @id @default(cuid())
+  userId                    String             @map("user_id")
+  name                      String?
+  environment               AlpacaEnvironment
+  baseUrl                   String             @map("base_url")
+  alpacaKeyIdEncrypted      String?            @map("alpaca_key_id_encrypted") @db.Text
+  alpacaSecretKeyEncrypted  String?            @map("alpaca_secret_key_encrypted") @db.Text
+  isActive                  Boolean            @default(true) @map("is_active")
+  disconnectedAt            DateTime?          @map("disconnected_at")
+  createdAt                 DateTime           @default(now()) @map("created_at")
+  updatedAt                 DateTime           @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tradeIntents TradeIntent[]
+
+  @@index([userId, isActive])
+  @@map("alpaca_connections")
+}
+
+// Trading policies (guardrails) per user and venue
+model TradingPolicy {
+  id                              String       @id @default(cuid())
+  userId                          String       @map("user_id")
+  venue                           TradingVenue
+  enabled                         Boolean      @default(false)
+  allowedSymbols                  Json         @map("allowed_symbols")
+  allowedOrderTypes               Json         @map("allowed_order_types")
+  longOnly                        Boolean      @default(false) @map("long_only")
+  restrictToRth                   Boolean      @default(false) @map("restrict_to_rth")
+  timezone                        String       @default("America/New_York")
+  maxOrderNotionalUsd             Float?       @map("max_order_notional_usd")
+  maxPositionNotionalUsdPerSymbol Float?       @map("max_position_notional_usd_per_symbol")
+  maxDailyNotionalUsd             Float?       @map("max_daily_notional_usd")
+  createdAt                       DateTime     @default(now()) @map("created_at")
+  updatedAt                       DateTime     @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, venue])
+  @@map("trading_policies")
+}
+
+// Trade intents for Alpaca execution
+model TradeIntent {
+  id             String           @id @default(cuid())
+  userId         String           @map("user_id")
+  apiKeyId       String?          @map("api_key_id")
+  venue          TradingVenue
+  connectionId   String           @map("connection_id")
+  symbol         String
+  side           TradeSide
+  qty            Float?
+  notionalUsd    Float?           @map("notional_usd")
+  orderType      TradeOrderType   @map("order_type")
+  limitPrice     Float?           @map("limit_price")
+  timeInForce    String           @default("day") @map("time_in_force")
+  status         TradeIntentStatus
+  policyDecision Json             @map("policy_decision")
+  alpacaOrderId  String?          @map("alpaca_order_id")
+  idempotencyKey String?          @map("idempotency_key")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  apiKey     ApiKey?          @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  connection AlpacaConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  events     TradeIntentEvent[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@unique([userId, idempotencyKey])
+  @@map("trade_intents")
+}
+
+// Trade intent event log
+model TradeIntentEvent {
+  id            String     @id @default(cuid())
+  tradeIntentId String     @map("trade_intent_id")
+  eventType     String     @map("event_type")
+  payload       Json?      @map("payload")
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  tradeIntent TradeIntent @relation(fields: [tradeIntentId], references: [id], onDelete: Cascade)
+
+  @@index([tradeIntentId])
+  @@map("trade_intent_events")
 }
 
 // Transaction status enum

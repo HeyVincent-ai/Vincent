@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserSecrets, createSecret, claimSecret } from '../api';
+import { getUserSecrets, createSecret, claimSecret, getAlpacaConnection } from '../api';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../components/Toast';
 
@@ -12,6 +12,22 @@ interface Secret {
   ethAddress?: string;
   solanaAddress?: string;
   createdAt: string;
+}
+
+interface AlpacaConnection {
+  id: string;
+  name: string | null;
+  environment: 'PAPER' | 'LIVE';
+  baseUrl: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface AlpacaAccount {
+  cash?: string;
+  buying_power?: string;
+  equity?: string;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -27,6 +43,13 @@ function getAddresses(s: Secret): { label: string; address: string }[] {
   if (s.ethAddress) out.push({ label: 'ETH', address: s.ethAddress });
   if (s.solanaAddress) out.push({ label: 'SOL', address: s.solanaAddress });
   return out;
+}
+
+function formatUsd(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—';
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value);
+  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ── Inline Icon Components ──────────────────────────────────────────
@@ -280,11 +303,77 @@ function SecretCard({ secret }: { secret: Secret }) {
   );
 }
 
+function AlpacaAccountCard({
+  connection,
+  account,
+  loading,
+}: {
+  connection: AlpacaConnection;
+  account: AlpacaAccount | null;
+  loading: boolean;
+}) {
+  return (
+    <Link
+      to="/settings/integrations/alpaca"
+      className="block bg-card rounded-lg border border-border hover:border-primary/40 transition-colors"
+    >
+      <div className="p-4 pb-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
+              <svg className="w-[18px] h-[18px] text-primary" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 15l3-3 3 2 5-6" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-foreground font-medium block leading-tight">
+                {connection.name || 'Alpaca Stocks'}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {connection.environment === 'PAPER' ? 'Paper' : 'Live'} trading account
+              </span>
+            </div>
+          </div>
+          <span className="text-muted-foreground text-xs tabular-nums">
+            {new Date(connection.updatedAt).toLocaleDateString()}
+          </span>
+        </div>
+      </div>
+
+      <div className="px-4 pt-3 pb-4">
+        {loading ? (
+          <div className="text-xs text-muted-foreground">Loading balances...</div>
+        ) : account ? (
+          <div className="grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <div className="text-xs text-muted-foreground">Settled Cash</div>
+              <div className="text-foreground font-medium">{formatUsd(account.cash)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Buying Power</div>
+              <div className="text-foreground font-medium">{formatUsd(account.buying_power)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Total Equity</div>
+              <div className="text-foreground font-medium">{formatUsd(account.equity)}</div>
+            </div>
+          </div>
+        ) : (
+          <div className="text-xs text-muted-foreground">Balances unavailable.</div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 // ── Dashboard ───────────────────────────────────────────────────────
 
 export default function Dashboard() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
   const [loading, setLoading] = useState(true);
+  const [alpacaConnection, setAlpacaConnection] = useState<AlpacaConnection | null>(null);
+  const [alpacaAccount, setAlpacaAccount] = useState<AlpacaAccount | null>(null);
+  const [alpacaLoading, setAlpacaLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [createType, setCreateType] = useState('EVM_WALLET');
   const [createMemo, setCreateMemo] = useState('');
@@ -300,8 +389,20 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   };
 
+  const loadAlpaca = () => {
+    setAlpacaLoading(true);
+    getAlpacaConnection(true)
+      .then((res) => {
+        setAlpacaConnection(res.data.data.connection);
+        setAlpacaAccount(res.data.data.account ?? null);
+      })
+      .catch(() => {})
+      .finally(() => setAlpacaLoading(false));
+  };
+
   useEffect(() => {
     loadSecrets();
+    loadAlpaca();
   }, []);
 
   const handleCreate = async () => {
@@ -356,12 +457,20 @@ export default function Dashboard() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-foreground">Accounts</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
-        >
-          + Create Secret
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowCreate(true)}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
+          >
+            + New Wallet
+          </button>
+          <Link
+            to="/settings/integrations/alpaca"
+            className="bg-muted text-muted-foreground px-4 py-2 rounded-lg border border-border hover:text-foreground hover:border-primary/40 transition-colors text-sm font-medium"
+          >
+            {alpacaConnection ? 'Manage Alpaca' : '+ Connect Stocks (Alpaca)'}
+          </Link>
+        </div>
       </div>
 
       {showCreate && (
@@ -432,7 +541,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {secrets.length === 0 ? (
+      {secrets.length === 0 && !alpacaConnection && !alpacaLoading ? (
         <div className="bg-card rounded-lg border border-border p-10 text-center">
           <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 5.25a3 3 0 0 1 3 3m3 0a6 6 0 0 1-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1 1 21.75 8.25Z" />
@@ -442,6 +551,13 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="grid gap-4">
+          {alpacaConnection && (
+            <AlpacaAccountCard
+              connection={alpacaConnection}
+              account={alpacaAccount}
+              loading={alpacaLoading}
+            />
+          )}
           {secrets.map((s) => (
             <SecretCard key={s.id} secret={s} />
           ))}

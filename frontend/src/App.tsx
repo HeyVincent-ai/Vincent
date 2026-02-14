@@ -17,6 +17,8 @@ import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
 import AdminReferrals from './pages/AdminReferrals';
+import IntegrationsAlpaca from './pages/IntegrationsAlpaca';
+import GuardrailsTrading from './pages/GuardrailsTrading';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -60,6 +62,8 @@ function AppRoutes() {
         <Route path="/agents" element={<ProtectedRoute><Agents /></ProtectedRoute>} />
         <Route path="/secrets/:id" element={<ProtectedRoute><SecretDetail /></ProtectedRoute>} />
         <Route path="/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+        <Route path="/settings/integrations/alpaca" element={<ProtectedRoute><IntegrationsAlpaca /></ProtectedRoute>} />
+        <Route path="/settings/guardrails/trading" element={<ProtectedRoute><GuardrailsTrading /></ProtectedRoute>} />
         <Route path="/openclaw/:id" element={<ProtectedRoute><OpenClawDetail /></ProtectedRoute>} />
         <Route path="/admin/referrals" element={<ProtectedRoute><AdminReferrals /></ProtectedRoute>} />
       </Route>
