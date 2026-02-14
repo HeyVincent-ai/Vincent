@@ -135,6 +135,61 @@ export const setupOpenClawTelegram = (id: string, botToken: string) =>
 export const pairOpenClawTelegram = (id: string, code: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
 
+// Strategies
+export const listStrategies = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/strategies`);
+export const createStrategy = (
+  deploymentId: string,
+  data: {
+    strategyType: string;
+    templateId?: string | null;
+    thesisText: string;
+    conditionTokenId?: string | null;
+    strategyConfig: Record<string, unknown>;
+    riskProfile?: string;
+  }
+) => api.post(`/openclaw/deployments/${deploymentId}/strategies`, data);
+export const getStrategy = (deploymentId: string, strategyId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/strategies/${strategyId}`);
+export const updateStrategy = (
+  deploymentId: string,
+  strategyId: string,
+  data: {
+    thesisText?: string;
+    conditionTokenId?: string | null;
+    strategyConfig?: Record<string, unknown>;
+    riskProfile?: string;
+    status?: string;
+  }
+) => api.put(`/openclaw/deployments/${deploymentId}/strategies/${strategyId}`, data);
+export const deleteStrategy = (deploymentId: string, strategyId: string) =>
+  api.delete(`/openclaw/deployments/${deploymentId}/strategies/${strategyId}`);
+export const getStrategyTemplates = (deploymentId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/strategies/templates`);
+
+// Alert Rules
+export const listAlertRules = (deploymentId: string, strategyId: string) =>
+  api.get(`/openclaw/deployments/${deploymentId}/strategies/${strategyId}/alerts`);
+export const createAlertRule = (
+  deploymentId: string,
+  strategyId: string,
+  data: { triggerType: string; triggerConfig: unknown; instruction: string; enabled?: boolean }
+) => api.post(`/openclaw/deployments/${deploymentId}/strategies/${strategyId}/alerts`, data);
+export const updateAlertRule = (
+  deploymentId: string,
+  strategyId: string,
+  alertId: string,
+  data: { triggerConfig?: unknown; instruction?: string; enabled?: boolean }
+) =>
+  api.put(
+    `/openclaw/deployments/${deploymentId}/strategies/${strategyId}/alerts/${alertId}`,
+    data
+  );
+export const deleteAlertRule = (deploymentId: string, strategyId: string, alertId: string) =>
+  api.delete(
+    `/openclaw/deployments/${deploymentId}/strategies/${strategyId}/alerts/${alertId}`
+  );
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>
