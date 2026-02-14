@@ -140,7 +140,6 @@ STYTCH_ENV=test
 
 # ZeroDev Smart Accounts
 ZERODEV_PROJECT_ID=
-ZERODEV_API_KEY=
 
 # Stripe Billing
 STRIPE_SECRET_KEY=
