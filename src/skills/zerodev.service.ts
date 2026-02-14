@@ -401,9 +401,9 @@ export interface TransferParams {
   value?: bigint;
   tokenAddress?: Address;
   tokenAmount?: bigint;
-  /** Serialized session key data for signing after ownership transfer. */
+  /** Serialized session key data for signing after ownership transfer. When provided, smartAccountAddress is ignored. */
   sessionKeyData?: string;
-  /** Required when sessionKeyData is provided. The existing smart account address. */
+  /** The existing smart account address for reconstructing initConfig. Only used when sessionKeyData is not provided. */
   smartAccountAddress?: Address;
 }
 
@@ -463,9 +463,9 @@ export interface SendTransactionParams {
   to: Address;
   data: Hex;
   value?: bigint;
-  /** Serialized session key data for signing after ownership transfer. */
+  /** Serialized session key data for signing after ownership transfer. When provided, smartAccountAddress is ignored. */
   sessionKeyData?: string;
-  /** Required when sessionKeyData is provided. The existing smart account address. */
+  /** The existing smart account address for reconstructing initConfig. Only used when sessionKeyData is not provided. */
   smartAccountAddress?: Address;
 }
 
@@ -512,9 +512,9 @@ export interface BatchSendTransactionParams {
     data: Hex;
     value: bigint;
   }>;
-  /** Serialized session key data for signing after ownership transfer. */
+  /** Serialized session key data for signing after ownership transfer. When provided, smartAccountAddress is ignored. */
   sessionKeyData?: string;
-  /** Required when sessionKeyData is provided. The existing smart account address. */
+  /** The existing smart account address for reconstructing initConfig. Only used when sessionKeyData is not provided. */
   smartAccountAddress?: Address;
 }
 
