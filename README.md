@@ -276,6 +276,9 @@ npm run format
 
 # Open Prisma Studio
 npm run db:studio
+
+# Generate a Sentry triage report (requires ~/.openclaw/credentials/sentry.json)
+npm run sentry:triage -- --hours 24 --limit 25
 ```
 
 ## Project Structure
