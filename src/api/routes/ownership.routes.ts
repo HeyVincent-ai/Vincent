@@ -19,7 +19,7 @@ const challengeSchema = z.object({
 
 const verifySchema = z.object({
   address: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-  signature: z.string().regex(/^0x[a-fA-F0-9]+$/, 'Invalid signature'),
+  signature: z.string().regex(/^0x(?:[a-fA-F0-9]{128}|[a-fA-F0-9]{130})$/, 'Invalid signature'),
 });
 
 // ============================================================
