@@ -56,9 +56,7 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
   try {
     // Limit: max 3 active (non-destroyed, non-error) deployments per user
     const activeCount = await openclawService.listDeployments(userId);
-    const activeDeployments = activeCount.filter(
-      d => !['DESTROYED', 'ERROR'].includes(d.status)
-    );
+    const activeDeployments = activeCount.filter((d) => !['DESTROYED', 'ERROR'].includes(d.status));
     if (activeDeployments.length >= MAX_ACTIVE_DEPLOYMENTS) {
       return res.status(429).json({
         success: false,
@@ -214,10 +212,15 @@ router.get('/deployments/:id/ssh-key', async (req: AuthenticatedRequest, res: Re
       return errors.notFound(res, 'Deployment');
     }
     if (!deployment.sshPrivateKey) {
-      return res.status(400).json({ success: false, error: 'No SSH key available for this deployment' });
+      return res
+        .status(400)
+        .json({ success: false, error: 'No SSH key available for this deployment' });
     }
     res.setHeader('Content-Type', 'application/x-pem-file');
-    res.setHeader('Content-Disposition', `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`
+    );
     res.send(deployment.sshPrivateKey);
   } catch (error: any) {
     console.error('OpenClaw ssh-key error:', error);
@@ -254,25 +257,28 @@ const checkoutSchema = z.object({
  * Create a Stripe Checkout session for a credit purchase.
  * The customer enters their desired amount on the Stripe Checkout page.
  */
-router.post('/deployments/:id/credits/checkout', async (req: AuthenticatedRequest, res: Response) => {
-  const parsed = checkoutSchema.safeParse(req.body);
-  if (!parsed.success) {
-    return errors.validation(res, parsed.error.format());
-  }
+router.post(
+  '/deployments/:id/credits/checkout',
+  async (req: AuthenticatedRequest, res: Response) => {
+    const parsed = checkoutSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return errors.validation(res, parsed.error.format());
+    }
 
-  try {
-    const result = await createCreditsCheckoutSession(
-      req.user!.id,
-      req.params.id as string,
-      parsed.data.successUrl,
-      parsed.data.cancelUrl
-    );
-    sendSuccess(res, result);
-  } catch (error: any) {
-    console.error('OpenClaw credits checkout error:', error);
-    errors.internal(res);
+    try {
+      const result = await createCreditsCheckoutSession(
+        req.user!.id,
+        req.params.id as string,
+        parsed.data.successUrl,
+        parsed.data.cancelUrl
+      );
+      sendSuccess(res, result);
+    } catch (error: any) {
+      console.error('OpenClaw credits checkout error:', error);
+      errors.internal(res);
+    }
   }
-});
+);
 
 // ── Telegram Channel Setup ──────────────────────────────────
 

@@ -26,7 +26,8 @@
     "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
     "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
     "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts",
-    "sentry:triage": "tsx scripts/sentry-triage.ts"
+    "sentry:triage": "tsx scripts/sentry-triage.ts",
+    "prepare": "husky"
   },
   "keywords": [
     "secrets",
@@ -50,6 +51,8 @@
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
     "nodemon": "^3.1.11",
     "prettier": "^3.8.1",
     "supertest": "^7.2.2",
@@ -89,5 +92,8 @@
     "uuid": "^13.0.0",
     "viem": "^2.45.1",
     "zod": "^4.3.6"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --fix"
   }
 }

@@ -17,7 +17,7 @@ function getResend(): Resend | null {
 export async function sendOpenClawReadyEmail(
   to: string,
   deploymentId: string,
-  hostname: string
+  _hostname: string
 ): Promise<void> {
   const resend = getResend();
   if (!resend) {

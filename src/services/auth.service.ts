@@ -9,7 +9,12 @@ let stytchClient: stytch.Client | null = null;
 
 function getStytchClient(): stytch.Client {
   if (!stytchClient) {
-    console.log('Initializing Stytch client with project:', env.STYTCH_PROJECT_ID, 'env:', env.STYTCH_ENV);
+    console.log(
+      'Initializing Stytch client with project:',
+      env.STYTCH_PROJECT_ID,
+      'env:',
+      env.STYTCH_ENV
+    );
     stytchClient = new stytch.Client({
       project_id: env.STYTCH_PROJECT_ID,
       secret: env.STYTCH_SECRET,
@@ -88,10 +93,7 @@ export async function revokeSession(sessionToken: string): Promise<void> {
 /**
  * Find or create a user in our database based on Stytch identity
  */
-async function findOrCreateUser(params: {
-  email: string;
-  stytchUserId: string;
-}): Promise<User> {
+async function findOrCreateUser(params: { email: string; stytchUserId: string }): Promise<User> {
   const { email, stytchUserId } = params;
 
   // Try to find by stytchUserId first
