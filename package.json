@@ -25,7 +25,8 @@
     "test:coverage": "vitest run --coverage",
     "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
     "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
-    "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts"
+    "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts",
+    "sentry:triage": "tsx scripts/sentry-triage.ts"
   },
   "keywords": [
     "secrets",

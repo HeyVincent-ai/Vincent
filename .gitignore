@@ -64,3 +64,4 @@ docker-compose.override.yml
 .cache/
 tmp/
 temp/
+reports/
