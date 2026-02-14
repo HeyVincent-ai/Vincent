@@ -287,22 +287,34 @@ npm run sentry:triage -- --hours 24 --limit 25 --syncGithubIssues true --minConf
 npm run sentry:triage -- --hours 24 --limit 25 --sendTelegram true
 ```
 
-### Automated Sentry Triage (GitHub Actions)
+### Automated Sentry Triage (Local Cron)
 
-This repo includes `.github/workflows/sentry-triage.yml` with:
+Use local cron on the machine running Vincent (not CI).
 
-- periodic triage every 3 hours
-- daily summary run at 09:00 UTC
-- automatic creation of GitHub issues for high-confidence actionable bugs
-- optional Telegram summary dispatch
+Helper runner script:
 
-Required repository secrets:
+```bash
+./scripts/sentry-triage-runner.sh periodic
+./scripts/sentry-triage-runner.sh morning
+```
 
-- `SENTRY_AUTH_TOKEN`
-- `SENTRY_ORG_SLUG`
-- `SENTRY_PROJECT_SLUGS` (comma-separated)
-- `SENTRY_SUMMARY_TELEGRAM_BOT_TOKEN` (optional)
-- `SENTRY_SUMMARY_TELEGRAM_CHAT_ID` (optional)
+Example crontab (`crontab -e`):
+
+```cron
+# Every 3 hours: classify + create GitHub issues
+15 */3 * * * cd /root/.openclaw/workspace/Vincent && ./scripts/sentry-triage-runner.sh periodic
+
+# Daily 09:00 UTC: classify + create issues + Telegram morning summary
+0 9 * * * cd /root/.openclaw/workspace/Vincent && ./scripts/sentry-triage-runner.sh morning
+```
+
+Environment needed on the host:
+
+- `GITHUB_TOKEN`
+- `GITHUB_REPOSITORY` (e.g. `HeyVincent-ai/Vincent`)
+- `TELEGRAM_BOT_TOKEN` (optional for morning summary)
+- `TELEGRAM_CHAT_ID` (optional for morning summary)
+- Sentry credentials file at `~/.openclaw/credentials/sentry.json`
 
 ## Project Structure
 
