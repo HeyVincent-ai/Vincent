@@ -19,6 +19,7 @@ import {
 } from '@zerodev/sdk';
 import { signerToEcdsaValidator } from '@zerodev/ecdsa-validator';
 import { useToast } from './Toast';
+import { env } from '../env';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -74,7 +75,7 @@ const CHAIN_MAP: Record<number, Chain> = {
   10: viemChains.optimism,
 };
 
-const ZERODEV_PROJECT_ID = (import.meta as any).env.VITE_ZERODEV_PROJECT_ID || '';
+const ZERODEV_PROJECT_ID = env.ZERODEV_PROJECT_ID;
 const entryPoint = constants.getEntryPoint('0.7');
 const kernelVersion = constants.KERNEL_V3_1;
 
@@ -84,7 +85,7 @@ function getZeroDevUrl(chainId: number): string {
 
 // ── Component ────────────────────────────────────────────────────────
 
-export default function WalletConnectManager({ secretId, walletAddress }: Props) {
+export default function WalletConnectManager({ secretId: _secretId, walletAddress }: Props) {
   const { toast } = useToast();
   const { signMessageAsync } = useSignMessage();
   const { signTypedDataAsync } = useSignTypedData();
@@ -262,7 +263,7 @@ export default function WalletConnectManager({ secretId, walletAddress }: Props)
     if (walletKitRef.current || initializingRef.current) return;
     initializingRef.current = true;
 
-    const projectId = (import.meta as any).env.VITE_WALLETCONNECT_PROJECT_ID || '';
+    const projectId = env.WALLETCONNECT_PROJECT_ID;
 
     (async () => {
       try {
