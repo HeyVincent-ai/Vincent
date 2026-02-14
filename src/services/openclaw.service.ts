@@ -1106,6 +1106,17 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       addLog(`Failed to send ready email: ${emailErr.message}`);
     }
 
+    // Apply any pending referral rewards for this user
+    try {
+      const { applyPendingRewards } = await import('./referral.service.js');
+      const applied = await applyPendingRewards(readyDeployment.userId);
+      if (applied > 0) {
+        addLog(`Applied ${applied} pending referral reward(s)`);
+      }
+    } catch (refErr: any) {
+      addLog(`Failed to apply referral rewards: ${refErr.message}`);
+    }
+
     addLog('Deployment complete!');
   } catch (err: any) {
     addLog(`ERROR: ${err.message}`);
@@ -1867,6 +1878,17 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
       readyAt: new Date(),
       provisionLog: log,
     });
+
+    // Apply any pending referral rewards for this user
+    try {
+      const { applyPendingRewards } = await import('./referral.service.js');
+      const applied = await applyPendingRewards(deployment.userId);
+      if (applied > 0) {
+        addLog(`Applied ${applied} pending referral reward(s)`);
+      }
+    } catch (refErr: any) {
+      addLog(`Failed to apply referral rewards: ${refErr.message}`);
+    }
 
     addLog('Reprovision complete!');
   } catch (err: any) {

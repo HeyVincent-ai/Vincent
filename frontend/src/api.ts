@@ -26,7 +26,7 @@ api.interceptors.response.use(
 );
 
 // Auth
-export const syncSession = (sessionToken: string) => api.post('/auth/session', { sessionToken });
+export const syncSession = (sessionToken: string, referralCode?: string) => api.post('/auth/session', { sessionToken, ...(referralCode && { referralCode }) });
 
 export const logout = () => api.post('/auth/logout');
 
@@ -143,5 +143,9 @@ export const cancelSubscription = () => api.post('/billing/cancel');
 export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
+
+// Referrals
+export const getReferral = () => api.get('/user/referral');
+export const getAdminReferrals = () => api.get('/admin/referrals');
 
 export default api;

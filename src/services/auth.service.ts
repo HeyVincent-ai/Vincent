@@ -3,6 +3,7 @@ import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
 import { User } from '@prisma/client';
 import { AppError } from '../api/middleware/errorHandler.js';
+import * as referralService from './referral.service.js';
 
 // Initialize Stytch client
 let stytchClient: stytch.Client | null = null;
@@ -23,7 +24,7 @@ function getStytchClient(): stytch.Client {
  * Validate a Stytch session token and find/create the user in our DB.
  * Called after the Stytch frontend SDK authenticates the user.
  */
-export async function syncSession(sessionToken: string): Promise<User | null> {
+export async function syncSession(sessionToken: string, referralCode?: string): Promise<User | null> {
   const client = getStytchClient();
 
   try {
@@ -38,7 +39,7 @@ export async function syncSession(sessionToken: string): Promise<User | null> {
       throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
     }
 
-    return await findOrCreateUser({ email, stytchUserId });
+    return await findOrCreateUser({ email, stytchUserId, referralCode });
   } catch (err: unknown) {
     const stytchErr = err as { status_code?: number; error_type?: string; error_message?: string };
     console.error('syncSession failed:', {
@@ -91,8 +92,9 @@ export async function revokeSession(sessionToken: string): Promise<void> {
 async function findOrCreateUser(params: {
   email: string;
   stytchUserId: string;
+  referralCode?: string;
 }): Promise<User> {
-  const { email, stytchUserId } = params;
+  const { email, stytchUserId, referralCode } = params;
 
   // Try to find by stytchUserId first
   let user = await prisma.user.findUnique({
@@ -115,10 +117,21 @@ async function findOrCreateUser(params: {
   }
 
   // Create new user
-  return prisma.user.create({
+  const newUser = await prisma.user.create({
     data: {
       email,
       stytchUserId,
     },
   });
+
+  // Record referral if a code was provided
+  if (referralCode) {
+    try {
+      await referralService.recordReferral(referralCode, newUser.id);
+    } catch (err: any) {
+      console.error('[auth] Failed to record referral:', err.message);
+    }
+  }
+
+  return newUser;
 }
