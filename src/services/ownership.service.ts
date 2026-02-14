@@ -108,11 +108,7 @@ export async function verifyAndTransferOwnership(
   });
 
   if (!stored) {
-    throw new AppError(
-      'CHALLENGE_NOT_FOUND',
-      'No challenge found. Request a new challenge.',
-      400
-    );
+    throw new AppError('CHALLENGE_NOT_FOUND', 'No challenge found. Request a new challenge.', 400);
   }
 
   if (new Date() > stored.expiresAt) {
@@ -145,11 +141,7 @@ export async function verifyAndTransferOwnership(
   }
 
   if (!secret.walletMetadata.canTakeOwnership) {
-    throw new AppError(
-      'NOT_ELIGIBLE',
-      'This wallet is not eligible for ownership transfer',
-      400
-    );
+    throw new AppError('NOT_ELIGIBLE', 'This wallet is not eligible for ownership transfer', 400);
   }
 
   if (secret.walletMetadata.ownershipTransferred) {

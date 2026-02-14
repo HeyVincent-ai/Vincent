@@ -5,11 +5,11 @@ import {
   constants,
   addressToEmptyAccount,
 } from '@zerodev/sdk';
-import { signerToEcdsaValidator, getValidatorAddress as getEcdsaValidatorAddress } from '@zerodev/ecdsa-validator';
 import {
-  createWeightedECDSAValidator,
-  getRecoveryAction,
-} from '@zerodev/weighted-ecdsa-validator';
+  signerToEcdsaValidator,
+  getValidatorAddress as getEcdsaValidatorAddress,
+} from '@zerodev/ecdsa-validator';
+import { createWeightedECDSAValidator, getRecoveryAction } from '@zerodev/weighted-ecdsa-validator';
 import {
   toPermissionValidator,
   toInitConfig,
@@ -324,7 +324,10 @@ export async function createSmartAccount(privateKey: Hex, chainId: number): Prom
  * This must be identical to what was used during account creation so the
  * counterfactual address (CREATE2) matches.
  */
-async function buildSessionKeyInitConfig(signerAddress: Address, publicClient: ReturnType<typeof getPublicClient>) {
+async function buildSessionKeyInitConfig(
+  signerAddress: Address,
+  publicClient: ReturnType<typeof getPublicClient>
+) {
   const emptySessionKeySigner = await toECDSASigner({
     signer: addressToEmptyAccount(signerAddress),
   });
@@ -417,7 +420,16 @@ export interface TransferResult {
  * If sessionKeyData is provided, uses the session key (permission validator) for signing.
  */
 export async function executeTransfer(params: TransferParams): Promise<TransferResult> {
-  const { privateKey, chainId, to, value, tokenAddress, tokenAmount, sessionKeyData, smartAccountAddress } = params;
+  const {
+    privateKey,
+    chainId,
+    to,
+    value,
+    tokenAddress,
+    tokenAmount,
+    sessionKeyData,
+    smartAccountAddress,
+  } = params;
 
   // Get appropriate kernel client based on mode
   const { kernelClient, account } = sessionKeyData
@@ -675,7 +687,10 @@ export async function createSmartAccountWithRecovery(
   });
 
   // 3. Create permission validator (session key) with sudo policy for the backend EOA
-  const { initConfig, permissionPlugin } = await buildSessionKeyInitConfig(signer.address, publicClient);
+  const { initConfig, permissionPlugin } = await buildSessionKeyInitConfig(
+    signer.address,
+    publicClient
+  );
 
   // 4. Create kernel account with sudo, guardian, recovery action, and session key via initConfig
   const account = await createKernelAccount(publicClient, {
@@ -802,11 +817,7 @@ export async function executeRecovery(
  * The permission validator was installed via initConfig during account creation
  * and persists on-chain independently of the sudo validator.
  */
-async function getSessionKeyKernelClient(
-  privateKey: Hex,
-  chainId: number,
-  sessionKeyData: string
-) {
+async function getSessionKeyKernelClient(privateKey: Hex, chainId: number, sessionKeyData: string) {
   const projectId = env.ZERODEV_PROJECT_ID;
   if (!projectId) {
     throw new Error('ZERODEV_PROJECT_ID is not configured');

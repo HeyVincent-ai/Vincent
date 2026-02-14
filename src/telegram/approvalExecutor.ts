@@ -35,7 +35,9 @@ export async function executeApprovedTransaction(txLog: {
   let sessionKeyData: string | undefined;
   if (wallet.ownershipTransferred) {
     if (!wallet.sessionKeyData) {
-      throw new Error('This wallet was created before session key support. Backend signing is not available after ownership transfer.');
+      throw new Error(
+        'This wallet was created before session key support. Backend signing is not available after ownership transfer.'
+      );
     }
     sessionKeyData = wallet.sessionKeyData;
   }

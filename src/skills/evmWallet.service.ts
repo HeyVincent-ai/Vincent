@@ -121,7 +121,10 @@ async function trackChainUsage(secretId: string, chainId: number): Promise<void>
  * Legacy wallets were created without this initConfig, so passing their address
  * would cause counterfactual address mismatches on undeployed chains.
  */
-function getSmartAccountAddressForExec(wallet: { smartAccountAddress: Address; canTakeOwnership: boolean }): Address | undefined {
+function getSmartAccountAddressForExec(wallet: {
+  smartAccountAddress: Address;
+  canTakeOwnership: boolean;
+}): Address | undefined {
   return wallet.canTakeOwnership ? wallet.smartAccountAddress : undefined;
 }
 
@@ -129,7 +132,10 @@ function getSmartAccountAddressForExec(wallet: { smartAccountAddress: Address; c
  * Get sessionKeyData for post-ownership-transfer signing.
  * Throws if ownership was transferred but no session key exists (legacy account).
  */
-function getSessionKeyForSigning(wallet: { ownershipTransferred: boolean; sessionKeyData: string | null }): string | undefined {
+function getSessionKeyForSigning(wallet: {
+  ownershipTransferred: boolean;
+  sessionKeyData: string | null;
+}): string | undefined {
   if (!wallet.ownershipTransferred) return undefined;
   if (!wallet.sessionKeyData) {
     throw new AppError(
