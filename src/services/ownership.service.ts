@@ -14,6 +14,7 @@ export interface OwnershipStatus {
   ownerAddress: string | null;
   transferredAt: Date | null;
   chainsUsed: number[];
+  chainsTransferred: number[];
 }
 
 export interface OwnershipChallengeResult {
@@ -189,6 +190,7 @@ export async function verifyAndTransferOwnership(
       ownerAddress: newOwnerAddress.toLowerCase(),
       transferredAt: new Date(),
       transferTxHash: Object.values(txHashes)[0] || null,
+      chainsTransferred: chainsUsed,
     },
   });
 
@@ -217,6 +219,7 @@ export async function getOwnershipStatus(secretId: string): Promise<OwnershipSta
     ownerAddress: metadata.ownerAddress,
     transferredAt: metadata.transferredAt,
     chainsUsed: metadata.chainsUsed,
+    chainsTransferred: metadata.chainsTransferred,
   };
 }
 
