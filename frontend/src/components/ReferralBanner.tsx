@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getReferral } from '../api';
+import { copyToClipboard } from '../utils/format';
 
 export default function ReferralBanner() {
   const [referralLink, setReferralLink] = useState('');
@@ -18,16 +19,7 @@ export default function ReferralBanner() {
   if (dismissed || !referralLink) return null;
 
   const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(referralLink);
-    } catch {
-      const input = document.createElement('input');
-      input.value = referralLink;
-      document.body.appendChild(input);
-      input.select();
-      document.execCommand('copy');
-      document.body.removeChild(input);
-    }
+    await copyToClipboard(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

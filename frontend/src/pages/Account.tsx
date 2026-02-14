@@ -11,6 +11,7 @@ import {
   getOpenClawUsage,
   getReferral,
 } from '../api';
+import { copyToClipboard } from '../utils/format';
 
 interface Subscription {
   id: string;
@@ -282,16 +283,7 @@ export default function Account() {
               />
               <button
                 onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(referralLink);
-                  } catch {
-                    const input = document.createElement('input');
-                    input.value = referralLink;
-                    document.body.appendChild(input);
-                    input.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(input);
-                  }
+                  await copyToClipboard(referralLink);
                   setRefCopied(true);
                   setTimeout(() => setRefCopied(false), 2000);
                 }}
