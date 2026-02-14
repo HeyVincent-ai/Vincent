@@ -279,7 +279,30 @@ npm run db:studio
 
 # Generate a Sentry triage report (requires ~/.openclaw/credentials/sentry.json)
 npm run sentry:triage -- --hours 24 --limit 25
+
+# Optional: create GitHub issues for high-confidence actionable bugs
+npm run sentry:triage -- --hours 24 --limit 25 --syncGithubIssues true --minConfidence 0.85
+
+# Optional: send Telegram summary (requires TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+npm run sentry:triage -- --hours 24 --limit 25 --sendTelegram true
 ```
+
+### Automated Sentry Triage (GitHub Actions)
+
+This repo includes `.github/workflows/sentry-triage.yml` with:
+
+- periodic triage every 3 hours
+- daily summary run at 09:00 UTC
+- automatic creation of GitHub issues for high-confidence actionable bugs
+- optional Telegram summary dispatch
+
+Required repository secrets:
+
+- `SENTRY_AUTH_TOKEN`
+- `SENTRY_ORG_SLUG`
+- `SENTRY_PROJECT_SLUGS` (comma-separated)
+- `SENTRY_SUMMARY_TELEGRAM_BOT_TOKEN` (optional)
+- `SENTRY_SUMMARY_TELEGRAM_CHAT_ID` (optional)
 
 ## Project Structure
 
