@@ -51,7 +51,7 @@ import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 // ============================================================
 
 // Plans to try in priority order
-const VPS_PLANS_PRIORITY = [
+export const VPS_PLANS_PRIORITY = [
   'vps-2025-model1.LZ',
   'vps-2025-model1-ca',
   'vps-2025-model1',
@@ -596,11 +596,9 @@ async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter:
     }
   }
 
-  // Fallback: use first plan with whatever cart datacenter is available
-  const fallbackPlan = VPS_PLANS_PRIORITY[0];
-  const cartDcs = await ovhService.getCartDatacenters(fallbackPlan);
-  const dc = cartDcs[0] || 'US-EAST-LZ-MIA';
-  return { planCode: fallbackPlan, datacenter: dc };
+  throw new Error(
+    'No VPS plans available — all plans are out of stock in their allowed datacenters'
+  );
 }
 
 // ============================================================
