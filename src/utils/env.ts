@@ -87,6 +87,7 @@ const envSchema = z.object({
   OVH_APP_SECRET: z.string().optional(),
   OVH_CONSUMER_KEY: z.string().optional(),
   OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+  OVH_EU_SUBSIDIARY: z.string().optional(),
 
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),

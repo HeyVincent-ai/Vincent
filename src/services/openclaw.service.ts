@@ -50,7 +50,7 @@ import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 // Constants
 // ============================================================
 
-// Plans to try in priority order
+// Plans to try in priority order (NA first, then EU fallbacks)
 export const VPS_PLANS_PRIORITY = [
   'vps-2025-model1.LZ',
   'vps-2025-model1-ca',
@@ -59,6 +59,11 @@ export const VPS_PLANS_PRIORITY = [
   'vps-2025-model3-ca',
   'vps-2025-model2',
   'vps-2025-model3',
+  // EU plans
+  'vps-2025-model1.LZ-eu',
+  'vps-2025-model1-eu',
+  'vps-2025-model2-eu',
+  'vps-2025-model3-eu',
 ];
 
 const DEFAULT_OS = 'Debian 12';

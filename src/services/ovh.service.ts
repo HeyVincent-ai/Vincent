@@ -15,6 +15,23 @@ const Ovh = require('@ovhcloud/node-ovh');
 import { env } from '../utils/env.js';
 
 // ============================================================
+// Subsidiary Mapping
+// ============================================================
+
+/**
+ * Determine the OVH subsidiary for a plan code.
+ * EU plans (ending in `-eu`) may require a different subsidiary to appear
+ * in the cart catalog.  By default we try 'US' for everything — if EU plans
+ * aren't visible under 'US', set OVH_EU_SUBSIDIARY (e.g. 'IE', 'FR').
+ */
+export function getSubsidiaryForPlan(planCode: string): string {
+  if (planCode.endsWith('-eu') || planCode.includes('.LZ-eu')) {
+    return env.OVH_EU_SUBSIDIARY || 'US';
+  }
+  return 'US';
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -106,9 +123,10 @@ export async function orderVps(options: {
     autoPayWithPreferredPaymentMethod = true,
   } = options;
 
-  // Step 1: Create cart
+  // Step 1: Create cart (subsidiary depends on plan region)
+  const subsidiary = getSubsidiaryForPlan(planCode);
   const cart = await ovh.requestPromised('POST', '/order/cart', {
-    ovhSubsidiary: 'US',
+    ovhSubsidiary: subsidiary,
     description: `OpenClaw VPS - ${planCode}`,
   });
   const cartId = cart.cartId;
@@ -349,9 +367,10 @@ export async function listSshKeys(): Promise<string[]> {
  */
 export async function getAvailableDatacenters(planCode: string): Promise<any> {
   const ovh = getClient();
+  const subsidiary = getSubsidiaryForPlan(planCode);
   return ovh.requestPromised(
     'GET',
-    `/vps/order/rule/datacenter?ovhSubsidiary=US&planCode=${planCode}`,
+    `/vps/order/rule/datacenter?ovhSubsidiary=${subsidiary}&planCode=${planCode}`,
   );
 }
 
@@ -386,8 +405,9 @@ export async function findAvailableDatacenter(planCode: string): Promise<string 
  */
 export async function getCartDatacenters(planCode: string): Promise<string[]> {
   const ovh = getClient();
+  const subsidiary = getSubsidiaryForPlan(planCode);
   const cart = await ovh.requestPromised('POST', '/order/cart', {
-    ovhSubsidiary: 'US',
+    ovhSubsidiary: subsidiary,
     description: 'datacenter check',
   });
   await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/assign`);
@@ -417,7 +437,8 @@ export async function getAvailableOs(planCode: string): Promise<string[]> {
   // The OS list comes from the cart's requiredConfiguration endpoint.
   // We use the catalog endpoint here for a quick check.
   const ovh = getClient();
-  const catalog = await ovh.requestPromised('GET', '/order/catalog/public/vps?ovhSubsidiary=US');
+  const subsidiary = getSubsidiaryForPlan(planCode);
+  const catalog = await ovh.requestPromised('GET', `/order/catalog/public/vps?ovhSubsidiary=${subsidiary}`);
   const plan = catalog.plans?.find((p: any) => p.planCode === planCode);
   if (!plan) return [];
   // Extract OS names from addon families or configurations
