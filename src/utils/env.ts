@@ -93,6 +93,9 @@ const envSchema = z.object({
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
+
+  // Admin (comma-separated list of admin email addresses)
+  ADMIN_EMAILS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
