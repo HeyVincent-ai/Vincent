@@ -473,7 +473,7 @@ export default function Thesis() {
     function setStep(index: number) {
       state.step = Math.max(0, Math.min(steps.length - 1, index));
       steps.forEach((s, i) => s.classList.toggle('active', i === state.step));
-      el.classList.toggle('tp-landing', state.step === 0);
+      el!.classList.toggle('tp-landing', state.step === 0);
       updateStepIndicator();
     }
 
