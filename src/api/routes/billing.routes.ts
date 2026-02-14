@@ -171,33 +171,29 @@ router.get(
  * GET /api/billing/invoices
  * List past invoices from Stripe.
  */
-router.get(
-  '/invoices',
-  sessionAuthMiddleware,
-  async (req: AuthenticatedRequest, res: Response) => {
-    try {
-      const user = req.user!;
-      if (!user.stripeCustomerId) {
-        sendSuccess(res, []);
-        return;
-      }
-
-      // Fetch invoices from the MonthlyGasSummary records
-      const summaries = await gasAggregation.getGasUsageHistory(user.id);
-      const invoices = summaries
-        .filter((s) => s.billed)
-        .map((s) => ({
-          month: s.month,
-          totalCostUsd: s.totalCostUsd.toNumber(),
-          stripeInvoiceId: s.stripeInvoiceId,
-        }));
-
-      sendSuccess(res, invoices);
-    } catch (error) {
-      console.error('Get invoices error:', error);
-      errors.internal(res);
+router.get('/invoices', sessionAuthMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = req.user!;
+    if (!user.stripeCustomerId) {
+      sendSuccess(res, []);
+      return;
     }
+
+    // Fetch invoices from the MonthlyGasSummary records
+    const summaries = await gasAggregation.getGasUsageHistory(user.id);
+    const invoices = summaries
+      .filter((s) => s.billed)
+      .map((s) => ({
+        month: s.month,
+        totalCostUsd: s.totalCostUsd.toNumber(),
+        stripeInvoiceId: s.stripeInvoiceId,
+      }));
+
+    sendSuccess(res, invoices);
+  } catch (error) {
+    console.error('Get invoices error:', error);
+    errors.internal(res);
   }
-);
+});
 
 export default router;

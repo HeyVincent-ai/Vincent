@@ -29,12 +29,9 @@ import {
   type Address,
   serializeTransaction,
   keccak256,
-  recoverPublicKey,
-  hexToBytes,
-  bytesToHex,
 } from 'viem';
 import { baseSepolia } from 'viem/chains';
-import { privateKeyToAccount, signTransaction } from 'viem/accounts';
+import { privateKeyToAccount } from 'viem/accounts';
 import { createApp } from '../app';
 import prisma from '../db/client';
 import type { Express } from 'express';
@@ -48,7 +45,7 @@ const EXPLORER_BASE_URL = 'https://sepolia.basescan.org';
 
 // Test amounts - small to minimize costs
 const ETH_FUND_AMOUNT = '0.0002'; // ETH to fund the raw signer address
-const ETH_SEND_AMOUNT = '0.00001'; // Small ETH transfer in test tx
+const _ETH_SEND_AMOUNT = '0.00001'; // Small ETH transfer in test tx
 
 // ============================================================
 // Helpers
@@ -397,10 +394,7 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     console.log(`ETH fund tx: ${EXPLORER_BASE_URL}/tx/${ethTxHash}`);
 
     // Verify funding (poll to allow RPC eventual consistency)
-    const ethBalance = await waitForBalance(
-      () => getEthBalance(ethAddress),
-      ETH_FUND_AMOUNT
-    );
+    const ethBalance = await waitForBalance(() => getEthBalance(ethAddress), ETH_FUND_AMOUNT);
     console.log(`Raw signer ETH balance: ${ethBalance}`);
 
     expect(parseFloat(ethBalance)).toBeGreaterThanOrEqual(parseFloat(ETH_FUND_AMOUNT));

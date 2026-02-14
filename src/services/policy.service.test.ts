@@ -13,7 +13,10 @@ describe('validatePolicyConfig', () => {
       const config = validatePolicyConfig('ADDRESS_ALLOWLIST' as any, {
         addresses: ['0x1234567890123456789012345678901234567890'],
       });
-      expect(config).toEqual({ addresses: ['0x1234567890123456789012345678901234567890'], approvalOverride: false });
+      expect(config).toEqual({
+        addresses: ['0x1234567890123456789012345678901234567890'],
+        approvalOverride: false,
+      });
     });
 
     it('rejects invalid addresses', () => {
@@ -23,9 +26,7 @@ describe('validatePolicyConfig', () => {
     });
 
     it('rejects empty array', () => {
-      expect(() =>
-        validatePolicyConfig('ADDRESS_ALLOWLIST' as any, { addresses: [] })
-      ).toThrow();
+      expect(() => validatePolicyConfig('ADDRESS_ALLOWLIST' as any, { addresses: [] })).toThrow();
     });
   });
 
@@ -60,15 +61,11 @@ describe('validatePolicyConfig', () => {
     });
 
     it('rejects zero maxUsd', () => {
-      expect(() =>
-        validatePolicyConfig('SPENDING_LIMIT_PER_TX' as any, { maxUsd: 0 })
-      ).toThrow();
+      expect(() => validatePolicyConfig('SPENDING_LIMIT_PER_TX' as any, { maxUsd: 0 })).toThrow();
     });
 
     it('rejects negative maxUsd', () => {
-      expect(() =>
-        validatePolicyConfig('SPENDING_LIMIT_PER_TX' as any, { maxUsd: -10 })
-      ).toThrow();
+      expect(() => validatePolicyConfig('SPENDING_LIMIT_PER_TX' as any, { maxUsd: -10 })).toThrow();
     });
   });
 
@@ -83,9 +80,7 @@ describe('validatePolicyConfig', () => {
     });
 
     it('rejects non-boolean', () => {
-      expect(() =>
-        validatePolicyConfig('REQUIRE_APPROVAL' as any, { enabled: 'yes' })
-      ).toThrow();
+      expect(() => validatePolicyConfig('REQUIRE_APPROVAL' as any, { enabled: 'yes' })).toThrow();
     });
   });
 

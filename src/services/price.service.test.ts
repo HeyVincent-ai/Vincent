@@ -93,8 +93,8 @@ describe('tokenToUsd', () => {
   it('throws when API returns error', async () => {
     const { tokenToUsd } = await loadModule();
     mockFetch.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error' });
-    await expect(
-      tokenToUsd('0xdac17f958d2ee523a2206206994597c13d831ec7', 100)
-    ).rejects.toThrow('CoinGecko API error');
+    await expect(tokenToUsd('0xdac17f958d2ee523a2206206994597c13d831ec7', 100)).rejects.toThrow(
+      'CoinGecko API error'
+    );
   });
 });
