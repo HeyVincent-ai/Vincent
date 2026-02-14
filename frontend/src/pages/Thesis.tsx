@@ -406,9 +406,9 @@ export default function Thesis() {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    document.title = 'Vincent — Political Prediction Markets, Running 24/7';
+    document.title = 'Vincent — 24/7 AI Trading on Polymarket';
     const meta = document.querySelector('meta[name="description"]');
-    if (meta) meta.setAttribute('content', 'Define your political thesis, set spending policies, and let an autonomous agent trade Polymarket — with human-in-the-loop approvals.');
+    if (meta) meta.setAttribute('content', 'Never miss a market move. Vincent deploys a self-custodial AI agent that trades Polymarket for you — 24/7, with spending policies you control.');
   }, []);
 
   useEffect(() => {
@@ -421,16 +421,15 @@ export default function Thesis() {
     ];
 
     const templates = [
-      { id: 'election-winner', label: 'Election winner', category: 'Elections', thesis: 'The incumbent party is underpriced to win the next presidential election based on economic indicators and approval trends.', strategyName: 'Election Outcome Strategy' },
-      { id: 'congressional-control', label: 'Congressional control', category: 'Elections', thesis: 'Senate control is mispriced; I want to systematically trade seats where polls diverge from prediction markets.', strategyName: 'Congressional Control Strategy' },
-      { id: 'policy-passage', label: 'Policy passage', category: 'Policy', thesis: 'Major legislation is more likely to pass than markets imply; I want to buy YES on passage when committee votes signal momentum.', strategyName: 'Legislative Passage Strategy' },
-      { id: 'scotus-ruling', label: 'Supreme Court ruling', category: 'Policy', thesis: 'The Supreme Court is likely to rule a specific way based on oral argument signals and historical patterns.', strategyName: 'SCOTUS Ruling Strategy' },
-      { id: 'geopolitical-event', label: 'Geopolitical event', category: 'World Events', thesis: 'Geopolitical tensions are mispriced; I want to trade event contracts around diplomatic developments and conflict escalation.', strategyName: 'Geopolitical Event Strategy' },
-      { id: 'fed-decision', label: 'Fed rate decision', category: 'Economics', thesis: 'The Fed is more likely to cut rates than markets currently price; I want to position ahead of FOMC meetings.', strategyName: 'Fed Decision Strategy' },
-      { id: 'poll-divergence', label: 'Poll vs. market divergence', category: 'Elections', thesis: 'When polling aggregates diverge significantly from Polymarket odds, the polls tend to be more accurate; I want to fade the market.', strategyName: 'Poll Divergence Strategy' },
-      { id: 'cabinet-appointment', label: 'Cabinet / appointment', category: 'Policy', thesis: 'Cabinet confirmations and key appointments are predictable from political signals; I want to trade the confirmation markets.', strategyName: 'Appointment Confirmation Strategy' },
-      { id: 'macro-indicator', label: 'Economic indicator', category: 'Economics', thesis: 'Economic data releases (jobs, CPI, GDP) create tradeable mispricings on Polymarket outcome markets.', strategyName: 'Economic Indicator Strategy' },
-      { id: 'sentiment-shift', label: 'Narrative shift', category: 'Signals', thesis: 'Political narratives shift fast; I want to detect momentum changes on X and news and trade before markets adjust.', strategyName: 'Political Narrative Strategy' },
+      { id: 'new-market-snipe', label: 'New market sniper', category: 'Market Structure', thesis: 'New markets have the softest odds. I want to be first in on every new market that matches my categories, before the crowd prices it efficiently.', strategyName: 'New Market Sniper' },
+      { id: 'poll-divergence', label: 'Polls vs. odds', category: 'Edge Detection', thesis: 'When polling aggregates diverge from Polymarket odds by more than 8%, the polls are usually closer to right. Fade the market.', strategyName: 'Poll Divergence Strategy' },
+      { id: 'resolution-edge', label: 'Resolution edge', category: 'Market Structure', thesis: 'Markets near resolution with obvious outcomes still trade at 85\u201395\u00A2. I want to scoop up cheap YES contracts in the final hours.', strategyName: 'Resolution Edge Strategy' },
+      { id: 'correlated-markets', label: 'Correlated markets', category: 'Edge Detection', thesis: 'Related markets should move together but often lag. When one reprices, I want to trade the correlated market before it catches up.', strategyName: 'Cross-Market Correlation' },
+      { id: 'catalyst-calendar', label: 'Event calendar', category: 'Catalysts', thesis: 'Known events (FOMC, jobs reports, hearings, rulings) create predictable volatility. I want to position before the catalyst and exit after.', strategyName: 'Catalyst Calendar Strategy' },
+      { id: 'news-breakout', label: 'Breaking news', category: 'Catalysts', thesis: 'Breaking news moves markets before Polymarket reprices. I want my agent watching X and news feeds 24/7 and trading within seconds.', strategyName: 'Breaking News Strategy' },
+      { id: 'fade-overreaction', label: 'Fade overreaction', category: 'Edge Detection', thesis: 'Markets overreact to headlines. When odds swing more than 15% in an hour, I want to fade the move with tight risk limits.', strategyName: 'Overreaction Fade Strategy' },
+      { id: 'volume-spike', label: 'Volume spike', category: 'Market Structure', thesis: 'Unusual volume on a quiet market signals someone knows something. I want to follow large orders and ride the momentum.', strategyName: 'Volume Spike Strategy' },
+      { id: 'multi-outcome-arb', label: 'Multi-outcome arbitrage', category: 'Market Structure', thesis: 'Multi-outcome markets sometimes have odds that sum to more or less than 100%. I want to capture the spread when it appears.', strategyName: 'Multi-Outcome Arb Strategy' },
       { id: 'custom', label: 'Custom', category: 'Custom', thesis: '', strategyName: 'Custom Strategy' },
     ];
 
@@ -537,24 +536,25 @@ export default function Thesis() {
       const template = templates.find(t => t.id === state.template) || templates[0];
       return {
         strategy_name: template.strategyName,
-        abstract: 'Monitors political signals, polling data, and news momentum for mispriced Polymarket contracts. Enters on multi-signal confirmation and exits systematically with capped downside.',
+        abstract: 'Watches Polymarket for structural edges \u2014 new markets, odds mispricings, volume spikes, and catalyst events. Enters fast, manages risk automatically, exits on convergence or resolution.',
         execution_logic: [
-          'Entry: polling aggregate diverges from Polymarket odds by > 8% with confirming news signal',
-          'Confirmation: narrative momentum on X or news cycle aligns with poll direction',
-          'Exit: market converges to fair value, event resolves, or stop-loss triggers',
-          'Cadence: checks every 15 minutes, aggregates hourly',
+          'Scan: poll new markets, order books, and odds changes every 5 minutes',
+          'Filter: match against strategy filters, minimum volume, and edge threshold',
+          'Enter: place limit order at target price, skip if spread is too wide',
+          'Manage: trail stop at entry \u00B1 configured threshold, auto-exit before resolution if profit target hit',
         ],
         monitoring_signals: [
-          'Polling aggregates (FiveThirtyEight, RCP, state polls)',
-          'Political news velocity on X and mainstream media',
-          'Polymarket order flow and odds movement',
+          'New market listings and category tags',
+          'Order book depth and volume spikes',
+          'Odds movement velocity (>5% in 1h = alert)',
+          'News and X sentiment for catalyst detection',
         ],
         risk_profiles: {
-          Conservative: ['Max per trade: $10', 'Daily limit: $25', 'Max open positions: 3', 'Min edge vs. polls: 10%'],
-          Moderate: ['Max per trade: $25', 'Daily limit: $75', 'Max open positions: 5', 'Min edge vs. polls: 8%'],
-          Aggressive: ['Max per trade: $50', 'Daily limit: $150', 'Max open positions: 8', 'Min edge vs. polls: 5%'],
+          Conservative: ['Max per trade: $10', 'Daily limit: $25', 'Max open positions: 3', 'Require approval above: $15'],
+          Moderate: ['Max per trade: $25', 'Daily limit: $75', 'Max open positions: 5', 'Require approval above: $40'],
+          Aggressive: ['Max per trade: $50', 'Daily limit: $150', 'Max open positions: 8', 'Auto-approve all within limits'],
         } as Record<string, string[]>,
-        disclaimers: 'You can change assumptions (risk, sensitivity, sizing, exits) after onboarding. All trades are on Polymarket via USDC.e on Polygon.',
+        disclaimers: 'All settings adjustable after onboarding. Trades execute on Polymarket via USDC.e on Polygon. Your agent never sees your private key.',
       };
     }
 
@@ -743,27 +743,27 @@ export default function Thesis() {
     // ── Signal flow animation ──
     const signalScenarios = [
       [
-        { icon: '\uD835\uDD4F', cls: 'source', text: '<em>@NateSilver538</em> model update \u2014 swing state shift detected' },
-        { icon: '\u2699', cls: 'think', text: 'Poll divergence <em>+3.2\u03C3</em> vs market \u00B7 matches thesis \u00B7 policy OK' },
-        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.42</em> \u00B7 "Will candidate win PA?" \u00B7 $25' },
+        { icon: '\u2728', cls: 'source', text: '<em>New market</em> detected \u2014 "Will the Fed cut rates in June?"' },
+        { icon: '\u2699', cls: 'think', text: 'Matches strategy filter \u00B7 odds at <em>$0.35</em> \u00B7 thin book \u00B7 early edge' },
+        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.35</em> \u00B7 $25 \u00B7 limit order placed' },
         { icon: '$', cls: 'balance', text: 'Balance <em>$487</em> \u00B7 P&L <em style="color:var(--success)">+$38</em>' },
       ],
       [
-        { icon: '\uD83D\uDCCA', cls: 'source', text: '<em>FiveThirtyEight</em> forecast update \u2014 Senate model shifted +4pts' },
-        { icon: '\u2699', cls: 'think', text: 'Senate control <em>mispriced 8%</em> vs polls \u00B7 within limits' },
-        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.38</em> \u00B7 "Dems hold Senate?" \u00B7 $30' },
+        { icon: '\uD83D\uDCCA', cls: 'source', text: '<em>Odds spike</em> \u2014 "Senate control" moved +12% in 45 min' },
+        { icon: '\u2699', cls: 'think', text: 'Overreaction detected \u00B7 no confirming news \u00B7 fade signal \u00B7 policy OK' },
+        { icon: '\u2197', cls: 'exec', text: 'BUY <em>NO @ $0.44</em> \u00B7 $30 \u00B7 fade the spike' },
         { icon: '$', cls: 'balance', text: 'Balance <em>$512</em> \u00B7 P&L <em style="color:var(--success)">+$62</em>' },
       ],
       [
-        { icon: '\uD835\uDD4F', cls: 'source', text: '<em>@PoliticsInsider</em> SCOTUS leak rumor \u2014 18k engagement in 1h' },
-        { icon: '\u2699', cls: 'think', text: 'Sentiment spike <em>+2.8\u03C3</em> \u00B7 ruling market underpriced \u00B7 policy OK' },
-        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.31</em> \u00B7 "Will SCOTUS overturn?" \u00B7 $20' },
+        { icon: '\uD835\uDD4F', cls: 'source', text: '<em>@AP</em> breaking \u2014 surprise resignation, 24k engagement in 20m' },
+        { icon: '\u2699', cls: 'think', text: 'Catalyst match \u00B7 related market lagging <em>by 9%</em> \u00B7 within limits' },
+        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.31</em> \u00B7 $20 \u00B7 correlated market play' },
         { icon: '$', cls: 'balance', text: 'Balance <em>$534</em> \u00B7 P&L <em style="color:var(--success)">+$84</em>' },
       ],
       [
-        { icon: '\uD83D\uDCCA', cls: 'source', text: '<em>BLS</em> jobs report \u2014 NFP beats consensus by 120k' },
-        { icon: '\u2699', cls: 'think', text: 'Strong jobs <em>\u2192 hawkish Fed</em> \u00B7 rate cut market overpriced \u00B7 policy check \u2713' },
-        { icon: '\u2197', cls: 'exec', text: 'BUY <em>NO @ $0.55</em> \u00B7 "Fed cuts in March?" \u00B7 $15' },
+        { icon: '\u23F0', cls: 'source', text: '<em>Resolution in 4h</em> \u2014 "Will jobs report beat 200k?" at $0.92' },
+        { icon: '\u2699', cls: 'think', text: 'BLS data already released \u00B7 outcome clear \u00B7 <em>8\u00A2 free</em> \u00B7 policy check \u2713' },
+        { icon: '\u2197', cls: 'exec', text: 'BUY <em>YES @ $0.92</em> \u00B7 $50 \u00B7 resolution edge' },
         { icon: '$', cls: 'balance', text: 'Balance <em>$549</em> \u00B7 P&L <em style="color:var(--success)">+$99</em>' },
       ],
     ];
@@ -835,12 +835,12 @@ export default function Thesis() {
               <div className="step-indicator" id="stepIndicator">
                 <div className="step-dot active" data-si="1">
                   <div className="step-dot-circle">1</div>
-                  <div className="step-dot-label">Belief</div>
+                  <div className="step-dot-label">Strategy</div>
                 </div>
                 <div className="step-connector"></div>
                 <div className="step-dot" data-si="2">
                   <div className="step-dot-circle">2</div>
-                  <div className="step-dot-label">Strategy</div>
+                  <div className="step-dot-label">Preview</div>
                 </div>
                 <div className="step-connector"></div>
                 <div className="step-dot" data-si="3">
@@ -867,13 +867,13 @@ export default function Thesis() {
 
             <section className="landing-hero">
               <div>
-                <h1>Your political thesis.<br /><span>Trading 24/7.</span></h1>
-                <p>Define what you believe about elections, policy, and world events. Set spending limits and let an autonomous agent trade Polymarket &mdash; with human-in-the-loop approvals.</p>
+                <h1>Never miss a<br /><span>market move.</span></h1>
+                <p>Self-custodial AI agent that trades Polymarket 24/7.</p>
                 <div className="landing-hero-cta">
                   <button className="btn btn-primary btn-lg" data-next>Start &rarr;</button>
                   <a href="/" className="btn btn-secondary btn-lg">What is Vincent?</a>
                 </div>
-                <p className="landing-hero-note">Non-custodial &middot; Polymarket via Polygon &middot; Revoke anytime</p>
+                <p className="landing-hero-note">New markets &middot; Odds mispricing &middot; Breaking news &middot; Resolution edge</p>
               </div>
               <div className="signal-flow" id="signalFlow">
                 <div className="signal-flow-header">
@@ -886,9 +886,9 @@ export default function Thesis() {
                 <div className="signal-flow-footer">
                   <div className="signal-flow-sources">
                     <span className="signal-flow-sources-label">Sources</span>
-                    <span className="signal-flow-source-tag">{'\uD835\uDD4F'}</span>
                     <span className="signal-flow-source-tag">{'\uD83D\uDCCA'}</span>
-                    <span className="signal-flow-source-more">+polls, news</span>
+                    <span className="signal-flow-source-tag">{'\uD835\uDD4F'}</span>
+                    <span className="signal-flow-source-more">+order books, news</span>
                   </div>
                   <div className="signal-flow-cadence">Every 15m</div>
                 </div>
@@ -897,24 +897,23 @@ export default function Thesis() {
 
             <section className="landing-trust">
               <div className="landing-trust-inner">
-                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Airgapped vault &mdash; secrets never touch the AI</div>
-                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Spending policies &mdash; limits, approvals, restrictions</div>
-                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Full audit trail &mdash; every decision logged</div>
+                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Self-custodial &mdash; your keys never leave your wallet</div>
+                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Spending policies &mdash; you set the limits</div>
+                <div className="landing-trust-item"><span className="landing-trust-icon">&#9679;</span>Full audit trail &mdash; every trade logged</div>
               </div>
             </section>
 
             <section className="landing-final">
-              <h2>Put your political thesis to work.</h2>
-              <p>Your agent monitors polls, news, and political signals &mdash; trading Polymarket within the spending policies you set.</p>
+              <h2>Your edge, always on.</h2>
+              <p>Your agent watches markets while you sleep.</p>
               <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', alignItems: 'center' }}>
                 <button className="btn btn-primary btn-lg" data-next>Start &rarr;</button>
                 <a href="/" className="btn btn-secondary btn-lg">About Vincent &rarr;</a>
               </div>
               <div className="landing-venues">
-                <div className="landing-venue"><span className="landing-venue-dot"></span> Elections</div>
-                <div className="landing-venue"><span className="landing-venue-dot"></span> Policy</div>
-                <div className="landing-venue"><span className="landing-venue-dot"></span> Economics</div>
-                <div className="landing-venue"><span className="landing-venue-dot"></span> World Events</div>
+                <div className="landing-venue"><span className="landing-venue-dot"></span> Self-custodial</div>
+                <div className="landing-venue"><span className="landing-venue-dot"></span> Spending policies</div>
+                <div className="landing-venue"><span className="landing-venue-dot"></span> Revoke anytime</div>
               </div>
             </section>
 
@@ -933,18 +932,18 @@ export default function Thesis() {
           <section className="step" data-step="1">
             <div className="wizard-card">
               <div className="wizard-card-header">
-                <div className="section-title">Define your belief</div>
-                <div className="section-sub">What&apos;s your thesis? Pick a template or write your own.</div>
+                <div className="section-title">Pick a strategy</div>
+                <div className="section-sub">Choose a Polymarket edge or describe your own.</div>
               </div>
               <div className="wizard-card-body">
                 <div className="form-section">
-                  <div className="form-section-label"><span className="accent-dot"></span> Starting point</div>
+                  <div className="form-section-label"><span className="accent-dot"></span> Strategy template</div>
                   <div className="field"><select id="templateSelect"></select></div>
                 </div>
                 <div className="form-section">
-                  <div className="form-section-label"><span className="accent-dot"></span> Your belief</div>
+                  <div className="form-section-label"><span className="accent-dot"></span> Your edge</div>
                   <div className="thesis-box">
-                    <textarea id="thesisText" className="thesis-textarea" placeholder="e.g. The incumbent party is underpriced to win based on economic indicators and approval trends."></textarea>
+                    <textarea id="thesisText" className="thesis-textarea" placeholder="e.g. New markets have the softest odds — get in first on every new market before the crowd prices it."></textarea>
                     <div className="thesis-toolbar">
                       <div className="thesis-toolbar-left">
                         <button className="attach-btn" id="attachBtn" title="Attach research">+ Attach</button>
@@ -971,7 +970,7 @@ export default function Thesis() {
             <div className="wizard-card">
               <div className="wizard-card-header">
                 <div className="section-title">Strategy preview</div>
-                <div className="section-sub">Review how your agent will trade Polymarket before funding.</div>
+                <div className="section-sub">Review your agent&apos;s behavior before funding.</div>
               </div>
               <div className="wizard-card-body" style={{ paddingTop: 0, paddingBottom: 0 }}>
                 <div className="strategy-card" id="strategyPanel">
@@ -995,11 +994,11 @@ export default function Thesis() {
             <div className="wizard-card">
               <div className="wizard-card-header">
                 <div className="section-title">Fund your agent</div>
-                <div className="section-sub">Send USDC.e on Polygon to your agent&apos;s Safe address. Gasless trading via Polymarket&apos;s relayer.</div>
+                <div className="section-sub">Send USDC.e on Polygon to your agent&apos;s address.</div>
               </div>
               <div className="wizard-card-body">
                 <div className="deposit-section">
-                  <div className="deposit-note">Send USDC.e (bridged USDC) on Polygon to the address below. Do not send native USDC. Minimum $1 per trade.</div>
+                  <div className="deposit-note">Send USDC.e on Polygon to the address below. Do not send native USDC.</div>
                   <div className="deposit-markets" id="depositMarkets"></div>
                 </div>
               </div>
@@ -1009,13 +1008,13 @@ export default function Thesis() {
                   <div className="paper-trading-icon">{'\uD83D\uDCC4'}</div>
                   <div className="paper-trading-info">
                     <div className="paper-trading-title">Start with paper trading</div>
-                    <div className="paper-trading-desc">Test your strategy with simulated funds. No deposit required &mdash; switch to live trading anytime.</div>
+                    <div className="paper-trading-desc">Simulated funds, no deposit. Switch to live anytime.</div>
                   </div>
                   <button className="btn btn-secondary" id="paperTradeBtn">Paper trade &rarr;</button>
                 </div>
               </div>
               <div className="wizard-card-footer">
-                <div className="disclaimer">Non-custodial. You can withdraw or revoke access at any time.</div>
+                <div className="disclaimer">Self-custodial. Withdraw or revoke access anytime.</div>
                 <button className="btn btn-primary" data-next>Launch agent &rarr;</button>
               </div>
             </div>
