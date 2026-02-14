@@ -85,18 +85,12 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
 
     // Create ZeroDev smart account with recovery guardian and session key enabled
     // This sets up the backend EOA as sudo (owner), guardian, and session key signer
-    let smartAccountAddress: string;
-    let sessionKeyData: string | undefined;
-    if (env.ZERODEV_PROJECT_ID) {
-      const result = await zerodev.createSmartAccountWithRecovery(
-        secretValue as Hex,
-        derivationChainId
-      );
-      smartAccountAddress = result.address;
-      sessionKeyData = result.sessionKeyData;
-    } else {
-      smartAccountAddress = generatePlaceholderAddress();
-    }
+    const result = await zerodev.createSmartAccountWithRecovery(
+      secretValue as Hex,
+      derivationChainId
+    );
+    const smartAccountAddress = result.address;
+    const sessionKeyData = result.sessionKeyData;
 
     walletMetadata = {
       create: {
