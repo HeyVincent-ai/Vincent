@@ -915,18 +915,35 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             if (!orderId) throw new Error('No order ID found for delivery polling');
 
             addLog('Waiting for VPS delivery...');
-            const deliveredServiceName = await pollForDelivery(orderId, addLog);
-            ctx.serviceName = deliveredServiceName;
-            addLog(`VPS delivered: ${deliveredServiceName}`);
+
+            // Retry loop: if another deployment claims the VPS first (unique constraint),
+            // keep polling until we find our own VPS.
+            let claimed = false;
+            while (!claimed) {
+              const deliveredServiceName = await pollForDelivery(orderId, addLog);
+              try {
+                await updateDeployment(deploymentId, {
+                  ovhServiceName: deliveredServiceName,
+                });
+                ctx.serviceName = deliveredServiceName;
+                claimed = true;
+                addLog(`VPS delivered: ${deliveredServiceName}`);
+              } catch (err: any) {
+                if (err.code === 'P2002' && err.meta?.target?.includes('ovh_service_name')) {
+                  addLog(`VPS ${deliveredServiceName} already claimed by another deployment, retrying...`);
+                  continue;
+                }
+                throw err;
+              }
+            }
           }
 
-          ctx.hostname = ovhService.getVpsHostname(ctx.serviceName);
+          ctx.hostname = ovhService.getVpsHostname(ctx.serviceName!);
           addLog(`VPS hostname: ${ctx.hostname}`);
 
           await updateDeployment(deploymentId, {
             status: 'PROVISIONING',
             statusMessage: 'VPS delivered, retrieving IP address',
-            ovhServiceName: ctx.serviceName,
             hostname: ctx.hostname,
             provisionLog: log,
             provisionStage: stage,
@@ -1158,9 +1175,17 @@ async function pollForDelivery(orderId: number, addLog: (msg: string) => void): 
     // Secondary: check if a new VPS appeared in the list
     try {
       const vpsNow = await ovhService.listVps();
-      for (const name of vpsNow) {
-        if (!vpsBefore.has(name)) {
-          return name;
+      const newVpses = vpsNow.filter((name) => !vpsBefore.has(name));
+      if (newVpses.length > 0) {
+        // Exclude VPSes already claimed by other deployments
+        const claimed = await prisma.openClawDeployment.findMany({
+          where: { ovhServiceName: { in: newVpses } },
+          select: { ovhServiceName: true },
+        });
+        const claimedSet = new Set(claimed.map((d) => d.ovhServiceName));
+        const unclaimed = newVpses.filter((name) => !claimedSet.has(name));
+        if (unclaimed.length > 0) {
+          return unclaimed[0];
         }
       }
     } catch {}
