@@ -45,6 +45,7 @@ export function createApp(): Express {
             'https://*.walletconnect.com',
             'https://*.merkle.io',
             'https://*.ingest.us.sentry.io',
+            'https://*.zerodev.app',
           ],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
