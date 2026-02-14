@@ -2,7 +2,7 @@
  * E2E Test: Polymarket CLOB — gasless bets via Safe wallet + Builder relayer
  *
  * Creates a POLYMARKET_WALLET via the API (gasless Safe-based wallet),
- * funds the Safe with USDC after lazy deployment, places a bet, sells it back,
+ * funds the Safe with USDC, places a bet, sells it back,
  * then returns remaining USDC to the funder.
  *
  * Required env vars:
@@ -571,21 +571,9 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
     expect(createRes.body.success).toBe(true);
     apiKey = createRes.body.data.apiKey.key;
     secretId = createRes.body.data.secret.id;
+    safeAddress = createRes.body.data.secret.walletAddress as Address;
     console.log(`Secret ID: ${secretId}`);
-    console.log(
-      `Initial wallet address (EOA, pre-Safe): ${createRes.body.data.secret.walletAddress}`
-    );
-
-    // Step 2: Trigger lazy Safe deployment by checking balance
-    // This will deploy the Safe and approve collateral via the relayer (gasless)
-    console.log('Triggering lazy Safe deployment via balance check...');
-    const balRes = await request(app)
-      .get('/api/skills/polymarket/balance')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .expect(200);
-
-    safeAddress = balRes.body.data.walletAddress as Address;
-    console.log(`Safe address (deployed): ${safeAddress}`);
+    console.log(`Safe address (deployed at creation): ${safeAddress}`);
     expect(safeAddress).toBeTruthy();
 
     // Step 3: Fund the Safe with USDC.e

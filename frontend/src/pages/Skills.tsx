@@ -154,8 +154,8 @@ export default function Skills() {
       polymarket: 'npx clawhub@latest install vincentpolymarket',
     },
     other: {
-      wallet: 'npx skills add HeyVincent-ai/Vincent/wallet',
-      polymarket: 'npx skills add HeyVincent-ai/Vincent/polymarket',
+      wallet: 'npx skills add HeyVincent-ai/agent-skills/wallet',
+      polymarket: 'npx skills add HeyVincent-ai/agent-skills/polymarket',
     },
   };
 
@@ -474,7 +474,7 @@ export default function Skills() {
             <div className="micro" style={{ marginTop: 12 }}>
               Want a connector prioritized?{' '}
               <a
-                href="https://discord.gg/FPkF6cZf"
+                href="https://discord.gg/WVcQRJsNdv"
                 target="_blank"
                 rel="noreferrer"
                 style={{ color: 'var(--accent)' }}
