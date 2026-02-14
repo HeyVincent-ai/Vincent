@@ -96,18 +96,21 @@ async function getWalletData(secretId: string) {
  * where the wallet has been deployed/used.
  */
 async function trackChainUsage(secretId: string, chainId: number): Promise<void> {
-  const metadata = await prisma.walletSecretMetadata.findUnique({
-    where: { secretId },
-  });
-
-  if (metadata && !metadata.chainsUsed.includes(chainId)) {
-    await prisma.walletSecretMetadata.update({
-      where: { secretId },
-      data: {
-        chainsUsed: [...metadata.chainsUsed, chainId],
+  await prisma.walletSecretMetadata.updateMany({
+    where: {
+      secretId,
+      NOT: {
+        chainsUsed: {
+          has: chainId,
+        },
       },
-    });
-  }
+    },
+    data: {
+      chainsUsed: {
+        push: chainId,
+      },
+    },
+  });
 }
 
 /**
