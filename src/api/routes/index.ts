@@ -10,6 +10,7 @@ import rawSignerRouter from './rawSigner.routes.js';
 import billingRouter from './billing.routes.js';
 import auditLogsRouter from './auditLogs.routes.js';
 import openclawRouter from './openclaw.routes.js';
+import ownershipRouter from './ownership.routes.js';
 
 const router = Router();
 
@@ -20,6 +21,7 @@ router.use('/secrets', secretsRouter);
 router.use('/secrets', apiKeysRouter); // API key routes are nested under /secrets/:secretId/api-keys
 router.use('/secrets/:secretId/policies', policiesRouter); // Policy routes nested under /secrets/:secretId/policies
 router.use('/secrets/:secretId/audit-logs', auditLogsRouter); // Audit log routes
+router.use('/secrets/:secretId/take-ownership', ownershipRouter); // Ownership transfer routes
 router.use('/skills/evm-wallet', evmWalletRouter); // EVM wallet skill endpoints
 router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoints
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints

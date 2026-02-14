@@ -57,6 +57,7 @@ model Secret {
   polymarketWalletMetadata  PolymarketWalletMetadata?
   rawSignerMetadata         RawSignerMetadata?
   apiKeys                   ApiKey[]
+  ownershipChallenges       OwnershipChallenge[]
   policies          Policy[]
   transactionLogs   TransactionLog[]
   auditLogs         AuditLog[]
@@ -97,11 +98,18 @@ model PolymarketWalletMetadata {
 
 // Wallet-specific metadata for EVM_WALLET secrets
 model WalletSecretMetadata {
-  id                  String   @id @default(cuid())
-  secretId            String   @unique @map("secret_id")
-  smartAccountAddress String   @map("smart_account_address")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                   String    @id @default(cuid())
+  secretId             String    @unique @map("secret_id")
+  smartAccountAddress  String    @map("smart_account_address")
+  canTakeOwnership     Boolean   @default(false) @map("can_take_ownership")
+  ownershipTransferred Boolean   @default(false) @map("ownership_transferred")
+  ownerAddress         String?   @map("owner_address") // User's EOA after ownership transfer
+  transferredAt        DateTime? @map("transferred_at")
+  transferTxHash       String?   @map("transfer_tx_hash")
+  chainsUsed           Int[]     @default([]) @map("chains_used") // Track which chains have been used
+  sessionKeyData       String?   @map("session_key_data")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 
@@ -306,6 +314,21 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([status, createdAt])
   @@map("audit_logs")
+}
+
+// Ownership challenge for wallet self-custody verification
+model OwnershipChallenge {
+  id        String   @id @default(cuid())
+  secretId  String   @map("secret_id")
+  address   String   // New owner address (lowercased)
+  challenge String   @db.Text
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@unique([secretId, address])
+  @@map("ownership_challenges")
 }
 
 // OpenClaw deployment status enum
