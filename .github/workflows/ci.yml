@@ -25,10 +25,11 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      - name: Lint
+        run: npm run lint
+
       - name: Type-check
         run: npx tsc --noEmit
 
       - name: Run tests
         run: npm test
-        env:
-          DATABASE_URL: postgresql://test:test@localhost:5432/test
