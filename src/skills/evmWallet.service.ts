@@ -85,6 +85,7 @@ async function getWalletData(secretId: string) {
     smartAccountAddress: secret.walletMetadata.smartAccountAddress as Address,
     userId: secret.userId,
     createdAt: secret.createdAt,
+    canTakeOwnership: secret.walletMetadata.canTakeOwnership,
     ownershipTransferred: secret.walletMetadata.ownershipTransferred,
     sessionKeyData: secret.walletMetadata.sessionKeyData,
   };
@@ -111,6 +112,17 @@ async function trackChainUsage(secretId: string, chainId: number): Promise<void>
       },
     },
   });
+}
+
+/**
+ * Get smartAccountAddress for ZeroDev execution calls.
+ * Only wallets created with session key initConfig (canTakeOwnership=true) should
+ * pass their address, as it triggers initConfig reconstruction in getKernelClient.
+ * Legacy wallets were created without this initConfig, so passing their address
+ * would cause counterfactual address mismatches on undeployed chains.
+ */
+function getSmartAccountAddressForExec(wallet: { smartAccountAddress: Address; canTakeOwnership: boolean }): Address | undefined {
+  return wallet.canTakeOwnership ? wallet.smartAccountAddress : undefined;
 }
 
 /**
@@ -258,7 +270,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         to: to as Address,
         value: parseEther(amount),
         sessionKeyData: getSessionKeyForSigning(wallet),
-        smartAccountAddress: wallet.smartAccountAddress,
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     } else {
       // Get token decimals for proper amount conversion
@@ -271,7 +283,7 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         tokenAddress: token as Address,
         tokenAmount: parseUnits(amount, decimals),
         sessionKeyData: getSessionKeyForSigning(wallet),
-        smartAccountAddress: wallet.smartAccountAddress,
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     }
 
@@ -443,7 +455,7 @@ export async function executeSendTransaction(
       data: data as Hex,
       value: value ? parseEther(value) : 0n,
       sessionKeyData: getSessionKeyForSigning(wallet),
-      smartAccountAddress: wallet.smartAccountAddress,
+      smartAccountAddress: getSmartAccountAddressForExec(wallet),
     });
 
     await prisma.transactionLog.update({
@@ -764,7 +776,7 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         data: calls[0].data,
         value: calls[0].value,
         sessionKeyData: getSessionKeyForSigning(wallet),
-        smartAccountAddress: wallet.smartAccountAddress,
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     } else {
       // Batch call (approval + swap)
@@ -773,7 +785,7 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         chainId,
         calls,
         sessionKeyData: getSessionKeyForSigning(wallet),
-        smartAccountAddress: wallet.smartAccountAddress,
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     }
 
