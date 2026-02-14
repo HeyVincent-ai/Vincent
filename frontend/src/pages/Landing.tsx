@@ -258,8 +258,11 @@ export default function Landing() {
                   <path d="M16 3.13a4 4 0 0 1 0 7.75" />
                 </svg>
               </div>
-              <h3>Multi-Party Auth</h3>
-              <p>n-of-m approval flows for high-stakes actions across teams and groups.</p>
+              <h3>Advanced Mode</h3>
+              <p>
+                Access the full OpenClaw runtime — install skills, customize behavior, extend
+                capabilities.
+              </p>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>

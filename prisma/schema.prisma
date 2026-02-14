@@ -86,7 +86,7 @@ model PolymarketWalletMetadata {
   id          String   @id @default(cuid())
   secretId    String   @unique @map("secret_id")
   eoaAddress  String   @map("eoa_address")
-  safeAddress String?  @map("safe_address")
+  safeAddress String   @map("safe_address")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -342,6 +342,9 @@ model OpenClawDeployment {
 
   // OpenRouter
   openRouterKeyHash String?      @map("open_router_key_hash")
+
+  // Channel configuration
+  telegramConfigured Boolean      @default(false) @map("telegram_configured")
 
   // Status tracking
   status          OpenClawStatus @default(PENDING)

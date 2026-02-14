@@ -36,9 +36,10 @@ export function createApp(): Express {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          connectSrc: ["'self'", 'https://api.stytch.com'],
+          connectSrc: ["'self'", 'https://*.stytch.com'],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
+          workerSrc: ["'self'", "blob:"],
           frameSrc: ["'self'", "https://*.vps.ovh.us"],
         },
       },
@@ -63,6 +64,7 @@ export function createApp(): Express {
     },
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { trustProxy: false }, // Suppress ERR_ERL_PERMISSIVE_TRUST_PROXY — Railway is a trusted reverse proxy
   });
   app.use(limiter);
 

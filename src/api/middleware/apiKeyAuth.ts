@@ -61,7 +61,6 @@ export async function apiKeyAuthMiddleware(
         type: true,
         // value: intentionally NOT selected - private key must never be on request object
         memo: true,
-        claimToken: true,
         claimedAt: true,
         deletedAt: true,
         createdAt: true,
@@ -135,7 +134,6 @@ export async function optionalApiKeyAuthMiddleware(
           type: true,
           // value: intentionally NOT selected
           memo: true,
-          claimToken: true,
           claimedAt: true,
           deletedAt: true,
           createdAt: true,

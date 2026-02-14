@@ -14,6 +14,19 @@ process.on('unhandledRejection', (reason) => {
   Sentry.captureException(reason);
 });
 
+// Log uncaught exceptions so crashes are never silent
+process.on('uncaughtException', (err) => {
+  console.error('FATAL: Uncaught exception — process will exit:', err);
+  Sentry.captureException(err, { tags: { fatal: 'true' } });
+  // Give Sentry time to flush before exiting
+  Sentry.flush(2000).finally(() => process.exit(1));
+});
+
+// Log every process exit with the exit code
+process.on('exit', (code) => {
+  console.log(`Process exiting with code ${code}`);
+});
+
 async function main() {
   const app = createApp();
 

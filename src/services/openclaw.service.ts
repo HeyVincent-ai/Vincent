@@ -41,7 +41,7 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
@@ -51,7 +51,7 @@ import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 // ============================================================
 
 // Plans to try in priority order
-const VPS_PLANS_PRIORITY = [
+export const VPS_PLANS_PRIORITY = [
   'vps-2025-model1.LZ',
   'vps-2025-model1-ca',
   'vps-2025-model1',
@@ -596,11 +596,9 @@ async function findAvailablePlanAndDc(): Promise<{ planCode: string; datacenter:
     }
   }
 
-  // Fallback: use first plan with whatever cart datacenter is available
-  const fallbackPlan = VPS_PLANS_PRIORITY[0];
-  const cartDcs = await ovhService.getCartDatacenters(fallbackPlan);
-  const dc = cartDcs[0] || 'US-EAST-LZ-MIA';
-  return { planCode: fallbackPlan, datacenter: dc };
+  throw new Error(
+    'No VPS plans available — all plans are out of stock in their allowed datacenters'
+  );
 }
 
 // ============================================================
@@ -679,6 +677,12 @@ export async function deploy(
     throw new Error('STRIPE_OPENCLAW_PRICE_ID is not configured');
   }
 
+  // Check if user has ever had an OpenClaw deployment (any status) — free trial is for first deployment only
+  const existingDeployments = await prisma.openClawDeployment.count({
+    where: { userId },
+  });
+  const isFirstDeployment = existingDeployments === 0;
+
   // Create deployment record in PENDING_PAYMENT state
   const deployment = await prisma.openClawDeployment.create({
     data: {
@@ -697,7 +701,7 @@ export async function deploy(
     mode: 'subscription',
     payment_method_types: ['card'],
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
-    subscription_data: { trial_period_days: 7 },
+    subscription_data: isFirstDeployment ? { trial_period_days: 7 } : {},
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
@@ -878,7 +882,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`Ordering VPS (plan: ${planCode}, dc: ${datacenter}, os: ${os})...`);
             await updateDeployment(deploymentId, {
               status: 'ORDERING',
-              statusMessage: 'Placing VPS order with OVH',
+              statusMessage: 'Deploying agent server',
               provisionLog: log,
             });
 
@@ -1461,6 +1465,111 @@ export async function restart(deploymentId: string, userId: string): Promise<Ope
 }
 
 // ============================================================
+// Telegram Channel Setup
+// ============================================================
+
+/**
+ * Check which channels are configured on a deployment via SSH.
+ */
+export async function getChannelStatus(
+  deploymentId: string,
+  userId: string
+): Promise<{ telegram: { configured: boolean } }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  return { telegram: { configured: deployment.telegramConfigured } };
+}
+
+/**
+ * Configure a Telegram bot token on a deployment and restart the gateway.
+ */
+export async function configureTelegramBot(
+  deploymentId: string,
+  userId: string,
+  botToken: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^\d+:[A-Za-z0-9_-]+$/.test(botToken)) {
+    throw new Error('Invalid Telegram bot token format');
+  }
+
+  const telegramConfig = JSON.stringify({
+    enabled: true,
+    botToken,
+    dmPolicy: 'pairing',
+  });
+
+  await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw config set channels.telegram --json '${telegramConfig}' && sudo openclaw config set plugins.entries.telegram.enabled true && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+}
+
+/**
+ * Approve a Telegram pairing code on a deployment via SSH.
+ */
+export async function approveTelegramPairing(
+  deploymentId: string,
+  userId: string,
+  code: string
+): Promise<{ success: boolean; message: string }> {
+  const deployment = await prisma.openClawDeployment.findFirst({
+    where: { id: deploymentId, userId, status: { in: ['READY', 'CANCELING'] } },
+  });
+
+  if (!deployment) {
+    throw new Error('Deployment not found or not in READY state');
+  }
+
+  if (!deployment.ipAddress || !deployment.sshPrivateKey) {
+    throw new Error('Deployment missing IP or SSH key');
+  }
+
+  if (!/^[A-Za-z0-9-]+$/.test(code)) {
+    throw new Error('Invalid pairing code format');
+  }
+
+  const result = await sshExec(
+    deployment.ipAddress,
+    SSH_USERNAME,
+    deployment.sshPrivateKey,
+    `sudo openclaw pairing approve telegram ${code} && sudo systemctl restart openclaw-gateway`,
+    30_000
+  );
+
+  if (result.code !== 0) {
+    throw new Error(result.stderr.trim() || 'Failed to approve pairing code');
+  }
+
+  await prisma.openClawDeployment.update({
+    where: { id: deploymentId },
+    data: { telegramConfigured: true },
+  });
+
+  return { success: true, message: result.stdout.trim() || 'Pairing approved' };
+}
+
+// ============================================================
 // Token Billing (LLM Credits)
 // ============================================================
 
@@ -1537,51 +1646,23 @@ export async function getUsage(
 }
 
 /**
- * Add LLM credits to a deployment by charging the user's Stripe payment method.
+ * Fulfill a credit purchase after Stripe Checkout completes (called from webhook).
+ * Payment has already been collected — just update the balance and records.
  */
-export async function addCredits(
+export async function fulfillCreditPurchase(
   deploymentId: string,
-  userId: string,
-  amountUsd: number
-): Promise<{
-  success: boolean;
-  newBalanceUsd: number;
-  paymentIntentId?: string;
-  requiresAction?: boolean;
-  clientSecret?: string;
-}> {
-  if (amountUsd < 5 || amountUsd > 500) {
-    throw new Error('Credit amount must be between $5 and $500');
-  }
-
-  const deployment = await prisma.openClawDeployment.findFirst({
-    where: { id: deploymentId, userId },
+  amountUsd: number,
+  stripePaymentIntentId: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
   });
 
-  if (!deployment) throw new Error('Deployment not found');
-  if (!['READY', 'CANCELING'].includes(deployment.status)) {
-    throw new Error('Deployment must be READY to add credits');
+  if (!deployment) {
+    console.error(`[openclaw] fulfillCreditPurchase: deployment ${deploymentId} not found`);
+    return;
   }
 
-  const amountCents = Math.round(amountUsd * 100);
-  const result = await chargeCustomerOffSession(
-    userId,
-    amountCents,
-    `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
-    { deploymentId, type: 'openclaw_credits' }
-  );
-
-  if (result.requiresAction) {
-    return {
-      success: false,
-      newBalanceUsd: Number(deployment.creditBalanceUsd),
-      requiresAction: true,
-      clientSecret: result.clientSecret,
-      paymentIntentId: result.paymentIntentId,
-    };
-  }
-
-  // Payment succeeded — update credit balance and OpenRouter key limit
   const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
 
   await prisma.$transaction([
@@ -1593,7 +1674,7 @@ export async function addCredits(
       data: {
         deploymentId,
         amountUsd,
-        stripePaymentIntentId: result.paymentIntentId!,
+        stripePaymentIntentId,
       },
     }),
   ]);
@@ -1607,11 +1688,7 @@ export async function addCredits(
     }
   }
 
-  return {
-    success: true,
-    newBalanceUsd: newBalance,
-    paymentIntentId: result.paymentIntentId,
-  };
+  console.log(`[openclaw] Credited $${amountUsd} to deployment ${deploymentId}, new balance: $${newBalance}`);
 }
 
 // ============================================================

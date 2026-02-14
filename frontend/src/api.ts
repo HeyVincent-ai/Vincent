@@ -128,8 +128,15 @@ export const reprovisionOpenClawDeployment = (id: string) =>
 export const downloadOpenClawSshKey = (id: string) =>
   api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
 export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
-export const addOpenClawCredits = (id: string, amountUsd: number) =>
-  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
+export const createOpenClawCreditsCheckout = (
+  id: string,
+  successUrl: string,
+  cancelUrl: string
+) => api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
+export const setupOpenClawTelegram = (id: string, botToken: string) =>
+  api.post(`/openclaw/deployments/${id}/telegram/setup`, { botToken });
+export const pairOpenClawTelegram = (id: string, code: string) =>
+  api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
 
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
