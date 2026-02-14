@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/react';
+import { shouldIgnoreSentryEvent } from './sentryFilters';
 
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;
@@ -23,6 +24,13 @@ export function initSentry() {
     ],
     // Don't send errors in development unless explicitly enabled
     enabled: import.meta.env.PROD || !!import.meta.env.VITE_SENTRY_ENABLED,
+    beforeSend(event) {
+      if (shouldIgnoreSentryEvent(event)) {
+        return null;
+      }
+
+      return event;
+    },
   });
 }
 

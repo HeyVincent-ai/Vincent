@@ -335,6 +335,15 @@ Environment needed on the host:
 /skills         # Skill documentation for agents
 ```
 
+## Sentry Signal Quality
+
+Vincent applies `beforeSend` filters in both backend and frontend Sentry initialization to reduce non-actionable noise, including:
+
+- expected user-action errors (e.g. insufficient funds, user rejected/denied)
+- known browser/runtime noise (e.g. chunk load errors, abort/network noise)
+
+This keeps triage focused on actionable engineering issues.
+
 ## Security
 
 - **Database Encryption**: PostgreSQL encrypted at rest
