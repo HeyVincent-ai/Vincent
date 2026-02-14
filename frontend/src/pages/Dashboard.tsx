@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { getUserSecrets, createSecret, claimSecret, getAlpacaConnection } from '../api';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../components/Toast';
+import { formatUsd } from '../utils/format';
 
 interface Secret {
   id: string;
@@ -43,13 +44,6 @@ function getAddresses(s: Secret): { label: string; address: string }[] {
   if (s.ethAddress) out.push({ label: 'ETH', address: s.ethAddress });
   if (s.solanaAddress) out.push({ label: 'SOL', address: s.solanaAddress });
   return out;
-}
-
-function formatUsd(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  const num = Number(value);
-  if (!Number.isFinite(num)) return String(value);
-  return `$${num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 // ── Inline Icon Components ──────────────────────────────────────────
