@@ -36,7 +36,14 @@ export function createApp(): Express {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          connectSrc: ["'self'", 'https://*.stytch.com'],
+          connectSrc: [
+            "'self'",
+            'https://*.stytch.com',
+            'https://*.walletconnect.org',
+            'https://*.web3modal.org',
+            'https://*.walletconnect.com',
+            'https://*.merkle.io',
+          ],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           workerSrc: ["'self'", 'blob:'],
