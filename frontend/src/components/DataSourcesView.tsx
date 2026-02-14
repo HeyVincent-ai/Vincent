@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   getDataSourceInfo,
   getDataSourceCredits,
-  addDataSourceCredits,
+  createDataSourceCreditsCheckout,
   getDataSourceUsage,
 } from '../api';
 import { useToast } from './Toast';
@@ -48,10 +48,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
   const [purchases, setPurchases] = useState<CreditPurchase[]>([]);
   const [usageHistory, setUsageHistory] = useState<UsageHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreditsModal, setShowCreditsModal] = useState(false);
-  const [creditAmount, setCreditAmount] = useState('10');
   const [creditLoading, setCreditLoading] = useState(false);
-  const [creditError, setCreditError] = useState<string | null>(null);
 
   const loadData = async () => {
     try {
@@ -71,37 +68,28 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
     }
   };
 
+  // Show toast if returning from Stripe Checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('credits') === 'success') {
+      toast('Credits added successfully!');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   useEffect(() => {
     loadData();
   }, [secretId]);
 
   const handleAddCredits = async () => {
-    const amount = parseFloat(creditAmount);
-    if (isNaN(amount) || amount < 5 || amount > 500) {
-      setCreditError('Enter an amount between $5 and $500');
-      return;
-    }
     setCreditLoading(true);
-    setCreditError(null);
     try {
-      const res = await addDataSourceCredits(secretId, amount);
-      if (res.data.data.requiresAction) {
-        setCreditError('3D Secure required — please complete verification in your bank app, then try again.');
-        return;
-      }
-      setBalance(res.data.data.balance);
-      toast(`$${amount.toFixed(2)} credits added`);
-      setShowCreditsModal(false);
-      setCreditAmount('10');
-      // Refresh purchases list
-      getDataSourceCredits(secretId)
-        .then((r) => setPurchases(r.data.data.purchases))
-        .catch(() => {});
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
-        ?.data?.error?.message;
-      setCreditError(msg || 'Failed to add credits');
-    } finally {
+      const successUrl = `${window.location.origin}${window.location.pathname}?credits=success`;
+      const cancelUrl = `${window.location.origin}${window.location.pathname}`;
+      const res = await createDataSourceCreditsCheckout(secretId, successUrl, cancelUrl);
+      window.location.href = res.data.data.url;
+    } catch {
+      toast('Failed to start checkout. Please try again.');
       setCreditLoading(false);
     }
   };
@@ -148,10 +136,11 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-sm font-medium text-foreground">Data Source Credits</h3>
           <button
-            onClick={() => setShowCreditsModal(true)}
-            className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 transition-colors"
+            onClick={handleAddCredits}
+            disabled={creditLoading}
+            className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
-            Add Credits
+            {creditLoading ? 'Redirecting...' : 'Add Credits'}
           </button>
         </div>
         <div className="w-full bg-muted rounded-full h-2.5 mb-2">
@@ -277,55 +266,6 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
         </div>
       )}
 
-      {/* Add Credits Modal */}
-      {showCreditsModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setShowCreditsModal(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-lg p-6 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-foreground mb-4">Add Data Source Credits</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Credits will be charged to your card on file. Minimum $5, maximum $500.
-            </p>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-muted-foreground">$</span>
-              <input
-                type="number"
-                min="5"
-                max="500"
-                step="5"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(e.target.value)}
-                className="bg-background border border-border rounded px-3 py-2 w-full text-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="10"
-              />
-            </div>
-            {creditError && <p className="text-sm text-destructive mb-3">{creditError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowCreditsModal(false);
-                  setCreditError(null);
-                }}
-                className="text-sm text-muted-foreground px-4 py-2 hover:text-foreground transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddCredits}
-                disabled={creditLoading}
-                className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {creditLoading ? 'Charging...' : `Add $${parseFloat(creditAmount) || 0} Credits`}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -19,7 +19,7 @@ const envSchema = z.object({
   STYTCH_SECRET: z.string().min(1),
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
-  // ZeroDev Configuration (optional in development)
+  // ZeroDev Configuration
   ZERODEV_PROJECT_ID: z.string(),
 
   // Stripe Billing (optional in development)
@@ -29,6 +29,8 @@ const envSchema = z.object({
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
   // Stripe Price ID with custom_unit_amount enabled (customer chooses amount)
   STRIPE_CREDIT_PRICE_ID: z.string().optional(),
+  // Stripe Price ID for data source credits (custom_unit_amount)
+  STRIPE_DATASOURCES_CREDITS_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),

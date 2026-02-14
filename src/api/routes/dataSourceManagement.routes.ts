@@ -8,7 +8,7 @@ import { errors } from '../../utils/response.js';
 import { getAllDataSources } from '../../dataSources/registry.js';
 import * as creditService from '../../dataSources/credit.service.js';
 import * as usageService from '../../dataSources/usage.service.js';
-import { chargeCustomerOffSession } from '../../billing/stripe.service.js';
+import { createDataSourceCreditsCheckoutSession } from '../../billing/stripe.service.js';
 import prisma from '../../db/client.js';
 
 const router = Router({ mergeParams: true });
@@ -72,52 +72,34 @@ router.get(
   })
 );
 
-const addCreditsSchema = z.object({
-  amountUsd: z.number().min(5).max(500),
+const checkoutSchema = z.object({
+  successUrl: z.string().url(),
+  cancelUrl: z.string().url(),
 });
 
 /**
- * POST /api/secrets/:secretId/data-sources/credits
- * Add credits via Stripe off-session charge.
+ * POST /api/secrets/:secretId/data-sources/credits/checkout
+ * Create a Stripe Checkout session for a data source credit purchase.
+ * The customer enters their desired amount on the Stripe Checkout page.
  */
 router.post(
-  '/credits',
+  '/credits/checkout',
   asyncHandler(async (req, res) => {
     const authReq = req as AuthenticatedRequest;
     const userId = authReq.user!.id;
 
-    const { amountUsd } = addCreditsSchema.parse(req.body);
-    const amountCents = Math.round(amountUsd * 100);
-
-    const chargeResult = await chargeCustomerOffSession(
-      userId,
-      amountCents,
-      `Data source credits: $${amountUsd.toFixed(2)}`,
-      { type: 'data_source_credits' }
-    );
-
-    if (!chargeResult.success) {
-      if (chargeResult.requiresAction) {
-        sendSuccess(res, {
-          requiresAction: true,
-          clientSecret: chargeResult.clientSecret,
-        });
-        return;
-      }
-      errors.internal(res, 'Payment failed');
-      return;
+    const parsed = checkoutSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return errors.validation(res, parsed.error.format());
     }
 
-    const newBalance = await creditService.addCredits(
+    const result = await createDataSourceCreditsCheckoutSession(
       userId,
-      amountUsd,
-      chargeResult.paymentIntentId!
+      parsed.data.successUrl,
+      parsed.data.cancelUrl
     );
 
-    sendSuccess(res, {
-      balance: newBalance.toNumber(),
-      charged: amountUsd,
-    });
+    sendSuccess(res, result);
   })
 );
 

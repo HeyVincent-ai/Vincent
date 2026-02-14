@@ -143,8 +143,11 @@ export const getDataSourceInfo = (secretId: string) =>
   api.get(`/secrets/${secretId}/data-sources`);
 export const getDataSourceCredits = (secretId: string) =>
   api.get(`/secrets/${secretId}/data-sources/credits`);
-export const addDataSourceCredits = (secretId: string, amountUsd: number) =>
-  api.post(`/secrets/${secretId}/data-sources/credits`, { amountUsd });
+export const createDataSourceCreditsCheckout = (
+  secretId: string,
+  successUrl: string,
+  cancelUrl: string
+) => api.post(`/secrets/${secretId}/data-sources/credits/checkout`, { successUrl, cancelUrl });
 export const getDataSourceUsage = (secretId: string) =>
   api.get(`/secrets/${secretId}/data-sources/usage`);
 
