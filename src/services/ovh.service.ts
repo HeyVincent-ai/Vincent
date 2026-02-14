@@ -42,8 +42,10 @@ export interface OvhOrderResult {
 
 export interface OvhOrderStatus {
   orderId: number;
-  status: string;
-  date: string;
+  /** Overall delivery step, e.g. VALIDATING → DELIVERING → AVAILABLE */
+  step: string | null;
+  /** Current status of that step, e.g. TODO → DOING → DONE */
+  status: string | null;
 }
 
 export interface OvhVpsDetails {
@@ -178,15 +180,22 @@ export async function orderVps(options: {
 // ============================================================
 
 /**
- * Get the status of an order.
+ * Get the status of an order via the followUp endpoint.
+ * The base /me/order/{id} response (billing.Order) has no status field;
+ * followUp returns step (VALIDATING/DELIVERING/AVAILABLE) + status (TODO/DOING/DONE/ERROR).
  */
 export async function getOrderStatus(orderId: number): Promise<OvhOrderStatus> {
   const ovh = getClient();
-  const order = await ovh.requestPromised('GET', `/me/order/${orderId}`);
+  const followUp: Array<{ step: string; status: string }> = await ovh.requestPromised(
+    'GET',
+    `/me/order/${orderId}/followUp`
+  );
+  // The array contains one entry per step; pick the latest active one
+  const latest = followUp.length > 0 ? followUp[followUp.length - 1] : null;
   return {
-    orderId: order.orderId,
-    status: order.orderstatus || order.orderStatus,
-    date: order.date,
+    orderId,
+    step: latest?.step ?? null,
+    status: latest?.status ?? null,
   };
 }
 

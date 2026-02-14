@@ -1192,9 +1192,9 @@ async function pollForDelivery(orderId: number, addLog: (msg: string) => void): 
 
     // Log order status
     try {
-      const status = await ovhService.getOrderStatus(orderId);
+      const orderStatus = await ovhService.getOrderStatus(orderId);
       const elapsed = Math.round((Date.now() + ORDER_POLL_TIMEOUT_MS - deadline) / 1000);
-      addLog(`[${elapsed}s] Order ${orderId} status: ${status.status}`);
+      addLog(`[${elapsed}s] Order ${orderId} step: ${orderStatus.step}, status: ${orderStatus.status}`);
     } catch {}
   }
 
