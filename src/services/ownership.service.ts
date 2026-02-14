@@ -26,18 +26,6 @@ export interface OwnershipTransferResult {
   txHashes: Record<number, string>;
 }
 
-// ============================================================
-// Challenge Storage (in-memory, single-instance)
-// ============================================================
-
-interface OwnershipChallenge {
-  challenge: string;
-  address: string;
-  expiresAt: Date;
-}
-
-const challenges = new Map<string, OwnershipChallenge>();
-
 const CHALLENGE_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
 // ============================================================
@@ -72,18 +60,28 @@ By signing this message, I confirm that I control the address above and authoriz
 /**
  * Store a challenge for later verification.
  */
-export function storeChallenge(
+export async function storeChallenge(
   secretId: string,
   address: string,
   challenge: string
-): { expiresAt: Date } {
-  const key = `${secretId}:${address.toLowerCase()}`;
+): Promise<{ expiresAt: Date }> {
   const expiresAt = new Date(Date.now() + CHALLENGE_EXPIRY_MS);
+  const normalizedAddress = address.toLowerCase();
 
-  challenges.set(key, {
-    challenge,
-    address: address.toLowerCase(),
-    expiresAt,
+  await prisma.ownershipChallenge.upsert({
+    where: {
+      secretId_address: { secretId, address: normalizedAddress },
+    },
+    update: {
+      challenge,
+      expiresAt,
+    },
+    create: {
+      secretId,
+      address: normalizedAddress,
+      challenge,
+      expiresAt,
+    },
   });
 
   return { expiresAt };
@@ -102,8 +100,12 @@ export async function verifyAndTransferOwnership(
   newOwnerAddress: string,
   signature: string
 ): Promise<OwnershipTransferResult> {
-  const key = `${secretId}:${newOwnerAddress.toLowerCase()}`;
-  const stored = challenges.get(key);
+  const normalizedAddress = newOwnerAddress.toLowerCase();
+  const stored = await prisma.ownershipChallenge.findUnique({
+    where: {
+      secretId_address: { secretId, address: normalizedAddress },
+    },
+  });
 
   if (!stored) {
     throw new AppError(
@@ -114,7 +116,7 @@ export async function verifyAndTransferOwnership(
   }
 
   if (new Date() > stored.expiresAt) {
-    challenges.delete(key);
+    await prisma.ownershipChallenge.delete({ where: { id: stored.id } });
     throw new AppError('CHALLENGE_EXPIRED', 'Challenge has expired. Request a new challenge.', 400);
   }
 
@@ -130,7 +132,7 @@ export async function verifyAndTransferOwnership(
   }
 
   // One-time use - delete challenge immediately
-  challenges.delete(key);
+  await prisma.ownershipChallenge.delete({ where: { id: stored.id } });
 
   // Get the secret and wallet metadata
   const secret = await prisma.secret.findUnique({
@@ -268,7 +270,7 @@ export async function requestOwnershipChallenge(
     newOwnerAddress
   );
 
-  const { expiresAt } = storeChallenge(secretId, newOwnerAddress, challenge);
+  const { expiresAt } = await storeChallenge(secretId, newOwnerAddress, challenge);
 
   return {
     challenge,

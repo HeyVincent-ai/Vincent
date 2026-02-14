@@ -57,6 +57,7 @@ model Secret {
   polymarketWalletMetadata  PolymarketWalletMetadata?
   rawSignerMetadata         RawSignerMetadata?
   apiKeys                   ApiKey[]
+  ownershipChallenges       OwnershipChallenge[]
   policies          Policy[]
   transactionLogs   TransactionLog[]
   auditLogs         AuditLog[]
@@ -313,6 +314,21 @@ model AuditLog {
   @@index([action, createdAt])
   @@index([status, createdAt])
   @@map("audit_logs")
+}
+
+// Ownership challenge for wallet self-custody verification
+model OwnershipChallenge {
+  id        String   @id @default(cuid())
+  secretId  String   @map("secret_id")
+  address   String   // New owner address (lowercased)
+  challenge String   @db.Text
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@unique([secretId, address])
+  @@map("ownership_challenges")
 }
 
 // OpenClaw deployment status enum
