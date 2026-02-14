@@ -28,10 +28,15 @@ export async function executeApprovedTransaction(
   const chainId = requestData.chainId as number;
 
   // Derive session key data for post-ownership-transfer signing
-  const sessionKeyData = secret.walletMetadata!.ownershipTransferred
-    ? secret.walletMetadata!.sessionKeyData ?? undefined
-    : undefined;
-  const smartAccountAddress = secret.walletMetadata!.smartAccountAddress as Address;
+  const wallet = secret.walletMetadata!;
+  let sessionKeyData: string | undefined;
+  if (wallet.ownershipTransferred) {
+    if (!wallet.sessionKeyData) {
+      throw new Error('This wallet was created before session key support. Backend signing is not available after ownership transfer.');
+    }
+    sessionKeyData = wallet.sessionKeyData;
+  }
+  const smartAccountAddress = wallet.smartAccountAddress as Address;
 
   try {
     let result: { txHash: string; smartAccountAddress: string };
@@ -88,7 +93,7 @@ export async function executeApprovedTransaction(
         sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
       }
       const sellAmountWei = parseUnits(requestData.sellAmount as string, sellAmountDecimals).toString();
-      const takerAddress = secret.walletMetadata!.smartAccountAddress;
+      const takerAddress = wallet.smartAccountAddress;
       console.log(`getting quote with data`, { sellToken, buyToken, sellAmountWei, takerAddress, chainId, slippageBps });
       const quote = await zeroExService.getQuote({
         sellToken,
