@@ -161,9 +161,8 @@ export async function getTokenBalances(
     throw new Error('ALCHEMY_API_KEY not configured');
   }
 
-  const targetNetworks = networks && networks.length > 0
-    ? networks
-    : Object.values(CHAIN_ID_TO_NETWORK);
+  const targetNetworks =
+    networks && networks.length > 0 ? networks : Object.values(CHAIN_ID_TO_NETWORK);
 
   const allRawTokens: AlchemyRawToken[] = [];
 
@@ -267,9 +266,7 @@ export async function getPortfolioBalances(
   let networks: string[] | undefined;
 
   if (chainIds && chainIds.length > 0) {
-    networks = chainIds
-      .map((id) => CHAIN_ID_TO_NETWORK[id])
-      .filter(Boolean);
+    networks = chainIds.map((id) => CHAIN_ID_TO_NETWORK[id]).filter(Boolean);
 
     if (networks.length === 0) {
       throw new Error(`None of the provided chainIds are supported: ${chainIds.join(', ')}`);

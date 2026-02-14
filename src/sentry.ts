@@ -15,9 +15,7 @@ export function initSentry() {
     // Adjust this value in production for high-traffic applications.
     tracesSampleRate: process.env.NODE_ENV === 'production' ? 0.1 : 1.0,
     // Capture unhandled promise rejections
-    integrations: [
-      Sentry.captureConsoleIntegration({ levels: ['error'] }),
-    ],
+    integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
     // Don't send errors in test environment
     enabled: process.env.NODE_ENV !== 'test',
     // Filter out sensitive data

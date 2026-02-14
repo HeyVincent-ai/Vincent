@@ -15,6 +15,23 @@ const Ovh = require('@ovhcloud/node-ovh');
 import { env } from '../utils/env.js';
 
 // ============================================================
+// Subsidiary Mapping
+// ============================================================
+
+/**
+ * Determine the OVH subsidiary for a plan code.
+ * EU plans (ending in `-eu`) may require a different subsidiary to appear
+ * in the cart catalog.  By default we try 'US' for everything — if EU plans
+ * aren't visible under 'US', set OVH_EU_SUBSIDIARY (e.g. 'IE', 'FR').
+ */
+export function getSubsidiaryForPlan(planCode: string): string {
+  if (planCode.endsWith('-eu') || planCode.includes('.LZ-eu')) {
+    return env.OVH_EU_SUBSIDIARY || 'US';
+  }
+  return 'US';
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -25,8 +42,10 @@ export interface OvhOrderResult {
 
 export interface OvhOrderStatus {
   orderId: number;
-  status: string;
-  date: string;
+  /** Overall delivery step, e.g. VALIDATING → DELIVERING → AVAILABLE */
+  step: string | null;
+  /** Current status of that step, e.g. TODO → DOING → DONE */
+  status: string | null;
 }
 
 export interface OvhVpsDetails {
@@ -71,7 +90,9 @@ let client: OvhClient | null = null;
 function getClient(): OvhClient {
   if (!client) {
     if (!env.OVH_APP_KEY || !env.OVH_APP_SECRET || !env.OVH_CONSUMER_KEY) {
-      throw new Error('OVH API credentials not configured (OVH_APP_KEY, OVH_APP_SECRET, OVH_CONSUMER_KEY)');
+      throw new Error(
+        'OVH API credentials not configured (OVH_APP_KEY, OVH_APP_SECRET, OVH_CONSUMER_KEY)'
+      );
     }
     client = Ovh({
       endpoint: env.OVH_ENDPOINT || 'ovh-us',
@@ -99,16 +120,12 @@ export async function orderVps(options: {
   autoPayWithPreferredPaymentMethod?: boolean;
 }): Promise<OvhOrderResult> {
   const ovh = getClient();
-  const {
-    planCode,
-    datacenter,
-    os,
-    autoPayWithPreferredPaymentMethod = true,
-  } = options;
+  const { planCode, datacenter, os, autoPayWithPreferredPaymentMethod = true } = options;
 
-  // Step 1: Create cart
+  // Step 1: Create cart (subsidiary depends on plan region)
+  const subsidiary = getSubsidiaryForPlan(planCode);
   const cart = await ovh.requestPromised('POST', '/order/cart', {
-    ovhSubsidiary: 'US',
+    ovhSubsidiary: subsidiary,
     description: `OpenClaw VPS - ${planCode}`,
   });
   const cartId = cart.cartId;
@@ -126,12 +143,20 @@ export async function orderVps(options: {
   const itemId = item.itemId;
 
   // Step 4: Get required configuration labels
-  const requiredConfig: Array<{ label: string; type: string; fields: string[]; required: boolean }> =
-    await ovh.requestPromised('GET', `/order/cart/${cartId}/item/${itemId}/requiredConfiguration`);
+  const requiredConfig: Array<{
+    label: string;
+    type: string;
+    fields: string[];
+    required: boolean;
+  }> = await ovh.requestPromised(
+    'GET',
+    `/order/cart/${cartId}/item/${itemId}/requiredConfiguration`
+  );
 
   // Step 5: Configure datacenter and OS
-  const dcLabel = requiredConfig.find(c => c.label.includes('datacenter'))?.label || 'vps_datacenter';
-  const osLabel = requiredConfig.find(c => c.label.includes('os'))?.label || 'vps_os';
+  const dcLabel =
+    requiredConfig.find((c) => c.label.includes('datacenter'))?.label || 'vps_datacenter';
+  const osLabel = requiredConfig.find((c) => c.label.includes('os'))?.label || 'vps_os';
 
   await ovh.requestPromised('POST', `/order/cart/${cartId}/item/${itemId}/configuration`, {
     label: dcLabel,
@@ -160,15 +185,22 @@ export async function orderVps(options: {
 // ============================================================
 
 /**
- * Get the status of an order.
+ * Get the status of an order via the followUp endpoint.
+ * The base /me/order/{id} response (billing.Order) has no status field;
+ * followUp returns step (VALIDATING/DELIVERING/AVAILABLE) + status (TODO/DOING/DONE/ERROR).
  */
 export async function getOrderStatus(orderId: number): Promise<OvhOrderStatus> {
   const ovh = getClient();
-  const order = await ovh.requestPromised('GET', `/me/order/${orderId}`);
+  const followUp: Array<{ step: string; status: string }> = await ovh.requestPromised(
+    'GET',
+    `/me/order/${orderId}/followUp`
+  );
+  // The array contains one entry per step; pick the latest active one
+  const latest = followUp.length > 0 ? followUp[followUp.length - 1] : null;
   return {
-    orderId: order.orderId,
-    status: order.orderstatus || order.orderStatus,
-    date: order.date,
+    orderId,
+    step: latest?.step ?? null,
+    status: latest?.status ?? null,
   };
 }
 
@@ -257,7 +289,7 @@ export async function terminateVps(serviceName: string): Promise<void> {
 export async function rebuildVps(
   serviceName: string,
   imageId: string,
-  sshPublicKey: string,
+  sshPublicKey: string
 ): Promise<{ id: number; state: string; type: string }> {
   const ovh = getClient();
   return ovh.requestPromised('POST', `/vps/${serviceName}/rebuild`, {
@@ -280,7 +312,7 @@ export async function getAvailableImages(serviceName: string): Promise<string[]>
  */
 export async function getImageDetails(
   serviceName: string,
-  imageId: string,
+  imageId: string
 ): Promise<{ id: string; name: string }> {
   const ovh = getClient();
   return ovh.requestPromised('GET', `/vps/${serviceName}/images/available/${imageId}`);
@@ -303,7 +335,7 @@ export async function getVpsTasks(serviceName: string): Promise<number[]> {
  */
 export async function getVpsTaskDetails(
   serviceName: string,
-  taskId: number,
+  taskId: number
 ): Promise<{ id: number; state: string; type: string }> {
   const ovh = getClient();
   return ovh.requestPromised('GET', `/vps/${serviceName}/tasks/${taskId}`);
@@ -349,9 +381,10 @@ export async function listSshKeys(): Promise<string[]> {
  */
 export async function getAvailableDatacenters(planCode: string): Promise<any> {
   const ovh = getClient();
+  const subsidiary = getSubsidiaryForPlan(planCode);
   return ovh.requestPromised(
     'GET',
-    `/vps/order/rule/datacenter?ovhSubsidiary=US&planCode=${planCode}`,
+    `/vps/order/rule/datacenter?ovhSubsidiary=${subsidiary}&planCode=${planCode}`
   );
 }
 
@@ -373,8 +406,7 @@ export async function findAvailableDatacenter(planCode: string): Promise<string 
   // Only consider datacenters that are both in-stock AND allowed for this plan
   const available = stockResult.datacenters.find(
     (dc: any) =>
-      dc.linuxStatus === 'available' &&
-      (allowedSet.size === 0 || allowedSet.has(dc.datacenter)),
+      dc.linuxStatus === 'available' && (allowedSet.size === 0 || allowedSet.has(dc.datacenter))
   );
   return available?.datacenter || null;
 }
@@ -386,8 +418,9 @@ export async function findAvailableDatacenter(planCode: string): Promise<string 
  */
 export async function getCartDatacenters(planCode: string): Promise<string[]> {
   const ovh = getClient();
+  const subsidiary = getSubsidiaryForPlan(planCode);
   const cart = await ovh.requestPromised('POST', '/order/cart', {
-    ovhSubsidiary: 'US',
+    ovhSubsidiary: subsidiary,
     description: 'datacenter check',
   });
   await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/assign`);
@@ -400,7 +433,7 @@ export async function getCartDatacenters(planCode: string): Promise<string[]> {
     });
     const reqConfig = await ovh.requestPromised(
       'GET',
-      `/order/cart/${cart.cartId}/item/${item.itemId}/requiredConfiguration`,
+      `/order/cart/${cart.cartId}/item/${item.itemId}/requiredConfiguration`
     );
     const dcConfig = reqConfig.find((c: any) => c.label.includes('datacenter'));
     return dcConfig?.allowedValues || [];
@@ -417,7 +450,11 @@ export async function getAvailableOs(planCode: string): Promise<string[]> {
   // The OS list comes from the cart's requiredConfiguration endpoint.
   // We use the catalog endpoint here for a quick check.
   const ovh = getClient();
-  const catalog = await ovh.requestPromised('GET', '/order/catalog/public/vps?ovhSubsidiary=US');
+  const subsidiary = getSubsidiaryForPlan(planCode);
+  const catalog = await ovh.requestPromised(
+    'GET',
+    `/order/catalog/public/vps?ovhSubsidiary=${subsidiary}`
+  );
   const plan = catalog.plans?.find((p: any) => p.planCode === planCode);
   if (!plan) return [];
   // Extract OS names from addon families or configurations

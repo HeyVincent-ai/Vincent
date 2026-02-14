@@ -142,7 +142,9 @@ describe('OpenClaw Credits E2E', () => {
     expect(res.body.data.creditBalanceUsd).toBe(25);
     expect(res.body.data.remainingUsd).toBe(25);
     expect(res.body.data.totalUsageUsd).toBeDefined();
-    console.log(`  Usage API: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`);
+    console.log(
+      `  Usage API: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`
+    );
   });
 
   // ============================================================
@@ -241,6 +243,8 @@ describe('OpenClaw Credits E2E', () => {
 
     expect(res.body.data.creditBalanceUsd).toBe(55);
     expect(res.body.data.remainingUsd).toBe(55); // no usage yet
-    console.log(`  Usage after purchases: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`);
+    console.log(
+      `  Usage after purchases: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`
+    );
   });
 });

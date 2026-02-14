@@ -101,7 +101,8 @@ export async function requireSecretOwnership(
     return;
   }
 
-  const secretId = (req.params as Record<string, string>).secretId || (req.params as Record<string, string>).id;
+  const secretId =
+    (req.params as Record<string, string>).secretId || (req.params as Record<string, string>).id;
 
   if (!secretId) {
     errors.badRequest(res, 'Missing secret ID in request');
