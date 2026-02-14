@@ -572,13 +572,18 @@ async function main() {
 
   const config = readConfig(credentialsPath);
   const statsPeriod = `${lookbackHours}h`;
+  const onlyActiveInLookback = (args.onlyActiveInLookback || 'false') === 'true';
 
   const allResults: TriageResult[] = [];
 
   for (const project of config.projectSlugs) {
+    const query = onlyActiveInLookback
+      ? `is:unresolved statsPeriod:${statsPeriod}`
+      : 'is:unresolved';
+
     const issues = await sentryGet<SentryIssue[]>(
       config,
-      `/api/0/projects/${encodeURIComponent(config.orgSlug)}/${encodeURIComponent(project)}/issues/?query=is:unresolved+statsPeriod:${encodeURIComponent(statsPeriod)}&limit=${limitPerProject}`,
+      `/api/0/projects/${encodeURIComponent(config.orgSlug)}/${encodeURIComponent(project)}/issues/?query=${encodeURIComponent(query)}&limit=${limitPerProject}`,
     );
 
     for (const issue of issues) {
