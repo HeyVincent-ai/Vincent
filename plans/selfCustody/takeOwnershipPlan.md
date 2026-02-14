@@ -15,9 +15,11 @@ Currently, when an EVM_WALLET is created:
 
 After the user takes ownership:
 1. The **user's EOA** becomes the sudo validator (owner) of the ZeroDev smart account
-2. The **backend EOA** remains as a **regular validator** (weighted ECDSA guardian with sudo policy) that can still sign transactions
+2. The **backend EOA** can still sign transactions via a **permission validator** (session key with sudo policy) that was installed on-chain via `initConfig` at account creation
 3. The user can make transactions directly via their wallet
-4. Our backend can make transactions via the guardian validator (still subject to our policy system)
+4. Our backend can make transactions via the permission validator (still subject to our policy system)
+
+Note: The guardian validator (weighted ECDSA) is used ONLY for the recovery action (`doRecovery`) during the ownership transfer itself. Post-transfer signing uses the permission validator.
 
 ---
 
@@ -33,14 +35,17 @@ Based on ZeroDev's recovery mechanism using `@zerodev/weighted-ecdsa-validator`:
 
 ### Key Insight
 
-The backend EOA serves **two roles**:
-- **Sudo validator** (initially): Full owner of the account
-- **Guardian/Regular validator**: Can execute recovery and sign transactions after ownership transfer
+The backend EOA serves **three roles** at account creation:
+- **Sudo validator** (ECDSA, initially): Full owner of the account
+- **Guardian validator** (weighted ECDSA, regular): Can execute recovery (`doRecovery`) to transfer ownership
+- **Permission validator** (session key via `initConfig`): Can sign transactions after ownership transfer
 
-When we create a wallet, we set up the backend EOA as both the sudo validator AND as a weighted ECDSA guardian. This allows us to:
-1. Initially operate as the owner (sudo)
-2. Execute `doRecovery` to transfer ownership to the user
-3. Continue signing transactions as the guardian (regular validator) after transfer
+When we create a wallet, we set up the backend EOA in all three roles. This allows us to:
+1. Initially operate as the owner (sudo ECDSA validator)
+2. Execute `doRecovery` via the guardian validator to transfer ownership to the user
+3. Continue signing transactions via the permission validator (session key with sudo policy) after transfer
+
+The permission validator is installed on-chain via `initConfig` and persists independently of the sudo validator change. The serialized permission account (`sessionKeyData`) is stored in the DB for later deserialization.
 
 ---
 
@@ -65,17 +70,27 @@ import {
   getValidatorAddress,
   signerToEcdsaValidator,
 } from '@zerodev/ecdsa-validator';
+import {
+  serializePermissionAccount,
+  deserializePermissionAccount,
+  toPermissionValidator,
+  toSudoPolicy,
+  toECDSASigner,
+} from '@zerodev/permissions';
 
 /**
- * Create a ZeroDev smart account with recovery guardian enabled.
- * The backend EOA is set up as both:
- * - Sudo validator (initial owner)
- * - Weighted ECDSA guardian (can execute recovery and sign after transfer)
+ * Create a ZeroDev smart account with recovery guardian AND session key enabled.
+ * The backend EOA is set up as:
+ * - Sudo validator (ECDSA, initial owner)
+ * - Weighted ECDSA guardian (for executing recovery only)
+ * - Permission validator via initConfig (session key with sudo policy for post-transfer signing)
+ *
+ * Returns both the address and the serialized session key data.
  */
 export async function createSmartAccountWithRecovery(
   privateKey: Hex,
   chainId: number
-): Promise<Address> {
+): Promise<{ address: Address; sessionKeyData: string }> {
   const projectId = env.ZERODEV_PROJECT_ID;
   if (!projectId) {
     throw new Error('ZERODEV_PROJECT_ID is not configured');
@@ -103,18 +118,31 @@ export async function createSmartAccountWithRecovery(
     kernelVersion,
   });
 
-  // 3. Create kernel account with sudo, guardian, and recovery action
+  // 3. Create permission validator (session key) with sudo policy for the backend EOA
+  const { initConfig, permissionPlugin } = await buildSessionKeyInitConfig(signer.address, publicClient);
+
+  // 4. Create kernel account with sudo, guardian, recovery action, and session key via initConfig
   const account = await createKernelAccount(publicClient, {
     entryPoint,
+    kernelVersion,
     plugins: {
       sudo: ecdsaValidator,
       regular: guardianValidator,
       action: getRecoveryAction(entryPoint.version),
     },
-    kernelVersion,
+    initConfig, // Session key installed on-chain here
   });
 
-  return account.address;
+  // 5. Serialize the permission account for later deserialization
+  const sessionKeyData = await serializePermissionAccount(
+    account,
+    undefined,
+    undefined,
+    undefined,
+    permissionPlugin
+  );
+
+  return { address: account.address, sessionKeyData };
 }
 
 /**
@@ -195,13 +223,14 @@ export async function executeRecovery(
 }
 
 /**
- * Get a kernel client using the guardian validator (for transactions after ownership transfer).
- * This allows the backend to continue signing transactions even after the user takes ownership.
+ * Get a kernel client using the session key / permission validator
+ * (for transactions after ownership transfer).
+ * Deserializes the stored sessionKeyData to reconstruct the permission account.
  */
-export async function getGuardianKernelClient(
+async function getSessionKeyKernelClient(
   privateKey: Hex,
   chainId: number,
-  smartAccountAddress: Address
+  sessionKeyData: string
 ) {
   const projectId = env.ZERODEV_PROJECT_ID;
   if (!projectId) {
@@ -212,26 +241,17 @@ export async function getGuardianKernelClient(
   const publicClient = getPublicClient(chainId);
   const signer = privateKeyToAccount(privateKey);
 
-  // Create the guardian validator
-  const guardianValidator = await createWeightedECDSAValidator(publicClient, {
-    entryPoint,
-    config: {
-      threshold: 100,
-      signers: [{ address: signer.address, weight: 100 }],
-    },
-    signers: [signer],
-    kernelVersion,
-  });
+  // Create real ECDSA signer (with private key) for signing transactions
+  const sessionKeySigner = await toECDSASigner({ signer });
 
-  // Create account with guardian as regular validator
-  const account = await createKernelAccount(publicClient, {
-    address: smartAccountAddress,
+  // Deserialize the permission account using the stored session key data
+  const account = await deserializePermissionAccount(
+    publicClient,
     entryPoint,
-    plugins: {
-      regular: guardianValidator,
-    },
     kernelVersion,
-  });
+    sessionKeyData,
+    sessionKeySigner
+  );
 
   const paymasterClient = createZeroDevPaymasterClient({
     chain,
@@ -255,18 +275,22 @@ Add ownership tracking fields to `WalletSecretMetadata`:
 
 ```prisma
 model WalletSecretMetadata {
-  id                    String   @id @default(cuid())
-  secretId              String   @unique
-  smartAccountAddress   String
-  ownershipTransferred  Boolean  @default(false)
-  ownerAddress          String?  // User's EOA after ownership transfer
-  transferredAt         DateTime?
-  transferTxHash        String?
+  id                    String    @id @default(cuid())
+  secretId              String    @unique @map("secret_id")
+  smartAccountAddress   String    @map("smart_account_address")
+  canTakeOwnership      Boolean   @default(false) @map("can_take_ownership")
+  ownershipTransferred  Boolean   @default(false) @map("ownership_transferred")
+  ownerAddress          String?   @map("owner_address") // User's EOA after transfer
+  transferredAt         DateTime? @map("transferred_at")
+  transferTxHash        String?   @map("transfer_tx_hash")
   // Track which chains have been used (for multi-chain ownership transfer)
-  chainsUsed            Int[]    @default([])
-  createdAt             DateTime @default(now())
+  chainsUsed            Int[]     @default([]) @map("chains_used")
+  // Serialized permission account for post-transfer backend signing
+  sessionKeyData        String?   @map("session_key_data")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
-  secret Secret @relation(fields: [secretId], references: [id])
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 
   @@map("wallet_secret_metadata")
 }
@@ -274,7 +298,7 @@ model WalletSecretMetadata {
 
 #### 1.4 Update `secret.service.ts`
 
-Modify `createSecret` to use the new recovery-enabled account creation:
+Modify `createSecret` to use the new recovery-enabled account creation and store `sessionKeyData`:
 
 ```typescript
 // In createSecret function, replace the existing ZeroDev account creation:
@@ -283,12 +307,15 @@ if (type === SecretType.EVM_WALLET) {
   const derivationChainId = 84532; // Base Sepolia
 
   let smartAccountAddress: string;
+  let sessionKeyData: string | undefined;
   if (env.ZERODEV_PROJECT_ID) {
-    // Create account with recovery guardian enabled
-    smartAccountAddress = await zerodev.createSmartAccountWithRecovery(
+    // Create account with recovery guardian + session key enabled
+    const result = await zerodev.createSmartAccountWithRecovery(
       secretValue as Hex,
       derivationChainId
     );
+    smartAccountAddress = result.address;
+    sessionKeyData = result.sessionKeyData;
   } else {
     smartAccountAddress = generatePlaceholderAddress();
   }
@@ -296,8 +323,10 @@ if (type === SecretType.EVM_WALLET) {
   walletMetadata = {
     create: {
       smartAccountAddress,
+      canTakeOwnership: true,
       ownershipTransferred: false,
       chainsUsed: [],
+      sessionKeyData, // Serialized permission account for post-transfer signing
     },
   };
 }
@@ -664,37 +693,48 @@ router.use('/secrets/:secretId/take-ownership', ownershipRoutes);
 
 ### Phase 3: Backend - Update Transaction Execution
 
-#### 3.1 Modify `evmWallet.service.ts` to Use Guardian After Transfer
+#### 3.1 Modify `evmWallet.service.ts` to Use Session Key After Transfer
 
-Update the transaction execution logic to check if ownership has been transferred and use the guardian validator accordingly:
+Update the transaction execution logic to check if ownership has been transferred and pass `sessionKeyData` to ZeroDev functions:
 
 ```typescript
 /**
- * Get the appropriate kernel client based on ownership status.
- * - If ownership not transferred: use sudo (ECDSA) validator
- * - If ownership transferred: use guardian (weighted ECDSA) validator
+ * Get the session key data for signing if ownership has been transferred.
+ * Returns undefined if ownership has not been transferred (use normal ECDSA signing).
+ * Throws if transferred but no session key data available (legacy account).
  */
-async function getWalletKernelClient(
-  privateKey: Hex,
-  chainId: number,
-  secretId: string
-): Promise<ReturnType<typeof zerodev.getKernelClient>> {
-  const metadata = await prisma.walletSecretMetadata.findUnique({
-    where: { secretId },
-  });
-
-  if (metadata?.ownershipTransferred) {
-    // Use guardian validator after ownership transfer
-    return zerodev.getGuardianKernelClient(
-      privateKey,
-      chainId,
-      metadata.smartAccountAddress as Address
+function getSessionKeyForSigning(
+  wallet: { ownershipTransferred: boolean; sessionKeyData: string | null }
+): string | undefined {
+  if (!wallet.ownershipTransferred) return undefined;
+  if (!wallet.sessionKeyData) {
+    throw new AppError(
+      'LEGACY_ACCOUNT',
+      'This wallet was created before session key support. Backend signing is not available after ownership transfer.',
+      400
     );
-  } else {
-    // Use standard sudo validator
-    return zerodev.getKernelClient(privateKey, chainId);
   }
+  return wallet.sessionKeyData;
 }
+
+// Then in executeTransfer, executeSendTransaction, etc.:
+const sessionKeyData = getSessionKeyForSigning(walletMetadata);
+const result = await zerodev.executeTransfer({
+  privateKey,
+  chainId,
+  to,
+  value,
+  sessionKeyData,          // undefined = normal ECDSA, string = session key mode
+  smartAccountAddress,
+});
+```
+
+The ZeroDev functions branch internally:
+```typescript
+// In zerodev.service.ts executeTransfer/executeSendTransaction/executeBatchTransaction:
+const { kernelClient, account } = sessionKeyData
+  ? await getSessionKeyKernelClient(privateKey, chainId, sessionKeyData)
+  : await getKernelClient(privateKey, chainId, smartAccountAddress);
 ```
 
 ### Phase 5: Frontend - RainbowKit + Wagmi Integration
@@ -1316,13 +1356,15 @@ VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 ## Implementation Order
 
 1. **Phase 1**: Backend wallet creation updates
-   - Install `@zerodev/weighted-ecdsa-validator`
-   - Update Prisma schema with ownership fields (`ownershipTransferred`, `ownerAddress`, `chainsUsed`)
+   - Install `@zerodev/weighted-ecdsa-validator` and `@zerodev/permissions`
+   - Update Prisma schema with ownership fields (`ownershipTransferred`, `ownerAddress`, `chainsUsed`, `sessionKeyData`)
    - Create migration
-   - Implement `createSmartAccountWithRecovery()` function
-   - Implement `executeRecovery()` function
-   - Implement `getGuardianKernelClient()` function
+   - Implement `buildSessionKeyInitConfig()` for creating permission validator
+   - Implement `createSmartAccountWithRecovery()` (returns `{ address, sessionKeyData }`)
+   - Implement `executeRecovery()` function (uses guardian validator)
+   - Implement `getSessionKeyKernelClient()` function (deserializes `sessionKeyData`)
    - Add chain usage tracking
+   - Store `sessionKeyData` in WalletSecretMetadata at wallet creation
 
 2. **Phase 2**: Backend take ownership API
    - Create ownership service with challenge/verify functions
@@ -1330,7 +1372,9 @@ VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
    - Add audit logging
 
 3. **Phase 3**: Backend transaction execution updates
-   - Modify `evmWallet.service.ts` to use guardian client after ownership transfer
+   - Add `getSessionKeyForSigning()` helper to `evmWallet.service.ts`
+   - Pass `sessionKeyData` to ZeroDev transaction functions when `ownershipTransferred` is true
+   - ZeroDev functions branch: `sessionKeyData` → `getSessionKeyKernelClient()`, else → `getKernelClient()`
 
 4. **Phase 4**: E2E testing
    - Create `takeOwnership.e2e.test.ts`
@@ -1349,12 +1393,12 @@ VITE_WALLETCONNECT_PROJECT_ID=your_walletconnect_project_id
 
 ## Summary
 
-Using ZeroDev's recovery mechanism with `@zerodev/weighted-ecdsa-validator`:
+Using ZeroDev's recovery mechanism with `@zerodev/weighted-ecdsa-validator` and `@zerodev/permissions`:
 
-1. **Wallet Creation**: Set up backend EOA as both sudo (owner) and guardian (weighted ECDSA with weight 100/threshold 100)
+1. **Wallet Creation**: Set up backend EOA in three roles: sudo validator (ECDSA owner), guardian (weighted ECDSA for recovery), and session key (permission validator via `initConfig` for post-transfer signing). `sessionKeyData` serialized and stored in DB.
 
-2. **Take Ownership**: Guardian calls `doRecovery(validatorAddress, newOwnerAddress)` to rotate the sudo validator to the user
+2. **Take Ownership**: Guardian calls `doRecovery(validatorAddress, newOwnerAddress)` to rotate the sudo validator to the user's EOA.
 
-3. **After Transfer**: Backend continues using guardian validator (now as regular validator) to sign transactions
+3. **After Transfer**: Backend signs transactions via `getSessionKeyKernelClient()`, which deserializes the stored `sessionKeyData` into a permission account. The permission validator was installed on-chain via `initConfig` and persists independently of the sudo validator change.
 
 4. **Multi-chain**: Execute recovery on all chains where the wallet has been used (tracked in `chainsUsed` array)

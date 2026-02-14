@@ -1014,8 +1014,14 @@ All skill executions and admin actions are logged with full input/output data fo
 **Completed: 2026-02-04**
 
 **What was implemented:**
-- ZeroDev weighted ECDSA validator integration for recovery/guardian functionality
-- Wallet creation now sets up backend EOA as both sudo validator AND weighted ECDSA guardian
+- ZeroDev weighted ECDSA validator integration for recovery functionality
+- ZeroDev permission validator (session key) with sudo policy for post-transfer backend signing
+- Wallet creation (`createSmartAccountWithRecovery()`) sets up three signing modes:
+  1. **Sudo validator** (ECDSA): Backend EOA as initial owner
+  2. **Regular validator** (Weighted ECDSA guardian): Backend EOA for executing recovery only
+  3. **Permission validator via initConfig**: Session key with sudo policy for post-transfer signing
+- `createSmartAccountWithRecovery()` returns both `address` and `sessionKeyData` (serialized permission account)
+- `sessionKeyData` stored in `WalletSecretMetadata` for later deserialization
 - Chain usage tracking (`chainsUsed` array in WalletSecretMetadata) to know where to execute recovery
 - Ownership transfer service with challenge-response verification flow:
   - `requestOwnershipChallenge()` - generates signed message for user to sign
@@ -1025,7 +1031,8 @@ All skill executions and admin actions are logged with full input/output data fo
   - `POST /challenge` - request challenge message
   - `POST /verify` - submit signature and execute transfer
   - `GET /status` - get ownership status
-- Transaction execution now checks `ownershipTransferred` flag and uses guardian validator after transfer
+- Transaction execution checks `ownershipTransferred` flag and uses session key (permission validator) after transfer
+- `getSessionKeyKernelClient()` deserializes the stored `sessionKeyData` to reconstruct the permission account for signing
 - Frontend integration with RainbowKit + wagmi for wallet connection
 - TakeOwnership component with:
   - Wallet connection via ConnectButton
@@ -1035,13 +1042,14 @@ All skill executions and admin actions are logged with full input/output data fo
 - Component integrated into SecretDetail page for EVM_WALLET secrets
 
 **Key decisions made:**
-- Used `@zerodev/weighted-ecdsa-validator` package for guardian functionality
+- Used `@zerodev/weighted-ecdsa-validator` package for the recovery (ownership transfer) action only
 - Guardian validator has weight 100 with threshold 100 (single signer can execute recovery)
+- Post-transfer backend signing uses permission validator (session key with sudo policy), NOT the guardian validator — the permission validator is installed on-chain via `initConfig` at account creation and persists independently of the sudo validator change
+- `sessionKeyData` is serialized via `serializePermissionAccount()` at wallet creation and deserialized via `deserializePermissionAccount()` at transaction time
 - Challenge messages include secretId, wallet address, user address, timestamp, and nonce for replay protection
 - Challenges stored in-memory with 10-minute expiry (same pattern as Telegram linking codes)
 - Recovery is executed on all chains where the wallet has been used (tracked via `chainsUsed`)
-- After ownership transfer, backend continues to operate using guardian validator (regular validator mode)
-- ZeroDev transaction functions (`executeTransfer`, `executeSendTransaction`, `executeBatchTransaction`) extended with `useGuardian` and `smartAccountAddress` parameters
+- ZeroDev transaction functions (`executeTransfer`, `executeSendTransaction`, `executeBatchTransaction`) extended with `sessionKeyData` and `smartAccountAddress` parameters — when `sessionKeyData` is provided, `getSessionKeyKernelClient()` is used instead of `getKernelClient()`
 
 **Files created:**
 - `src/services/ownership.service.ts` - Ownership challenge and transfer logic
@@ -1050,10 +1058,10 @@ All skill executions and admin actions are logged with full input/output data fo
 - `frontend/src/components/TakeOwnership.tsx` - Ownership transfer UI component
 
 **Files modified:**
-- `prisma/schema.prisma` - Added `ownershipTransferred`, `ownerAddress`, `chainsUsed`, `transferredAt`, `transferTxHash` to WalletSecretMetadata
-- `src/skills/zerodev.service.ts` - Added `createSmartAccountWithRecovery()`, `executeRecovery()`, `getGuardianKernelClient()`, and guardian mode support in transaction functions
-- `src/services/secret.service.ts` - Updated wallet creation to use recovery-enabled account
-- `src/skills/evmWallet.service.ts` - Added chain usage tracking and guardian mode for transactions
+- `prisma/schema.prisma` - Added `ownershipTransferred`, `ownerAddress`, `chainsUsed`, `transferredAt`, `transferTxHash`, `sessionKeyData` to WalletSecretMetadata
+- `src/skills/zerodev.service.ts` - Added `createSmartAccountWithRecovery()`, `executeRecovery()`, `getSessionKeyKernelClient()`, `buildSessionKeyInitConfig()`, and session key mode support in transaction functions
+- `src/services/secret.service.ts` - Updated wallet creation to use recovery-enabled account, stores `sessionKeyData`
+- `src/skills/evmWallet.service.ts` - Added chain usage tracking, `getSessionKeyForSigning()` helper, and session key mode for transactions after ownership transfer
 - `src/api/routes/index.ts` - Mounted ownership routes
 - `src/services/index.ts` - Added ownership service export
 - `frontend/src/main.tsx` - Added WagmiProvider, QueryClientProvider, RainbowKitProvider
@@ -1070,9 +1078,16 @@ All skill executions and admin actions are logged with full input/output data fo
 2. Frontend requests a challenge message from backend
 3. User signs the challenge with their wallet
 4. Backend verifies signature and calls `executeRecovery()` on each chain in `chainsUsed`
-5. `doRecovery()` UserOp is sent via guardian validator to change sudo validator to user's address
+5. `doRecovery()` UserOp is sent via guardian validator (weighted ECDSA) to change sudo validator to user's address
 6. Database updated with `ownershipTransferred: true` and `ownerAddress`
-7. Future transactions use `getGuardianKernelClient()` instead of regular ECDSA client
+7. Future backend transactions use `getSessionKeyKernelClient()` (deserializes stored `sessionKeyData` into a permission account) instead of the regular ECDSA `getKernelClient()`
+
+**How post-transfer backend signing works:**
+1. At wallet creation, a permission validator (session key with sudo policy) is installed via `initConfig`
+2. The permission account is serialized via `serializePermissionAccount()` and stored as `sessionKeyData` in the DB
+3. When `ownershipTransferred` is true, `getSessionKeyForSigning()` returns the stored `sessionKeyData`
+4. `getSessionKeyKernelClient()` calls `deserializePermissionAccount()` with the backend EOA signer to reconstruct the permission account
+5. This permission validator persists on-chain independently of the sudo validator change, so the backend can still sign
 
 **Deferred items:**
 - E2E test for full ownership transfer flow (requires test EOA and chain interaction)
