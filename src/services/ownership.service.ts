@@ -194,7 +194,7 @@ export async function verifyAndTransferOwnership(
     where: { secretId },
     data: {
       ownershipTransferred: true,
-      ownerAddress: newOwnerAddress,
+      ownerAddress: newOwnerAddress.toLowerCase(),
       transferredAt: new Date(),
       transferTxHash: Object.values(txHashes)[0] || null,
     },
