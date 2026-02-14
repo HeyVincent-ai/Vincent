@@ -376,7 +376,9 @@ openclaw config set agents.defaults.model --json '{"primary": "openrouter/google
 openclaw config set gateway.controlUi.allowInsecureAuth true
 openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 
-${vincentApiKeys ? `
+${
+  vincentApiKeys
+    ? `
 echo "=== [5.5/8] Writing Vincent API credentials ==="
 mkdir -p /root/.openclaw/credentials/agentwallet
 cat > /root/.openclaw/credentials/agentwallet/default.json << KEYEOF
@@ -394,7 +396,9 @@ cat > /root/.openclaw/credentials/vincentdata/default.json << KEYEOF
 KEYEOF
 chmod 600 /root/.openclaw/credentials/*/default.json
 echo "Vincent credentials written"
-` : '# No Vincent API keys provided — skills will self-provision'}
+`
+    : '# No Vincent API keys provided — skills will self-provision'
+}
 echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
@@ -867,7 +871,11 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         case 'secrets_created': {
           // Pre-create and claim DATA_SOURCES, EVM_WALLET, POLYMARKET_WALLET secrets
           const existingSecretIds = (deployment.vincentSecretIds as Record<string, string>) || {};
-          if (existingSecretIds.dataSourcesSecretId && existingSecretIds.walletSecretId && existingSecretIds.polymarketSecretId) {
+          if (
+            existingSecretIds.dataSourcesSecretId &&
+            existingSecretIds.walletSecretId &&
+            existingSecretIds.polymarketSecretId
+          ) {
             addLog('Vincent secrets already exist, skipping creation');
             // On resume we can't recover the plain API keys from the DB,
             // so we generate new ones for each secret
@@ -892,9 +900,24 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
           } else {
             addLog('Creating and claiming Vincent secrets...');
             const secretConfigs = [
-              { type: 'DATA_SOURCES' as const, memo: 'OpenClaw Data Sources', ctxKey: 'dataSourcesKey' as const, idKey: 'dataSourcesSecretId' },
-              { type: 'EVM_WALLET' as const, memo: 'OpenClaw Wallet', ctxKey: 'walletKey' as const, idKey: 'walletSecretId' },
-              { type: 'POLYMARKET_WALLET' as const, memo: 'OpenClaw Polymarket', ctxKey: 'polymarketKey' as const, idKey: 'polymarketSecretId' },
+              {
+                type: 'DATA_SOURCES' as const,
+                memo: 'OpenClaw Data Sources',
+                ctxKey: 'dataSourcesKey' as const,
+                idKey: 'dataSourcesSecretId',
+              },
+              {
+                type: 'EVM_WALLET' as const,
+                memo: 'OpenClaw Wallet',
+                ctxKey: 'walletKey' as const,
+                idKey: 'walletSecretId',
+              },
+              {
+                type: 'POLYMARKET_WALLET' as const,
+                memo: 'OpenClaw Polymarket',
+                ctxKey: 'polymarketKey' as const,
+                idKey: 'polymarketSecretId',
+              },
             ];
             const secretIds: Record<string, string> = {};
             const keys: Record<string, string> = {};
@@ -1184,7 +1207,11 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
               where: { id: deploymentId },
             });
             const secretIds = (current?.vincentSecretIds as Record<string, string>) || {};
-            if (secretIds.dataSourcesSecretId && secretIds.walletSecretId && secretIds.polymarketSecretId) {
+            if (
+              secretIds.dataSourcesSecretId &&
+              secretIds.walletSecretId &&
+              secretIds.polymarketSecretId
+            ) {
               addLog('Generating new Vincent API keys for resumed setup...');
               const keys: Record<string, string> = {};
               for (const [idKey, ctxKey] of [
@@ -1990,7 +2017,9 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
     );
 
     // 3. Generate Vincent API keys for existing secrets
-    let vincentApiKeys: { dataSourcesKey: string; walletKey: string; polymarketKey: string } | undefined;
+    let vincentApiKeys:
+      | { dataSourcesKey: string; walletKey: string; polymarketKey: string }
+      | undefined;
     const secretIds = (deployment.vincentSecretIds as Record<string, string>) || {};
     if (secretIds.dataSourcesSecretId && secretIds.walletSecretId && secretIds.polymarketSecretId) {
       addLog('Generating Vincent API keys for reprovision...');

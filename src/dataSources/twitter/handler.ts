@@ -85,10 +85,7 @@ export async function getUserByUsername(username: string): Promise<unknown> {
   });
 }
 
-export async function getUserTweets(
-  userId: string,
-  maxResults: number = 10
-): Promise<unknown> {
+export async function getUserTweets(userId: string, maxResults: number = 10): Promise<unknown> {
   return twitterFetch(`/users/${encodeURIComponent(userId)}/tweets`, {
     max_results: String(maxResults),
     'tweet.fields': DEFAULT_TWEET_FIELDS,
