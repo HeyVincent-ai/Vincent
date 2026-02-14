@@ -13,7 +13,7 @@ describe('validatePolicyConfig', () => {
       const config = validatePolicyConfig('ADDRESS_ALLOWLIST' as any, {
         addresses: ['0x1234567890123456789012345678901234567890'],
       });
-      expect(config).toEqual({ addresses: ['0x1234567890123456789012345678901234567890'] });
+      expect(config).toEqual({ addresses: ['0x1234567890123456789012345678901234567890'], approvalOverride: false });
     });
 
     it('rejects invalid addresses', () => {
@@ -34,7 +34,7 @@ describe('validatePolicyConfig', () => {
       const config = validatePolicyConfig('FUNCTION_ALLOWLIST' as any, {
         selectors: ['0xa9059cbb'],
       });
-      expect(config).toEqual({ selectors: ['0xa9059cbb'] });
+      expect(config).toEqual({ selectors: ['0xa9059cbb'], approvalOverride: false });
     });
 
     it('rejects wrong-length selectors', () => {
@@ -56,7 +56,7 @@ describe('validatePolicyConfig', () => {
   describe('SPENDING_LIMIT_PER_TX', () => {
     it('accepts positive maxUsd', () => {
       const config = validatePolicyConfig('SPENDING_LIMIT_PER_TX' as any, { maxUsd: 100 });
-      expect(config).toEqual({ maxUsd: 100 });
+      expect(config).toEqual({ maxUsd: 100, approvalOverride: false });
     });
 
     it('rejects zero maxUsd', () => {

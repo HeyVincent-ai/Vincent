@@ -132,6 +132,24 @@ async function broadcastRawTransaction(serializedTx: Hex): Promise<Hex> {
   return hash;
 }
 
+/** Poll until the balance getter returns >= minAmount, with retries and delay */
+async function waitForBalance(
+  getter: () => Promise<string>,
+  minAmount: string,
+  { retries = 15, delayMs = 2000 } = {}
+): Promise<string> {
+  for (let i = 0; i < retries; i++) {
+    const balance = await getter();
+    if (parseFloat(balance) >= parseFloat(minAmount)) {
+      return balance;
+    }
+    console.log(`  Waiting for balance (attempt ${i + 1}/${retries}): ${balance} < ${minAmount}`);
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  // Return last balance even if below threshold (test assertion will catch it)
+  return getter();
+}
+
 // ============================================================
 // Test Suite
 // ============================================================
@@ -395,8 +413,11 @@ describe('Base Sepolia E2E: Raw Signer Skill Test', () => {
     evidence.fundEthTxHash = ethTxHash;
     console.log(`ETH fund tx: ${EXPLORER_BASE_URL}/tx/${ethTxHash}`);
 
-    // Verify funding
-    const ethBalance = await getEthBalance(ethAddress);
+    // Verify funding (poll to allow RPC eventual consistency)
+    const ethBalance = await waitForBalance(
+      () => getEthBalance(ethAddress),
+      ETH_FUND_AMOUNT
+    );
     console.log(`Raw signer ETH balance: ${ethBalance}`);
 
     expect(parseFloat(ethBalance)).toBeGreaterThanOrEqual(parseFloat(ETH_FUND_AMOUNT));
