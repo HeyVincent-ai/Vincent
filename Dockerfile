@@ -50,6 +50,9 @@ COPY package.json ./
 # Regenerate Prisma client for this image's OpenSSL version
 RUN npx prisma generate
 
+RUN chown -R node:node /app
+USER node
+
 EXPOSE 3000
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
