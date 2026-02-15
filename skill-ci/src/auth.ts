@@ -11,6 +11,9 @@
 
 const STYTCH_TEST_API = 'https://test.stytch.com/v1';
 const SANDBOX_EMAIL = 'sandbox@stytch.com';
+// Official Stytch sandbox magic link success token.
+// This token is safe to hardcode and is intended for testing only.
+// See: https://stytch.com/docs/guides/magic-links/authenticate-users#testing
 const SANDBOX_MAGIC_LINK_TOKEN =
   'DOYoip3rvIMMW5lgItikFK-Ak1CfMsgjuiCyI7uuU94=';
 
@@ -141,7 +144,7 @@ export async function createClaimedDataSourceSecret(opts: {
   baseUrl: string;
   stytchProjectId: string;
   stytchSecret: string;
-}): Promise<{ apiKey: string; secretId: string }> {
+}): Promise<{ apiKey: string; secretId: string; sessionToken: string }> {
   const { baseUrl, stytchProjectId, stytchSecret } = opts;
 
   // Get authenticated session
@@ -175,7 +178,14 @@ export async function createClaimedDataSourceSecret(opts: {
   };
 
   const { secret, apiKey, claimUrl } = createBody.data;
-  const claimToken = new URL(claimUrl).searchParams.get('token')!;
+  const claimUrlObj = new URL(claimUrl);
+  const claimToken = claimUrlObj.searchParams.get('token');
+
+  if (!claimToken) {
+    throw new Error(
+      `Claim URL is missing required 'token' parameter: ${claimUrl}`,
+    );
+  }
 
   // Claim the secret
   await claimSecret({
@@ -185,5 +195,28 @@ export async function createClaimedDataSourceSecret(opts: {
     claimToken,
   });
 
-  return { apiKey: apiKey.key, secretId: secret.id };
+  return { apiKey: apiKey.key, secretId: secret.id, sessionToken };
+}
+
+/**
+ * Deletes a secret. Used for test cleanup.
+ */
+export async function deleteSecret(opts: {
+  baseUrl: string;
+  sessionToken: string;
+  secretId: string;
+}): Promise<void> {
+  const { baseUrl, sessionToken, secretId } = opts;
+
+  const res = await fetch(`${baseUrl}/api/secrets/${secretId}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${sessionToken}`,
+    },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    console.warn(`Secret cleanup failed (${res.status}): ${body}`);
+  }
 }

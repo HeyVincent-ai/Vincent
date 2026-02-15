@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runSkillAgent } from '../agent.js';
-import { createClaimedDataSourceSecret } from '../auth.js';
+import { createClaimedDataSourceSecret, deleteSecret } from '../auth.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
@@ -15,6 +15,8 @@ const skillContent = readFileSync(
 
 describe('Skill: twitter', () => {
   let claimedApiKey: string;
+  let secretId: string;
+  let sessionToken: string;
 
   beforeAll(async () => {
     const result = await createClaimedDataSourceSecret({
@@ -23,6 +25,14 @@ describe('Skill: twitter', () => {
       stytchSecret: STYTCH_SECRET,
     });
     claimedApiKey = result.apiKey;
+    secretId = result.secretId;
+    sessionToken = result.sessionToken;
+  });
+
+  afterAll(async () => {
+    if (secretId && sessionToken) {
+      await deleteSecret({ baseUrl: BASE_URL, sessionToken, secretId });
+    }
   });
 
   it('can search tweets and return real results', async () => {
