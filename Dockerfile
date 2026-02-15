@@ -4,11 +4,11 @@ WORKDIR /app
 
 # Install backend dependencies
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci
+RUN --mount=type=cache,id=npm-backend,target=/root/.npm npm ci
 
 # Install frontend dependencies
 COPY frontend/package.json frontend/package-lock.json ./frontend/
-RUN --mount=type=cache,target=/root/.npm npm ci --prefix frontend
+RUN --mount=type=cache,id=npm-frontend,target=/root/.npm npm ci --prefix frontend
 
 # Build stage
 FROM deps AS build
