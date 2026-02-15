@@ -1,9 +1,9 @@
-import { generateText, stepCountIs } from "ai";
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { httpRequestTool } from "./tools.js";
-import type { SkillTestResult, ToolCallRecord } from "./types.js";
+import { generateText, stepCountIs } from 'ai';
+import { createOpenRouter } from '@openrouter/ai-sdk-provider';
+import { httpRequestTool } from './tools.js';
+import type { SkillTestResult, ToolCallRecord } from './types.js';
 
-const DEFAULT_MODEL = "google/gemini-2.5-flash";
+const DEFAULT_MODEL = 'google/gemini-2.5-flash';
 const DEFAULT_MAX_STEPS = 15;
 
 export async function runSkillAgent(opts: {
@@ -22,8 +22,7 @@ export async function runSkillAgent(opts: {
   } = opts;
 
   const openrouter = createOpenRouter({
-    apiKey:
-      process.env.OPENROUTER_API_KEY || process.env.CI_OPENROUTER_API_KEY,
+    apiKey: process.env.OPENROUTER_API_KEY || process.env.CI_OPENROUTER_API_KEY,
   });
 
   const systemPrompt = `You are a testing agent verifying that a skill works correctly against a live API.
@@ -70,7 +69,7 @@ Complete the task by making HTTP requests to the API. Be methodical — read the
     return {
       success: false,
       toolCalls: [],
-      finalText: "",
+      finalText: '',
       error: error instanceof Error ? error.message : String(error),
       steps: 0,
     };

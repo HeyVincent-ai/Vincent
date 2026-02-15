@@ -5,29 +5,28 @@ import { resolve } from 'path';
 
 const BASE_URL = process.env.SKILL_CI_BASE_URL!;
 const skillContent = readFileSync(
-  resolve(import.meta.dirname, '../../../skills/wallet/SKILL.md'),
+  resolve(import.meta.dirname, '../../../skills/brave-search/SKILL.md'),
   'utf-8'
 );
 
-describe('Skill: wallet', () => {
-  it('can create a wallet and check its balance', async () => {
+describe('Skill: brave-search', () => {
+  it('can create a data sources secret and attempt a web search', async () => {
     const result = await runSkillAgent({
       skillContent,
       baseUrl: BASE_URL,
       task: `Follow the skill instructions to:
-1. Create a new EVM wallet (type: EVM_WALLET, chainId: 84532, memo: "CI test wallet")
-2. Use the returned API key to check the wallet balances
-Report the wallet address and balance.`,
+1. Create a new DATA_SOURCES secret (type: DATA_SOURCES, memo: "CI test data sources")
+2. Use the returned API key to search the web for "bitcoin"
+Report the API key, and the search result or error message.`,
     });
 
     expect(result.error).toBeUndefined();
     expect(result.success).toBe(true);
 
-    // Extract HTTP request tool calls
     const calls = result.toolCalls.filter((c) => c.name === 'http_request');
     expect(calls.length).toBeGreaterThanOrEqual(2);
 
-    // Verify a secret was created
+    // Verify a DATA_SOURCES secret was created
     const createCall = calls.find(
       (c) =>
         (c.args as { url: string }).url.includes('/api/secrets') &&
@@ -43,15 +42,17 @@ Report the wallet address and balance.`,
     const createBody = JSON.parse(createResult.body);
     expect(createBody.data.apiKey.key).toMatch(/^ssk_/);
 
-    // Verify balance was checked
-    const balanceCall = calls.find(
+    // Verify a search was attempted
+    const searchCall = calls.find(
       (c) =>
-        (c.args as { url: string }).url.includes('/balance') &&
+        (c.args as { url: string }).url.includes('/api/data-sources/brave/') &&
         (c.args as { method: string }).method === 'GET'
     );
-    expect(balanceCall).toBeDefined();
+    expect(searchCall).toBeDefined();
 
-    const balanceResult = balanceCall!.result as { status: number };
-    expect(balanceResult.status).toBe(200);
+    // The search may fail with a credit/claim error since the secret is unclaimed,
+    // but the agent should have made the attempt
+    const searchResult = searchCall!.result as { status: number };
+    expect([200, 402, 403]).toContain(searchResult.status);
   });
 });
