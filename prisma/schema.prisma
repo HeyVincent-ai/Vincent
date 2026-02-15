@@ -446,6 +446,7 @@ model VpsPool {
   ovhServiceName  String   @unique @map("ovh_service_name")
   createdAt       DateTime @default(now()) @map("created_at")
 
+  @@index([createdAt])
   @@map("vps_pool")
 }
 

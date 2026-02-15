@@ -622,20 +622,37 @@ export async function waitForHealth(
 // ============================================================
 
 /**
- * Atomically claim a VPS from the pool (FIFO, skip-locked to prevent double-provisioning).
+ * Atomically claim a VPS from the pool and assign it to a deployment.
+ * Uses a transaction so the pool row is only removed if the deployment update succeeds.
  * Returns the OVH service name, or null if the pool is empty.
  */
-async function claimPoolVps(): Promise<string | null> {
-  const rows = await prisma.$queryRaw<Array<{ ovh_service_name: string }>>`
-    DELETE FROM "vps_pool"
-    WHERE "id" = (
-      SELECT "id" FROM "vps_pool"
-      ORDER BY "created_at" LIMIT 1
-      FOR UPDATE SKIP LOCKED
-    )
-    RETURNING "ovh_service_name"
-  `;
-  return rows.length > 0 ? rows[0].ovh_service_name : null;
+async function claimPoolVps(
+  deploymentId: string,
+  extraData: Record<string, unknown>
+): Promise<string | null> {
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ ovh_service_name: string }>>`
+      DELETE FROM "vps_pool"
+      WHERE "id" = (
+        SELECT "id" FROM "vps_pool"
+        ORDER BY "created_at" LIMIT 1
+        FOR UPDATE SKIP LOCKED
+      )
+      RETURNING "ovh_service_name"
+    `;
+    if (rows.length === 0) return null;
+
+    const serviceName = rows[0].ovh_service_name;
+    await tx.openClawDeployment.update({
+      where: { id: deploymentId },
+      data: {
+        ovhServiceName: serviceName,
+        hostname: ovhService.getVpsHostname(serviceName),
+        ...extraData,
+      },
+    });
+    return serviceName;
+  });
 }
 
 /**
@@ -997,20 +1014,35 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         }
 
         case 'plan_found': {
-          // Try to claim a pre-provisioned VPS from the pool first
-          const poolVps = await claimPoolVps();
-          if (poolVps) {
-            ctx.serviceName = poolVps;
-            ctx.hostname = ovhService.getVpsHostname(poolVps);
-            addLog(`Claimed VPS from pool: ${poolVps}`);
-            await updateDeployment(deploymentId, {
-              ovhServiceName: poolVps,
-              hostname: ctx.hostname,
-              provisionLog: log,
-              provisionStage: stage,
-            });
-            break;
+          // Try to claim a pre-provisioned VPS from the pool first.
+          // Retry loop handles the rare case where a pool VPS service name
+          // already belongs to another deployment (P2002 unique constraint).
+          let poolClaimed = false;
+
+          while (true) {
+            try {
+              addLog('Checking VPS pool...');
+              const poolVps = await claimPoolVps(deploymentId, {
+                provisionLog: log,
+                provisionStage: stage,
+              });
+              if (poolVps) {
+                ctx.serviceName = poolVps;
+                ctx.hostname = ovhService.getVpsHostname(poolVps);
+                addLog(`Claimed VPS from pool: ${poolVps}`);
+                await updateDeployment(deploymentId, { provisionLog: log });
+                poolClaimed = true;
+              }
+              break;
+            } catch (err: any) {
+              if (err.code === 'P2002' && err.meta?.target?.includes('ovh_service_name')) {
+                addLog('Pool VPS already claimed by another deployment, retrying...');
+                continue;
+              }
+              throw err;
+            }
           }
+          if (poolClaimed) break;
 
           // Pool empty — fall through to normal plan finding
           const planCode = options.planCode;
