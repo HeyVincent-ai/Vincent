@@ -23,6 +23,7 @@ RUN npx prisma generate
 COPY tsconfig.json ./
 COPY src ./src/
 RUN npx tsc
+RUN cp src/docs/openapi.json dist/docs/openapi.json
 
 # Copy frontend source and build
 # Vite bakes VITE_* env vars into the bundle at build time

@@ -18,7 +18,7 @@ const dataSourceRateLimiter = rateLimit({
   max: 60,
   keyGenerator: (req) => {
     const authReq = req as AuthenticatedRequest;
-    return authReq.apiKey?.id ?? req.ip ?? 'unknown';
+    return authReq.apiKey?.id ?? 'unknown';
   },
   standardHeaders: true,
   legacyHeaders: false,
