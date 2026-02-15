@@ -43,6 +43,7 @@ import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createApp } from '../app';
 import prisma from '../db/client';
+import * as secretService from '../services/secret.service.js';
 import type { Express } from 'express';
 
 // ============================================================
@@ -61,7 +62,7 @@ const NATIVE_ETH = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 // Test amounts - small to minimize costs
 const ETH_FUND_AMOUNT = '0.000001'; // ETH to fund smart account for testing
 const ETH_TRANSFER_AMOUNT = '0.0000001'; // Small ETH transfer
-const USDC_FUND_AMOUNT = '0.00001'; // USDC to fund smart account
+const USDC_FUND_AMOUNT = '0.25'; // USDC to fund smart account, smallest amount for reliable Relay.link swap is 0.2 USDC but it doesn't matter since it'll all be refunded back to the funder address
 const USDC_TRANSFER_AMOUNT = '0.000001'; // Small USDC transfer
 const SWAP_USDC_AMOUNT = '0.000001'; // USDC to swap for ETH
 
@@ -170,6 +171,9 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   let secretId: string;
   let smartAccountAddress: Address;
   let funderAddress: Address;
+  let sourceClaimToken: string;
+  let testUserId: string;
+  let testUser2Id: string;
 
   // Evidence collected for verification
   const evidence: {
@@ -179,6 +183,8 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     usdcTransferTxHash?: string;
     swapTxHash?: string;
     sendTxHash?: string;
+    fundTxHash?: string;
+    relayRequestId?: string;
     returnEthTxHash?: string;
     returnUsdcTxHash?: string;
     initialFunderEthBalance?: string;
@@ -354,6 +360,18 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       console.error('DB cleanup failed:', err);
     }
 
+    // Clean up test users
+    try {
+      if (testUserId) {
+        await prisma.user.delete({ where: { id: testUserId } }).catch(() => {});
+      }
+      if (testUser2Id) {
+        await prisma.user.delete({ where: { id: testUser2Id } }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('User cleanup failed:', err);
+    }
+
     await prisma.$disconnect();
   }, 300_000);
 
@@ -378,6 +396,9 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     apiKey = res.body.data.apiKey.key;
     secretId = res.body.data.secret.id;
     smartAccountAddress = res.body.data.secret.walletAddress as Address;
+
+    const claimUrl = new URL(res.body.data.claimUrl);
+    sourceClaimToken = claimUrl.searchParams.get('token')!;
 
     console.log(`\nCreated smart account: ${smartAccountAddress}`);
     console.log(`Secret ID: ${secretId}`);
@@ -624,7 +645,300 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   }, 120_000);
 
   // ============================================================
-  // Test 11: Verify final balances
+  // Test 11: Setup — claim source secret for transfer-between-secrets
+  // ============================================================
+
+  it('should claim source secret for transfer-between-secrets tests', async () => {
+    const user = await prisma.user.create({
+      data: { email: 'e2e-evmwallet-test@test.local' },
+    });
+    testUserId = user.id;
+
+    const claimed = await secretService.claimSecret({
+      secretId,
+      claimToken: sourceClaimToken,
+      userId: testUserId,
+    });
+
+    expect(claimed.id).toBe(secretId);
+    console.log(`Claimed source secret ${secretId} for user ${testUserId}`);
+  }, 30_000);
+
+  // ============================================================
+  // Test 12: Cross-chain transfer between secrets (Base USDC → Polygon USDC.e)
+  // ============================================================
+
+  it('should transfer USDC between secrets from Base to Polygon', async () => {
+    const POLYGON_CHAIN_ID = 137;
+    const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+    const FUND_AMOUNT = '0.2'; // 0.25 - 0.05 for other transactions
+
+    // Create a second EVM_WALLET secret (destination) owned by same user
+    const toWalletRes = await request(app)
+      .post('/api/secrets')
+      .send({
+        type: 'EVM_WALLET',
+        memo: 'E2E test destination wallet',
+      })
+      .expect(201);
+
+    const toSecretId = toWalletRes.body.data.secret.id;
+    const toSmartAccountAddress = toWalletRes.body.data.secret.walletAddress;
+    console.log(`Created destination wallet: ${toSmartAccountAddress} (secret: ${toSecretId})`);
+
+    // Claim destination with same user
+    const toClaimUrl = new URL(toWalletRes.body.data.claimUrl);
+    const toClaimToken = toClaimUrl.searchParams.get('token')!;
+    await secretService.claimSecret({
+      secretId: toSecretId,
+      claimToken: toClaimToken,
+      userId: testUserId,
+    });
+    console.log(`Claimed destination secret for user ${testUserId}`);
+
+    // Preview
+    const previewRes = await request(app)
+      .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        toSecretId,
+        tokenIn: USDC_ADDRESS,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
+        tokenInAmount: FUND_AMOUNT,
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(previewRes.body.success).toBe(true);
+    expect(previewRes.body.data.isSimpleTransfer).toBe(false);
+    expect(previewRes.body.data.balanceCheck.sufficient).toBe(true);
+    expect(previewRes.body.data.toWalletAddress).toBe(toSmartAccountAddress);
+    expect(previewRes.body.data.amountOut).toBeDefined();
+    expect(previewRes.body.data.timeEstimate).toBeGreaterThan(0);
+
+    console.log(`Transfer preview - bridge ${FUND_AMOUNT} USDC (Base) → USDC.e (Polygon)`);
+    console.log(`Estimated time: ${previewRes.body.data.timeEstimate}s`);
+    console.log(`Route: ${previewRes.body.data.route}`);
+
+    // Execute
+    const executeRes = await request(app)
+      .post('/api/skills/evm-wallet/transfer-between-secrets/execute')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        toSecretId,
+        tokenIn: USDC_ADDRESS,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
+        tokenInAmount: FUND_AMOUNT,
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(executeRes.body.success).toBe(true);
+    expect(executeRes.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+    expect(executeRes.body.data.status).toMatch(/executed|cross_chain_pending/);
+    expect(executeRes.body.data.relayRequestId).toBeDefined();
+
+    evidence.fundTxHash = executeRes.body.data.txHash;
+    evidence.relayRequestId = executeRes.body.data.relayRequestId;
+
+    console.log(`Transfer tx: ${executeRes.body.data.explorerUrl}`);
+    console.log(`Relay request ID: ${executeRes.body.data.relayRequestId}`);
+
+    // Status check
+    if (executeRes.body.data.relayRequestId) {
+      const statusRes = await request(app)
+        .get(
+          `/api/skills/evm-wallet/transfer-between-secrets/status/${executeRes.body.data.relayRequestId}`
+        )
+        .set('Authorization', `Bearer ${apiKey}`)
+        .expect(200);
+
+      expect(statusRes.body.success).toBe(true);
+      expect(statusRes.body.data.requests).toBeDefined();
+
+      console.log(`Relay status:`, statusRes.body.data.requests);
+    }
+
+    // Cleanup: delete destination secret
+    try {
+      await prisma.auditLog.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.transactionLog.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.apiKey.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.walletSecretMetadata.deleteMany({ where: { secretId: toSecretId } });
+      await prisma.secret.delete({ where: { id: toSecretId } }).catch(() => {});
+    } catch (err) {
+      console.error('Destination wallet cleanup failed:', err);
+    }
+  }, 180_000);
+
+  // ============================================================
+  // Test 13: Transfer USDC to POLYMARKET_WALLET via transfer-between-secrets
+  // ============================================================
+
+  it('should transfer USDC to a POLYMARKET_WALLET secret', async () => {
+    const POLYGON_CHAIN_ID = 137;
+    const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+
+    // Create a POLYMARKET_WALLET secret
+    const pmRes = await request(app)
+      .post('/api/secrets')
+      .send({
+        type: 'POLYMARKET_WALLET',
+        memo: 'E2E test polymarket wallet',
+      })
+      .expect(201);
+
+    const pmSecretId = pmRes.body.data.secret.id;
+    console.log(`Created POLYMARKET_WALLET secret: ${pmSecretId}`);
+
+    // Claim with same user
+    const pmClaimUrl = new URL(pmRes.body.data.claimUrl);
+    const pmClaimToken = pmClaimUrl.searchParams.get('token')!;
+    await secretService.claimSecret({
+      secretId: pmSecretId,
+      claimToken: pmClaimToken,
+      userId: testUserId,
+    });
+    console.log(`Claimed POLYMARKET_WALLET for user ${testUserId}`);
+
+    // Preview
+    const previewRes = await request(app)
+      .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        toSecretId: pmSecretId,
+        tokenIn: USDC_ADDRESS,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
+        tokenInAmount: '0.2',
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(previewRes.body.success).toBe(true);
+    expect(previewRes.body.data.toWalletAddress).toBeDefined();
+    expect(previewRes.body.data.isSimpleTransfer).toBe(false);
+    console.log(`Preview OK — toWalletAddress: ${previewRes.body.data.toWalletAddress}`);
+
+    // Execute
+    const executeRes = await request(app)
+      .post('/api/skills/evm-wallet/transfer-between-secrets/execute')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        toSecretId: pmSecretId,
+        tokenIn: USDC_ADDRESS,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
+        tokenInAmount: '0.2',
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(200);
+
+    expect(executeRes.body.success).toBe(true);
+    expect(executeRes.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+    expect(executeRes.body.data.relayRequestId).toBeDefined();
+    console.log(`Execute tx: ${executeRes.body.data.explorerUrl}`);
+    console.log(`Relay request ID: ${executeRes.body.data.relayRequestId}`);
+
+    // Status check
+    if (executeRes.body.data.relayRequestId) {
+      const statusRes = await request(app)
+        .get(
+          `/api/skills/evm-wallet/transfer-between-secrets/status/${executeRes.body.data.relayRequestId}`
+        )
+        .set('Authorization', `Bearer ${apiKey}`)
+        .expect(200);
+
+      expect(statusRes.body.success).toBe(true);
+      console.log(`Relay status:`, statusRes.body.data.requests);
+    }
+
+    // Cleanup: delete PM secret + related records
+    try {
+      await prisma.auditLog.deleteMany({ where: { secretId: pmSecretId } });
+      await prisma.transactionLog.deleteMany({ where: { secretId: pmSecretId } });
+      await prisma.apiKey.deleteMany({ where: { secretId: pmSecretId } });
+      await prisma.polymarketWalletMetadata.deleteMany({ where: { secretId: pmSecretId } });
+      await prisma.secret.delete({ where: { id: pmSecretId } }).catch(() => {});
+    } catch (err) {
+      console.error('POLYMARKET_WALLET cleanup failed:', err);
+    }
+  }, 180_000);
+
+  // ============================================================
+  // Test 14: Transfer to different user's secret fails 403
+  // ============================================================
+
+  it('should reject transfer-between-secrets to a different user', async () => {
+    const POLYGON_CHAIN_ID = 137;
+    const USDC_E_POLYGON = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+
+    // Create second user
+    const user2 = await prisma.user.create({
+      data: { email: 'e2e-evmwallet-other@test.local' },
+    });
+    testUser2Id = user2.id;
+
+    // Create EVM_WALLET owned by user2
+    const otherRes = await request(app)
+      .post('/api/secrets')
+      .send({
+        type: 'EVM_WALLET',
+        memo: 'E2E test other-user wallet',
+      })
+      .expect(201);
+
+    const otherSecretId = otherRes.body.data.secret.id;
+    const otherClaimUrl = new URL(otherRes.body.data.claimUrl);
+    const otherClaimToken = otherClaimUrl.searchParams.get('token')!;
+
+    await secretService.claimSecret({
+      secretId: otherSecretId,
+      claimToken: otherClaimToken,
+      userId: testUser2Id,
+    });
+    console.log(`Created + claimed other-user secret ${otherSecretId} for user ${testUser2Id}`);
+
+    // Preview should fail 403
+    const previewRes = await request(app)
+      .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .send({
+        toSecretId: otherSecretId,
+        tokenIn: USDC_ADDRESS,
+        fromChainId: BASE_MAINNET_CHAIN_ID,
+        toChainId: POLYGON_CHAIN_ID,
+        tokenInAmount: '0.2',
+        tokenOut: USDC_E_POLYGON,
+        slippage: 100,
+      })
+      .expect(403);
+
+    expect(previewRes.body.success).toBe(false);
+    expect(previewRes.body.error).toContain('same user');
+    console.log(`Correctly rejected: ${previewRes.body.error}`);
+
+    // Cleanup: delete other secret + user2
+    try {
+      await prisma.auditLog.deleteMany({ where: { secretId: otherSecretId } });
+      await prisma.transactionLog.deleteMany({ where: { secretId: otherSecretId } });
+      await prisma.apiKey.deleteMany({ where: { secretId: otherSecretId } });
+      await prisma.walletSecretMetadata.deleteMany({ where: { secretId: otherSecretId } });
+      await prisma.secret.delete({ where: { id: otherSecretId } }).catch(() => {});
+      await prisma.user.delete({ where: { id: testUser2Id } }).catch(() => {});
+    } catch (err) {
+      console.error('Other-user cleanup failed:', err);
+    }
+  }, 60_000);
+
+  // ============================================================
+  // Test 15: Verify final balances
   // ============================================================
 
   it('should have reduced balances after operations', async () => {

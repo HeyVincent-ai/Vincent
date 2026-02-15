@@ -5,6 +5,7 @@ import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as evmWallet from '../../skills/evmWallet.service.js';
+import * as relayService from '../../skills/relay.service.js';
 import { auditService } from '../../audit/index.js';
 
 const router = Router();
@@ -251,6 +252,128 @@ router.post(
 
     const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;
     sendSuccess(res, result, statusCode);
+  })
+);
+
+// ============================================================
+// POST /api/skills/evm-wallet/transfer-between-secrets/preview
+// ============================================================
+
+const transferBetweenSecretsSchema = z.object({
+  toSecretId: z.string(),
+  fromChainId: z.number().int().positive(),
+  toChainId: z.number().int().positive(),
+  tokenIn: z.string(),
+  tokenInAmount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be numeric'),
+  tokenOut: z.string(),
+  slippage: z.number().int().min(0).max(10000).optional(),
+});
+
+router.post(
+  '/transfer-between-secrets/preview',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = transferBetweenSecretsSchema.parse(req.body);
+
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const start = Date.now();
+    const result = await evmWallet.previewTransferBetweenSecrets({
+      fromSecretId: req.secret.id,
+      ...body,
+    });
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.transfer_between_secrets_preview',
+      inputData: body,
+      outputData: result,
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    sendSuccess(res, result);
+  })
+);
+
+// ============================================================
+// POST /api/skills/evm-wallet/transfer-between-secrets/execute
+// ============================================================
+
+router.post(
+  '/transfer-between-secrets/execute',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = transferBetweenSecretsSchema.parse(req.body);
+
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const start = Date.now();
+    const result = await evmWallet.executeTransferBetweenSecrets({
+      fromSecretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      ...body,
+    });
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.transfer_between_secrets_execute',
+      inputData: body,
+      outputData: result,
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
+      errorMessage: result.status === 'denied' ? result.reason : undefined,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    const statusCode = ['executed', 'cross_chain_pending'].includes(result.status)
+      ? 200
+      : result.status === 'denied'
+        ? 403
+        : 202;
+    sendSuccess(res, result, statusCode);
+  })
+);
+
+// ============================================================
+// GET /api/skills/evm-wallet/transfer-between-secrets/status/:requestId
+// ============================================================
+
+router.get(
+  '/transfer-between-secrets/status/:requestId',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const requestId = req.params.requestId as string;
+
+    const start = Date.now();
+    const result = await relayService.getStatus(requestId);
+
+    auditService.log({
+      secretId: req.secret?.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.transfer_between_secrets_status',
+      inputData: { requestId },
+      outputData: result,
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    sendSuccess(res, result);
   })
 );
 
