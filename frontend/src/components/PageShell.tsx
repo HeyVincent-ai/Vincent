@@ -2,11 +2,35 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 const CheckSvg = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
 );
 
 const ChevronDown = ({ size = 16 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
 );
 
 export { CheckSvg, ChevronDown };
@@ -458,16 +482,39 @@ function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }
   return (
     <header className="nav" role="banner">
       <div className="container">
-        <Link className="nav__logo" to="/"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></Link>
+        <Link className="nav__logo" to="/">
+          <img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" />
+        </Link>
         <nav className="nav__tabs" role="navigation" aria-label="Main navigation">
-          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">Home</Link>
-          <Link className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`} to="/features">Features</Link>
-          <Link className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`} to="/security">Security</Link>
-          <Link className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`} to="/skills">Skills</Link>
+          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">
+            Home
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`}
+            to="/features"
+          >
+            Features
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`}
+            to="/security"
+          >
+            Security
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`}
+            to="/skills"
+          >
+            Skills
+          </Link>
         </nav>
         <div className="nav__right">
-          <Link className="btn btn-secondary" to="/skills">Skills Only</Link>
-          <Link className="btn btn-primary" to="/login">Human Login</Link>
+          <Link className="btn btn-secondary" to="/skills">
+            Skills Only
+          </Link>
+          <Link className="btn btn-primary" to="/login">
+            Human Login
+          </Link>
         </div>
       </div>
     </header>
@@ -482,8 +529,12 @@ function Footer() {
           <h2>Ready to deploy your agent?</h2>
           <p>Start free. No credit card required.</p>
           <div className="cta-buttons">
-            <Link className="btn btn-primary btn-lg" to="/login">Deploy an Agent</Link>
-            <Link className="btn btn-secondary btn-lg" to="/skills">Skills Only</Link>
+            <Link className="btn btn-primary btn-lg" to="/login">
+              Deploy an Agent
+            </Link>
+            <Link className="btn btn-secondary btn-lg" to="/skills">
+              Skills Only
+            </Link>
           </div>
         </div>
       </section>
@@ -491,36 +542,63 @@ function Footer() {
         <div className="container">
           <div className="footer-grid">
             <div className="footer-brand">
-              <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
+              <div className="nav__logo">
+                <img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" />
+              </div>
               <p>Self-improving AI agents, safe for money</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>
               <ul>
-                <li><Link to="/features">Features</Link></li>
-                <li><Link to="/security">Security</Link></li>
-                <li><Link to="/#pricing">Pricing</Link></li>
-                <li><Link to="/#how-it-works">How It Works</Link></li>
+                <li>
+                  <Link to="/features">Features</Link>
+                </li>
+                <li>
+                  <Link to="/security">Security</Link>
+                </li>
+                <li>
+                  <Link to="/#pricing">Pricing</Link>
+                </li>
+                <li>
+                  <Link to="/#how-it-works">How It Works</Link>
+                </li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Resources</h4>
               <ul>
-                <li><Link to="/skills">Skills</Link></li>
-                <li><a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">Discord</a></li>
-                <li><a href="mailto:support@litprotocol.com">Support</a></li>
+                <li>
+                  <Link to="/skills">Skills</Link>
+                </li>
+                <li>
+                  <a href="/docs">Agent API Docs</a>
+                </li>
+                <li>
+                  <a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">
+                    Discord
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:support@litprotocol.com">Support</a>
+                </li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Company</h4>
               <ul>
-                <li><a href="https://litprotocol.com" target="_blank" rel="noreferrer">Lit Protocol</a></li>
+                <li>
+                  <a href="https://litprotocol.com" target="_blank" rel="noreferrer">
+                    Lit Protocol
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
           <div className="footer-bottom">
             <span>&copy; {new Date().getFullYear()} Vincent. All rights reserved.</span>
-            <span><Link to="/terms">Terms of Service</Link></span>
+            <span>
+              <Link to="/terms">Terms of Service</Link>
+            </span>
           </div>
         </div>
       </footer>
@@ -528,12 +606,20 @@ function Footer() {
   );
 }
 
-export default function PageShell({ active, children }: { active: 'home' | 'features' | 'security' | 'skills'; children: ReactNode }) {
+export default function PageShell({
+  active,
+  children,
+}: {
+  active: 'home' | 'features' | 'security' | 'skills';
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Scroll to top on route change
   const location = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <>
