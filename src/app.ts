@@ -38,38 +38,19 @@ export function createApp(): Express {
           defaultSrc: ["'self'"],
           connectSrc: [
             "'self'",
-            // Auth
             'https://*.stytch.com',
-            // WalletConnect / Reown
             'https://*.walletconnect.org',
             'wss://*.walletconnect.org',
-            'https://*.walletconnect.com',
-            'wss://*.walletconnect.com',
             'https://*.web3modal.org',
-            'https://*.reown.com',
-            // Chain RPCs (viem defaults for configured chains)
+            'https://*.walletconnect.com',
             'https://*.merkle.io',
-            'https://*.base.org',
-            'https://*.arbitrum.io',
-            'https://mainnet.optimism.io',
-            'https://polygon-rpc.com',
-            'https://*.thirdweb.com',
-            // Account abstraction
-            'https://*.zerodev.app',
-            // Monitoring
             'https://*.ingest.us.sentry.io',
+            'https://*.zerodev.app',
           ],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https://*.walletconnect.com', 'https://*.web3modal.org'],
           workerSrc: ["'self'", 'blob:'],
-          frameSrc: [
-            "'self'",
-            'https://*.vps.ovh.us',
-            'https://*.walletconnect.com',
-            'https://*.walletconnect.org',
-            'https://*.stytch.com',
-          ],
+          frameSrc: ["'self'", 'https://*.vps.ovh.us'],
         },
       },
     })
