@@ -116,7 +116,7 @@
       },
       "SkillExecutionResult": {
         "type": "object",
-        "required": ["status"],
+        "required": ["status", "transactionLogId"],
         "properties": {
           "status": {
             "type": "string",
@@ -126,11 +126,10 @@
             "type": "string",
             "description": "Present when status is 'denied'"
           },
-          "txHash": { "type": "string" },
-          "approvalId": {
-            "type": "string",
-            "description": "Present when status is 'pending_approval'"
-          }
+          "txHash": { "type": "string", "nullable": true, "description": "Transaction hash, null when pending or denied" },
+          "transactionLogId": { "type": "string", "format": "uuid", "description": "Internal transaction log ID for tracking" },
+          "explorerUrl": { "type": "string", "format": "uri", "description": "Block explorer link, present when executed" },
+          "smartAccountAddress": { "type": "string", "description": "Smart account address that sent the transaction" }
         }
       },
       "EthAddress": {
