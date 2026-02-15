@@ -1,0 +1,69 @@
+name: Skill CI Tests
+
+on:
+  workflow_dispatch:
+    inputs:
+      preview_url:
+        description: "Railway preview URL (optional — derived from PR if omitted)"
+        required: false
+        type: string
+      model:
+        description: "OpenRouter model to use"
+        required: false
+        default: "google/gemini-2.5-flash"
+        type: string
+  pull_request:
+    branches: [main]
+    paths:
+      - "skills/**"
+
+jobs:
+  skill-tests:
+    name: Test Skills with Agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install skill-ci dependencies
+        run: cd skill-ci && npm ci
+
+      - name: Determine preview URL
+        id: preview
+        run: |
+          if [ -n "${{ inputs.preview_url }}" ]; then
+            echo "url=${{ inputs.preview_url }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "url=https://safeskill-vincent-pr-${{ github.event.pull_request.number }}.up.railway.app" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No preview URL provided and not running in a PR context"
+            exit 1
+          fi
+
+      - name: Wait for preview deployment
+        run: |
+          URL="${{ steps.preview.outputs.url }}/health"
+          echo "Waiting for $URL ..."
+          for i in $(seq 1 60); do
+            if curl -sf "$URL" > /dev/null 2>&1; then
+              echo "Preview is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/60 — not ready yet, waiting 10s..."
+            sleep 10
+          done
+          echo "::error::Preview deployment did not become healthy within 10 minutes"
+          exit 1
+
+      - name: Run skill tests
+        run: cd skill-ci && npx vitest run
+        env:
+          SKILL_CI_BASE_URL: ${{ steps.preview.outputs.url }}
+          OPENROUTER_API_KEY: ${{ secrets.CI_OPENROUTER_API_KEY }}
+          SKILL_CI_MODEL: ${{ inputs.model || 'google/gemini-2.5-flash' }}
