@@ -25,6 +25,12 @@ COPY src ./src/
 RUN npx tsc
 
 # Copy frontend source and build
+# Vite bakes VITE_* env vars into the bundle at build time
+ARG VITE_STYTCH_PUBLIC_TOKEN
+ARG VITE_WALLETCONNECT_PROJECT_ID
+ARG VITE_ZERODEV_PROJECT_ID
+ARG VITE_SENTRY_DSN
+ARG VITE_API_URL
 COPY frontend ./frontend/
 RUN npm run build --prefix frontend
 
