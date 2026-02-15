@@ -1,0 +1,2557 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SafeSkills API",
+    "version": "1.0.0",
+    "description": "API for managing secrets, policies, skills (EVM wallet, Polymarket, raw signer), billing, and OpenClaw deployments."
+  },
+  "servers": [
+    {
+      "url": "https://safeskills.ai",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Health check endpoints" },
+    { "name": "Auth", "description": "Session authentication (Stytch)" },
+    { "name": "User", "description": "User profile and settings" },
+    { "name": "Secrets", "description": "Secret lifecycle (create, claim, delete)" },
+    { "name": "API Keys", "description": "Manage API keys for a secret" },
+    { "name": "Policies", "description": "Policy rules on a secret" },
+    { "name": "Audit Logs", "description": "Audit trail for a secret" },
+    { "name": "Ownership Transfer", "description": "Transfer wallet ownership on-chain" },
+    { "name": "EVM Wallet", "description": "EVM wallet skill (transfer, swap, balances)" },
+    { "name": "Polymarket", "description": "Polymarket prediction-market skill" },
+    { "name": "Raw Signer", "description": "Low-level message signing skill" },
+    { "name": "Billing", "description": "Subscriptions, usage, and invoices" },
+    { "name": "OpenClaw", "description": "OpenClaw VPS deployment management" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key issued when a secret is created (ssk_xxx). Used by agents to call skill endpoints."
+      },
+      "SessionAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Stytch session token. Used by the dashboard frontend for owner-level operations."
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "const": true },
+          "data": {},
+          "pagination": { "$ref": "#/components/schemas/PaginationMeta" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "const": false },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "details": {}
+            }
+          }
+        }
+      },
+      "PaginationMeta": {
+        "type": "object",
+        "properties": {
+          "page": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "total": { "type": "integer" },
+          "totalPages": { "type": "integer" }
+        }
+      },
+      "SecretType": {
+        "type": "string",
+        "enum": ["EVM_WALLET", "POLYMARKET_WALLET", "RAW_SIGNER", "API_KEY", "SSH_KEY", "OAUTH_TOKEN"]
+      },
+      "PolicyType": {
+        "type": "string",
+        "enum": [
+          "ADDRESS_ALLOWLIST",
+          "FUNCTION_ALLOWLIST",
+          "TOKEN_ALLOWLIST",
+          "SPENDING_LIMIT_PER_TX",
+          "SPENDING_LIMIT_DAILY",
+          "SPENDING_LIMIT_WEEKLY",
+          "REQUIRE_APPROVAL",
+          "APPROVAL_THRESHOLD"
+        ]
+      },
+      "AuditLogStatus": {
+        "type": "string",
+        "enum": ["SUCCESS", "FAILED", "PENDING"]
+      },
+      "OpenClawStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING_PAYMENT",
+          "PENDING",
+          "ORDERING",
+          "PROVISIONING",
+          "INSTALLING",
+          "READY",
+          "CANCELING",
+          "ERROR",
+          "DESTROYING",
+          "DESTROYED"
+        ]
+      },
+      "SkillExecutionResult": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["executed", "denied", "pending_approval"]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Present when status is 'denied'"
+          },
+          "txHash": { "type": "string" },
+          "approvalId": {
+            "type": "string",
+            "description": "Present when status is 'pending_approval'"
+          }
+        }
+      },
+      "EthAddress": {
+        "type": "string",
+        "pattern": "^0x[a-fA-F0-9]{40}$",
+        "example": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+      },
+      "Secret": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "type": { "$ref": "#/components/schemas/SecretType" },
+          "memo": { "type": "string" },
+          "userId": { "type": "string", "format": "uuid", "nullable": true },
+          "smartAccountAddress": { "type": "string", "nullable": true },
+          "eoaAddress": { "type": "string", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "ApiKey": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "prefix": { "type": "string" },
+          "secretId": { "type": "string", "format": "uuid" },
+          "lastUsedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "revokedAt": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "secretId": { "type": "string", "format": "uuid" },
+          "policyType": { "$ref": "#/components/schemas/PolicyType" },
+          "policyConfig": {},
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AuditLog": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "secretId": { "type": "string", "format": "uuid" },
+          "action": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/AuditLogStatus" },
+          "inputData": {},
+          "outputData": {},
+          "errorMessage": { "type": "string", "nullable": true },
+          "ipAddress": { "type": "string", "nullable": true },
+          "userAgent": { "type": "string", "nullable": true },
+          "durationMs": { "type": "integer", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "telegramUsername": { "type": "string", "nullable": true },
+          "telegramLinked": { "type": "boolean" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "OpenClawDeployment": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": { "$ref": "#/components/schemas/OpenClawStatus" },
+          "hostname": { "type": "string", "nullable": true },
+          "webUrl": { "type": "string", "nullable": true },
+          "currentPeriodEnd": { "type": "string", "format": "date-time", "nullable": true },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["Health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "status": { "type": "string", "example": "healthy" },
+                            "timestamp": { "type": "string", "format": "date-time" },
+                            "version": { "type": "string", "example": "1.0.0" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api": {
+      "get": {
+        "operationId": "getApiInfo",
+        "tags": ["Health"],
+        "summary": "API info",
+        "responses": {
+          "200": {
+            "description": "API metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "message": { "type": "string" },
+                            "version": { "type": "string" },
+                            "endpoints": { "type": "object" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+
+    "/api/auth/session": {
+      "post": {
+        "operationId": "createSession",
+        "tags": ["Auth"],
+        "summary": "Validate Stytch session token",
+        "description": "Validates a Stytch session token and returns/creates the user in the SafeSkills database. Called by the frontend after the Stytch UI SDK authenticates the user.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sessionToken"],
+                "properties": {
+                  "sessionToken": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Session valid, user returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "user": { "$ref": "#/components/schemas/User" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid session", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "Rate limited", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "tags": ["Auth"],
+        "summary": "Revoke current session",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Logged out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/user/profile": {
+      "get": {
+        "operationId": "getUserProfile",
+        "tags": ["User"],
+        "summary": "Get current user profile",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "User profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "user": { "$ref": "#/components/schemas/User" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/user/telegram": {
+      "put": {
+        "operationId": "updateTelegram",
+        "tags": ["User"],
+        "summary": "Update Telegram username",
+        "security": [{ "SessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["telegramUsername"],
+                "properties": {
+                  "telegramUsername": { "type": "string", "minLength": 1, "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "user": { "$ref": "#/components/schemas/User" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/user/secrets": {
+      "get": {
+        "operationId": "listUserSecrets",
+        "tags": ["User"],
+        "summary": "List secrets owned by current user",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of secrets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secrets": { "type": "array", "items": { "$ref": "#/components/schemas/Secret" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/user/telegram/link": {
+      "post": {
+        "operationId": "generateTelegramLinkCode",
+        "tags": ["User"],
+        "summary": "Generate Telegram linking code",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Linking code generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "linkingCode": { "type": "string" },
+                            "botUsername": { "type": "string", "nullable": true },
+                            "expiresInMinutes": { "type": "integer", "example": 10 }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/secrets": {
+      "post": {
+        "operationId": "createSecret",
+        "tags": ["Secrets"],
+        "summary": "Create a new secret",
+        "description": "Agent endpoint — no auth required. For EVM_WALLET type, generates an EOA private key and smart account. Returns an API key for agent access and a claim URL for the owner.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": { "$ref": "#/components/schemas/SecretType" },
+                  "memo": { "type": "string", "maxLength": 500 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "secret": { "$ref": "#/components/schemas/Secret" },
+                            "apiKey": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string", "format": "uuid" },
+                                "key": { "type": "string", "description": "Plain API key (ssk_xxx). Only shown once." }
+                              }
+                            },
+                            "claimUrl": { "type": "string", "format": "uri" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": { "description": "Rate limited", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/info": {
+      "get": {
+        "operationId": "getSecretInfo",
+        "tags": ["Secrets"],
+        "summary": "Get secret info by API key",
+        "description": "Agent endpoint. Returns the secret associated with the provided API key.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Secret info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secret": { "$ref": "#/components/schemas/Secret" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/relink": {
+      "post": {
+        "operationId": "relinkSecret",
+        "tags": ["Secrets"],
+        "summary": "Obtain new API key via re-link token",
+        "description": "Agent provides a one-time re-link token to get a new API key for the secret. No auth required — the token is the auth.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["relinkToken"],
+                "properties": {
+                  "relinkToken": { "type": "string", "minLength": 1 },
+                  "apiKeyName": { "type": "string", "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New API key issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "secret": { "$ref": "#/components/schemas/Secret" },
+                            "apiKey": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string", "format": "uuid" },
+                                "key": { "type": "string" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": { "description": "Invalid or expired re-link token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}": {
+      "get": {
+        "operationId": "getSecret",
+        "tags": ["Secrets"],
+        "summary": "Get secret by ID",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secret": { "$ref": "#/components/schemas/Secret" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Secret not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSecret",
+        "tags": ["Secrets"],
+        "summary": "Soft-delete a secret",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Secret not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/subscription-status": {
+      "get": {
+        "operationId": "getSecretSubscriptionStatus",
+        "tags": ["Secrets"],
+        "summary": "Get trial/subscription status for mainnet access",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "trial": {
+                              "type": "object",
+                              "properties": {
+                                "inTrial": { "type": "boolean" },
+                                "daysRemaining": { "type": "integer" },
+                                "endsAt": { "type": "string", "format": "date-time" }
+                              }
+                            },
+                            "subscription": {
+                              "type": "object",
+                              "nullable": true,
+                              "properties": {
+                                "status": { "type": "string" },
+                                "currentPeriodStart": { "type": "string", "format": "date-time" },
+                                "currentPeriodEnd": { "type": "string", "format": "date-time" }
+                              }
+                            },
+                            "hasMainnetAccess": { "type": "boolean" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Secret not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/claim": {
+      "post": {
+        "operationId": "claimSecret",
+        "tags": ["Secrets"],
+        "summary": "Claim a secret using claim token",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["claimToken"],
+                "properties": {
+                  "claimToken": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Secret claimed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secret": { "$ref": "#/components/schemas/Secret" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/value": {
+      "put": {
+        "operationId": "setSecretValue",
+        "tags": ["Secrets"],
+        "summary": "Set secret value (user-provided secrets)",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["value"],
+                "properties": {
+                  "value": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Value set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secret": { "$ref": "#/components/schemas/Secret" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Secret not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/balances": {
+      "get": {
+        "operationId": "getSecretBalances",
+        "tags": ["Secrets"],
+        "summary": "Get portfolio balances for a wallet secret",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "chainIds", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated chain IDs to filter by" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolio balances",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Secret not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/swap/preview": {
+      "post": {
+        "operationId": "previewSecretSwap",
+        "tags": ["Secrets"],
+        "summary": "Preview a token swap (dashboard)",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap preview",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/swap/execute": {
+      "post": {
+        "operationId": "executeSecretSwap",
+        "tags": ["Secrets"],
+        "summary": "Execute a token swap (dashboard)",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{id}/relink-token": {
+      "post": {
+        "operationId": "generateRelinkToken",
+        "tags": ["Secrets"],
+        "summary": "Generate a one-time re-link token",
+        "description": "Generates a token that an agent can use to obtain a new API key for this secret.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Re-link token generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "relinkToken": { "type": "string" },
+                            "expiresAt": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/secrets/{secretId}/api-keys": {
+      "get": {
+        "operationId": "listApiKeys",
+        "tags": ["API Keys"],
+        "summary": "List API keys for a secret",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "apiKeys": { "type": "array", "items": { "$ref": "#/components/schemas/ApiKey" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "post": {
+        "operationId": "createApiKey",
+        "tags": ["API Keys"],
+        "summary": "Create a new API key",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1, "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "API key created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "apiKey": { "$ref": "#/components/schemas/ApiKey" },
+                            "key": { "type": "string", "description": "Plain API key. Only shown once." },
+                            "warning": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/api-keys/{keyId}": {
+      "get": {
+        "operationId": "getApiKey",
+        "tags": ["API Keys"],
+        "summary": "Get API key details",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "apiKey": { "$ref": "#/components/schemas/ApiKey" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "API key not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "revokeApiKey",
+        "tags": ["API Keys"],
+        "summary": "Revoke an API key",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "keyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "API key revoked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "apiKey": { "$ref": "#/components/schemas/ApiKey" }, "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/secrets/{secretId}/policies": {
+      "get": {
+        "operationId": "listPolicies",
+        "tags": ["Policies"],
+        "summary": "List policies for a secret",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of policies",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "policies": { "type": "array", "items": { "$ref": "#/components/schemas/Policy" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "post": {
+        "operationId": "createPolicy",
+        "tags": ["Policies"],
+        "summary": "Create a new policy",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["policyType", "policyConfig"],
+                "properties": {
+                  "policyType": { "$ref": "#/components/schemas/PolicyType" },
+                  "policyConfig": { "description": "Configuration object specific to the policy type" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Policy created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "policy": { "$ref": "#/components/schemas/Policy" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/policies/{policyId}": {
+      "put": {
+        "operationId": "updatePolicy",
+        "tags": ["Policies"],
+        "summary": "Update a policy's config",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "policyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["policyConfig"],
+                "properties": {
+                  "policyConfig": { "description": "Updated configuration object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Policy updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "policy": { "$ref": "#/components/schemas/Policy" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "deletePolicy",
+        "tags": ["Policies"],
+        "summary": "Delete a policy",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "policyId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Policy deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/secrets/{secretId}/audit-logs": {
+      "get": {
+        "operationId": "listAuditLogs",
+        "tags": ["Audit Logs"],
+        "summary": "List audit logs with filtering and pagination",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" }, "description": "Filter by action type" },
+          { "name": "status", "in": "query", "schema": { "$ref": "#/components/schemas/AuditLogStatus" }, "description": "Filter by status" },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "page", "in": "query", "schema": { "type": "integer", "minimum": 1 } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "logs": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLog" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/audit-logs/actions": {
+      "get": {
+        "operationId": "getAuditLogActions",
+        "tags": ["Audit Logs"],
+        "summary": "Get distinct action types for filter dropdown",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Distinct action types",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "actions": { "type": "array", "items": { "type": "string" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/audit-logs/export": {
+      "get": {
+        "operationId": "exportAuditLogs",
+        "tags": ["Audit Logs"],
+        "summary": "Export audit logs as JSON or CSV",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "action", "in": "query", "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "schema": { "$ref": "#/components/schemas/AuditLogStatus" } },
+          { "name": "startDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "endDate", "in": "query", "schema": { "type": "string", "format": "date-time" } },
+          { "name": "format", "in": "query", "schema": { "type": "string", "enum": ["json", "csv"] }, "description": "Export format (default: json)" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Exported audit logs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "logs": { "type": "array", "items": { "$ref": "#/components/schemas/AuditLog" } } } } } }
+                  ]
+                }
+              },
+              "text/csv": {
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/audit-logs/{logId}": {
+      "get": {
+        "operationId": "getAuditLog",
+        "tags": ["Audit Logs"],
+        "summary": "Get single audit log detail",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "name": "logId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "log": { "$ref": "#/components/schemas/AuditLog" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "Audit log not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/secrets/{secretId}/take-ownership/challenge": {
+      "post": {
+        "operationId": "requestOwnershipChallenge",
+        "tags": ["Ownership Transfer"],
+        "summary": "Request ownership challenge message",
+        "description": "First step of the ownership transfer flow. Returns a challenge message for the user to sign with their wallet.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["address"],
+                "properties": {
+                  "address": { "$ref": "#/components/schemas/EthAddress" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Challenge generated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "challenge": { "type": "string" },
+                            "expiresAt": { "type": "string", "format": "date-time" },
+                            "chainsToTransfer": { "type": "array", "items": { "type": "object" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/take-ownership/verify": {
+      "post": {
+        "operationId": "verifyOwnershipTransfer",
+        "tags": ["Ownership Transfer"],
+        "summary": "Verify signed challenge and execute transfer",
+        "description": "Second step of the ownership transfer flow. Verifies the signed challenge and transfers on-chain ownership.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["address", "signature"],
+                "properties": {
+                  "address": { "$ref": "#/components/schemas/EthAddress" },
+                  "signature": { "type": "string", "pattern": "^0x(?:[a-fA-F0-9]{128}|[a-fA-F0-9]{130})$" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ownership transferred",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "message": { "type": "string" },
+                            "newOwner": { "type": "string" },
+                            "txHashes": { "type": "array", "items": { "type": "string" } }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/{secretId}/take-ownership/status": {
+      "get": {
+        "operationId": "getOwnershipStatus",
+        "tags": ["Ownership Transfer"],
+        "summary": "Get wallet ownership status",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "secretId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ownership status",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/skills/evm-wallet/transfer": {
+      "post": {
+        "operationId": "evmTransfer",
+        "tags": ["EVM Wallet"],
+        "summary": "Transfer ETH or ERC-20 tokens",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to", "amount", "chainId"],
+                "properties": {
+                  "to": { "$ref": "#/components/schemas/EthAddress" },
+                  "amount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "Human-readable amount (e.g. \"1.5\")" },
+                  "token": { "type": "string", "description": "Token contract address or omit for native ETH" },
+                  "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain ID (e.g. 1 for Ethereum, 137 for Polygon)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending owner approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/send-transaction": {
+      "post": {
+        "operationId": "evmSendTransaction",
+        "tags": ["EVM Wallet"],
+        "summary": "Send an arbitrary EVM transaction",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to", "data", "chainId"],
+                "properties": {
+                  "to": { "$ref": "#/components/schemas/EthAddress" },
+                  "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$", "description": "ABI-encoded calldata" },
+                  "value": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "ETH value to send (optional)" },
+                  "chainId": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending owner approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/balances": {
+      "get": {
+        "operationId": "evmGetBalances",
+        "tags": ["EVM Wallet"],
+        "summary": "Get portfolio balances",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "chainIds", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated chain IDs" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolio balances",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/swap/preview": {
+      "post": {
+        "operationId": "evmSwapPreview",
+        "tags": ["EVM Wallet"],
+        "summary": "Preview a token swap",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000, "description": "Slippage tolerance in basis points" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap preview",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/swap/execute": {
+      "post": {
+        "operationId": "evmSwapExecute",
+        "tags": ["EVM Wallet"],
+        "summary": "Execute a token swap",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/address": {
+      "get": {
+        "operationId": "evmGetAddress",
+        "tags": ["EVM Wallet"],
+        "summary": "Get wallet addresses (EOA and smart account)",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Wallet addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "eoaAddress": { "type": "string" },
+                            "smartAccountAddress": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/skills/polymarket/bet": {
+      "post": {
+        "operationId": "polymarketBet",
+        "tags": ["Polymarket"],
+        "summary": "Place a bet on Polymarket",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tokenId", "side", "amount"],
+                "properties": {
+                  "tokenId": { "type": "string", "minLength": 1, "description": "Polymarket condition token ID" },
+                  "side": { "type": "string", "enum": ["BUY", "SELL"] },
+                  "amount": { "type": "number", "exclusiveMinimum": 0, "description": "USDC amount" },
+                  "price": { "type": "number", "minimum": 0.001, "maximum": 0.999, "description": "Limit order price (0-1 range). Omit for market order." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bet executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/positions": {
+      "get": {
+        "operationId": "polymarketGetPositions",
+        "tags": ["Polymarket"],
+        "summary": "Get open positions",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "market", "in": "query", "schema": { "type": "string" }, "description": "Filter by market condition ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open positions",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/trades": {
+      "get": {
+        "operationId": "polymarketGetTrades",
+        "tags": ["Polymarket"],
+        "summary": "Get trade history",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "market", "in": "query", "schema": { "type": "string" }, "description": "Filter by market condition ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trade history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "trades": { "type": "array", "items": { "type": "object" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/markets": {
+      "get": {
+        "operationId": "polymarketSearchMarkets",
+        "tags": ["Polymarket"],
+        "summary": "Search prediction markets",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "query", "in": "query", "schema": { "type": "string" }, "description": "Text search query" },
+          { "name": "active", "in": "query", "schema": { "type": "boolean", "default": true }, "description": "Filter active markets only" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+          { "name": "next_cursor", "in": "query", "schema": { "type": "string" }, "description": "Cursor for pagination" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markets list",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/market/{conditionId}": {
+      "get": {
+        "operationId": "polymarketGetMarket",
+        "tags": ["Polymarket"],
+        "summary": "Get market info by condition ID",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "conditionId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market info",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orderbook/{tokenId}": {
+      "get": {
+        "operationId": "polymarketGetOrderbook",
+        "tags": ["Polymarket"],
+        "summary": "Get order book for a token",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "tokenId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order book",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/balance": {
+      "get": {
+        "operationId": "polymarketGetBalance",
+        "tags": ["Polymarket"],
+        "summary": "Get USDC balance on Polymarket",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Balance info",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orders/{orderId}": {
+      "delete": {
+        "operationId": "polymarketCancelOrder",
+        "tags": ["Polymarket"],
+        "summary": "Cancel a specific order",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order cancelled",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orders": {
+      "delete": {
+        "operationId": "polymarketCancelAllOrders",
+        "tags": ["Polymarket"],
+        "summary": "Cancel all open orders",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "All orders cancelled",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/skills/raw-signer/sign": {
+      "post": {
+        "operationId": "rawSign",
+        "tags": ["Raw Signer"],
+        "summary": "Sign a hex-encoded message",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message", "curve"],
+                "properties": {
+                  "message": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$", "description": "Hex-encoded message to sign" },
+                  "curve": { "type": "string", "enum": ["ethereum", "solana"], "description": "Signing curve" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message signed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/raw-signer/addresses": {
+      "get": {
+        "operationId": "rawSignerGetAddresses",
+        "tags": ["Raw Signer"],
+        "summary": "Get signing addresses (Ethereum and Solana)",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Signing addresses",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/billing/subscription": {
+      "get": {
+        "operationId": "getSubscription",
+        "tags": ["Billing"],
+        "summary": "Get current subscription status",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Subscription status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "hasSubscription": { "type": "boolean" },
+                            "subscription": {
+                              "type": "object",
+                              "nullable": true,
+                              "properties": {
+                                "id": { "type": "string" },
+                                "status": { "type": "string" },
+                                "currentPeriodStart": { "type": "string", "format": "date-time" },
+                                "currentPeriodEnd": { "type": "string", "format": "date-time" },
+                                "canceledAt": { "type": "string", "format": "date-time", "nullable": true }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/subscribe": {
+      "post": {
+        "operationId": "createSubscription",
+        "tags": ["Billing"],
+        "summary": "Create Stripe Checkout session for subscription",
+        "security": [{ "SessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["successUrl", "cancelUrl"],
+                "properties": {
+                  "successUrl": { "type": "string", "format": "uri" },
+                  "cancelUrl": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout session created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "sessionId": { "type": "string" },
+                            "checkoutUrl": { "type": "string", "format": "uri" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "409": { "description": "Already subscribed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/cancel": {
+      "post": {
+        "operationId": "cancelSubscription",
+        "tags": ["Billing"],
+        "summary": "Cancel subscription at period end",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Subscription will be canceled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Cancel failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/webhook": {
+      "post": {
+        "operationId": "stripeWebhook",
+        "tags": ["Billing"],
+        "summary": "Stripe webhook handler",
+        "description": "Receives Stripe webhook events. Authenticated via stripe-signature header, not session/API key.",
+        "parameters": [
+          { "name": "stripe-signature", "in": "header", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook processed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "400": { "description": "Invalid signature or processing error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/usage": {
+      "get": {
+        "operationId": "getUsage",
+        "tags": ["Billing"],
+        "summary": "Get current month gas usage",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current month usage",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/usage/history": {
+      "get": {
+        "operationId": "getUsageHistory",
+        "tags": ["Billing"],
+        "summary": "Get historical gas usage by month",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Usage history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "month": { "type": "string" },
+                              "totalCostUsd": { "type": "number" },
+                              "billed": { "type": "boolean" },
+                              "stripeInvoiceId": { "type": "string", "nullable": true }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/billing/invoices": {
+      "get": {
+        "operationId": "getInvoices",
+        "tags": ["Billing"],
+        "summary": "List past invoices",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Invoice list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "month": { "type": "string" },
+                              "totalCostUsd": { "type": "number" },
+                              "stripeInvoiceId": { "type": "string", "nullable": true }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/openclaw/deploy": {
+      "post": {
+        "operationId": "openclawDeploy",
+        "tags": ["OpenClaw"],
+        "summary": "Create checkout session for a new deployment",
+        "description": "Creates a Stripe Checkout session. VPS provisioning begins after payment confirmation via webhook.",
+        "security": [{ "SessionAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["successUrl", "cancelUrl"],
+                "properties": {
+                  "successUrl": { "type": "string", "format": "uri" },
+                  "cancelUrl": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Deployment created, checkout URL returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "deploymentId": { "type": "string", "format": "uuid" },
+                            "checkoutUrl": { "type": "string", "format": "uri" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "Max active deployments reached", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments": {
+      "get": {
+        "operationId": "openclawListDeployments",
+        "tags": ["OpenClaw"],
+        "summary": "List all deployments",
+        "security": [{ "SessionAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "List of deployments",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployments": { "type": "array", "items": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}": {
+      "get": {
+        "operationId": "openclawGetDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Get deployment status and details",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deployment details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      },
+      "delete": {
+        "operationId": "openclawDestroyDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Destroy deployment immediately",
+        "description": "Cancels subscription, terminates VPS, and revokes keys.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deployment destroyed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/cancel": {
+      "post": {
+        "operationId": "openclawCancelDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Cancel subscription at period end",
+        "description": "VPS stays running until the current billing period expires.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Subscription cancellation scheduled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" },
+                            "currentPeriodEnd": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/restart": {
+      "post": {
+        "operationId": "openclawRestartDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Restart OpenClaw on the VPS",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Restart initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/retry": {
+      "post": {
+        "operationId": "openclawRetryDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Retry a failed deployment",
+        "description": "Cleans up partial resources and re-provisions.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Retry initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Cannot retry (wrong state or no subscription)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/reprovision": {
+      "post": {
+        "operationId": "openclawReprovisionDeployment",
+        "tags": ["OpenClaw"],
+        "summary": "Reinstall OpenClaw on existing VPS",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reprovision initiated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "deployment": { "$ref": "#/components/schemas/OpenClawDeployment" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Cannot reprovision (wrong state or missing VPS)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/ssh-key": {
+      "get": {
+        "operationId": "openclawGetSshKey",
+        "tags": ["OpenClaw"],
+        "summary": "Download SSH private key",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSH private key file",
+            "content": {
+              "application/x-pem-file": {
+                "schema": { "type": "string" }
+              }
+            }
+          },
+          "400": { "description": "No SSH key available", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/usage": {
+      "get": {
+        "operationId": "openclawGetUsage",
+        "tags": ["OpenClaw"],
+        "summary": "Get LLM token usage stats",
+        "description": "Polls OpenRouter for fresh data if stale (>60s).",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Usage stats",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/credits/checkout": {
+      "post": {
+        "operationId": "openclawCreditsCheckout",
+        "tags": ["OpenClaw"],
+        "summary": "Create Stripe Checkout for credit purchase",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["successUrl", "cancelUrl"],
+                "properties": {
+                  "successUrl": { "type": "string", "format": "uri" },
+                  "cancelUrl": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Checkout session created",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/channels": {
+      "get": {
+        "operationId": "openclawGetChannels",
+        "tags": ["OpenClaw"],
+        "summary": "Check configured channels",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Channel status",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/telegram/setup": {
+      "post": {
+        "operationId": "openclawTelegramSetup",
+        "tags": ["OpenClaw"],
+        "summary": "Configure Telegram bot token",
+        "description": "Sets the bot token and restarts the gateway.",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["botToken"],
+                "properties": {
+                  "botToken": { "type": "string", "minLength": 20, "maxLength": 100 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Telegram configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "message": { "type": "string" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid bot token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/openclaw/deployments/{id}/telegram/pair": {
+      "post": {
+        "operationId": "openclawTelegramPair",
+        "tags": ["OpenClaw"],
+        "summary": "Approve Telegram pairing code",
+        "security": [{ "SessionAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["code"],
+                "properties": {
+                  "code": { "type": "string", "minLength": 1, "maxLength": 50 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pairing approved",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "400": { "description": "Invalid pairing code", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "404": { "description": "Deployment not found", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    }
+  }
+}

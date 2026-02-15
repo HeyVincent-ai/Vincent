@@ -10,6 +10,7 @@ import { errorHandler } from './api/middleware/errorHandler.js';
 import { requestLogger } from './api/middleware/requestLogger.js';
 import { sendSuccess } from './utils/response.js';
 import apiRouter from './api/routes/index.js';
+import docsRouter from './docs/docs.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -47,8 +48,10 @@ export function createApp(): Express {
             'https://*.ingest.us.sentry.io',
             'https://*.zerodev.app',
           ],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+          fontSrc: ["'self'", 'https://cdn.jsdelivr.net'],
+          imgSrc: ["'self'", 'data:', 'https://cdn.jsdelivr.net'],
           workerSrc: ["'self'", 'blob:'],
           frameSrc: ["'self'", 'https://*.vps.ovh.us'],
         },
@@ -116,6 +119,9 @@ export function createApp(): Express {
 
   // Mount API routes
   app.use('/api', apiRouter);
+
+  // Mount API docs (Scalar UI)
+  app.use('/docs', docsRouter);
 
   // Serve frontend in production
   if (env.NODE_ENV === 'production') {
