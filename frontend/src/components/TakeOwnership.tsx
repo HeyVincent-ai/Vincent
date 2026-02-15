@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount, useSignMessage, useDisconnect } from 'wagmi';
-import {
-  requestOwnershipChallenge,
-  verifyOwnershipSignature,
-  getOwnershipStatus,
-} from '../api';
+import { requestOwnershipChallenge, verifyOwnershipSignature, getOwnershipStatus } from '../api';
 import WalletConnectManager from './WalletConnectManager';
 
 interface Props {
@@ -14,7 +10,16 @@ interface Props {
   onOwnershipTransferred: () => void;
 }
 
-type Step = 'loading' | 'not-eligible' | 'not-ready' | 'connect' | 'ready' | 'signing' | 'processing' | 'success' | 'error';
+type Step =
+  | 'loading'
+  | 'not-eligible'
+  | 'not-ready'
+  | 'connect'
+  | 'ready'
+  | 'signing'
+  | 'processing'
+  | 'success'
+  | 'error';
 
 const chainNames: Record<number, string> = {
   1: 'Ethereum',
@@ -41,11 +46,18 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
   useEffect(() => {
     getOwnershipStatus(secretId)
       .then((res) => {
-        const { canTakeOwnership, ownershipTransferred, chainsUsed, ownerAddress: owner } = res.data.data;
+        const {
+          canTakeOwnership,
+          ownershipTransferred,
+          chainsUsed,
+          chainsTransferred,
+          ownerAddress: owner,
+        } = res.data.data;
         if (!canTakeOwnership) {
           setStep('not-eligible');
         } else if (ownershipTransferred) {
           setOwnerAddress(owner);
+          setChainsToTransfer(chainsTransferred || []);
           setStep('success');
         } else if (chainsUsed.length === 0) {
           setStep('not-ready');
@@ -118,17 +130,17 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
 
       {step === 'not-eligible' && (
         <p className="text-sm text-muted-foreground">
-          This wallet was created before the self-custody feature was available, so it cannot
-          be transferred to your personal wallet. To take ownership of a wallet, create a new
-          one and move your assets to it.
+          This wallet was created before the self-custody feature was available, so it cannot be
+          transferred to your personal wallet. To take ownership of a wallet, create a new one and
+          move your assets to it.
         </p>
       )}
 
       {step === 'not-ready' && (
         <div className="bg-status-warning-muted border border-status-warning/20 rounded p-4">
           <p className="text-status-warning text-sm">
-            This wallet hasn't been used on any chain yet. Make at least one transaction
-            before taking ownership.
+            This wallet hasn't been used on any chain yet. Make at least one transaction before
+            taking ownership.
           </p>
         </div>
       )}
@@ -138,13 +150,22 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
           <div className="bg-status-success-muted border border-status-success/20 rounded p-4">
             <p className="text-status-success font-medium mb-2">Ownership Transferred</p>
             <p className="text-status-success text-sm mb-3">
-              You are now the owner of this smart wallet. SafeSkills can still execute
-              transactions on your behalf (subject to your policies).
+              You are now the owner of this smart wallet. SafeSkills can still execute transactions
+              on your behalf (subject to your policies).
             </p>
             {ownerAddress && (
               <p className="text-status-success/80 text-xs mb-3">
                 Owner: <code className="bg-muted px-1 rounded text-foreground">{ownerAddress}</code>
               </p>
+            )}
+            {chainsToTransfer.length > 0 && (
+              <div className="text-xs text-status-success/80 mb-3">
+                <p className="font-medium mb-1">You have self-custody on:</p>
+                <p>{chainsToTransfer.map((c) => chainNames[c] || `Chain ${c}`).join(', ')}</p>
+                <p className="text-muted-foreground mt-1">
+                  To take ownership on additional chains, create a new wallet.
+                </p>
+              </div>
             )}
             {Object.entries(txHashes).length > 0 && (
               <div className="text-xs text-status-success/80">
@@ -152,7 +173,9 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
                 {Object.entries(txHashes).map(([chainId, hash]) => (
                   <p key={chainId}>
                     {chainNames[Number(chainId)] || `Chain ${chainId}`}:{' '}
-                    <code className="bg-muted px-1 rounded text-foreground">{hash.slice(0, 10)}...</code>
+                    <code className="bg-muted px-1 rounded text-foreground">
+                      {hash.slice(0, 10)}...
+                    </code>
                   </p>
                 ))}
               </div>
@@ -170,8 +193,8 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       {(step === 'connect' || step === 'ready' || step === 'signing' || step === 'processing') && (
         <>
           <p className="text-sm text-muted-foreground mb-4">
-            Transfer ownership of this smart wallet to your personal wallet.
-            After transfer, you'll be the owner of the account at{' '}
+            Transfer ownership of this smart wallet to your personal wallet. After transfer, you'll
+            be the owner of the account at{' '}
             <code className="bg-muted px-1 rounded text-xs text-foreground">{walletAddress}</code>.
           </p>
 
@@ -186,7 +209,9 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
 
           {!isConnected ? (
             <div>
-              <p className="text-sm text-muted-foreground mb-3">Connect your wallet to take ownership:</p>
+              <p className="text-sm text-muted-foreground mb-3">
+                Connect your wallet to take ownership:
+              </p>
               <ConnectButton />
             </div>
           ) : (
@@ -215,8 +240,20 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
               {step === 'signing' && (
                 <div className="flex items-center gap-2 text-status-warning">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
                   </svg>
                   <span>Please sign the message in your wallet...</span>
                 </div>
@@ -225,8 +262,20 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
               {step === 'processing' && (
                 <div className="flex items-center gap-2 text-primary">
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                    />
                   </svg>
                   <span>Processing ownership transfer...</span>
                 </div>
@@ -248,9 +297,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
         </div>
       )}
 
-      {error && step !== 'error' && (
-        <p className="text-destructive text-sm mt-2">{error}</p>
-      )}
+      {error && step !== 'error' && <p className="text-destructive text-sm mt-2">{error}</p>}
     </div>
   );
 }
