@@ -44,6 +44,8 @@ import * as openRouterService from './openrouter.service.js';
 import { getOrCreateStripeCustomer } from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
+import * as secretService from './secret.service.js';
+import * as apiKeyService from './apiKey.service.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 
 // ============================================================
@@ -139,6 +141,7 @@ async function updateDeployment(
     canceledAt?: Date;
     readyAt?: Date;
     destroyedAt?: Date;
+    vincentSecretIds?: Record<string, string>;
   }
 ): Promise<OpenClawDeployment> {
   return prisma.openClawDeployment.update({
@@ -265,7 +268,11 @@ export async function waitForSsh(
 // VPS Setup Script
 // ============================================================
 
-export function buildSetupScript(openRouterApiKey: string, hostname: string): string {
+export function buildSetupScript(
+  openRouterApiKey: string,
+  hostname: string,
+  vincentApiKeys?: { dataSourcesKey: string; walletKey: string; polymarketKey: string }
+): string {
   // Standalone script to be saved as a file on the VPS and run via nohup.
   // Runs as root. Writes marker files for progress tracking:
   //   /root/.openclaw-setup-started  — written at start
@@ -307,9 +314,11 @@ else
   echo "OpenClaw config already exists, skipping onboard"
 fi
 
-echo "=== [4/8] Installing Vincent agent wallet skill ==="
+echo "=== [4/8] Installing Vincent skills ==="
 npx --yes clawhub@latest install agentwallet || true
 npx --yes clawhub@latest install vincentpolymarket || true
+npx --yes clawhub@latest install vincent-twitter || true
+npx --yes clawhub@latest install vincent-brave-search || true
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Always set the OpenRouter API key via env config — onboard may have been
@@ -367,6 +376,29 @@ openclaw config set agents.defaults.model --json '{"primary": "openrouter/google
 openclaw config set gateway.controlUi.allowInsecureAuth true
 openclaw config set gateway.trustedProxies --json '["127.0.0.1/32", "::1/128"]'
 
+${
+  vincentApiKeys
+    ? `
+echo "=== [5.5/8] Writing Vincent API credentials ==="
+mkdir -p /root/.openclaw/credentials/agentwallet
+cat > /root/.openclaw/credentials/agentwallet/default.json << KEYEOF
+{"apiKey": "${vincentApiKeys.walletKey}", "host": "https://heyvincent.ai"}
+KEYEOF
+
+mkdir -p /root/.openclaw/credentials/vincentpolymarket
+cat > /root/.openclaw/credentials/vincentpolymarket/default.json << KEYEOF
+{"apiKey": "${vincentApiKeys.polymarketKey}", "host": "https://heyvincent.ai"}
+KEYEOF
+
+mkdir -p /root/.openclaw/credentials/vincentdata
+cat > /root/.openclaw/credentials/vincentdata/default.json << KEYEOF
+{"apiKey": "${vincentApiKeys.dataSourcesKey}", "host": "https://heyvincent.ai"}
+KEYEOF
+chmod 600 /root/.openclaw/credentials/*/default.json
+echo "Vincent credentials written"
+`
+    : '# No Vincent API keys provided — skills will self-provision'
+}
 echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
@@ -752,6 +784,7 @@ export async function startProvisioning(
  */
 const PROVISION_STAGES = [
   'ssh_key_generated',
+  'secrets_created',
   'openrouter_key_created',
   'plan_found',
   'vps_ordered',
@@ -802,6 +835,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
     ip?: string;
     sshUser?: string;
     accessToken?: string;
+    vincentApiKeys?: { dataSourcesKey: string; walletKey: string; polymarketKey: string };
   } = {
     sshPub: deployment.sshPublicKey || undefined,
     sshPriv: deployment.sshPrivateKey || undefined,
@@ -828,6 +862,98 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
           await updateDeployment(deploymentId, {
             sshPublicKey: ctx.sshPub,
             sshPrivateKey: ctx.sshPriv,
+            provisionLog: log,
+            provisionStage: stage,
+          });
+          break;
+        }
+
+        case 'secrets_created': {
+          // Pre-create and claim DATA_SOURCES, EVM_WALLET, POLYMARKET_WALLET secrets
+          const existingSecretIds = (deployment.vincentSecretIds as Record<string, string>) || {};
+          if (
+            existingSecretIds.dataSourcesSecretId &&
+            existingSecretIds.walletSecretId &&
+            existingSecretIds.polymarketSecretId
+          ) {
+            addLog('Vincent secrets already exist, skipping creation');
+            // On resume we can't recover the plain API keys from the DB,
+            // so we generate new ones for each secret
+            const secretTypes = [
+              { key: 'dataSourcesSecretId', ctxKey: 'dataSourcesKey' as const },
+              { key: 'walletSecretId', ctxKey: 'walletKey' as const },
+              { key: 'polymarketSecretId', ctxKey: 'polymarketKey' as const },
+            ] as const;
+            const keys: Record<string, string> = {};
+            for (const { key, ctxKey } of secretTypes) {
+              const { plainKey } = await apiKeyService.createApiKey({
+                secretId: existingSecretIds[key],
+                name: 'OpenClaw Pre-provisioned (resumed)',
+              });
+              keys[ctxKey] = plainKey;
+            }
+            ctx.vincentApiKeys = {
+              dataSourcesKey: keys.dataSourcesKey,
+              walletKey: keys.walletKey,
+              polymarketKey: keys.polymarketKey,
+            };
+          } else {
+            addLog('Creating and claiming Vincent secrets...');
+            const secretConfigs = [
+              {
+                type: 'DATA_SOURCES' as const,
+                memo: 'OpenClaw Data Sources',
+                ctxKey: 'dataSourcesKey' as const,
+                idKey: 'dataSourcesSecretId',
+              },
+              {
+                type: 'EVM_WALLET' as const,
+                memo: 'OpenClaw Wallet',
+                ctxKey: 'walletKey' as const,
+                idKey: 'walletSecretId',
+              },
+              {
+                type: 'POLYMARKET_WALLET' as const,
+                memo: 'OpenClaw Polymarket',
+                ctxKey: 'polymarketKey' as const,
+                idKey: 'polymarketSecretId',
+              },
+            ];
+            const secretIds: Record<string, string> = {};
+            const keys: Record<string, string> = {};
+
+            for (const cfg of secretConfigs) {
+              const { secret, claimToken } = await secretService.createSecret({
+                type: cfg.type,
+                memo: cfg.memo,
+              });
+              // Auto-claim to the deploying user
+              await secretService.claimSecret({
+                secretId: secret.id,
+                claimToken,
+                userId: deployment.userId,
+              });
+              // Generate API key
+              const { plainKey } = await apiKeyService.createApiKey({
+                secretId: secret.id,
+                name: 'OpenClaw Pre-provisioned',
+              });
+              secretIds[cfg.idKey] = secret.id;
+              keys[cfg.ctxKey] = plainKey;
+              addLog(`Created ${cfg.type} secret (${secret.id})`);
+            }
+
+            ctx.vincentApiKeys = {
+              dataSourcesKey: keys.dataSourcesKey,
+              walletKey: keys.walletKey,
+              polymarketKey: keys.polymarketKey,
+            };
+
+            await updateDeployment(deploymentId, {
+              vincentSecretIds: secretIds,
+            });
+          }
+          await updateDeployment(deploymentId, {
             provisionLog: log,
             provisionStage: stage,
           });
@@ -1075,8 +1201,40 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`New OpenRouter key created (hash: ${orKey.hash})`);
           }
 
+          // Recover Vincent API keys on resume (plain keys aren't stored in DB)
+          if (!ctx.vincentApiKeys) {
+            const current = await prisma.openClawDeployment.findUnique({
+              where: { id: deploymentId },
+            });
+            const secretIds = (current?.vincentSecretIds as Record<string, string>) || {};
+            if (
+              secretIds.dataSourcesSecretId &&
+              secretIds.walletSecretId &&
+              secretIds.polymarketSecretId
+            ) {
+              addLog('Generating new Vincent API keys for resumed setup...');
+              const keys: Record<string, string> = {};
+              for (const [idKey, ctxKey] of [
+                ['dataSourcesSecretId', 'dataSourcesKey'],
+                ['walletSecretId', 'walletKey'],
+                ['polymarketSecretId', 'polymarketKey'],
+              ] as const) {
+                const { plainKey } = await apiKeyService.createApiKey({
+                  secretId: secretIds[idKey],
+                  name: 'OpenClaw Pre-provisioned (resumed)',
+                });
+                keys[ctxKey] = plainKey;
+              }
+              ctx.vincentApiKeys = {
+                dataSourcesKey: keys.dataSourcesKey,
+                walletKey: keys.walletKey,
+                polymarketKey: keys.polymarketKey,
+              };
+            }
+          }
+
           addLog('Launching OpenClaw setup script (detached)...');
-          const setupScript = buildSetupScript(ctx.orKeyRaw, ctx.hostname);
+          const setupScript = buildSetupScript(ctx.orKeyRaw, ctx.hostname, ctx.vincentApiKeys);
           await launchSetupScript(ctx.ip, ctx.sshUser, ctx.sshPriv, setupScript, addLog);
 
           await updateDeployment(deploymentId, {
@@ -1858,9 +2016,35 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
       15_000
     );
 
-    // 3. Launch setup script
+    // 3. Generate Vincent API keys for existing secrets
+    let vincentApiKeys:
+      | { dataSourcesKey: string; walletKey: string; polymarketKey: string }
+      | undefined;
+    const secretIds = (deployment.vincentSecretIds as Record<string, string>) || {};
+    if (secretIds.dataSourcesSecretId && secretIds.walletSecretId && secretIds.polymarketSecretId) {
+      addLog('Generating Vincent API keys for reprovision...');
+      const keys: Record<string, string> = {};
+      for (const [idKey, ctxKey] of [
+        ['dataSourcesSecretId', 'dataSourcesKey'],
+        ['walletSecretId', 'walletKey'],
+        ['polymarketSecretId', 'polymarketKey'],
+      ] as const) {
+        const { plainKey } = await apiKeyService.createApiKey({
+          secretId: secretIds[idKey],
+          name: 'OpenClaw Pre-provisioned (reprovision)',
+        });
+        keys[ctxKey] = plainKey;
+      }
+      vincentApiKeys = {
+        dataSourcesKey: keys.dataSourcesKey,
+        walletKey: keys.walletKey,
+        polymarketKey: keys.polymarketKey,
+      };
+    }
+
+    // 4. Launch setup script
     addLog('Launching OpenClaw setup script (detached)...');
-    const setupScript = buildSetupScript(orKeyRaw, hostname);
+    const setupScript = buildSetupScript(orKeyRaw, hostname, vincentApiKeys);
     await launchSetupScript(ip, sshUser, privateKey, setupScript, addLog);
 
     await updateDeployment(deploymentId, {
