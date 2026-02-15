@@ -41,6 +41,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/prisma ./prisma
 COPY package.json ./
 
+# Regenerate Prisma client for this image's OpenSSL version
+RUN npx prisma generate
+
 EXPOSE 3000
 
 CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
