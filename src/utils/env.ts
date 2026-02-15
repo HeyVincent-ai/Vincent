@@ -29,6 +29,8 @@ const envSchema = z.object({
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
   // Stripe Price ID with custom_unit_amount enabled (customer chooses amount)
   STRIPE_CREDIT_PRICE_ID: z.string().optional(),
+  // Stripe Price ID for data source credits (custom_unit_amount)
+  STRIPE_DATASOURCES_CREDITS_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
@@ -94,6 +96,10 @@ const envSchema = z.object({
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
+
+  // Data Sources - upstream API keys (optional; respective data source returns 503 if missing)
+  TWITTER_BEARER_TOKEN: z.string().optional(),
+  BRAVE_SEARCH_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

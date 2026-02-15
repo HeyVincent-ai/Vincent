@@ -63,6 +63,14 @@ function WalletIcon({ className = 'w-5 h-5' }: { className?: string }) {
   );
 }
 
+function DataSourceIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75m16.5 3.75v3.75c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125v-3.75" />
+    </svg>
+  );
+}
+
 // ── Copy Button ─────────────────────────────────────────────────────
 
 function CopyButton({
@@ -223,7 +231,11 @@ function SecretCard({ secret }: { secret: Secret }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10">
-                <WalletIcon className="w-[18px] h-[18px] text-primary" />
+                {secret.type === 'DATA_SOURCES' ? (
+                  <DataSourceIcon className="w-[18px] h-[18px] text-primary" />
+                ) : (
+                  <WalletIcon className="w-[18px] h-[18px] text-primary" />
+                )}
               </div>
               <div>
                 <span className="text-foreground font-medium block leading-tight">
@@ -398,6 +410,7 @@ export default function Dashboard() {
                   >
                     <option value="EVM_WALLET">EVM Wallet</option>
                     <option value="RAW_SIGNER">Raw Signer</option>
+                    <option value="DATA_SOURCES">Data Sources</option>
                   </select>
                 </div>
                 <div className="flex-1">

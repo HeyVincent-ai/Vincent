@@ -139,6 +139,19 @@ export const setupOpenClawTelegram = (id: string, botToken: string) =>
 export const pairOpenClawTelegram = (id: string, code: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
 
+// Data Sources
+export const getDataSourceInfo = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources`);
+export const getDataSourceCredits = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources/credits`);
+export const createDataSourceCreditsCheckout = (
+  secretId: string,
+  successUrl: string,
+  cancelUrl: string
+) => api.post(`/secrets/${secretId}/data-sources/credits/checkout`, { successUrl, cancelUrl });
+export const getDataSourceUsage = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources/usage`);
+
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
 export const subscribe = (successUrl: string, cancelUrl: string) =>
