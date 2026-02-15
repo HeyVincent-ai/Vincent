@@ -33,7 +33,7 @@ ARG VITE_ZERODEV_PROJECT_ID
 ARG VITE_SENTRY_DSN
 ARG VITE_API_URL
 COPY frontend ./frontend/
-RUN npm run build --prefix frontend
+RUN cd frontend && npx vite build
 
 # Production stage
 FROM node:22-slim
@@ -42,17 +42,16 @@ RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists
 
 WORKDIR /app
 
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/frontend/dist ./frontend/dist
-COPY --from=build /app/node_modules ./node_modules
-COPY --from=build /app/prisma ./prisma
-COPY package.json ./
+COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/frontend/dist ./frontend/dist
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/prisma ./prisma
+COPY --from=build --chown=node:node /app/package.json ./
+
+USER node
 
 # Regenerate Prisma client for this image's OpenSSL version
 RUN npx prisma generate
-
-RUN chown -R node:node /app
-USER node
 
 EXPOSE 3000
 
