@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model TradeRule {
+  id              String   @id @default(cuid())
+  ruleType        String
+  marketId        String
+  tokenId         String
+  side            String
+  triggerPrice    Float
+  trailingPercent Float?
+  action          String
+  status          String   @default("ACTIVE")
+  triggeredAt     DateTime?
+  triggerTxHash   String?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  events          RuleEvent[]
+
+  @@index([status])
+  @@index([marketId, tokenId])
+  @@map("trade_rules")
+}
+
+model MonitoredPosition {
+  id            String   @id @default(cuid())
+  marketId      String
+  tokenId       String
+  side          String
+  quantity      Float
+  avgEntryPrice Float?
+  currentPrice  Float
+  lastUpdatedAt DateTime
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([marketId, tokenId, side])
+  @@index([marketId, tokenId])
+  @@map("monitored_positions")
+}
+
+model RuleEvent {
+  id        String   @id @default(cuid())
+  ruleId    String
+  eventType String
+  eventData String
+  createdAt DateTime @default(now())
+
+  rule TradeRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@map("rule_events")
+}
+
+model Config {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@map("config")
+}

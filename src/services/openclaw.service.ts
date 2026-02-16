@@ -399,7 +399,44 @@ echo "Vincent credentials written"
 `
     : '# No Vincent API keys provided — skills will self-provision'
 }
-echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
+echo "=== [6/9] Installing Trade Manager ==="
+npm install -g @openclaw/trade-manager || true
+
+mkdir -p /root/.openclaw
+cat > /root/.openclaw/trade-manager.json << TRADEMANAGEREOF
+{
+  "port": 19000,
+  "pollIntervalSeconds": 15,
+  "vincentApiUrl": "https://heyvincent.ai",
+  "vincentApiKey": "${vincentApiKeys?.polymarketKey ?? ''}",
+  "databaseUrl": "file:/root/.openclaw/trade-manager.db"
+}
+TRADEMANAGEREOF
+
+cat > /etc/systemd/system/openclaw-trade-manager.service << TRADEMANAGERUNIT
+[Unit]
+Description=OpenClaw Trade Manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env trade-manager start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+WorkingDirectory=/root
+
+[Install]
+WantedBy=multi-user.target
+TRADEMANAGERUNIT
+
+systemctl daemon-reload
+systemctl enable openclaw-trade-manager || true
+systemctl stop openclaw-trade-manager 2>/dev/null || true
+systemctl start openclaw-trade-manager || true
+systemctl is-active --quiet openclaw-trade-manager || echo "Trade Manager failed to start"
+
+echo "=== [7/9] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
     reverse_proxy localhost:${OPENCLAW_PORT} {
@@ -413,7 +450,7 @@ CADDYEOF
 systemctl enable caddy
 systemctl restart caddy
 
-echo "=== [7/8] Configuring firewall ==="
+echo "=== [8/9] Configuring firewall ==="
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
@@ -421,7 +458,7 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-echo "=== [8/8] Starting OpenClaw gateway ==="
+echo "=== [9/9] Starting OpenClaw gateway ==="
 # Find the openclaw binary (installed to /usr/bin by npm global)
 OPENCLAW_BIN=$(which openclaw)
 echo "OpenClaw binary: \${OPENCLAW_BIN}"
