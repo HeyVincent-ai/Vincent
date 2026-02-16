@@ -286,7 +286,6 @@ function SceneCards({ scenario, phase, isExiting }: {
 
 function HeroVisual() {
   const [sceneIdx, setSceneIdx] = useState(0);
-  const [prevSceneIdx, setPrevSceneIdx] = useState<number | null>(null);
   const [phase, setPhase] = useState(0);
 
   useEffect(() => {
@@ -302,25 +301,17 @@ function HeroVisual() {
         }, PHASE_DELAYS[i]));
       }
 
-      // Phase 11: crossfade transition
+      // End of cycle: reset and advance to next scenario
       timers.push(setTimeout(() => {
         if (cancelled) return;
-        setPhase(11);
-        // Capture outgoing scene, advance to next
-        setSceneIdx(prev => {
-          setPrevSceneIdx(prev);
-          return (prev + 1) % HERO_SCENARIOS.length;
-        });
         setPhase(0);
+        setSceneIdx(prev => (prev + 1) % HERO_SCENARIOS.length);
 
-        // Start new scene after brief pause
+        // Brief pause, then start the new cycle
         timers.push(setTimeout(() => {
           if (cancelled) return;
-          setPrevSceneIdx(null);
-          setPhase(1);
-          // Schedule the next full cycle
           scheduleCycle();
-        }, 800));
+        }, 150));
       }, PHASE_DELAYS[11]));
     };
 
@@ -337,17 +328,7 @@ function HeroVisual() {
 
   return (
     <div className="hero__visual">
-      {/* Outgoing scene (crossfade) */}
-      {prevSceneIdx !== null && (
-        <div className="hero__cards-inner hero__cards-inner--exiting" key={`exit-${prevSceneIdx}`}>
-          <SceneCards scenario={HERO_SCENARIOS[prevSceneIdx]} phase={99} isExiting />
-        </div>
-      )}
-      {/* Current scene */}
-      <div
-        className={`hero__cards-inner ${prevSceneIdx !== null ? 'hero__cards-inner--entering' : ''}`}
-        key={`scene-${sceneIdx}`}
-      >
+      <div className="hero__cards-inner" key={`scene-${sceneIdx}`}>
         <SceneCards scenario={HERO_SCENARIOS[sceneIdx]} phase={phase} />
       </div>
     </div>
