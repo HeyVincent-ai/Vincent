@@ -243,7 +243,7 @@ export const SHARED_STYLES = `
   .vp .section-link svg { width: 18px; height: 18px; }
 
   /* Pricing */
-  .vp .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2rem; align-items: stretch; }
+  .vp .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: stretch; max-width: 1000px; margin: 0 auto; }
   .vp .pricing-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 2.5rem 2rem; position: relative; display: flex; flex-direction: column;
@@ -633,6 +633,8 @@ export const SHARED_STYLES = `
     .vp .highlights-grid { grid-template-columns: repeat(2, 1fr); }
     .vp .use-cases-grid { grid-template-columns: 1fr; }
     .vp .capabilities-grid { grid-template-columns: repeat(2, 1fr); }
+    .vp .pricing-grid { grid-template-columns: 1fr 1fr; max-width: 700px; }
+    .vp .pricing-grid > :last-child { grid-column: 1 / -1; max-width: 340px; justify-self: center; }
     .vp .hero__card { width: 320px; padding: 0.75rem 1rem; }
   }
   @media (max-width: 767px) {

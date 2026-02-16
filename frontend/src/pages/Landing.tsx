@@ -655,7 +655,7 @@ export default function Landing() {
             <div className="section-label">Pricing</div>
             <h2>Start free, scale when you&rsquo;re ready</h2>
           </div>
-          <div className="pricing-grid" style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div className="pricing-grid">
             <div className="pricing-card">
               <h3>Skills Only</h3>
               <div className="pricing-card__price">
@@ -688,6 +688,23 @@ export default function Landing() {
               <Link className="btn btn-primary" to="/login">
                 Start Free Trial
               </Link>
+            </div>
+            <div className="pricing-card">
+              <h3>Teams</h3>
+              <div className="pricing-card__price">
+                Custom
+              </div>
+              <div className="pricing-card__desc">We build it with you</div>
+              <ul className="pricing-card__features">
+                <li><CheckSvg /> Everything in Hosted Agent</li>
+                <li><CheckSvg /> We set up your custody &amp; SAFE vaults</li>
+                <li><CheckSvg /> We configure OpenClaw for your data needs</li>
+                <li><CheckSvg /> We write your policy &amp; compliance rules</li>
+                <li><CheckSvg /> Ongoing managed support</li>
+              </ul>
+              <a className="btn btn-secondary" href="https://docs.google.com/forms/d/e/1FAIpQLScMvEpTBOmB4QOgKimhDYT-3zZRT5U_Jsz5sXkIGGmn4tx9Hg/viewform?usp=publish-editor" target="_blank" rel="noopener noreferrer">
+                Contact Us
+              </a>
             </div>
           </div>
         </div>
