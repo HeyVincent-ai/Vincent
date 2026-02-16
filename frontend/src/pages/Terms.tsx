@@ -18,7 +18,7 @@ export default function Terms() {
         .terms-page a:hover { text-decoration: underline; }
         .terms-page .terms-quote {
           border-left: 3px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0;
-          background: rgba(249,115,22,0.04); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+          background: rgba(139,92,246,0.04); border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
           font-style: italic;
         }
         .terms-page .terms-quote p { margin-bottom: 0; }

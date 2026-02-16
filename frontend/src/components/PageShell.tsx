@@ -309,7 +309,7 @@ export const SHARED_STYLES = `
   .vp .footer-cta::before {
     content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: 600px; height: 400px;
-    background: radial-gradient(ellipse at 50% 50%, rgba(249,115,22,0.06) 0%, transparent 70%);
+    background: radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.06) 0%, transparent 70%);
     pointer-events: none;
   }
   .vp .footer-cta .container { position: relative; z-index: 1; }
