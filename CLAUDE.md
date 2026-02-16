@@ -1,10 +1,10 @@
-# SafeSkills
+# Vincent
 
 Secure secret management service for AI agents. TypeScript/Node.js backend with React frontend.
 
 ## Tech Stack
 
-- **Runtime**: Node.js 22, ES2022 modules (`"type": "module"`)
+- **Runtime**: Node.js 20+ (22 in CI), ES2022 modules (`"type": "module"`)
 - **Language**: TypeScript (strict mode, `NodeNext` module resolution)
 - **Framework**: Express
 - **Database**: Prisma ORM
