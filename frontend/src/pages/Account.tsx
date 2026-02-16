@@ -426,9 +426,7 @@ export default function Account() {
                             </span>
                           )}
                         </p>
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'}`}
-                        >
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-violet-500/10 text-violet-400'}`}>
                           {d.status}
                         </span>
                         {trial && (
@@ -442,11 +440,8 @@ export default function Account() {
                     <div className="flex items-center justify-between mt-2">
                       <div className="text-xs text-muted-foreground">
                         {d.canceledAt || d.status === 'CANCELING' ? (
-                          <span className="text-orange-400">
-                            Active until{' '}
-                            {d.currentPeriodEnd
-                              ? new Date(d.currentPeriodEnd).toLocaleDateString()
-                              : 'period end'}
+                          <span className="text-violet-400">
+                            Active until {d.currentPeriodEnd ? new Date(d.currentPeriodEnd).toLocaleDateString() : 'period end'}
                           </span>
                         ) : trial && d.currentPeriodEnd ? (
                           <span>

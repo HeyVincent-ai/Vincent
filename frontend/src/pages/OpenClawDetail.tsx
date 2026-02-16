@@ -367,7 +367,7 @@ export default function OpenClawDetail() {
             {deployment.status === 'READY' && deployment.stripeSubscriptionId && (
               <button
                 onClick={() => setShowCancelConfirm(true)}
-                className="text-sm border border-orange-500/30 text-orange-400 px-3 py-1.5 rounded hover:bg-orange-500/10 transition-colors"
+                className="text-sm border border-violet-500/30 text-violet-400 px-3 py-1.5 rounded hover:bg-violet-500/10 transition-colors"
               >
                 Cancel
               </button>
@@ -390,9 +390,9 @@ export default function OpenClawDetail() {
 
       {/* Cancel confirmation */}
       {showCancelConfirm && (
-        <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4 mb-4">
-          <p className="text-sm text-orange-400 font-medium mb-2">Cancel your subscription?</p>
-          <p className="text-sm text-orange-300/70 mb-3">
+        <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-4 mb-4">
+          <p className="text-sm text-violet-400 font-medium mb-2">Cancel your subscription?</p>
+          <p className="text-sm text-violet-300/70 mb-3">
             Your instance will remain active until the end of your billing period
             {deployment.currentPeriodEnd &&
               ` (${new Date(deployment.currentPeriodEnd).toLocaleDateString()})`}
@@ -402,7 +402,7 @@ export default function OpenClawDetail() {
             <button
               onClick={handleCancel}
               disabled={actionLoading === 'cancel'}
-              className="text-sm bg-orange-600 text-white px-4 py-1.5 rounded hover:bg-orange-700 disabled:opacity-50 transition-colors"
+              className="text-sm bg-violet-600 text-white px-4 py-1.5 rounded hover:bg-violet-700 disabled:opacity-50 transition-colors"
             >
               {actionLoading === 'cancel' ? 'Canceling...' : 'Yes, cancel subscription'}
             </button>
@@ -446,7 +446,7 @@ export default function OpenClawDetail() {
 
       {/* Canceling banner */}
       {deployment.status === 'CANCELING' && deployment.currentPeriodEnd && (
-        <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-3 mb-4 text-sm text-orange-400">
+        <div className="bg-violet-500/10 border border-violet-500/20 rounded-lg p-3 mb-4 text-sm text-violet-400">
           Subscription canceled. Instance active until{' '}
           {new Date(deployment.currentPeriodEnd).toLocaleDateString()}.
         </div>
