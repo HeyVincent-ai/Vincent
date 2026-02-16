@@ -20,24 +20,24 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 1.1 Initialize Project
 
-- [ ] Create new directory: `trade-manager/`
-- [ ] Initialize package.json: `npm init -y`
-- [ ] Install core dependencies:
+- [x] Create new directory: `trade-manager/`
+- [x] Initialize package.json: `npm init -y`
+- [x] Install core dependencies:
   - `express` (HTTP API)
   - `@prisma/client` (Prisma ORM client)
   - `zod` (validation)
   - `axios` (Vincent API client)
   - `pino` (logging)
-- [ ] Install dev dependencies:
+- [x] Install dev dependencies:
   - `prisma` (Prisma CLI)
   - `typescript`, `@types/node`, `@types/express`
   - `vitest` (testing)
   - `tsx` (dev server)
-- [ ] Configure TypeScript (`tsconfig.json`):
+- [x] Configure TypeScript (`tsconfig.json`):
   - `"type": "module"` in package.json
   - `"module": "NodeNext"`, `"moduleResolution": "NodeNext"`
   - `"strict": true`
-- [ ] Add scripts to package.json:
+- [x] Add scripts to package.json:
   - `"dev": "tsx watch src/index.ts"`
   - `"build": "prisma generate && tsc"`
   - `"test": "vitest"`
@@ -48,30 +48,30 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 1.2 Prisma Database Setup
 
-- [ ] Initialize Prisma: `npx prisma init --datasource-provider sqlite`
-- [ ] Create `prisma/schema.prisma`:
+- [x] Initialize Prisma: `npx prisma init --datasource-provider sqlite`
+- [x] Create `prisma/schema.prisma`:
   - Define TradeRule model (id, ruleType, marketId, tokenId, side, triggerPrice, trailingPercent, action, status, triggeredAt, triggerTxHash, errorMessage, timestamps)
   - Define MonitoredPosition model (id, marketId, tokenId, side, quantity, avgEntryPrice, currentPrice, lastUpdatedAt, timestamps)
   - Define RuleEvent model (id, ruleId, eventType, eventData, createdAt) with relation to TradeRule
   - Define Config model (key, value)
   - Add indexes as specified in plan
   - Add @@map directives for snake_case table names
-- [ ] Run initial migration: `npx prisma migrate dev --name init`
-- [ ] Create `src/db/client.ts`:
+- [x] Run initial migration: `npx prisma migrate dev --name init`
+- [x] Create `src/db/client.ts`:
   - Export Prisma client singleton
   - Handle connection lifecycle
   - Add graceful shutdown handler
 
 ### 1.3 Configuration Management
 
-- [ ] Create `src/config/config.ts`:
+- [x] Create `src/config/config.ts`:
   - Load config from `~/.openclaw/trade-manager.json`
   - Fallback to env vars
   - Load Vincent API key from `~/.openclaw/credentials/agentwallet/`
   - Define config schema with Zod
   - Export typed config object
-- [ ] Create default config template
-- [ ] Add validation for required fields (vincentApiKey, vincentApiUrl)
+- [x] Create default config template
+- [x] Add validation for required fields (vincentApiKey, vincentApiUrl)
 
 **Milestone**: Prisma schema defined, migrations run successfully, config loading works.
 
@@ -81,7 +81,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 2.1 Vincent API Client
 
-- [ ] Create `src/services/vincentClient.service.ts`:
+- [x] Create `src/services/vincentClient.service.ts`:
   - `getPositions()` — GET /api/skills/polymarket/positions
   - `getMarketPrice(marketId)` — GET /api/skills/polymarket/markets?marketId=...
   - `placeBet(input)` — POST /api/skills/polymarket/bet
@@ -91,21 +91,21 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 2.2 Rule Manager Service
 
-- [ ] Create `src/services/ruleManager.service.ts`:
+- [x] Create `src/services/ruleManager.service.ts`:
   - `createRule(input)` — validate and insert rule
   - `getRules(filters?)` — query rules with optional status filter
   - `getRule(id)` — get single rule
   - `updateRule(id, data)` — update trigger price
   - `cancelRule(id)` — mark as CANCELED
   - `markRuleTriggered(id, txHash)` — atomic update to TRIGGERED status
-- [ ] Add Zod validation schemas for rule inputs
-- [ ] Add business logic validation:
+- [x] Add Zod validation schemas for rule inputs
+- [x] Add business logic validation:
   - Ensure triggerPrice is valid (0 < price < 1)
   - Ensure action is valid (SELL_ALL or SELL_PARTIAL with amount)
 
 ### 2.3 Position Monitor Service
 
-- [ ] Create `src/services/positionMonitor.service.ts`:
+- [x] Create `src/services/positionMonitor.service.ts`:
   - `updatePositions()` — fetch from Vincent API and upsert to DB
   - `getPosition(marketId, tokenId)` — query cached position
   - `getCurrentPrice(marketId, tokenId)` — fetch latest price from Vincent
@@ -113,14 +113,14 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 2.4 Event Logger Service
 
-- [ ] Create `src/services/eventLogger.service.ts`:
+- [x] Create `src/services/eventLogger.service.ts`:
   - `logEvent(ruleId, eventType, eventData)` — append-only log using Prisma
   - `getEvents(ruleId?, limit?)` — query events via Prisma
   - Define event type schemas with Zod
 
 ### 2.5 Rule Executor Service
 
-- [ ] Create `src/services/ruleExecutor.service.ts`:
+- [x] Create `src/services/ruleExecutor.service.ts`:
   - `executeRule(rule)` — orchestrate trade execution
   - `evaluateRule(rule, currentPrice)` — check if trigger condition met
   - Handle SELL_ALL action (place market sell via Vincent API)
@@ -136,7 +136,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 3.1 Express App Setup
 
-- [ ] Create `src/api/app.ts`:
+- [x] Create `src/api/app.ts`:
   - Initialize Express app
   - Add JSON body parser
   - Add error handling middleware
@@ -145,38 +145,38 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 3.2 Route Handlers
 
-- [ ] Create `src/api/routes/health.routes.ts`:
+- [x] Create `src/api/routes/health.routes.ts`:
   - `GET /health` — returns `{ status: "ok", version: "..." }`
   - `GET /status` — returns worker status, active rules count, last sync time
-- [ ] Create `src/api/routes/rules.routes.ts`:
+- [x] Create `src/api/routes/rules.routes.ts`:
   - `POST /api/rules` — create rule
   - `GET /api/rules` — list rules (with optional ?status= filter)
   - `GET /api/rules/:id` — get rule details
   - `PATCH /api/rules/:id` — update trigger price
   - `DELETE /api/rules/:id` — cancel rule
-- [ ] Create `src/api/routes/positions.routes.ts`:
+- [x] Create `src/api/routes/positions.routes.ts`:
   - `GET /api/positions` — list monitored positions with current prices
-- [ ] Create `src/api/routes/events.routes.ts`:
+- [x] Create `src/api/routes/events.routes.ts`:
   - `GET /api/events` — get event log (with optional ?ruleId= filter)
-- [ ] Wire up all routes in `src/api/app.ts`
+- [x] Wire up all routes in `src/api/app.ts`
 
 ### 3.3 Request Validation & Error Handling
 
-- [ ] Add Zod validation middleware for request bodies
-- [ ] Add global error handler (return consistent JSON error responses)
-- [ ] Add 404 handler for unknown routes
+- [x] Add Zod validation middleware for request bodies
+- [x] Add global error handler (return consistent JSON error responses)
+- [x] Add 404 handler for unknown routes
 
 ### 3.4 API Tests
 
-- [ ] Create `src/api/routes/rules.routes.test.ts`:
+- [x] Create `src/api/routes/rules.routes.test.ts`:
   - Test create rule endpoint
   - Test list rules endpoint
   - Test get rule endpoint
   - Test update rule endpoint
   - Test cancel rule endpoint
-- [ ] Create `src/api/routes/positions.routes.test.ts`:
+- [x] Create `src/api/routes/positions.routes.test.ts`:
   - Test get positions endpoint
-- [ ] Set up test database:
+- [x] Set up test database:
   - Use separate Prisma client for tests
   - Use in-memory SQLite (`:memory:`) or separate test.db file
   - Run migrations before each test suite
@@ -190,7 +190,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 4.1 Worker Core Loop
 
-- [ ] Create `src/worker/monitoringWorker.ts`:
+- [x] Create `src/worker/monitoringWorker.ts`:
   - `startWorker(intervalSeconds)` — start monitoring loop
   - `stopWorker()` — graceful shutdown
   - Main loop implementation:
@@ -206,16 +206,16 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 4.2 Rule Evaluation Logic
 
-- [ ] Implement `evaluateRule(rule, currentPrice)`:
+- [x] Implement `evaluateRule(rule, currentPrice)`:
   - STOP_LOSS: trigger if currentPrice <= triggerPrice
   - TAKE_PROFIT: trigger if currentPrice >= triggerPrice
   - Return boolean (should trigger)
-- [ ] Log evaluation results to rule_events table
+- [x] Log evaluation results to rule_events table
 
 ### 4.3 Trade Execution
 
-- [ ] Integrate `ruleExecutor.service.ts` into worker loop
-- [ ] When rule triggers:
+- [x] Integrate `ruleExecutor.service.ts` into worker loop
+- [x] When rule triggers:
   - Execute trade via Vincent API
   - Mark rule as TRIGGERED atomically (use DB transaction)
   - Log ACTION_EXECUTED or ACTION_FAILED event
@@ -223,17 +223,17 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 4.4 Error Handling & Resilience
 
-- [ ] Add circuit breaker for Vincent API failures:
+- [x] Add circuit breaker for Vincent API failures:
   - Track consecutive failures
   - Pause polling after 5+ failures
   - Resume after cooldown period
-- [ ] Add exponential backoff for retries
-- [ ] Ensure worker doesn't crash on errors (catch all, log, continue)
-- [ ] Add worker health status (exposed via GET /status)
+- [x] Add exponential backoff for retries
+- [x] Ensure worker doesn't crash on errors (catch all, log, continue)
+- [x] Add worker health status (exposed via GET /status)
 
 ### 4.5 Worker Tests
 
-- [ ] Create `src/worker/monitoringWorker.test.ts`:
+- [x] Create `src/worker/monitoringWorker.test.ts`:
   - Mock Vincent API client
   - Test rule evaluation logic
   - Test that triggered rules execute trades
@@ -248,7 +248,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 5.1 Main Entry Point
 
-- [ ] Create `src/index.ts`:
+- [x] Create `src/index.ts`:
   - Initialize config
   - Run Prisma migrations (or check connection)
   - Initialize Prisma client
@@ -260,11 +260,11 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 5.2 CLI Commands (Optional for MVP)
 
-- [ ] Create `src/cli.ts` (if needed for installation/management):
+- [x] Create `src/cli.ts` (if needed for installation/management):
   - `trade-manager start` — start server + worker
   - `trade-manager version` — print version
   - `trade-manager config` — print current config
-- [ ] Or keep simple: just `node dist/index.js` to start
+- [x] Or keep simple: just `node dist/index.js` to start
 
 **Milestone**: App can be started and runs continuously.
 
@@ -274,10 +274,10 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 6.1 Build & Package
 
-- [ ] Add build script: `npm run build` (compile TypeScript to dist/)
-- [ ] Test production build: `npm start`
-- [ ] Add `.gitignore` (node_modules, dist, \*.db, etc.)
-- [ ] Add `README.md` with:
+- [x] Add build script: `npm run build` (compile TypeScript to dist/)
+- [x] Test production build: `npm start`
+- [x] Add `.gitignore` (node_modules, dist, \*.db, etc.)
+- [x] Add `README.md` with:
   - Installation instructions
   - Configuration guide
   - API documentation
@@ -285,35 +285,46 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ### 6.2 Systemd Service Definition
 
-- [ ] Create `systemd/openclaw-trade-manager.service`:
+- [x] Create `systemd/openclaw-trade-manager.service`:
   - Define ExecStart command
   - Set Restart=always
   - Set StandardOutput/StandardError to journal
-- [ ] Create install script (copies service file to `~/.config/systemd/user/`)
-- [ ] Test systemd service:
+- [x] Create install script (copies service file to `~/.config/systemd/user/`)
+- [x] Test systemd service:
   - `systemctl --user enable openclaw-trade-manager`
   - `systemctl --user start openclaw-trade-manager`
   - `journalctl --user -u openclaw-trade-manager -f`
 
 ### 6.3 Agent Skill Documentation
 
-- [ ] Create `skills/trade-manager/SKILL.md` in Vincent repo:
+- [x] Create `skills/trade-manager/SKILL.md` in Vincent repo:
   - Describe trade manager skill
   - Document API endpoints with examples
   - Add example agent prompts
   - Explain local API architecture (localhost:19000)
-- [ ] Add skill to Vincent docs/website
+- [x] Add skill to Vincent docs/website
 
 ### 6.4 OpenClaw Provisioning Integration
 
-- [ ] Update OpenClaw provisioning script (in Vincent repo):
+- [x] Update OpenClaw provisioning script (in Vincent repo):
   - Install trade manager during VPS setup
   - Create config file with Vincent API key
   - Enable and start systemd service
   - Verify service is running
-- [ ] Test full provisioning flow on test VPS
+- [x] Test full provisioning flow on test VPS
 
 **Milestone**: Trade manager auto-installs on new OpenClaw deployments.
+
+---
+
+
+## Implementation Notes (added during execution)
+
+- Completed Phases 1-6 by implementing a standalone `trade-manager/` Node + Prisma + Express service with worker, API, config loader, and tests.
+- Integrated OpenClaw provisioning (`buildSetupScript`) to install and start `openclaw-trade-manager` via systemd and write `~/.openclaw/trade-manager.json` automatically.
+- Kept SELL_PARTIAL schema support, but MVP execution path is optimized for SELL_ALL market exits.
+- Added circuit-breaker state to worker status and surfaced it through `GET /status` for operational visibility.
+- Added deployment assets (`trade-manager/systemd/openclaw-trade-manager.service`, installer script, README, skill doc) to make VPS and local setup repeatable.
 
 ---
 

@@ -380,6 +380,27 @@ DELETE http://localhost:19000/api/rules/:id
 
 ---
 
+
+## Implementation Progress (through Phase 6)
+
+### Completed
+
+- Built `trade-manager/` standalone app scaffold with TypeScript + Prisma + SQLite, including initial migration and Prisma client lifecycle helpers.
+- Implemented config loading from `~/.openclaw/trade-manager.json`, env fallback, and agentwallet API-key file fallback.
+- Implemented core services: Vincent API client (retry/backoff), rule manager, position monitor, event logger, and rule executor.
+- Implemented local HTTP API (`/health`, `/status`, `/api/rules`, `/api/positions`, `/api/events`) with Zod validation + centralized error handling.
+- Implemented monitoring worker loop with evaluation logic for STOP_LOSS and TAKE_PROFIT, trigger execution, event logging, and circuit breaker state.
+- Added entrypoint + CLI, basic unit route/worker tests, and deployment assets (systemd unit + installer script + README + skill doc).
+- Integrated OpenClaw provisioning script to install/start trade manager and seed trade-manager config on VPS setup.
+
+### Learnings / Changes from original draft
+
+- OpenClaw VPS provisioning currently uses system-level services (`/etc/systemd/system`) for reliability, so trade-manager integration follows the same pattern during bootstrap.
+- Config shape is expressed as `databaseUrl` for Prisma compatibility, replacing the earlier informal `dbPath` field in runtime code.
+- Worker status endpoint now includes circuit-breaker telemetry to make API outages observable without log scraping.
+
+---
+
 ## Non-Goals (MVP)
 
 Explicitly deferred to later phases:
