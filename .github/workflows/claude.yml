@@ -66,6 +66,7 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          show_full_output: true
           claude_args: '--max-turns 20 --allowedTools "Bash(npm test),Bash(npm run lint),Bash(npm run lint:fix),Bash(npx tsc --noEmit),Bash(npx vitest run),Bash(npm run build),Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr),Bash(gh issue),Read,Write,Edit,Glob,Grep"'
 
   # Auto-fix Codex review comments - triggers when Codex posts a review
