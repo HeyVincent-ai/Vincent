@@ -10,7 +10,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 - Standalone Node.js app (separate from Vincent)
 - Runs on each OpenClaw VPS (localhost API)
-- SQLite for local state
+- Prisma ORM with SQLite for local state (consistent with Vincent)
 - Calls Vincent Polymarket API to execute trades
 - Agent interacts via local HTTP API
 
@@ -24,13 +24,13 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 - [ ] Initialize package.json: `npm init -y`
 - [ ] Install core dependencies:
   - `express` (HTTP API)
-  - `better-sqlite3` (SQLite database)
+  - `@prisma/client` (Prisma ORM client)
   - `zod` (validation)
-  - `@cuid2/core` (ID generation)
   - `axios` (Vincent API client)
   - `pino` (logging)
 - [ ] Install dev dependencies:
-  - `typescript`, `@types/node`, `@types/express`, `@types/better-sqlite3`
+  - `prisma` (Prisma CLI)
+  - `typescript`, `@types/node`, `@types/express`
   - `vitest` (testing)
   - `tsx` (dev server)
 - [ ] Configure TypeScript (`tsconfig.json`):
@@ -39,24 +39,28 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
   - `"strict": true`
 - [ ] Add scripts to package.json:
   - `"dev": "tsx watch src/index.ts"`
-  - `"build": "tsc"`
+  - `"build": "prisma generate && tsc"`
   - `"test": "vitest"`
   - `"start": "node dist/index.js"`
+  - `"db:migrate": "prisma migrate dev"`
+  - `"db:deploy": "prisma migrate deploy"`
+  - `"db:studio": "prisma studio"`
 
-### 1.2 SQLite Database Setup
+### 1.2 Prisma Database Setup
 
-- [ ] Create `src/db/client.ts`:
-  - Initialize better-sqlite3 connection
-  - Export typed database instance
-- [ ] Create `src/db/migrations.ts`:
-  - Define schema (trade_rules, monitored_positions, rule_events, config tables)
-  - Create migration runner that runs on startup
+- [ ] Initialize Prisma: `npx prisma init --datasource-provider sqlite`
+- [ ] Create `prisma/schema.prisma`:
+  - Define TradeRule model (id, ruleType, marketId, tokenId, side, triggerPrice, trailingPercent, action, status, triggeredAt, triggerTxHash, errorMessage, timestamps)
+  - Define MonitoredPosition model (id, marketId, tokenId, side, quantity, avgEntryPrice, currentPrice, lastUpdatedAt, timestamps)
+  - Define RuleEvent model (id, ruleId, eventType, eventData, createdAt) with relation to TradeRule
+  - Define Config model (key, value)
   - Add indexes as specified in plan
-- [ ] Create `src/db/queries.ts`:
-  - Type-safe query helpers for common operations
-  - Rule CRUD operations
-  - Position CRUD operations
-  - Event logging
+  - Add @@map directives for snake_case table names
+- [ ] Run initial migration: `npx prisma migrate dev --name init`
+- [ ] Create `src/db/client.ts`:
+  - Export Prisma client singleton
+  - Handle connection lifecycle
+  - Add graceful shutdown handler
 
 ### 1.3 Configuration Management
 
@@ -69,7 +73,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 - [ ] Create default config template
 - [ ] Add validation for required fields (vincentApiKey, vincentApiUrl)
 
-**Milestone**: Database schema created, config loading works.
+**Milestone**: Prisma schema defined, migrations run successfully, config loading works.
 
 ---
 
@@ -110,9 +114,9 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 ### 2.4 Event Logger Service
 
 - [ ] Create `src/services/eventLogger.service.ts`:
-  - `logEvent(ruleId, eventType, eventData)` — append-only log
-  - `getEvents(ruleId?, limit?)` — query events
-  - Define event type schemas
+  - `logEvent(ruleId, eventType, eventData)` — append-only log using Prisma
+  - `getEvents(ruleId?, limit?)` — query events via Prisma
+  - Define event type schemas with Zod
 
 ### 2.5 Rule Executor Service
 
@@ -172,7 +176,11 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
   - Test cancel rule endpoint
 - [ ] Create `src/api/routes/positions.routes.test.ts`:
   - Test get positions endpoint
-- [ ] Use in-memory SQLite for tests (`:memory:`)
+- [ ] Set up test database:
+  - Use separate Prisma client for tests
+  - Use in-memory SQLite (`:memory:`) or separate test.db file
+  - Run migrations before each test suite
+  - Clean up database after each test
 
 **Milestone**: HTTP API fully functional, agent can create and manage rules.
 
@@ -242,10 +250,12 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 - [ ] Create `src/index.ts`:
   - Initialize config
-  - Run database migrations
+  - Run Prisma migrations (or check connection)
+  - Initialize Prisma client
   - Start HTTP server
   - Start background worker
   - Handle graceful shutdown (SIGTERM, SIGINT)
+  - Disconnect Prisma client on shutdown
   - Log startup info (version, port, config path)
 
 ### 5.2 CLI Commands (Optional for MVP)

@@ -148,64 +148,89 @@ Runs continuously in the same process as the HTTP API.
 
 ---
 
-## SQLite Database Schema
+## Database Schema (Prisma + SQLite)
 
 **File**: `~/.openclaw/trade-manager.db` (or configurable path)
 
-### Tables
+Using **Prisma ORM** for type-safe database access and managed migrations (consistent with Vincent project).
 
-```sql
-CREATE TABLE trade_rules (
-  id TEXT PRIMARY KEY,
-  rule_type TEXT NOT NULL, -- STOP_LOSS, TAKE_PROFIT, TRAILING_STOP
-  market_id TEXT NOT NULL,
-  token_id TEXT NOT NULL,
-  side TEXT NOT NULL, -- BUY or SELL
-  trigger_price REAL NOT NULL,
-  trailing_percent REAL,
-  action TEXT NOT NULL, -- JSON: {"type": "SELL_ALL"} or {"type": "SELL_PARTIAL", "amount": 100}
-  status TEXT NOT NULL DEFAULT 'ACTIVE', -- ACTIVE, TRIGGERED, CANCELED, EXPIRED, FAILED
-  triggered_at TEXT,
-  trigger_tx_hash TEXT,
-  error_message TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
+### Prisma Schema
 
-CREATE INDEX idx_rules_status ON trade_rules(status, updated_at);
+**File**: `prisma/schema.prisma`
 
-CREATE TABLE monitored_positions (
-  id TEXT PRIMARY KEY,
-  market_id TEXT NOT NULL,
-  token_id TEXT NOT NULL,
-  side TEXT NOT NULL,
-  quantity REAL NOT NULL,
-  avg_entry_price REAL,
-  current_price REAL NOT NULL,
-  last_updated_at TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL,
-  UNIQUE(market_id, token_id)
-);
+```prisma
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
 
-CREATE INDEX idx_positions_market ON monitored_positions(market_id, token_id);
+generator client {
+  provider = "prisma-client-js"
+}
 
-CREATE TABLE rule_events (
-  id TEXT PRIMARY KEY,
-  rule_id TEXT NOT NULL,
-  event_type TEXT NOT NULL, -- RULE_CREATED, RULE_EVALUATED, RULE_TRIGGERED, etc.
-  event_data TEXT NOT NULL, -- JSON
-  created_at TEXT NOT NULL,
-  FOREIGN KEY(rule_id) REFERENCES trade_rules(id) ON DELETE CASCADE
-);
+model TradeRule {
+  id               String      @id @default(cuid())
+  ruleType         String      // STOP_LOSS, TAKE_PROFIT, TRAILING_STOP
+  marketId         String
+  tokenId          String
+  side             String      // BUY or SELL
+  triggerPrice     Float
+  trailingPercent  Float?
+  action           String      // JSON: {"type": "SELL_ALL"} or {"type": "SELL_PARTIAL", "amount": 100}
+  status           String      @default("ACTIVE") // ACTIVE, TRIGGERED, CANCELED, EXPIRED, FAILED
+  triggeredAt      DateTime?
+  triggerTxHash    String?
+  errorMessage     String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 
-CREATE INDEX idx_events_rule ON rule_events(rule_id, created_at);
+  events           RuleEvent[]
 
-CREATE TABLE config (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
+  @@index([status, updatedAt])
+  @@map("trade_rules")
+}
+
+model MonitoredPosition {
+  id             String   @id @default(cuid())
+  marketId       String
+  tokenId        String
+  side           String   // BUY or SELL
+  quantity       Float
+  avgEntryPrice  Float?
+  currentPrice   Float
+  lastUpdatedAt  DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([marketId, tokenId])
+  @@index([marketId, tokenId])
+  @@map("monitored_positions")
+}
+
+model RuleEvent {
+  id          String    @id @default(cuid())
+  ruleId      String
+  eventType   String    // RULE_CREATED, RULE_EVALUATED, RULE_TRIGGERED, etc.
+  eventData   String    // JSON
+  createdAt   DateTime  @default(now())
+
+  rule        TradeRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@map("rule_events")
+}
+
+model Config {
+  key   String @id
+  value String
+
+  @@map("config")
+}
 ```
+
+### Migrations
+
+Migrations are managed via `npx prisma migrate dev` during development and `npx prisma migrate deploy` in production.
 
 ---
 
@@ -272,8 +297,11 @@ Trade manager can auto-update via:
 
 ```
 trade-manager/
+├── prisma/
+│   ├── schema.prisma           # Prisma schema definition
+│   └── migrations/             # Auto-generated migration files
 ├── src/
-│   ├── index.ts           # Main entry point (start HTTP server + worker)
+│   ├── index.ts                # Main entry point (start HTTP server + worker)
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── rules.routes.ts      # Rule CRUD endpoints
@@ -286,13 +314,12 @@ trade-manager/
 │   │   ├── ruleManager.service.ts      # Rule CRUD business logic
 │   │   ├── positionMonitor.service.ts  # Fetch/cache positions & prices
 │   │   ├── ruleExecutor.service.ts     # Execute trades when rules trigger
-│   │   ├── eventLogger.service.ts      # Log events to SQLite
+│   │   ├── eventLogger.service.ts      # Log events to Prisma
 │   │   └── vincentClient.service.ts    # Vincent API client (Polymarket calls)
 │   ├── worker/
 │   │   └── monitoringWorker.ts      # Background loop
 │   ├── db/
-│   │   ├── client.ts                # SQLite client (better-sqlite3)
-│   │   └── migrations.ts            # Schema setup
+│   │   └── client.ts                # Prisma client singleton
 │   ├── config/
 │   │   └── config.ts                # Load config from file/env
 │   └── utils/
