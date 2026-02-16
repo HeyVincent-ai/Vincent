@@ -140,7 +140,6 @@ STYTCH_ENV=test
 
 # ZeroDev Smart Accounts
 ZERODEV_PROJECT_ID=
-ZERODEV_API_KEY=
 
 # Stripe Billing
 STRIPE_SECRET_KEY=
@@ -277,7 +276,50 @@ npm run format
 
 # Open Prisma Studio
 npm run db:studio
+
+# Generate a Sentry triage report (requires ~/.openclaw/credentials/sentry.json)
+npm run sentry:triage -- --hours 24 --limit 25
+
+# Optional: create GitHub issues for high-confidence actionable bugs
+npm run sentry:triage -- --hours 24 --limit 25 --syncGithubIssues true --minConfidence 0.85
+
+# Optional: open draft fix-attempt PRs for safe TypeError/nullish candidates
+npm run sentry:triage -- --hours 24 --limit 25 --openDraftFixPrs true --maxDraftFixPrs 1 --minConfidence 0.85
+
+# Optional: send Telegram summary (requires TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID)
+npm run sentry:triage -- --hours 24 --limit 25 --sendTelegram true
 ```
+
+### Automated Sentry Triage (Local Cron)
+
+Use local cron on the machine running Vincent (not CI).
+
+Helper runner script:
+
+```bash
+./scripts/sentry-triage-runner.sh periodic
+./scripts/sentry-triage-runner.sh morning
+```
+
+Example crontab (`crontab -e`):
+
+```cron
+# Every 3 hours: classify + create GitHub issues
+15 */3 * * * cd /root/.openclaw/workspace/Vincent && ./scripts/sentry-triage-runner.sh periodic
+
+# Daily 09:00 UTC: classify + create issues + Telegram morning summary
+0 9 * * * cd /root/.openclaw/workspace/Vincent && ./scripts/sentry-triage-runner.sh morning
+```
+
+Environment needed on the host:
+
+- `GITHUB_TOKEN`
+- `GITHUB_REPOSITORY` (e.g. `HeyVincent-ai/Vincent`)
+- `ENABLE_DRAFT_FIX_PRS` (`true` by default)
+- `MAX_DRAFT_FIX_PRS` (`1` by default)
+- `TELEGRAM_BOT_TOKEN` (optional for morning summary)
+- `TELEGRAM_CHAT_ID` (optional for morning summary)
+- Sentry credentials file at `~/.openclaw/credentials/sentry.json`
 
 ## Project Structure
 
@@ -297,6 +339,15 @@ npm run db:studio
 /frontend       # React application
 /skills         # Skill documentation for agents
 ```
+
+## Sentry Signal Quality
+
+Vincent applies `beforeSend` filters in both backend and frontend Sentry initialization to reduce non-actionable noise, including:
+
+- expected user-action errors (e.g. insufficient funds, user rejected/denied)
+- known browser/runtime noise (e.g. chunk load errors, abort/network noise)
+
+This keeps triage focused on actionable engineering issues.
 
 ## Security
 

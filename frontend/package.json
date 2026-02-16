@@ -10,9 +10,16 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.10",
+    "@reown/walletkit": "^1.5.1",
     "@sentry/react": "^10.38.0",
     "@stytch/react": "^19.18.1",
     "@stytch/vanilla-js": "^5.45.0",
+    "@tanstack/react-query": "^5.90.21",
+    "@walletconnect/core": "^2.23.5",
+    "@walletconnect/utils": "^2.23.5",
+    "@zerodev/ecdsa-validator": "^5.4.9",
+    "@zerodev/sdk": "^5.5.7",
     "axios": "^1.13.4",
     "clsx": "^2.1.1",
     "lucide-react": "^0.563.0",
@@ -20,7 +27,9 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.13.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "viem": "^2.45.3",
+    "wagmi": "^2.19.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

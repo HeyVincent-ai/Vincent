@@ -64,8 +64,7 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const authHeader = req.headers.authorization;
     const sessionToken =
-      authHeader?.split(' ')[1] ||
-      (req.headers['x-session-token'] as string | undefined);
+      authHeader?.split(' ')[1] || (req.headers['x-session-token'] as string | undefined);
 
     if (!sessionToken) {
       errors.badRequest(res, 'No session token found');

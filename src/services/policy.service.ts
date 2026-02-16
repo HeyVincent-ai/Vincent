@@ -13,7 +13,9 @@ const addressListSchema = z.object({
 });
 
 const functionListSchema = z.object({
-  selectors: z.array(z.string().regex(/^0x[a-fA-F0-9]{8}$/, 'Invalid 4-byte function selector')).min(1),
+  selectors: z
+    .array(z.string().regex(/^0x[a-fA-F0-9]{8}$/, 'Invalid 4-byte function selector'))
+    .min(1),
   approvalOverride: z.boolean().optional().default(false),
 });
 
@@ -74,13 +76,29 @@ export interface PolicyPublicData {
 }
 
 // Config types for use by checkers
-export interface AddressAllowlistConfig { addresses: string[]; approvalOverride?: boolean; }
-export interface FunctionAllowlistConfig { selectors: string[]; approvalOverride?: boolean; }
-export interface TokenAllowlistConfig { tokens: string[]; approvalOverride?: boolean; }
-export interface SpendingLimitConfig { maxUsd: number; approvalOverride?: boolean; }
-export interface RequireApprovalConfig { enabled: boolean; }
+export interface AddressAllowlistConfig {
+  addresses: string[];
+  approvalOverride?: boolean;
+}
+export interface FunctionAllowlistConfig {
+  selectors: string[];
+  approvalOverride?: boolean;
+}
+export interface TokenAllowlistConfig {
+  tokens: string[];
+  approvalOverride?: boolean;
+}
+export interface SpendingLimitConfig {
+  maxUsd: number;
+  approvalOverride?: boolean;
+}
+export interface RequireApprovalConfig {
+  enabled: boolean;
+}
 /** @deprecated Use spending limit policies with approvalOverride instead */
-export interface ApprovalThresholdConfig { thresholdUsd: number; }
+export interface ApprovalThresholdConfig {
+  thresholdUsd: number;
+}
 
 // ============================================================
 // Validation
@@ -175,7 +193,10 @@ export async function listPolicies(secretId: string): Promise<PolicyPublicData[]
 /**
  * Get a single policy
  */
-export async function getPolicy(policyId: string, secretId: string): Promise<PolicyPublicData | null> {
+export async function getPolicy(
+  policyId: string,
+  secretId: string
+): Promise<PolicyPublicData | null> {
   const policy = await prisma.policy.findFirst({
     where: { id: policyId, secretId },
   });

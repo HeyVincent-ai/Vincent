@@ -10,6 +10,7 @@ import { errorHandler } from './api/middleware/errorHandler.js';
 import { requestLogger } from './api/middleware/requestLogger.js';
 import { sendSuccess } from './utils/response.js';
 import apiRouter from './api/routes/index.js';
+import docsRouter from './docs/docs.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,11 +37,21 @@ export function createApp(): Express {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          connectSrc: ["'self'", 'https://*.stytch.com'],
+          connectSrc: [
+            "'self'",
+            'https://*.stytch.com',
+            'https://*.walletconnect.org',
+            'wss://*.walletconnect.org',
+            'https://*.web3modal.org',
+            'https://*.walletconnect.com',
+            'https://*.merkle.io',
+            'https://*.ingest.us.sentry.io',
+            'https://*.zerodev.app',
+          ],
           scriptSrc: ["'self'", "'unsafe-inline'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          workerSrc: ["'self'", "blob:"],
-          frameSrc: ["'self'", "https://*.vps.ovh.us"],
+          workerSrc: ["'self'", 'blob:'],
+          frameSrc: ["'self'", 'https://*.vps.ovh.us'],
         },
       },
     })
@@ -106,6 +117,9 @@ export function createApp(): Express {
 
   // Mount API routes
   app.use('/api', apiRouter);
+
+  // Mount API docs (Scalar UI)
+  app.use('/docs', docsRouter);
 
   // Serve frontend in production
   if (env.NODE_ENV === 'production') {

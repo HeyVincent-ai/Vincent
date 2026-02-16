@@ -19,15 +19,18 @@ const envSchema = z.object({
   STYTCH_SECRET: z.string().min(1),
   STYTCH_ENV: z.enum(['test', 'live']).default('test'),
 
-  // ZeroDev Configuration (optional in development)
-  ZERODEV_PROJECT_ID: z.string().optional(),
-  ZERODEV_API_KEY: z.string().optional(),
+  // ZeroDev Configuration
+  ZERODEV_PROJECT_ID: z.string().min(1),
 
   // Stripe Billing (optional in development)
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
+  // Stripe Price ID with custom_unit_amount enabled (customer chooses amount)
+  STRIPE_CREDIT_PRICE_ID: z.string().optional(),
+  // Stripe Price ID for data source credits (custom_unit_amount)
+  STRIPE_DATASOURCES_CREDITS_PRICE_ID: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
@@ -86,12 +89,17 @@ const envSchema = z.object({
   OVH_APP_SECRET: z.string().optional(),
   OVH_CONSUMER_KEY: z.string().optional(),
   OVH_ENDPOINT: z.string().optional().default('ovh-us'),
+  OVH_EU_SUBSIDIARY: z.string().optional(),
 
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
+
+  // Data Sources - upstream API keys (optional; respective data source returns 503 if missing)
+  TWITTER_BEARER_TOKEN: z.string().optional(),
+  BRAVE_SEARCH_API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

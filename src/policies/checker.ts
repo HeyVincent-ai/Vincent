@@ -17,13 +17,13 @@ import * as priceService from '../services/price.service.js';
 /** The action being requested, with fields needed by policy checkers */
 export interface PolicyCheckAction {
   type: 'transfer' | 'send_transaction';
-  to: string;                    // Destination address (lowercase)
-  value?: number;                // ETH value (in ETH, not wei)
-  tokenAddress?: string;         // ERC20 token address (lowercase), undefined = native ETH
-  tokenAmount?: number;          // Token amount in human-readable units
-  tokenSymbol?: string;          // Token symbol (e.g. "USDC") for stablecoin price fallback
-  functionSelector?: string;     // 4-byte selector for send_transaction
-  chainId?: number;              // Chain ID for chain-aware price lookups
+  to: string; // Destination address (lowercase)
+  value?: number; // ETH value (in ETH, not wei)
+  tokenAddress?: string; // ERC20 token address (lowercase), undefined = native ETH
+  tokenAmount?: number; // Token amount in human-readable units
+  tokenSymbol?: string; // Token symbol (e.g. "USDC") for stablecoin price fallback
+  functionSelector?: string; // 4-byte selector for send_transaction
+  chainId?: number; // Chain ID for chain-aware price lookups
 }
 
 export type PolicyVerdict = 'allow' | 'deny' | 'require_approval';
@@ -132,7 +132,10 @@ function applyApprovalOverride(
     return {
       verdict: 'require_approval',
       triggeredPolicy: result.triggeredPolicy
-        ? { ...result.triggeredPolicy, reason: `${result.triggeredPolicy.reason} (requires approval)` }
+        ? {
+            ...result.triggeredPolicy,
+            reason: `${result.triggeredPolicy.reason} (requires approval)`,
+          }
         : undefined,
     };
   }
@@ -188,10 +191,7 @@ function checkFunctionAllowlist(
 
 // ---- Token Allowlist ----
 
-function checkTokenAllowlist(
-  policy: Policy,
-  action: PolicyCheckAction
-): PolicyCheckResult | null {
+function checkTokenAllowlist(policy: Policy, action: PolicyCheckAction): PolicyCheckResult | null {
   if (action.type !== 'transfer') return null;
   if (!action.tokenAddress) return null; // Native ETH transfers are not restricted by token allowlist
 
@@ -366,7 +366,12 @@ async function checkApprovalThreshold(
 async function getActionUsdValue(action: PolicyCheckAction): Promise<number | null> {
   try {
     if (action.tokenAddress && action.tokenAmount !== undefined) {
-      return await priceService.tokenToUsd(action.tokenAddress, action.tokenAmount, action.chainId, action.tokenSymbol);
+      return await priceService.tokenToUsd(
+        action.tokenAddress,
+        action.tokenAmount,
+        action.chainId,
+        action.tokenSymbol
+      );
     }
     if (action.value !== undefined) {
       return await priceService.ethToUsd(action.value);

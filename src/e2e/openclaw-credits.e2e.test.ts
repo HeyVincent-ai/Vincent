@@ -4,8 +4,8 @@
  * Tests the LLM credit lifecycle:
  * 1. Deployment starts with $25 free credits
  * 2. Usage polling returns cached/fresh data from OpenRouter
- * 3. Add credits via Stripe off-session charge
- * 4. OpenRouter key limit updated after credit purchase
+ * 3. Credit checkout session creation
+ * 4. Credit fulfillment via webhook (fulfillCreditPurchase)
  *
  * Uses REAL Stripe test mode APIs.
  *
@@ -33,6 +33,7 @@ vi.mock('../services/auth.service.js', () => ({
 
 import { validateSession } from '../services/auth.service.js';
 import { createApp } from '../app.js';
+import { fulfillCreditPurchase } from '../services/openclaw.service.js';
 
 const TEST_TOKEN = 'test-session-token-credits-e2e';
 
@@ -50,7 +51,7 @@ describe('OpenClaw Credits E2E', () => {
     stripe = new Stripe(env.STRIPE_SECRET_KEY);
     await prisma.$connect();
 
-    // Create test user with Stripe customer + payment method
+    // Create test user with Stripe customer
     testUser = await prisma.user.upsert({
       where: { email: 'openclaw-credits-e2e@test.local' },
       update: {},
@@ -71,18 +72,6 @@ describe('OpenClaw Credits E2E', () => {
         data: { stripeCustomerId: customer.id },
       });
     }
-
-    // Attach a test payment method (Stripe test card) for off-session charges
-    const pm = await stripe.paymentMethods.create({
-      type: 'card',
-      card: { token: 'tok_visa' },
-    });
-    await stripe.paymentMethods.attach(pm.id, {
-      customer: testUser.stripeCustomerId!,
-    });
-    await stripe.customers.update(testUser.stripeCustomerId!, {
-      invoice_settings: { default_payment_method: pm.id },
-    });
 
     // Create a READY deployment with credit fields
     const deployment = await prisma.openClawDeployment.create({
@@ -153,7 +142,9 @@ describe('OpenClaw Credits E2E', () => {
     expect(res.body.data.creditBalanceUsd).toBe(25);
     expect(res.body.data.remainingUsd).toBe(25);
     expect(res.body.data.totalUsageUsd).toBeDefined();
-    console.log(`  Usage API: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`);
+    console.log(
+      `  Usage API: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`
+    );
   });
 
   // ============================================================
@@ -171,67 +162,51 @@ describe('OpenClaw Credits E2E', () => {
   });
 
   // ============================================================
-  // Test 4: POST /credits validates amount range
+  // Test 4: POST /credits/checkout creates a Stripe Checkout session
   // ============================================================
 
-  it('should reject credit amounts outside $5-$500', async () => {
-    const tooLow = await request
-      .post(`/api/openclaw/deployments/${deploymentId}/credits`)
-      .set('Authorization', `Bearer ${TEST_TOKEN}`)
-      .send({ amountUsd: 2 })
-      .expect(400);
-
-    expect(tooLow.body.success).toBe(false);
-    console.log(`  $2 rejected (too low): OK`);
-
-    const tooHigh = await request
-      .post(`/api/openclaw/deployments/${deploymentId}/credits`)
-      .set('Authorization', `Bearer ${TEST_TOKEN}`)
-      .send({ amountUsd: 600 })
-      .expect(400);
-
-    expect(tooHigh.body.success).toBe(false);
-    console.log(`  $600 rejected (too high): OK`);
-  });
-
-  // ============================================================
-  // Test 5: POST /credits charges via Stripe and increments balance
-  // ============================================================
-
-  it('should charge Stripe and add credits', async () => {
+  it('should create a Stripe Checkout session for credits', async () => {
     const res = await request
-      .post(`/api/openclaw/deployments/${deploymentId}/credits`)
+      .post(`/api/openclaw/deployments/${deploymentId}/credits/checkout`)
       .set('Authorization', `Bearer ${TEST_TOKEN}`)
-      .send({ amountUsd: 10 })
+      .send({
+        successUrl: 'https://example.com/success',
+        cancelUrl: 'https://example.com/cancel',
+      })
       .expect(200);
 
     expect(res.body.success).toBe(true);
-    expect(res.body.data.success).toBe(true);
-    expect(res.body.data.newBalanceUsd).toBe(35);
-    expect(res.body.data.paymentIntentId).toBeTruthy();
-    console.log(`  Credits added: balance now $${res.body.data.newBalanceUsd}`);
-    console.log(`  PaymentIntent: ${res.body.data.paymentIntentId}`);
+    expect(res.body.data.sessionId).toBeTruthy();
+    expect(res.body.data.url).toBeTruthy();
+    expect(res.body.data.url).toContain('checkout.stripe.com');
+    console.log(`  Checkout session: ${res.body.data.sessionId}`);
+    console.log(`  Checkout URL: ${res.body.data.url.substring(0, 60)}...`);
+  }, 30_000);
 
-    // Verify DB
+  // ============================================================
+  // Test 5: fulfillCreditPurchase adds credits after checkout
+  // ============================================================
+
+  it('should fulfill credit purchase and update balance', async () => {
+    // Simulate what the webhook does after a successful Stripe Checkout
+    const fakePaymentIntentId = `pi_test_${Date.now()}`;
+    await fulfillCreditPurchase(deploymentId, 10, fakePaymentIntentId);
+
+    // Verify DB balance updated
     const deployment = await prisma.openClawDeployment.findUnique({
       where: { id: deploymentId },
     });
     expect(Number(deployment!.creditBalanceUsd)).toBe(35);
+    console.log(`  Credits fulfilled: balance now $${deployment!.creditBalanceUsd}`);
 
-    // Verify credit purchase record
+    // Verify credit purchase record created
     const purchases = await prisma.openClawCreditPurchase.findMany({
       where: { deploymentId },
     });
     expect(purchases.length).toBe(1);
     expect(Number(purchases[0].amountUsd)).toBe(10);
-    expect(purchases[0].stripePaymentIntentId).toBe(res.body.data.paymentIntentId);
+    expect(purchases[0].stripePaymentIntentId).toBe(fakePaymentIntentId);
     console.log(`  CreditPurchase record: ${purchases[0].id}`);
-
-    // Verify Stripe PaymentIntent was charged
-    const pi = await stripe.paymentIntents.retrieve(res.body.data.paymentIntentId);
-    expect(pi.status).toBe('succeeded');
-    expect(pi.amount).toBe(1000); // $10 = 1000 cents
-    console.log(`  Stripe PI status: ${pi.status}, amount: $${pi.amount / 100}`);
   }, 30_000);
 
   // ============================================================
@@ -239,15 +214,14 @@ describe('OpenClaw Credits E2E', () => {
   // ============================================================
 
   it('should stack credits on existing balance', async () => {
-    const res = await request
-      .post(`/api/openclaw/deployments/${deploymentId}/credits`)
-      .set('Authorization', `Bearer ${TEST_TOKEN}`)
-      .send({ amountUsd: 20 })
-      .expect(200);
+    const fakePaymentIntentId = `pi_test_${Date.now()}_2`;
+    await fulfillCreditPurchase(deploymentId, 20, fakePaymentIntentId);
 
-    expect(res.body.data.success).toBe(true);
-    expect(res.body.data.newBalanceUsd).toBe(55); // 35 + 20
-    console.log(`  Stacked credits: balance now $${res.body.data.newBalanceUsd}`);
+    const deployment = await prisma.openClawDeployment.findUnique({
+      where: { id: deploymentId },
+    });
+    expect(Number(deployment!.creditBalanceUsd)).toBe(55); // 35 + 20
+    console.log(`  Stacked credits: balance now $${deployment!.creditBalanceUsd}`);
 
     const purchases = await prisma.openClawCreditPurchase.findMany({
       where: { deploymentId },
@@ -269,6 +243,8 @@ describe('OpenClaw Credits E2E', () => {
 
     expect(res.body.data.creditBalanceUsd).toBe(55);
     expect(res.body.data.remainingUsd).toBe(55); // no usage yet
-    console.log(`  Usage after purchases: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`);
+    console.log(
+      `  Usage after purchases: balance=$${res.body.data.creditBalanceUsd}, remaining=$${res.body.data.remainingUsd}`
+    );
   });
 });
