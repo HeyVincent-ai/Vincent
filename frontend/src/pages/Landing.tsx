@@ -400,9 +400,9 @@ export default function Landing() {
                 Your Money Has an <em>Operator</em> Now.
               </h1>
               <p className="anim anim-d1">
-                Search, strategies, alerts, smart routing, and a self-custody vault. Add the Vincent
-                skill to any agent or deploy a hosted one &mdash; monitor markets and transact across
-                chains without giving up your keys.
+                Vincent powers 24/7 autonomous agents &mdash; launch one instantly or embed it into
+                your own &mdash; to monitor markets, reason over live signals, and execute from your
+                self-custodied vault.
               </p>
               <div className="hero__ctas anim anim-d2">
                 <Link className="btn btn-primary btn-lg" to="/login">
