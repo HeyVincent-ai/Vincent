@@ -96,6 +96,9 @@ function IntegrationLogos() {
         <div className="hero__int-group">
           <span className="hero__int-group-label">Venues</span>
           <div className="hero__int-icons">
+            <span className="hero__int-icon" title="Polymarket">
+              <svg viewBox="0 0 42.76 53.02" fill="currentColor"><path fillRule="evenodd" d="M42.76,24.28V0L0,12.04v28.93l42.76,12.04v-28.74ZM38.63,23.12V5.42L7.21,14.27l31.42,8.85ZM35.55,26.51L4.14,17.66v17.69l31.42-8.85ZM7.21,38.75l31.42,8.85v-17.71l-31.42,8.85v.02Z"/></svg>
+            </span>
             <span className="hero__int-icon" title="Ethereum">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
             </span>
@@ -108,9 +111,6 @@ function IntegrationLogos() {
             <span className="hero__int-icon" title="Base">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12c6.628 0 12-5.373 12-12S18.628 0 12 0zm-.052 20.22c-4.542 0-8.222-3.68-8.222-8.22S7.406 3.78 11.948 3.78c4.13 0 7.545 3.047 8.137 7.015h-10.87v2.41h10.87c-.592 3.968-4.008 7.015-8.137 7.015z"/></svg>
             </span>
-            <span className="hero__int-icon" title="Arbitrum">
-              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.56 14.37l2.05 3.48 3.66-6.2-.01-.17-1.63-2.72zm1.97-5.15L12 13.77l-2.53-4.55H7.1l4.9 8.76.52-.88 1.49-2.53 2.84-4.82 1.42-2.53h-2.16zm7.58 5.76l-2.2 3.76 1.26.74 2.19-3.76zm-1.93-4.69L18.9 7.64l-1.26.73 1.28 2.65 2.2 3.74 1.26-.74zM1.83 14.98l2.19 3.76 1.27-.74-2.2-3.76zm6.95 5.07l-4.5-7.71-1.27 2.16-.92 1.57 4.52 7.71 1.43-.02 2.17-3.71zm9.81 2.36l-1.77 1.03L12 24l-4.82-2.82-1.77-1.03-2.32.03L12 24.93l8.91-4.76zm1.08-13.2l-1.25-.73-1.26.73 1.26 2.16zM12 .07L2.84 4.97l1.24.73L12 1.37l7.92 4.33 1.24-.73z"/></svg>
-            </span>
           </div>
         </div>
         {/* Data */}
@@ -120,17 +120,17 @@ function IntegrationLogos() {
             <span className="hero__int-icon" title="X (Twitter)">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>
             </span>
-            <span className="hero__int-icon" title="Web Search">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+            <span className="hero__int-icon" title="Google">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
             </span>
-            <span className="hero__int-icon" title="RSS Feeds">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/></svg>
+            <span className="hero__int-icon" title="RSS">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.199 24C19.199 13.467 10.533 4.8 0 4.8V0c13.165 0 24 10.835 24 24h-4.801zM3.291 17.415c1.814 0 3.293 1.479 3.293 3.295 0 1.813-1.485 3.29-3.301 3.29C1.47 24 0 22.526 0 20.71s1.475-3.294 3.291-3.295zM15.909 24h-4.665c0-6.169-5.075-11.245-11.244-11.245V8.09c8.727 0 15.909 7.184 15.909 15.91z"/></svg>
             </span>
-            <span className="hero__int-icon" title="News">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v16a2 2 0 0 1-2 2Zm0 0a2 2 0 0 1-2-2v-9c0-1.1.9-2 2-2h2"/><path d="M18 14h-8"/><path d="M15 18h-5"/><path d="M10 6h8v4h-8V6Z"/></svg>
+            <span className="hero__int-icon" title="TradingView">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z"/></svg>
             </span>
-            <span className="hero__int-icon" title="Market Data">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+            <span className="hero__int-icon" title="CoinMarketCap">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.738 14.341c-.419.265-.912.298-1.286.087-.476-.27-.738-.898-.738-1.774v-2.618c0-1.264-.5-2.164-1.336-2.407-1.416-.413-2.482 1.32-2.882 1.972l-2.498 4.05v-4.95c-.028-1.14-.398-1.821-1.1-2.027-.466-.135-1.161-.081-1.837.953l-5.597 8.987A9.875 9.875 0 0 1 2.326 12c0-5.414 4.339-9.818 9.672-9.818 5.332 0 9.67 4.404 9.67 9.818.004.018.002.034.003.053.05 1.049-.29 1.883-.933 2.29zm3.08-2.34-.001-.055C23.787 5.353 18.497 0 11.997 0 5.48 0 .177 5.383.177 12c0 6.616 5.303 12 11.82 12 2.991 0 5.846-1.137 8.037-3.2.435-.41.46-1.1.057-1.541a1.064 1.064 0 0 0-1.519-.059 9.56 9.56 0 0 1-6.574 2.618c-2.856 0-5.425-1.263-7.197-3.268l5.048-8.105v3.737c0 1.794.696 2.374 1.28 2.544.584.17 1.476.054 2.413-1.468.998-1.614 2.025-3.297 3.023-4.88v2.276c0 1.678.672 3.02 1.843 3.68 1.056.597 2.384.543 3.465-.14 1.312-.828 2.018-2.354 1.944-4.193z"/></svg>
             </span>
           </div>
         </div>
