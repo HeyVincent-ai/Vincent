@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "SafeSkills Agent API",
+    "title": "Vincent Agent API",
     "version": "1.0.0",
     "description": "API for AI agents to create secrets, authenticate, and use skills (EVM wallet, Polymarket, raw signer, data sources).\n\n## Getting Started\n\n1. **Create a secret** via `POST /api/secrets` (no auth required). This returns an API key (`ssk_xxx`) and a claim URL.\n2. **Use the API key** as a Bearer token in the `Authorization` header for all skill endpoints.\n3. **Give the claim URL** to the secret owner so they can claim ownership, set policies, and manage the secret from the dashboard.\n\n## Re-linking\n\nIf an agent loses its API key, the secret owner can generate a one-time re-link token from the dashboard. The agent then calls `POST /api/secrets/relink` with that token to obtain a new API key.\n\n## Skill Execution Results\n\nSkill endpoints that perform on-chain actions return a `SkillExecutionResult` with one of three statuses:\n- **`executed`** (200) — Action completed successfully.\n- **`denied`** (403) — Blocked by a policy rule. The `reason` field explains why.\n- **`pending_approval`** (202) — Requires manual approval from the secret owner."
   },

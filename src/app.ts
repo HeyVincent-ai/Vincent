@@ -106,7 +106,7 @@ export function createApp(): Express {
   // API info endpoint
   app.get('/api', (_req, res) => {
     sendSuccess(res, {
-      message: 'SafeSkills API',
+      message: 'Vincent API',
       version: '1.0.0',
       endpoints: {
         secrets: '/api/secrets',
