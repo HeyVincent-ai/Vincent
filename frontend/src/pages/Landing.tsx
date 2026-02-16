@@ -180,88 +180,175 @@ const HERO_SCENARIOS = [
 
 /* ── Hero visual (animated cards) ────────────────────────────────── */
 
+const PHASE_DELAYS = [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500];
+const CYCLE_MS = 8000;
+
+function SceneCards({ scenario, phase, isExiting }: {
+  scenario: typeof HERO_SCENARIOS[number];
+  phase: number;
+  isExiting?: boolean;
+}) {
+  // When exiting, show everything fully visible (no animations)
+  const p = isExiting ? 99 : phase;
+
+  const card1Classes = [
+    'hero__card',
+    p >= 1 ? 'hero__card--show' : '',
+    p >= 1 ? 'hero__card--sources-visible' : '',
+    p >= 2 ? 'hero__card--badges-visible' : '',
+    p >= 1 && p <= 3 ? 'hero__card--glow-yellow' : '',
+  ].filter(Boolean).join(' ');
+
+  const card2Classes = [
+    'hero__card',
+    p >= 4 ? 'hero__card--show' : '',
+    p >= 5 ? 'hero__card--sources-visible' : '',
+    p >= 6 ? 'hero__card--badges-visible' : '',
+    p >= 4 && p <= 7 ? 'hero__card--glow-purple' : '',
+  ].filter(Boolean).join(' ');
+
+  const card3Classes = [
+    'hero__card',
+    p >= 8 ? 'hero__card--show' : '',
+    p >= 9 ? 'hero__card--sources-visible' : '',
+    p >= 9 ? 'hero__card--badges-visible' : '',
+    p >= 8 && p <= 10 ? 'hero__card--glow-green' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <>
+      {/* Card 1: Strategy Alert */}
+      <div className={card1Classes}>
+        <div className="hero__card-label" style={{ color: '#eab308' }}>
+          <span className="hero__card-dot hero__card-dot--yellow" />Strategy Alert
+        </div>
+        <div className="hero__card-title">{scenario.alert.title}</div>
+        <div className="hero__card-sources">
+          {scenario.alert.sources.map((src, i) => (
+            <div className="hero__source" key={i}>
+              <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+              <span className="hero__source-text">{src.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="hero__card-meta">
+          <span className="hero__card-badge hero__card-badge--alert">{scenario.alert.badges[0]}</span>
+          <span className="hero__card-badge hero__card-badge--sources">{scenario.alert.badges[1]}</span>
+        </div>
+      </div>
+
+      {/* Connector 1→2 */}
+      <div className={`hero__connector ${p >= 3 ? 'hero__connector--active' : ''}`}>
+        <div className="hero__connector-line" />
+        <div className="hero__connector-pulse" />
+      </div>
+
+      {/* Card 2: Agent Reasoning */}
+      <div className={card2Classes}>
+        <div className="hero__card-label" style={{ color: 'var(--accent)' }}>
+          <span className="hero__card-dot hero__card-dot--purple" />Agent Reasoning
+        </div>
+        <div className="hero__card-title">{scenario.reason.title}</div>
+        <div className="hero__card-sources">
+          {scenario.reason.sources.map((src, i) => (
+            <div className="hero__source" key={i}>
+              <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+              <span className="hero__source-text">{src.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="hero__card-meta">
+          <span className="hero__card-cost">LLM cost: {scenario.reason.cost}</span>
+        </div>
+      </div>
+
+      {/* Connector 2→3 */}
+      <div className={`hero__connector ${p >= 7 ? 'hero__connector--active' : ''}`}>
+        <div className="hero__connector-line" />
+        <div className="hero__connector-pulse" />
+      </div>
+
+      {/* Card 3: Self-Custody Vault */}
+      <div className={card3Classes}>
+        <div className="hero__card-label" style={{ color: '#22c55e' }}>
+          <span className="hero__card-dot hero__card-dot--green" />Self-Custody Vault
+        </div>
+        <div className="hero__card-title">{scenario.exec.title}</div>
+        <div className="hero__card-body">{scenario.exec.detail}</div>
+        <div className="hero__card-meta">
+          <span className="hero__card-badge hero__card-badge--approved">APPROVED</span>
+          <span className="hero__card-amount">{scenario.exec.amount}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
 function HeroVisual() {
   const [sceneIdx, setSceneIdx] = useState(0);
-  const [step, setStep] = useState(0);
-  const [fading, setFading] = useState(false);
+  const [prevSceneIdx, setPrevSceneIdx] = useState<number | null>(null);
+  const [phase, setPhase] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const run = () => {
-      setFading(false);
-      setStep(0);
-      timers.push(setTimeout(() => setStep(1), 1400));
-      timers.push(setTimeout(() => setStep(2), 2800));
-      timers.push(setTimeout(() => setFading(true), 5200));
-      timers.push(setTimeout(() => {
-        setSceneIdx(prev => (prev + 1) % HERO_SCENARIOS.length);
-        setStep(0);
-        setFading(false);
-      }, 5800));
-    };
-    run();
-    const iv = setInterval(run, 5800);
-    return () => { clearInterval(iv); timers.forEach(clearTimeout); };
-  }, []);
 
-  const s = HERO_SCENARIOS[sceneIdx];
+    const scheduleCycle = () => {
+      if (cancelled) return;
+      // Schedule phase 1..10
+      for (let i = 1; i <= 10; i++) {
+        timers.push(setTimeout(() => {
+          if (!cancelled) setPhase(i);
+        }, PHASE_DELAYS[i]));
+      }
+
+      // Phase 11: crossfade transition
+      timers.push(setTimeout(() => {
+        if (cancelled) return;
+        setPhase(11);
+        // Capture outgoing scene, advance to next
+        setSceneIdx(prev => {
+          setPrevSceneIdx(prev);
+          return (prev + 1) % HERO_SCENARIOS.length;
+        });
+        setPhase(0);
+
+        // Start new scene after brief pause
+        timers.push(setTimeout(() => {
+          if (cancelled) return;
+          setPrevSceneIdx(null);
+          setPhase(1);
+          // Schedule the next full cycle
+          scheduleCycle();
+        }, 800));
+      }, PHASE_DELAYS[11]));
+    };
+
+    // Kick off the first cycle after a brief delay
+    timers.push(setTimeout(() => {
+      if (!cancelled) scheduleCycle();
+    }, 50));
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, []);
 
   return (
     <div className="hero__visual">
-      <div className={`hero__cards-inner ${fading ? '' : 'hero__cards-inner--visible'}`}>
-        {/* Card 1: Strategy Alert */}
-        <div className={`hero__card hero__card--1 ${step >= 0 ? 'hero__card--show' : ''}`}>
-          <div className="hero__card-label" style={{ color: '#eab308' }}>
-            <span className="hero__card-dot hero__card-dot--yellow" />Strategy Alert
-          </div>
-          <div className="hero__card-title">{s.alert.title}</div>
-          <div className="hero__card-sources">
-            {s.alert.sources.map((src, i) => (
-              <div className="hero__source" key={i}>
-                <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
-                <span className="hero__source-text">{src.text}</span>
-              </div>
-            ))}
-          </div>
-          <div className="hero__card-meta">
-            <span className="hero__card-badge hero__card-badge--alert">{s.alert.badges[0]}</span>
-            <span className="hero__card-badge hero__card-badge--sources">{s.alert.badges[1]}</span>
-          </div>
+      {/* Outgoing scene (crossfade) */}
+      {prevSceneIdx !== null && (
+        <div className="hero__cards-inner hero__cards-inner--exiting" key={`exit-${prevSceneIdx}`}>
+          <SceneCards scenario={HERO_SCENARIOS[prevSceneIdx]} phase={99} isExiting />
         </div>
-
-        {/* Card 2: Agent Reasoning */}
-        <div className={`hero__card hero__card--2 ${step >= 1 ? 'hero__card--show' : ''}`}>
-          <div className="hero__card-label" style={{ color: 'var(--accent)' }}>
-            <span className="hero__card-dot hero__card-dot--purple" />Agent Reasoning
-          </div>
-          <div className="hero__card-title">{s.reason.title}</div>
-          <div className="hero__card-sources">
-            {s.reason.sources.map((src, i) => (
-              <div className="hero__source" key={i}>
-                <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
-                <span className="hero__source-text">{src.text}</span>
-              </div>
-            ))}
-          </div>
-          <div className="hero__card-meta">
-            <span style={{ color: 'var(--text-dim)', fontSize: '0.6875rem', fontFamily: 'var(--font-mono)' }}>
-              LLM cost: {s.reason.cost}
-            </span>
-          </div>
-        </div>
-
-        {/* Card 3: Self-Custody Vault */}
-        <div className={`hero__card hero__card--3 ${step >= 2 ? 'hero__card--show' : ''}`}>
-          <div className="hero__card-label" style={{ color: '#22c55e' }}>
-            <span className="hero__card-dot hero__card-dot--green" />Self-Custody Vault
-          </div>
-          <div className="hero__card-title">{s.exec.title}</div>
-          <div className="hero__card-body">{s.exec.detail}</div>
-          <div className="hero__card-meta">
-            <span className="hero__card-badge hero__card-badge--approved">APPROVED</span>
-            <span className="hero__card-amount">{s.exec.amount}</span>
-          </div>
-        </div>
+      )}
+      {/* Current scene */}
+      <div
+        className={`hero__cards-inner ${prevSceneIdx !== null ? 'hero__cards-inner--entering' : ''}`}
+        key={`scene-${sceneIdx}`}
+      >
+        <SceneCards scenario={HERO_SCENARIOS[sceneIdx]} phase={phase} />
       </div>
     </div>
   );

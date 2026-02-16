@@ -462,33 +462,147 @@ export const SHARED_STYLES = `
 
   /* Hero visual / cards */
   .vp .hero__visual { position: relative; min-height: 520px; }
-  .vp .hero__cards-inner { display: flex; flex-direction: column; gap: 1rem; }
-  .vp .hero__cards-inner--visible .hero__card { opacity: 1; transform: translateY(0); }
+  .vp .hero__cards-inner {
+    display: flex; flex-direction: column; gap: 0;
+    transition: opacity 0.8s ease;
+  }
+  .vp .hero__cards-inner--exiting {
+    position: absolute; top: 0; left: 0; right: 0;
+    animation: heroSceneOut 0.8s ease both;
+    pointer-events: none;
+  }
+  .vp .hero__cards-inner--entering {
+    animation: heroSceneIn 0.8s ease 0.2s both;
+  }
   .vp .hero__card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
     padding: 1.25rem 1.5rem; opacity: 0; transform: translateY(12px);
-    transition: opacity 0.5s ease, transform 0.5s ease;
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.6s ease, border-color 0.6s ease;
   }
   .vp .hero__card--show { opacity: 1; transform: translateY(0); }
+
+  /* Card border glow */
+  .vp .hero__card--glow-yellow {
+    border-color: rgba(234, 179, 8, 0.4);
+    box-shadow: 0 0 20px rgba(234, 179, 8, 0.1), 0 0 40px rgba(234, 179, 8, 0.05),
+                inset 0 1px 0 rgba(234, 179, 8, 0.1);
+  }
+  .vp .hero__card--glow-purple {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.12), 0 0 40px rgba(139, 92, 246, 0.06),
+                inset 0 1px 0 rgba(139, 92, 246, 0.1);
+  }
+  .vp .hero__card--glow-green {
+    border-color: rgba(34, 197, 94, 0.4);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.1), 0 0 40px rgba(34, 197, 94, 0.05),
+                inset 0 1px 0 rgba(34, 197, 94, 0.1);
+  }
+
   .vp .hero__card-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.375rem; }
   .vp .hero__card-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
   .vp .hero__card-dot--yellow { background: #eab308; }
   .vp .hero__card-dot--purple { background: var(--accent); }
   .vp .hero__card-dot--green { background: #22c55e; }
   .vp .hero__card-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); margin-bottom: 0.5rem; }
-  .vp .hero__card-body { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+
+  /* Card body — starts hidden, streams in */
+  .vp .hero__card-body {
+    font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.5rem;
+    opacity: 0; transform: translateX(-8px);
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .vp .hero__card--sources-visible .hero__card-body { opacity: 1; transform: translateX(0); }
+
+  /* Source lines — start hidden, stream in one by one */
   .vp .hero__card-sources { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.5rem; }
-  .vp .hero__source { display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-muted); }
+  .vp .hero__source {
+    display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-muted);
+    opacity: 0; transform: translateX(-8px);
+  }
+  .vp .hero__card--sources-visible .hero__source {
+    animation: heroSourceIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .vp .hero__card--sources-visible .hero__source:nth-child(1) { animation-delay: 0ms; }
+  .vp .hero__card--sources-visible .hero__source:nth-child(2) { animation-delay: 200ms; }
+  .vp .hero__card--sources-visible .hero__source:nth-child(3) { animation-delay: 400ms; }
   .vp .hero__source-icon { flex-shrink: 0; color: var(--text-dim); }
   .vp .hero__source-icon svg { width: 12px; height: 12px; }
+
+  /* Meta / badges — start hidden, pop in */
   .vp .hero__card-meta { display: flex; align-items: center; gap: 0.5rem; }
-  .vp .hero__card-badge { font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.125rem 0.375rem; border-radius: 4px; }
+  .vp .hero__card-badge {
+    font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.125rem 0.375rem; border-radius: 4px;
+    opacity: 0; transform: scale(0.5);
+  }
+  .vp .hero__card--badges-visible .hero__card-badge {
+    animation: heroBadgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .vp .hero__card--badges-visible .hero__card-badge:nth-child(2) { animation-delay: 100ms; }
   .vp .hero__card-badge--alert { background: rgba(234,179,8,0.15); color: #eab308; }
   .vp .hero__card-badge--sources { background: rgba(139,92,246,0.15); color: var(--accent-light); }
   .vp .hero__card-badge--approved { background: rgba(34,197,94,0.15); color: #22c55e; }
-  .vp .hero__card-amount { font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 600; color: var(--text); margin-left: auto; }
+  .vp .hero__card-amount {
+    font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 600; color: var(--text); margin-left: auto;
+    opacity: 0; transform: scale(0.5);
+  }
+  .vp .hero__card--badges-visible .hero__card-amount {
+    animation: heroBadgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  }
+  /* LLM cost meta text */
+  .vp .hero__card-cost {
+    color: var(--text-dim); font-size: 0.6875rem; font-family: var(--font-mono);
+    opacity: 0; transition: opacity 0.3s ease;
+  }
+  .vp .hero__card--badges-visible .hero__card-cost { opacity: 1; }
 
-  /* Animations */
+  /* Connectors between cards */
+  .vp .hero__connector {
+    position: relative; height: 28px; display: flex; align-items: center; justify-content: center;
+    margin: 0; z-index: 1;
+  }
+  .vp .hero__connector-line {
+    width: 2px; height: 100%; background: rgba(139, 92, 246, 0.06);
+    border-radius: 1px; position: absolute; left: 50%; transform: translateX(-50%);
+  }
+  .vp .hero__connector-pulse {
+    width: 2px; height: 0%; border-radius: 1px; position: absolute;
+    left: 50%; transform: translateX(-50%); top: 0;
+    background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+    box-shadow: 0 0 8px var(--accent-glow-strong), 0 0 16px var(--accent-glow);
+    opacity: 0;
+  }
+  .vp .hero__connector--active .hero__connector-line { background: rgba(139, 92, 246, 0.12); }
+  .vp .hero__connector--active .hero__connector-pulse {
+    animation: connectorPulse 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Animations — hero */
+  @keyframes heroSourceIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes heroBadgePop {
+    0% { opacity: 0; transform: scale(0.5); }
+    70% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes connectorPulse {
+    0% { height: 0%; top: 0%; opacity: 0; }
+    20% { opacity: 1; }
+    100% { height: 50%; top: 70%; opacity: 0; }
+  }
+  @keyframes heroSceneOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes heroSceneIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Animations — general */
   @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
   .vp .anim { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
   .vp .anim-d1 { animation-delay: 0.15s; }
@@ -514,7 +628,8 @@ export const SHARED_STYLES = `
     .vp .hero__int-label { text-align: center; }
     .vp .hero__int-logos { justify-content: center; }
     .vp .hero__visual { min-height: 400px; }
-    .vp .hero__card { position: relative; top: auto; left: auto; width: 100%; max-width: 400px; margin: 0 auto 1rem; }
+    .vp .hero__card { position: relative; top: auto; left: auto; width: 100%; max-width: 400px; margin: 0 auto; }
+    .vp .hero__connector { width: 100%; max-width: 400px; margin: 0 auto; }
     .vp .steps { grid-template-columns: 1fr; gap: 3rem; }
     .vp .steps::before { display: none; }
     .vp .pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
