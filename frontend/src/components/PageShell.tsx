@@ -167,8 +167,9 @@ export const SHARED_STYLES = `
   }
   .vp .hero .container { position: relative; z-index: 1; }
   .vp .hero__split {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; min-height: 520px;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start; min-height: 520px;
   }
+  .vp .hero__text { padding-top: 4rem; }
   .vp .hero__text h1 { margin-bottom: 1.5rem; }
   .vp .hero h1 em { font-style: normal; color: var(--accent); }
   .vp .hero__text > p { font-size: 1.1875rem; line-height: 1.7; margin-bottom: 2rem; max-width: 540px; }
@@ -473,7 +474,7 @@ export const SHARED_STYLES = `
   .vp .compare-check { color: #22c55e; font-weight: 700; font-size: 1rem; flex-shrink: 0; width: 18px; text-align: center; }
 
   /* Hero visual / cards */
-  .vp .hero__visual { position: relative; min-height: 520px; }
+  .vp .hero__visual { position: relative; height: 680px; overflow: hidden; }
   .vp .hero__cards-inner {
     display: flex; flex-direction: column; gap: 0;
     transition: opacity 0.8s ease;
@@ -488,7 +489,7 @@ export const SHARED_STYLES = `
   }
   .vp .hero__card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 1.25rem 1.5rem; opacity: 0; transform: translateY(12px);
+    padding: 0.875rem 1.25rem; opacity: 0; transform: translateY(12px);
     transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
                 box-shadow 0.6s ease, border-color 0.6s ease;
   }
@@ -505,29 +506,35 @@ export const SHARED_STYLES = `
     box-shadow: 0 0 20px rgba(139, 92, 246, 0.12), 0 0 40px rgba(139, 92, 246, 0.06),
                 inset 0 1px 0 rgba(139, 92, 246, 0.1);
   }
+  .vp .hero__card--glow-blue {
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.1), 0 0 40px rgba(56, 189, 248, 0.05),
+                inset 0 1px 0 rgba(56, 189, 248, 0.1);
+  }
   .vp .hero__card--glow-green {
     border-color: rgba(34, 197, 94, 0.4);
     box-shadow: 0 0 20px rgba(34, 197, 94, 0.1), 0 0 40px rgba(34, 197, 94, 0.05),
                 inset 0 1px 0 rgba(34, 197, 94, 0.1);
   }
 
-  .vp .hero__card-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.375rem; }
+  .vp .hero__card-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.375rem; }
   .vp .hero__card-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
   .vp .hero__card-dot--yellow { background: #eab308; }
   .vp .hero__card-dot--purple { background: var(--accent); }
+  .vp .hero__card-dot--blue { background: #38bdf8; }
   .vp .hero__card-dot--green { background: #22c55e; }
-  .vp .hero__card-title { font-size: 0.9375rem; font-weight: 600; color: var(--text); margin-bottom: 0.5rem; }
+  .vp .hero__card-title { font-size: 0.875rem; font-weight: 600; color: var(--text); margin-bottom: 0.375rem; }
 
   /* Card body — starts hidden, streams in */
   .vp .hero__card-body {
-    font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.5rem;
+    font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.375rem;
     opacity: 0; transform: translateX(-8px);
     transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   }
   .vp .hero__card--sources-visible .hero__card-body { opacity: 1; transform: translateX(0); }
 
   /* Source lines — start hidden, stream in one by one */
-  .vp .hero__card-sources { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.5rem; }
+  .vp .hero__card-sources { display: flex; flex-direction: column; gap: 0.125rem; margin-bottom: 0.375rem; }
   .vp .hero__source {
     display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-muted);
     opacity: 0; transform: translateX(-8px);
@@ -571,7 +578,7 @@ export const SHARED_STYLES = `
 
   /* Connectors between cards */
   .vp .hero__connector {
-    position: relative; height: 28px; display: flex; align-items: center; justify-content: center;
+    position: relative; height: 20px; display: flex; align-items: center; justify-content: center;
     margin: 0; z-index: 1;
   }
   .vp .hero__connector-line {
@@ -626,7 +633,7 @@ export const SHARED_STYLES = `
     .vp .highlights-grid { grid-template-columns: repeat(2, 1fr); }
     .vp .use-cases-grid { grid-template-columns: 1fr; }
     .vp .capabilities-grid { grid-template-columns: repeat(2, 1fr); }
-    .vp .hero__card { width: 320px; padding: 1rem 1.25rem; }
+    .vp .hero__card { width: 320px; padding: 0.75rem 1rem; }
   }
   @media (max-width: 767px) {
     .vp h1 { font-size: 2.5rem; }
@@ -641,7 +648,8 @@ export const SHARED_STYLES = `
     .vp .hero__int-group { align-items: center; }
     .vp .hero__int-group:not(:last-child)::after { display: none; }
     .vp .hero__int-icons { justify-content: center; }
-    .vp .hero__visual { min-height: 400px; }
+    .vp .hero__text { padding-top: 0; }
+    .vp .hero__visual { height: auto; overflow: visible; min-height: 400px; }
     .vp .hero__card { position: relative; top: auto; left: auto; width: 100%; max-width: 400px; margin: 0 auto; }
     .vp .hero__connector { width: 100%; max-width: 400px; margin: 0 auto; }
     .vp .steps { grid-template-columns: 1fr; gap: 3rem; }
@@ -725,7 +733,7 @@ function Footer() {
           <div className="footer-grid">
             <div className="footer-brand">
               <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
-              <p>Everything between you and your money.</p>
+              <p>Everything your agent needs to put money to work</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>

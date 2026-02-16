@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import PageShell, { CheckSvg, ChevronDown, SkillsCopyButton } from '../components/PageShell';
 
@@ -35,6 +35,12 @@ const SolIcon = () => (
   </svg>
 );
 
+const TelegramIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+  </svg>
+);
+
 const SourceIcon = ({ type }: { type: string }) => {
   switch (type) {
     case 'x': return <XIcon />;
@@ -43,6 +49,7 @@ const SourceIcon = ({ type }: { type: string }) => {
     case 'chart': return <PulseIcon />;
     case 'poly': return <PolyIcon />;
     case 'sol': return <SolIcon />;
+    case 'telegram': return <TelegramIcon />;
     default: return <GlobeIcon />;
   }
 };
@@ -181,7 +188,14 @@ const HERO_SCENARIOS = [
       ],
       cost: '$0.003',
     },
-    exec: { title: 'Sold 2.5 ETH on Base', detail: 'Policy approved · TX 0x8f2a...confirmed', amount: '+$9,618 USDC' },
+    approval: {
+      title: 'Sell 2.5 ETH?',
+      sources: [
+        { icon: 'telegram', text: 'Sent to Telegram · Awaiting response' },
+      ],
+      response: 'Approved via Telegram',
+    },
+    exec: { title: 'Sold 2.5 ETH on Base', detail: 'TX 0x8f2a...confirmed', amount: '+$9,618 USDC' },
   },
   {
     alert: {
@@ -227,16 +241,24 @@ const HERO_SCENARIOS = [
 
 /* ── Hero visual (animated cards) ────────────────────────────────── */
 
-const PHASE_DELAYS = [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500];
-const CYCLE_MS = 8000;
+// Phase delays per scenario — index 0 = ETH (4 cards), 1 & 2 = 3 cards
+// Last entry in each array is the "hold" time before cycling
+const SCENARIO_PHASES: number[][] = [
+  // ETH: 14 phases — alert(1-3), reason(4-7), approval(8-11), vault(12-14)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 3600, 3800, 4200, 4400, 5200, 8200],
+  // Polymarket: 10 phases — alert(1-3), reason(4-7), vault(8-10)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500],
+  // Solana: 10 phases — alert(1-3), reason(4-7), vault(8-10)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500],
+];
 
 function SceneCards({ scenario, phase, isExiting }: {
   scenario: typeof HERO_SCENARIOS[number];
   phase: number;
   isExiting?: boolean;
 }) {
-  // When exiting, show everything fully visible (no animations)
   const p = isExiting ? 99 : phase;
+  const has4Cards = !!scenario.approval;
 
   const card1Classes = [
     'hero__card',
@@ -254,12 +276,24 @@ function SceneCards({ scenario, phase, isExiting }: {
     p >= 4 && p <= 7 ? 'hero__card--glow-purple' : '',
   ].filter(Boolean).join(' ');
 
-  const card3Classes = [
+  // If 4 cards: approval card at phases 8-11, vault at 12-14
+  // If 3 cards: vault at phases 8-10
+  const approvalClasses = has4Cards ? [
     'hero__card',
     p >= 8 ? 'hero__card--show' : '',
     p >= 9 ? 'hero__card--sources-visible' : '',
-    p >= 9 ? 'hero__card--badges-visible' : '',
-    p >= 8 && p <= 10 ? 'hero__card--glow-green' : '',
+    p >= 10 ? 'hero__card--badges-visible' : '',
+    p >= 8 && p <= 11 ? 'hero__card--glow-blue' : '',
+  ].filter(Boolean).join(' ') : '';
+
+  const vaultStart = has4Cards ? 12 : 8;
+  const vaultEnd = has4Cards ? 14 : 10;
+  const card3Classes = [
+    'hero__card',
+    p >= vaultStart ? 'hero__card--show' : '',
+    p >= (vaultStart + 1) ? 'hero__card--sources-visible' : '',
+    p >= (vaultStart + 1) ? 'hero__card--badges-visible' : '',
+    p >= vaultStart && p <= vaultEnd ? 'hero__card--glow-green' : '',
   ].filter(Boolean).join(' ');
 
   return (
@@ -315,7 +349,36 @@ function SceneCards({ scenario, phase, isExiting }: {
         <div className="hero__connector-pulse" />
       </div>
 
-      {/* Card 3: Self-Custody Vault */}
+      {/* Card 3: User Approval (only for scenarios with approval) */}
+      {has4Cards && scenario.approval && (
+        <>
+          <div className={approvalClasses}>
+            <div className="hero__card-label" style={{ color: '#38bdf8' }}>
+              <span className="hero__card-dot hero__card-dot--blue" />User Approval
+            </div>
+            <div className="hero__card-title">{scenario.approval.title}</div>
+            <div className="hero__card-sources">
+              {scenario.approval.sources.map((src, i) => (
+                <div className="hero__source" key={i}>
+                  <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+                  <span className="hero__source-text">{src.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="hero__card-meta">
+              <span className="hero__card-badge hero__card-badge--approved">{scenario.approval.response}</span>
+            </div>
+          </div>
+
+          {/* Connector 3→4 */}
+          <div className={`hero__connector ${p >= 11 ? 'hero__connector--active' : ''}`}>
+            <div className="hero__connector-line" />
+            <div className="hero__connector-pulse" />
+          </div>
+        </>
+      )}
+
+      {/* Card: Self-Custody Vault */}
       <div className={card3Classes}>
         <div className="hero__card-label" style={{ color: '#22c55e' }}>
           <span className="hero__card-dot hero__card-dot--green" />Self-Custody Vault
@@ -323,7 +386,7 @@ function SceneCards({ scenario, phase, isExiting }: {
         <div className="hero__card-title">{scenario.exec.title}</div>
         <div className="hero__card-body">{scenario.exec.detail}</div>
         <div className="hero__card-meta">
-          <span className="hero__card-badge hero__card-badge--approved">APPROVED</span>
+          <span className="hero__card-badge hero__card-badge--approved">EXECUTED</span>
           <span className="hero__card-amount">{scenario.exec.amount}</span>
         </div>
       </div>
@@ -334,6 +397,7 @@ function SceneCards({ scenario, phase, isExiting }: {
 function HeroVisual() {
   const [sceneIdx, setSceneIdx] = useState(0);
   const [phase, setPhase] = useState(0);
+  const sceneRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -341,25 +405,29 @@ function HeroVisual() {
 
     const scheduleCycle = () => {
       if (cancelled) return;
-      // Schedule phase 1..10
-      for (let i = 1; i <= 10; i++) {
+      const delays = SCENARIO_PHASES[sceneRef.current];
+      const maxPhase = delays.length - 2; // last entry is cycle end time
+      // Schedule phase 1..maxPhase
+      for (let i = 1; i <= maxPhase; i++) {
         timers.push(setTimeout(() => {
           if (!cancelled) setPhase(i);
-        }, PHASE_DELAYS[i]));
+        }, delays[i]));
       }
 
       // End of cycle: reset and advance to next scenario
       timers.push(setTimeout(() => {
         if (cancelled) return;
         setPhase(0);
-        setSceneIdx(prev => (prev + 1) % HERO_SCENARIOS.length);
+        const next = (sceneRef.current + 1) % HERO_SCENARIOS.length;
+        sceneRef.current = next;
+        setSceneIdx(next);
 
         // Brief pause, then start the new cycle
         timers.push(setTimeout(() => {
           if (cancelled) return;
           scheduleCycle();
         }, 150));
-      }, PHASE_DELAYS[11]));
+      }, delays[delays.length - 1]));
     };
 
     // Kick off the first cycle after a brief delay
