@@ -653,7 +653,7 @@ export default function Landing() {
         <div className="container">
           <div className="section-header">
             <div className="section-label">Pricing</div>
-            <h2>Start free, scale when you&rsquo;re ready</h2>
+            <h2>Simple pricing, powerful agents</h2>
           </div>
           <div className="pricing-grid">
             <div className="pricing-card">
