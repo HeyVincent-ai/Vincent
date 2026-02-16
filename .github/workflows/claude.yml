@@ -140,6 +140,62 @@ jobs:
             Use `gh pr comment ${{ github.event.pull_request.number }} --body "your summary"` to post your response.
           claude_args: '--max-turns 30 --allowedTools "Bash(npm test),Bash(npm run lint),Bash(npm run lint:fix),Bash(npx tsc --noEmit),Bash(npx vitest run),Bash(npm run build),Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr comment),Bash(gh pr),Read,Write,Edit,Glob,Grep"'
 
+  # Auto-fix GitHub Copilot review comments - triggers when Copilot posts a review
+  auto-fix-copilot:
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.user.login == 'copilot-pull-request-reviewer' &&
+      github.event.review.state == 'COMMENTED'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Get review comments
+        id: get_comments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REVIEW_ID="${{ github.event.review.id }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          # Fetch the review comments
+          COMMENTS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${{ github.repository }}/pulls/$PR_NUMBER/reviews/$REVIEW_ID/comments" \
+            --jq '.[] | "**\(.path):\(.line)** - \(.body)\n"')
+
+          # Also get the main review body if it exists
+          REVIEW_BODY="${{ github.event.review.body }}"
+
+          # Combine them
+          if [ -n "$REVIEW_BODY" ]; then
+            FULL_REVIEW="## GitHub Copilot Review Summary\n\n$REVIEW_BODY\n\n## Specific Comments\n\n$COMMENTS"
+          else
+            FULL_REVIEW="## GitHub Copilot Review Comments\n\n$COMMENTS"
+          fi
+
+          echo "review_content<<EOF" >> $GITHUB_OUTPUT
+          echo "$FULL_REVIEW" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
