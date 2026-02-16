@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { env } from './env';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
+  baseURL: env.API_URL,
 });
 
 api.interceptors.request.use((config) => {
@@ -128,12 +129,28 @@ export const reprovisionOpenClawDeployment = (id: string) =>
 export const downloadOpenClawSshKey = (id: string) =>
   api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
 export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
-export const addOpenClawCredits = (id: string, amountUsd: number) =>
-  api.post(`/openclaw/deployments/${id}/credits`, { amountUsd });
+export const createOpenClawCreditsCheckout = (
+  id: string,
+  successUrl: string,
+  cancelUrl: string
+) => api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
 export const setupOpenClawTelegram = (id: string, botToken: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/setup`, { botToken });
 export const pairOpenClawTelegram = (id: string, code: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
+
+// Data Sources
+export const getDataSourceInfo = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources`);
+export const getDataSourceCredits = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources/credits`);
+export const createDataSourceCreditsCheckout = (
+  secretId: string,
+  successUrl: string,
+  cancelUrl: string
+) => api.post(`/secrets/${secretId}/data-sources/credits/checkout`, { successUrl, cancelUrl });
+export const getDataSourceUsage = (secretId: string) =>
+  api.get(`/secrets/${secretId}/data-sources/usage`);
 
 // Billing
 export const getSubscription = () => api.get('/billing/subscription');
@@ -143,5 +160,13 @@ export const cancelSubscription = () => api.post('/billing/cancel');
 export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
+
+// Ownership
+export const requestOwnershipChallenge = (secretId: string, address: string) =>
+  api.post(`/secrets/${secretId}/take-ownership/challenge`, { address });
+export const verifyOwnershipSignature = (secretId: string, address: string, signature: string) =>
+  api.post(`/secrets/${secretId}/take-ownership/verify`, { address, signature });
+export const getOwnershipStatus = (secretId: string) =>
+  api.get(`/secrets/${secretId}/take-ownership/status`);
 
 export default api;

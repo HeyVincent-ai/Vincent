@@ -422,7 +422,9 @@ function ensureStringArray(value: unknown): string[] {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) return parsed.map(String);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
   return [];
 }
@@ -483,9 +485,7 @@ export async function searchMarketsGamma(params: {
 
     // Flatten events -> markets
     const markets = events.flatMap((event: any) =>
-      (event.markets || [])
-        .filter((m: any) => !active || m.acceptingOrders)
-        .map(mapGammaMarket)
+      (event.markets || []).filter((m: any) => !active || m.acceptingOrders).map(mapGammaMarket)
     );
 
     return {
@@ -512,9 +512,7 @@ export async function searchMarketsGamma(params: {
 
   const data = (await response.json()) as GammaMarket[];
 
-  const markets = data
-    .filter(m => !active || m.acceptingOrders)
-    .map(mapGammaMarket);
+  const markets = data.filter((m) => !active || m.acceptingOrders).map(mapGammaMarket);
 
   return {
     markets,

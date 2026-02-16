@@ -75,60 +75,30 @@ export interface PolymarketBalanceOutput {
 async function getWalletData(secretId: string) {
   const secret = await prisma.secret.findFirst({
     where: { id: secretId, deletedAt: null },
-    include: { walletMetadata: true, polymarketWalletMetadata: true },
+    include: { polymarketWalletMetadata: true },
   });
 
   if (!secret) {
     throw new AppError('NOT_FOUND', 'Secret not found', 404);
   }
 
-  if (secret.type !== 'EVM_WALLET' && secret.type !== 'POLYMARKET_WALLET') {
-    throw new AppError('INVALID_TYPE', 'Secret is not a wallet type', 400);
+  if (secret.type !== 'POLYMARKET_WALLET') {
+    throw new AppError('INVALID_TYPE', 'Secret is not a POLYMARKET_WALLET', 400);
   }
 
   if (!secret.value) {
     throw new AppError('NO_VALUE', 'Wallet private key not available', 500);
   }
 
-  // For POLYMARKET_WALLET: use Safe address as wallet, deploy lazily if needed
-  if (secret.type === 'POLYMARKET_WALLET') {
-    const meta = secret.polymarketWalletMetadata;
-    if (!meta) {
-      throw new AppError('NO_METADATA', 'Polymarket wallet metadata missing', 500);
-    }
-
-    let safeAddress = meta.safeAddress;
-
-    // Lazy Safe deployment on first use
-    if (!safeAddress) {
-      console.log(`Deploying Safe for secret ${secretId}...`);
-      safeAddress = await polymarket.deploySafe(secret.value);
-
-      // Store the Safe address
-      await prisma.polymarketWalletMetadata.update({
-        where: { secretId },
-        data: { safeAddress },
-      });
-
-      // Approve collateral (gasless)
-      console.log(`Approving collateral for Safe ${safeAddress}...`);
-      await polymarket.approveCollateral(secret.value);
-    }
-
-    return {
-      privateKey: secret.value as Hex,
-      walletAddress: safeAddress,
-      safeAddress,
-      userId: secret.userId,
-    };
+  const meta = secret.polymarketWalletMetadata;
+  if (!meta) {
+    throw new AppError('NO_METADATA', 'Polymarket wallet metadata missing', 500);
   }
 
-  // For EVM_WALLET: legacy behavior
   return {
     privateKey: secret.value as Hex,
-    walletAddress:
-      secret.walletMetadata?.smartAccountAddress ?? polymarket.getEoaAddress(secret.value),
-    safeAddress: undefined as string | undefined,
+    walletAddress: meta.safeAddress,
+    safeAddress: meta.safeAddress,
     userId: secret.userId,
   };
 }
@@ -305,9 +275,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
     }
 
     // Extract meaningful error message, avoiding circular structure errors
-    const cleanMessage = errorMessage.includes('circular structure')
-      ? 'no match'
-      : errorMessage;
+    const cleanMessage = errorMessage.includes('circular structure') ? 'no match' : errorMessage;
 
     throw new AppError('BET_FAILED', `Polymarket bet failed: ${cleanMessage}`, 500);
   }

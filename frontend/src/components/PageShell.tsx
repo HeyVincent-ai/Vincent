@@ -4,11 +4,35 @@ import { Link, useLocation } from 'react-router-dom';
 const SKILLS_REPO_URL = 'https://github.com/HeyVincent-ai/agent-skills';
 
 const CheckSvg = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
 );
 
 const ChevronDown = ({ size = 16 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
 );
 
 export { CheckSvg, ChevronDown };
@@ -702,15 +726,39 @@ function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }
   return (
     <header className="nav" role="banner">
       <div className="container">
-        <Link className="nav__logo" to="/"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></Link>
+        <Link className="nav__logo" to="/">
+          <img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" />
+        </Link>
         <nav className="nav__tabs" role="navigation" aria-label="Main navigation">
-          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">Home</Link>
-          <Link className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`} to="/features">Features</Link>
-          <Link className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`} to="/security">Security</Link>
-          <SkillsCopyButton className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`} tooltipDown>Skills Repo</SkillsCopyButton>
+          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">
+            Home
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`}
+            to="/features"
+          >
+            Features
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`}
+            to="/security"
+          >
+            Security
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`}
+            to="/skills"
+          >
+            Skills
+          </Link>
         </nav>
         <div className="nav__right">
-          <Link className="btn btn-primary" to="/login">Human Login</Link>
+          <Link className="btn btn-secondary" to="/skills">
+            Skills Only
+          </Link>
+          <Link className="btn btn-primary" to="/login">
+            Human Login
+          </Link>
         </div>
       </div>
     </header>
@@ -725,8 +773,12 @@ function Footer() {
           <h2>Ready to launch your operator?</h2>
           <p>Start with a 7-day free trial.</p>
           <div className="cta-buttons">
-            <Link className="btn btn-primary btn-lg" to="/login">Launch Your Agent &mdash; Free</Link>
-            <SkillsCopyButton className="btn btn-secondary btn-lg">Skills Repo</SkillsCopyButton>
+            <Link className="btn btn-primary btn-lg" to="/login">
+              Deploy an Agent
+            </Link>
+            <Link className="btn btn-secondary btn-lg" to="/skills">
+              Skills Only
+            </Link>
           </div>
         </div>
       </section>
@@ -757,7 +809,11 @@ function Footer() {
             <div className="footer-col">
               <h4>Company</h4>
               <ul>
-                <li><a href="https://litprotocol.com" target="_blank" rel="noreferrer">Lit Protocol</a></li>
+                <li>
+                  <a href="https://litprotocol.com" target="_blank" rel="noreferrer">
+                    Lit Protocol
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
@@ -771,12 +827,20 @@ function Footer() {
   );
 }
 
-export default function PageShell({ active, children }: { active: 'home' | 'features' | 'security' | 'skills'; children: ReactNode }) {
+export default function PageShell({
+  active,
+  children,
+}: {
+  active: 'home' | 'features' | 'security' | 'skills';
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Scroll to top on route change
   const location = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <>

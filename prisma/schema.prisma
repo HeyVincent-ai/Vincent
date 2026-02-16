@@ -18,12 +18,16 @@ model User {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
+  dataSourceCreditUsd  Decimal  @default(10.00) @map("data_source_credit_usd") @db.Decimal(10, 2)
+
   secrets            Secret[]
   subscriptions      Subscription[]
   gasUsages          GasUsage[]
   monthlyGasSummaries MonthlyGasSummary[]
   auditLogs          AuditLog[]
   openclawDeployments OpenClawDeployment[]
+  dataSourceUsage     DataSourceUsage[]
+  dataSourceCreditPurchases DataSourceCreditPurchase[]
 
   @@map("users")
 }
@@ -36,6 +40,7 @@ enum SecretType {
   API_KEY
   SSH_KEY
   OAUTH_TOKEN
+  DATA_SOURCES
 }
 
 // Secret model - stores secrets with optional value (can be null for user-provided secrets)
@@ -57,10 +62,12 @@ model Secret {
   polymarketWalletMetadata  PolymarketWalletMetadata?
   rawSignerMetadata         RawSignerMetadata?
   apiKeys                   ApiKey[]
+  ownershipChallenges       OwnershipChallenge[]
   policies          Policy[]
   transactionLogs   TransactionLog[]
   auditLogs         AuditLog[]
   gasUsages         GasUsage[]
+  dataSourceUsage   DataSourceUsage[]
 
   @@map("secrets")
 }
@@ -86,7 +93,7 @@ model PolymarketWalletMetadata {
   id          String   @id @default(cuid())
   secretId    String   @unique @map("secret_id")
   eoaAddress  String   @map("eoa_address")
-  safeAddress String?  @map("safe_address")
+  safeAddress String   @map("safe_address")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -97,11 +104,19 @@ model PolymarketWalletMetadata {
 
 // Wallet-specific metadata for EVM_WALLET secrets
 model WalletSecretMetadata {
-  id                  String   @id @default(cuid())
-  secretId            String   @unique @map("secret_id")
-  smartAccountAddress String   @map("smart_account_address")
-  createdAt           DateTime @default(now()) @map("created_at")
-  updatedAt           DateTime @updatedAt @map("updated_at")
+  id                   String    @id @default(cuid())
+  secretId             String    @unique @map("secret_id")
+  smartAccountAddress  String    @map("smart_account_address")
+  canTakeOwnership     Boolean   @default(false) @map("can_take_ownership")
+  ownershipTransferred Boolean   @default(false) @map("ownership_transferred")
+  ownerAddress         String?   @map("owner_address") // User's EOA after ownership transfer
+  transferredAt        DateTime? @map("transferred_at")
+  transferTxHash       String?   @map("transfer_tx_hash")
+  chainsTransferred    Int[]     @default([]) @map("chains_transferred") // Snapshot of chains at ownership transfer time
+  chainsUsed           Int[]     @default([]) @map("chains_used") // Track which chains have been used
+  sessionKeyData       String?   @map("session_key_data")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
   secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
 
@@ -308,6 +323,21 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// Ownership challenge for wallet self-custody verification
+model OwnershipChallenge {
+  id        String   @id @default(cuid())
+  secretId  String   @map("secret_id")
+  address   String   // New owner address (lowercased)
+  challenge String   @db.Text
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@unique([secretId, address])
+  @@map("ownership_challenges")
+}
+
 // OpenClaw deployment status enum
 enum OpenClawStatus {
   PENDING_PAYMENT
@@ -343,6 +373,9 @@ model OpenClawDeployment {
   // OpenRouter
   openRouterKeyHash String?      @map("open_router_key_hash")
 
+  // Pre-provisioned Vincent secrets (JSON: { dataSourcesSecretId, walletSecretId, polymarketSecretId })
+  vincentSecretIds   Json?        @map("vincent_secret_ids")
+
   // Channel configuration
   telegramConfigured Boolean      @default(false) @map("telegram_configured")
 
@@ -371,6 +404,40 @@ model OpenClawDeployment {
 
   @@index([userId])
   @@map("openclaw_deployments")
+}
+
+// Data source usage tracking per API call
+model DataSourceUsage {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  secretId        String    @map("secret_id")
+  apiKeyId        String?   @map("api_key_id")
+  dataSource      String    @map("data_source")   // "twitter", "brave"
+  endpoint        String                           // "search", "get-tweet", "web", etc.
+  costUsd         Decimal   @map("cost_usd") @db.Decimal(10, 6)
+  requestMetadata Json?     @map("request_metadata")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  user   User   @relation(fields: [userId], references: [id])
+  secret Secret @relation(fields: [secretId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([secretId, createdAt])
+  @@map("data_source_usage")
+}
+
+// Data source credit purchases
+model DataSourceCreditPurchase {
+  id                    String   @id @default(cuid())
+  userId                String   @map("user_id")
+  amountUsd             Decimal  @map("amount_usd") @db.Decimal(10, 2)
+  stripePaymentIntentId String   @unique @map("stripe_payment_intent_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@map("data_source_credit_purchases")
 }
 
 // OpenClaw credit purchases for LLM token billing
