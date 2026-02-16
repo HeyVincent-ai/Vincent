@@ -229,13 +229,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
     const openclawService = await import('../services/openclaw.service.js');
     await openclawService.startProvisioning(deploymentId, stripeSubscription.id, period.end);
-
-    // Trigger referral reward for referred user
-    try {
-      await referralService.fulfillReferralReward(userId);
-    } catch (err: any) {
-      console.error('[stripe] Failed to fulfill referral reward:', err.message);
-    }
     return;
   }
 
@@ -255,16 +248,14 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       currentPeriodEnd: period.end,
     },
   });
-
-  // Trigger referral reward for referred user (standard subscription)
-  try {
-    await referralService.fulfillReferralReward(userId);
-  } catch (err: any) {
-    console.error('[stripe] Failed to fulfill referral reward:', err.message);
-  }
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const amountPaidUsd = Number(invoice.amount_paid ?? 0) / 100;
+  if (amountPaidUsd <= 0) {
+    console.log('[stripe] Skipping referral fulfillment for non-paid invoice');
+  }
+
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
@@ -277,6 +268,28 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       where: { id: sub.id },
       data: { status: 'ACTIVE' },
     });
+
+    if (amountPaidUsd > 0) {
+      try {
+        await referralService.fulfillReferralReward(sub.userId);
+      } catch (err: any) {
+        console.error('[stripe] Failed to fulfill referral reward:', err.message);
+      }
+    }
+    return;
+  }
+
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    select: { userId: true },
+  });
+
+  if (openclawDeployment && amountPaidUsd > 0) {
+    try {
+      await referralService.fulfillReferralReward(openclawDeployment.userId);
+    } catch (err: any) {
+      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    }
   }
 }
 
