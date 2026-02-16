@@ -50,7 +50,7 @@ jobs:
           anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: '--max-turns 20 --allowedTools "Bash(npm test:*),Bash(npm run lint:*),Bash(npx tsc:*),Bash(npx vitest:*),Bash(npm run build:*),Bash(git:*),Bash(gh:*),Read,Write,Edit,Glob,Grep"'
 
-  # Auto-fix CI failures - triggers when CI workflow fails on a claude/ branch
+  # Auto-fix CI failures - triggers on any PR when someone comments "@claude fix ci"
   auto-fix-ci:
     if: |
       github.event_name == 'issue_comment' &&
