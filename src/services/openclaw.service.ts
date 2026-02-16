@@ -646,9 +646,9 @@ async function claimPoolVps(
     await tx.openClawDeployment.update({
       where: { id: deploymentId },
       data: {
+        ...extraData,
         ovhServiceName: serviceName,
         hostname: ovhService.getVpsHostname(serviceName),
-        ...extraData,
       },
     });
     return serviceName;
@@ -1015,33 +1015,32 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
         case 'plan_found': {
           // Try to claim a pre-provisioned VPS from the pool first.
-          // Retry loop handles the rare case where a pool VPS service name
-          // already belongs to another deployment (P2002 unique constraint).
           let poolClaimed = false;
-          const MAX_POOL_RETRIES = 10;
-
-          for (let attempt = 0; attempt < MAX_POOL_RETRIES; attempt++) {
-            try {
-              addLog('Checking VPS pool...');
-              const poolVps = await claimPoolVps(deploymentId, {
-                provisionLog: log,
-                provisionStage: stage,
-              });
-              if (poolVps) {
-                ctx.serviceName = poolVps;
-                ctx.hostname = ovhService.getVpsHostname(poolVps);
-                addLog(`Claimed VPS from pool: ${poolVps}`);
-                poolClaimed = true;
-              } else {
-                addLog('VPS pool empty, proceeding with normal VPS ordering');
-              }
-              break;
-            } catch (err: any) {
-              if (err.code === 'P2002' && err.meta?.target?.includes('ovh_service_name')) {
-                addLog('Pool VPS already claimed by another deployment, retrying...');
-                await new Promise((r) => setTimeout(r, 100));
-                continue;
-              }
+          try {
+            addLog('Checking VPS pool...');
+            const poolVps = await claimPoolVps(deploymentId, {
+              provisionLog: log,
+              provisionStage: stage,
+            });
+            if (poolVps) {
+              ctx.serviceName = poolVps;
+              ctx.hostname = ovhService.getVpsHostname(poolVps);
+              addLog(`Claimed VPS from pool: ${poolVps}`);
+              poolClaimed = true;
+            } else {
+              addLog('VPS pool empty, proceeding with normal VPS ordering');
+            }
+          } catch (err: any) {
+            // P2002: the pool VPS service name already belongs to another deployment.
+            // The transaction rolled back so the poisoned row is still at the head of
+            // the pool — retrying would hit the same row. Skip the pool entirely.
+            if (
+              err.code === 'P2002' &&
+              (err.meta?.target?.includes('ovhServiceName') ||
+                err.meta?.target?.includes('ovh_service_name'))
+            ) {
+              addLog('Pool VPS already claimed by another deployment; skipping pool');
+            } else {
               throw err;
             }
           }
