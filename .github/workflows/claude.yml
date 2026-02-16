@@ -60,12 +60,9 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
-      # Uses CLAUDE_CODE_OAUTH_TOKEN (a subscription OAuth token generated via
-      # `claude setup-token`), passed through the anthropic_api_key field per
-      # the claude-code-action docs.
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           show_full_output: true
           claude_args: '--max-turns 20 --allowedTools "Bash(npm test),Bash(npm run lint),Bash(npm run lint:fix),Bash(npx tsc --noEmit),Bash(npx vitest run),Bash(npm run build),Bash(git status),Bash(git diff),Bash(git add),Bash(git commit),Bash(git push),Bash(gh pr),Bash(gh issue),Read,Write,Edit,Glob,Grep"'
 
@@ -127,7 +124,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Codex has posted a code review with the following feedback:
 
@@ -201,7 +198,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             GitHub Copilot has posted a code review with the following feedback:
 
@@ -243,7 +240,7 @@ jobs:
 
       - uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             CI has failed on this PR. Run the tests with `npm test`, the linter
             with `npm run lint`, and type-check with `npx tsc --noEmit`.
