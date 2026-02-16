@@ -150,8 +150,8 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
           <div className="bg-status-success-muted border border-status-success/20 rounded p-4">
             <p className="text-status-success font-medium mb-2">Ownership Transferred</p>
             <p className="text-status-success text-sm mb-3">
-              You are now the owner of this smart wallet. SafeSkills can still execute transactions
-              on your behalf (subject to your policies).
+              You are now the owner of this smart wallet. Vincent can still execute transactions on
+              your behalf (subject to your policies).
             </p>
             {ownerAddress && (
               <p className="text-status-success/80 text-xs mb-3">
