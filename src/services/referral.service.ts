@@ -90,7 +90,7 @@ export async function recordReferral(
  */
 export async function fulfillReferralReward(referredUserId: string): Promise<void> {
   // Find the PENDING referral for this user
-  const referral = await prisma.referral.findUnique({
+  const referral = await prisma.referral.findFirst({
     where: { referredUserId, status: 'PENDING' },
   });
 
@@ -147,8 +147,10 @@ export async function applyPendingRewards(userId: string): Promise<number> {
   let applied = 0;
   for (const referral of pendingReferrals) {
     try {
-      await applyCredit(referral.id, deployment.id, Number(referral.rewardAmountUsd));
-      applied++;
+      const wasApplied = await applyCredit(referral.id, deployment.id, Number(referral.rewardAmountUsd));
+      if (wasApplied) {
+        applied++;
+      }
     } catch (err: any) {
       console.error(`[referral] Failed to apply pending reward ${referral.id}:`, err.message);
     }
@@ -193,32 +195,61 @@ async function applyCredit(
   referralId: string,
   deploymentId: string,
   amountUsd: number
-): Promise<void> {
-  const deployment = await prisma.openClawDeployment.findUnique({
-    where: { id: deploymentId },
-  });
+): Promise<boolean> {
+  const { newBalance, shouldSendEmail } = await prisma.$transaction(async (tx) => {
+    const referral = await tx.referral.findUnique({
+      where: { id: referralId },
+    });
 
-  if (!deployment) throw new Error('Deployment not found');
+    if (!referral) {
+      throw new Error('Referral not found');
+    }
 
-  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
+    if (referral.status === 'FULFILLED') {
+      return { newBalance: null, shouldSendEmail: false };
+    }
 
-  await prisma.$transaction([
-    prisma.openClawDeployment.update({
+    const deployment = await tx.openClawDeployment.findUnique({
       where: { id: deploymentId },
-      data: { creditBalanceUsd: newBalance },
-    }),
-    prisma.referral.update({
+    });
+
+    if (!deployment) {
+      throw new Error('Deployment not found');
+    }
+
+    const updatedDeployment = await tx.openClawDeployment.update({
+      where: { id: deploymentId },
+      data: { creditBalanceUsd: { increment: amountUsd } },
+      select: { creditBalanceUsd: true, openRouterKeyHash: true },
+    });
+
+    await tx.referral.update({
       where: { id: referralId },
       data: {
         status: 'FULFILLED',
         deploymentId,
         fulfilledAt: new Date(),
       },
-    }),
-  ]);
+    });
+
+    return {
+      newBalance: Number(updatedDeployment.creditBalanceUsd),
+      shouldSendEmail: true,
+      openRouterKeyHash: updatedDeployment.openRouterKeyHash,
+    };
+  });
+
+  if (!shouldSendEmail || newBalance === null) {
+    return false;
+  }
 
   // Update OpenRouter key spending limit
-  if (deployment.openRouterKeyHash) {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
+    select: { openRouterKeyHash: true },
+  });
+
+  if (deployment?.openRouterKeyHash) {
     try {
       await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
     } catch (err) {
@@ -242,4 +273,6 @@ async function applyCredit(
       console.error('[referral] Failed to send reward email:', emailErr.message);
     }
   }
+
+  return true;
 }
