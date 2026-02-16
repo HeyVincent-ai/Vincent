@@ -67,3 +67,5 @@ jobs:
           SKILL_CI_BASE_URL: ${{ steps.preview.outputs.url }}
           OPENROUTER_API_KEY: ${{ secrets.CI_OPENROUTER_API_KEY }}
           SKILL_CI_MODEL: ${{ inputs.model || 'google/gemini-2.5-flash' }}
+          STYTCH_PROJECT_ID: ${{ secrets.STYTCH_PROJECT_ID }}
+          STYTCH_SECRET: ${{ secrets.STYTCH_SECRET }}
