@@ -723,7 +723,7 @@ function Footer() {
       <section className="footer-cta">
         <div className="container">
           <h2>Ready to launch your operator?</h2>
-          <p>Start free. No credit card required.</p>
+          <p>Start with a 7-day free trial.</p>
           <div className="cta-buttons">
             <Link className="btn btn-primary btn-lg" to="/login">Launch Your Agent &mdash; Free</Link>
             <SkillsCopyButton className="btn btn-secondary btn-lg">Skills Repo</SkillsCopyButton>
