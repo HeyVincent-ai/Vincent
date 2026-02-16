@@ -9,7 +9,9 @@ import {
   cancelSubscription,
   getOpenClawDeployments,
   getOpenClawUsage,
+  getReferral,
 } from '../api';
+import { copyToClipboard } from '../utils/format';
 
 interface Subscription {
   id: string;
@@ -63,6 +65,15 @@ export default function Account() {
   const [deploymentsLoading, setDeploymentsLoading] = useState(true);
   const [usageMap, setUsageMap] = useState<Record<string, UsageData>>({});
 
+  // --- Referral state ---
+  const [referralLink, setReferralLink] = useState('');
+  const [referralStats, setReferralStats] = useState<{
+    totalReferred: number;
+    totalEarnedUsd: number;
+    pendingRewards: number;
+  } | null>(null);
+  const [refCopied, setRefCopied] = useState(false);
+
   useEffect(() => {
     getSubscription()
       .then((subRes) => {
@@ -78,9 +89,7 @@ export default function Account() {
         setDeployments(deps);
 
         // Fetch usage for each active deployment
-        const active = deps.filter((d) =>
-          ['READY', 'CANCELING'].includes(d.status)
-        );
+        const active = deps.filter((d) => ['READY', 'CANCELING'].includes(d.status));
         active.forEach((d) => {
           getOpenClawUsage(d.id)
             .then((r) => {
@@ -91,6 +100,13 @@ export default function Account() {
       })
       .catch(() => {})
       .finally(() => setDeploymentsLoading(false));
+
+    getReferral()
+      .then((res) => {
+        setReferralLink(res.data.data.referralLink);
+        setReferralStats(res.data.data.stats);
+      })
+      .catch(() => {});
   }, []);
 
   const handleSaveTelegram = async () => {
@@ -132,7 +148,12 @@ export default function Account() {
   };
 
   const handleCancel = async () => {
-    if (!confirm('Cancel your subscription? You will lose mainnet access at the end of the billing period.')) return;
+    if (
+      !confirm(
+        'Cancel your subscription? You will lose mainnet access at the end of the billing period.'
+      )
+    )
+      return;
     try {
       await cancelSubscription();
       const subRes = await getSubscription();
@@ -143,9 +164,7 @@ export default function Account() {
     }
   };
 
-  const activeDeployments = deployments.filter((d) =>
-    ['READY', 'CANCELING'].includes(d.status)
-  );
+  const activeDeployments = deployments.filter((d) => ['READY', 'CANCELING'].includes(d.status));
 
   const isTrialPeriod = (d: Deployment) => {
     if (!d.currentPeriodEnd) return false;
@@ -173,7 +192,9 @@ export default function Account() {
             <div className="bg-primary/10 text-primary p-3 rounded mb-4 text-sm">{message}</div>
           )}
 
-          <label className="block text-sm font-medium text-foreground mb-1">Telegram Username</label>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Telegram Username
+          </label>
           <div className="flex gap-2 mb-4">
             <input
               value={tgUsername}
@@ -208,10 +229,12 @@ export default function Account() {
                 <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1">
                   <li>Click "Generate Linking Code" below</li>
                   <li>
-                    Open Telegram and search for <strong className="text-foreground">{botUsername || 'the Vincent bot'}</strong>
+                    Open Telegram and search for{' '}
+                    <strong className="text-foreground">{botUsername || 'the Vincent bot'}</strong>
                     {botUsername && (
                       <>
-                        {' '}&mdash;{' '}
+                        {' '}
+                        &mdash;{' '}
                         <a
                           href={`https://t.me/${botUsername}`}
                           target="_blank"
@@ -253,6 +276,45 @@ export default function Account() {
         </div>
       </section>
 
+      {/* Refer a Friend Section */}
+      {referralLink && (
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Refer a Friend</h2>
+          <div className="bg-card rounded-lg border border-border p-6">
+            <p className="text-sm text-muted-foreground mb-4">
+              Share your referral link. When someone signs up and makes their first payment, you get
+              $10 in LLM credits.
+            </p>
+            <div className="flex gap-2 mb-4">
+              <input
+                readOnly
+                value={referralLink}
+                className="flex-1 bg-background border border-border rounded-md px-3 py-2 text-sm text-foreground font-mono focus:outline-none"
+              />
+              <button
+                onClick={async () => {
+                  await copyToClipboard(referralLink);
+                  setRefCopied(true);
+                  setTimeout(() => setRefCopied(false), 2000);
+                }}
+                className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors"
+              >
+                {refCopied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+            {referralStats && (
+              <div className="flex gap-6 text-sm text-muted-foreground">
+                <span>{referralStats.totalReferred} referred</span>
+                <span>${referralStats.totalEarnedUsd} earned</span>
+                {referralStats.pendingRewards > 0 && (
+                  <span className="text-yellow-400">{referralStats.pendingRewards} pending</span>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       {/* Billing Section */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold text-foreground mb-4">Billing</h2>
@@ -264,16 +326,16 @@ export default function Account() {
             <p className="text-muted-foreground text-sm">Loading...</p>
           ) : !hasAnySubscription ? (
             <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                No active subscriptions.
-              </p>
+              <p className="text-sm text-muted-foreground mb-4">No active subscriptions.</p>
 
               {/* Wallet subscribe CTA */}
               <div className="border border-border rounded-lg p-4 mb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-foreground">Agent Wallet</p>
-                    <p className="text-xs text-muted-foreground">Unlimited mainnet transactions &middot; Gas fees included</p>
+                    <p className="text-xs text-muted-foreground">
+                      Unlimited mainnet transactions &middot; Gas fees included
+                    </p>
                   </div>
                   <button
                     onClick={handleSubscribe}
@@ -285,7 +347,11 @@ export default function Account() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Deploy an agent from the <Link to="/dashboard" className="text-primary hover:underline">Dashboard</Link> to add agent subscriptions.
+                Deploy an agent from the{' '}
+                <Link to="/dashboard" className="text-primary hover:underline">
+                  Dashboard
+                </Link>{' '}
+                to add agent subscriptions.
               </p>
             </div>
           ) : (
@@ -296,7 +362,9 @@ export default function Account() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <p className="text-sm font-medium text-foreground">Agent Wallet</p>
-                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${sub.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}>
+                      <span
+                        className={`px-2 py-0.5 rounded text-xs font-medium ${sub.status === 'ACTIVE' ? 'bg-green-500/10 text-green-400' : 'bg-yellow-500/10 text-yellow-400'}`}
+                      >
                         {sub.status}
                       </span>
                     </div>
@@ -325,7 +393,9 @@ export default function Account() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-foreground">Agent Wallet</p>
-                      <p className="text-xs text-muted-foreground">Unlimited mainnet transactions &middot; Gas fees included</p>
+                      <p className="text-xs text-muted-foreground">
+                        Unlimited mainnet transactions &middot; Gas fees included
+                      </p>
                     </div>
                     <button
                       onClick={handleSubscribe}
@@ -351,10 +421,14 @@ export default function Account() {
                         <p className="text-sm font-medium text-foreground">
                           Agent
                           {d.hostname && (
-                            <span className="text-muted-foreground font-normal ml-2 font-mono text-xs">{d.hostname}</span>
+                            <span className="text-muted-foreground font-normal ml-2 font-mono text-xs">
+                              {d.hostname}
+                            </span>
                           )}
                         </p>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-orange-500/10 text-orange-400'}`}
+                        >
                           {d.status}
                         </span>
                         {trial && (
@@ -369,10 +443,15 @@ export default function Account() {
                       <div className="text-xs text-muted-foreground">
                         {d.canceledAt || d.status === 'CANCELING' ? (
                           <span className="text-orange-400">
-                            Active until {d.currentPeriodEnd ? new Date(d.currentPeriodEnd).toLocaleDateString() : 'period end'}
+                            Active until{' '}
+                            {d.currentPeriodEnd
+                              ? new Date(d.currentPeriodEnd).toLocaleDateString()
+                              : 'period end'}
                           </span>
                         ) : trial && d.currentPeriodEnd ? (
-                          <span>Trial ends {new Date(d.currentPeriodEnd).toLocaleDateString()}</span>
+                          <span>
+                            Trial ends {new Date(d.currentPeriodEnd).toLocaleDateString()}
+                          </span>
                         ) : d.currentPeriodEnd ? (
                           <span>Renews {new Date(d.currentPeriodEnd).toLocaleDateString()}</span>
                         ) : null}
@@ -394,12 +473,8 @@ export default function Account() {
               {activeDeployments.map((d) => {
                 const usage = usageMap[d.id];
                 // Fall back to inline credit data from the deployments list
-                const balance = usage
-                  ? usage.creditBalanceUsd
-                  : Number(d.creditBalanceUsd || 0);
-                const used = usage
-                  ? usage.totalUsageUsd
-                  : Number(d.lastKnownUsageUsd || 0);
+                const balance = usage ? usage.creditBalanceUsd : Number(d.creditBalanceUsd || 0);
+                const used = usage ? usage.totalUsageUsd : Number(d.lastKnownUsageUsd || 0);
                 const remaining = Math.max(0, balance - used);
 
                 return (
@@ -432,7 +507,9 @@ export default function Account() {
 
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Used: ${used.toFixed(2)}</span>
-                      <span>${remaining.toFixed(2)} remaining of ${balance.toFixed(2)}</span>
+                      <span>
+                        ${remaining.toFixed(2)} remaining of ${balance.toFixed(2)}
+                      </span>
                     </div>
 
                     {usage && (usage.usageDailyUsd > 0 || usage.usageMonthlyUsd > 0) && (
@@ -458,13 +535,26 @@ export default function Account() {
         <div className="bg-card rounded-lg border border-border p-6">
           <h3 className="text-base font-semibold text-foreground mb-2">What&apos;s Included</h3>
           <ul className="text-sm text-muted-foreground space-y-1">
-            <li>&bull; <strong className="text-foreground">Free:</strong> Unlimited testnet transactions, wallet management</li>
-            <li>&bull; <strong className="text-foreground">Agent Wallet ($10/mo):</strong> Unlimited mainnet transactions, gas fees included</li>
-            <li>&bull; <strong className="text-foreground">Agent Deployment ($25/mo):</strong> Dedicated AI agent server, 7-day free trial</li>
-            <li>&bull; <strong className="text-foreground">LLM Credits:</strong> Pay-as-you-go credits for agent AI usage</li>
+            <li>
+              &bull; <strong className="text-foreground">Free:</strong> Unlimited testnet
+              transactions, wallet management
+            </li>
+            <li>
+              &bull; <strong className="text-foreground">Agent Wallet ($10/mo):</strong> Unlimited
+              mainnet transactions, gas fees included
+            </li>
+            <li>
+              &bull; <strong className="text-foreground">Agent Deployment ($25/mo):</strong>{' '}
+              Dedicated AI agent server, 7-day free trial
+            </li>
+            <li>
+              &bull; <strong className="text-foreground">LLM Credits:</strong> Pay-as-you-go credits
+              for agent AI usage
+            </li>
           </ul>
           <p className="text-xs text-muted-foreground mt-3">
-            New wallets include a 3-day free trial for mainnet transactions. Agent deployments include a 7-day free trial.
+            New wallets include a 3-day free trial for mainnet transactions. Agent deployments
+            include a 7-day free trial.
           </p>
         </div>
       </section>

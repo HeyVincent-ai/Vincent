@@ -97,6 +97,9 @@ const envSchema = z.object({
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
 
+  // Admin (comma-separated list of admin email addresses)
+  ADMIN_EMAILS: z.string().optional(),
+
   // Data Sources - upstream API keys (optional; respective data source returns 503 if missing)
   TWITTER_BEARER_TOKEN: z.string().optional(),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
