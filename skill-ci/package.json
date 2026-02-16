@@ -1,0 +1,19 @@
+{
+  "name": "skill-ci",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "ai": "^6.0.86",
+    "@openrouter/ai-sdk-provider": "^2.2.3",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18",
+    "typescript": "^5.9.3"
+  }
+}

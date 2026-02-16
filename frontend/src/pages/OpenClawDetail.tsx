@@ -10,7 +10,7 @@ import {
 
   downloadOpenClawSshKey,
   getOpenClawUsage,
-  addOpenClawCredits,
+  createOpenClawCreditsCheckout,
   setupOpenClawTelegram,
   pairOpenClawTelegram,
 } from '../api';
@@ -29,6 +29,11 @@ interface Deployment {
   createdAt: string;
   readyAt: string | null;
   telegramConfigured: boolean;
+  vincentSecretIds: {
+    dataSourcesSecretId?: string;
+    walletSecretId?: string;
+    polymarketSecretId?: string;
+  } | null;
 }
 
 interface UsageData {
@@ -76,10 +81,7 @@ export default function OpenClawDetail() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
-  const [showCreditsModal, setShowCreditsModal] = useState(false);
-  const [creditAmount, setCreditAmount] = useState('10');
   const [creditLoading, setCreditLoading] = useState(false);
-  const [creditError, setCreditError] = useState<string | null>(null);
   const [showDevModal, setShowDevModal] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
   const [telegramStep, setTelegramStep] = useState<1 | 2>(1);
@@ -130,6 +132,21 @@ export default function OpenClawDetail() {
       .catch(() => {});
   }, [id, deployment?.status]);
 
+  // Show toast if returning from Stripe Checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('credits') === 'success') {
+      toast('Credits added successfully!');
+      window.history.replaceState({}, '', window.location.pathname);
+      // Refresh usage
+      if (id) {
+        getOpenClawUsage(id)
+          .then((res) => setUsage(res.data.data))
+          .catch(() => {});
+      }
+    }
+  }, []);
+
   // Auto-pop Telegram modal on first visit if not configured
   useEffect(() => {
     if (!id || !deployment || deployment.telegramConfigured) return;
@@ -143,30 +160,14 @@ export default function OpenClawDetail() {
 
   const handleAddCredits = async () => {
     if (!id) return;
-    const amount = parseFloat(creditAmount);
-    if (isNaN(amount) || amount < 5 || amount > 500) {
-      setCreditError('Amount must be between $5 and $500');
-      return;
-    }
     setCreditLoading(true);
-    setCreditError(null);
     try {
-      const res = await addOpenClawCredits(id, amount);
-      const data = res.data.data;
-      if (data.requiresAction) {
-        setCreditError('3D Secure required — please complete authentication in the popup.');
-      } else {
-        setShowCreditsModal(false);
-        setCreditAmount('10');
-        getOpenClawUsage(id)
-          .then((r) => setUsage(r.data.data))
-          .catch(() => {});
-      }
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
-        ?.data?.error?.message;
-      setCreditError(msg || 'Failed to add credits');
-    } finally {
+      const successUrl = `${window.location.origin}/openclaw/${id}?credits=success`;
+      const cancelUrl = `${window.location.origin}/openclaw/${id}`;
+      const res = await createOpenClawCreditsCheckout(id, successUrl, cancelUrl);
+      window.location.href = res.data.data.url;
+    } catch {
+      toast('Failed to start checkout. Please try again.');
       setCreditLoading(false);
     }
   };
@@ -474,10 +475,11 @@ export default function OpenClawDetail() {
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-medium text-foreground">LLM Credits</h3>
               <button
-                onClick={() => setShowCreditsModal(true)}
-                className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 transition-colors"
+                onClick={handleAddCredits}
+                disabled={creditLoading}
+                className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
               >
-                Add Credits
+                {creditLoading ? 'Redirecting...' : 'Add Credits'}
               </button>
             </div>
             <div className="w-full bg-muted rounded-full h-2.5 mb-2">
@@ -534,57 +536,41 @@ export default function OpenClawDetail() {
           )}
         </div>
       )}
-
-      {/* Add Credits Modal */}
-      {showCreditsModal && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
-          onClick={() => setShowCreditsModal(false)}
-        >
-          <div
-            className="bg-card border border-border rounded-lg p-6 w-full max-w-sm mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-semibold text-foreground mb-4">Add LLM Credits</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Credits will be charged to your card on file. Minimum $5, maximum $500.
-            </p>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-muted-foreground">$</span>
-              <input
-                type="number"
-                min="5"
-                max="500"
-                step="5"
-                value={creditAmount}
-                onChange={(e) => setCreditAmount(e.target.value)}
-                className="bg-background border border-border rounded px-3 py-2 w-full text-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                placeholder="10"
-              />
-            </div>
-            {creditError && <p className="text-sm text-destructive mb-3">{creditError}</p>}
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => {
-                  setShowCreditsModal(false);
-                  setCreditError(null);
-                }}
-                className="text-sm text-muted-foreground px-4 py-2 hover:text-foreground transition-colors"
+      {/* Pre-provisioned Vincent Accounts */}
+      {isActive && deployment.vincentSecretIds && (
+        <div className="bg-card rounded-lg border border-border p-4 mb-4">
+          <h3 className="text-sm font-medium text-foreground mb-3">Vincent Accounts</h3>
+          <p className="text-xs text-muted-foreground mb-3">
+            Your agent has these Vincent accounts pre-configured:
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {deployment.vincentSecretIds.walletSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.walletSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleAddCredits}
-                disabled={creditLoading}
-                className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                Wallet
+              </Link>
+            )}
+            {deployment.vincentSecretIds.polymarketSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.polymarketSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
               >
-                {creditLoading ? 'Charging...' : `Add $${parseFloat(creditAmount) || 0} Credits`}
-              </button>
-            </div>
+                Polymarket
+              </Link>
+            )}
+            {deployment.vincentSecretIds.dataSourcesSecretId && (
+              <Link
+                to={`/secrets/${deployment.vincentSecretIds.dataSourcesSecretId}`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-muted text-muted-foreground border border-border hover:text-foreground hover:border-primary/40 transition-colors"
+              >
+                Data Sources
+              </Link>
+            )}
           </div>
         </div>
       )}
-
       {/* Telegram Setup Modal */}
       {showTelegramModal && (
         <div

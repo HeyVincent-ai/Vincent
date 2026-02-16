@@ -26,6 +26,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { waitForBalance } from './helpers';
 import {
   createWalletClient,
   createPublicClient,
@@ -438,9 +439,15 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     evidence.fundUsdcTxHash = usdcTxHash;
     console.log(`USDC fund tx: https://basescan.org/tx/${usdcTxHash}`);
 
-    // Verify funding
-    const ethBalance = await getEthBalance(smartAccountAddress);
-    const usdcBalance = await getUsdcBalance(smartAccountAddress);
+    // Verify funding (poll to allow RPC eventual consistency)
+    const ethBalance = await waitForBalance(
+      () => getEthBalance(smartAccountAddress),
+      ETH_FUND_AMOUNT
+    );
+    const usdcBalance = await waitForBalance(
+      () => getUsdcBalance(smartAccountAddress),
+      USDC_FUND_AMOUNT
+    );
 
     console.log(`Smart account ETH balance: ${ethBalance}`);
     console.log(`Smart account USDC balance: ${usdcBalance}`);

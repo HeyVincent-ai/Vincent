@@ -58,14 +58,10 @@ function generatePrivateKey(): string {
   return '0x' + randomBytes(32).toString('hex');
 }
 
-// Generate a placeholder smart account address (fallback when ZeroDev not configured)
-function generatePlaceholderAddress(): string {
-  return '0x' + randomBytes(20).toString('hex');
-}
-
 /**
  * Create a new secret
- * - For EVM_WALLET: generates EOA private key and placeholder smart account
+ * - For EVM_WALLET: generates EOA private key and smart account
+ * - For POLYMARKET_WALLET: generates EOA private key and deploys Safe
  * - For other types: creates placeholder awaiting user-provided value
  */
 export async function createSecret(input: CreateSecretInput): Promise<CreateSecretResult> {
@@ -78,41 +74,57 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     | Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput
     | undefined;
 
+  // DATA_SOURCES secrets have no value — the secret record exists for API key ownership & billing
+  if (type === SecretType.DATA_SOURCES) {
+    // secretValue stays null, no metadata needed
+  }
+
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
 
-    // Use Sepolia for counterfactual address derivation. With ZeroDev, the
+    // Use Base Sepolia for counterfactual address derivation. With ZeroDev, the
     // smart account address is the same on all chains, so the chain used
     // here doesn't matter — the wallet works on any chain.
     const derivationChainId = 84532; // Base Sepolia
 
-    // Create ZeroDev smart account if configured, otherwise use placeholder
-    let smartAccountAddress: string;
-    if (env.ZERODEV_PROJECT_ID) {
-      smartAccountAddress = await zerodev.createSmartAccount(secretValue as Hex, derivationChainId);
-    } else {
-      smartAccountAddress = generatePlaceholderAddress();
-    }
+    // Create ZeroDev smart account with recovery guardian and session key enabled
+    // This sets up the backend EOA as sudo (owner), guardian, and session key signer
+    const result = await zerodev.createSmartAccountWithRecovery(
+      secretValue as Hex,
+      derivationChainId
+    );
+    const smartAccountAddress = result.address;
+    const sessionKeyData = result.sessionKeyData;
 
     walletMetadata = {
       create: {
         smartAccountAddress,
+        canTakeOwnership: true,
+        ownershipTransferred: false,
+        chainsUsed: [], // Will be populated as transactions are made
+        sessionKeyData,
       },
     };
   }
 
-  // For POLYMARKET_WALLET, generate private key and store EOA address.
-  // Safe deployment is lazy (happens on first trade).
+  // For POLYMARKET_WALLET, generate private key, deploy Safe eagerly, and store addresses.
   if (type === SecretType.POLYMARKET_WALLET) {
     secretValue = generatePrivateKey();
     const { Wallet } = await import('@ethersproject/wallet');
     const eoaAddress = new Wallet(secretValue).address;
 
+    // Deploy Safe immediately (gasless via Polymarket relayer)
+    const { deploySafe, approveCollateral } = await import('../skills/polymarket.service.js');
+    const safeAddress = await deploySafe(secretValue);
+
+    // Approve collateral (gasless) so the wallet is ready to trade
+    await approveCollateral(secretValue);
+
     polymarketWalletMetadata = {
       create: {
         eoaAddress,
-        // safeAddress is null until lazy deployment on first use
+        safeAddress,
       },
     };
   }
@@ -439,7 +451,7 @@ export function consumeRelinkToken(token: string): string | null {
 // Helper to convert secret to public data (excludes sensitive value)
 type SecretWithMetadata = Secret & {
   walletMetadata?: { smartAccountAddress: string } | null;
-  polymarketWalletMetadata?: { eoaAddress: string; safeAddress: string | null } | null;
+  polymarketWalletMetadata?: { eoaAddress: string; safeAddress: string } | null;
   rawSignerMetadata?: {
     ethAddress: string;
     solanaAddress: string;
@@ -463,9 +475,7 @@ function toPublicData(secret: SecretWithMetadata): SecretPublicData {
   }
 
   if (secret.polymarketWalletMetadata) {
-    // Use Safe address if deployed, otherwise show EOA address
-    publicData.walletAddress =
-      secret.polymarketWalletMetadata.safeAddress ?? secret.polymarketWalletMetadata.eoaAddress;
+    publicData.walletAddress = secret.polymarketWalletMetadata.safeAddress;
   }
 
   if (secret.rawSignerMetadata) {

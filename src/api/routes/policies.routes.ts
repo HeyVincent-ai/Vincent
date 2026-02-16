@@ -4,7 +4,7 @@ import { PolicyType } from '@prisma/client';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
 import { AuthenticatedRequest } from '../../types/index.js';
-import { sendSuccess, errors } from '../../utils/response.js';
+import { sendSuccess } from '../../utils/response.js';
 import * as policyService from '../../services/policy.service.js';
 import { auditService } from '../../audit/index.js';
 

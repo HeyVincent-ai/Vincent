@@ -1,0 +1,794 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SafeSkills Agent API",
+    "version": "1.0.0",
+    "description": "API for AI agents to create secrets, authenticate, and use skills (EVM wallet, Polymarket, raw signer, data sources).\n\n## Getting Started\n\n1. **Create a secret** via `POST /api/secrets` (no auth required). This returns an API key (`ssk_xxx`) and a claim URL.\n2. **Use the API key** as a Bearer token in the `Authorization` header for all skill endpoints.\n3. **Give the claim URL** to the secret owner so they can claim ownership, set policies, and manage the secret from the dashboard.\n\n## Re-linking\n\nIf an agent loses its API key, the secret owner can generate a one-time re-link token from the dashboard. The agent then calls `POST /api/secrets/relink` with that token to obtain a new API key.\n\n## Skill Execution Results\n\nSkill endpoints that perform on-chain actions return a `SkillExecutionResult` with one of three statuses:\n- **`executed`** (200) — Action completed successfully.\n- **`denied`** (403) — Blocked by a policy rule. The `reason` field explains why.\n- **`pending_approval`** (202) — Requires manual approval from the secret owner."
+  },
+  "servers": [
+    {
+      "url": "https://safeskills.ai",
+      "description": "Production"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    { "name": "Authentication", "description": "Create secrets, obtain API keys, and re-link to existing secrets" },
+    { "name": "EVM Wallet", "description": "Transfer tokens, send transactions, swap, and check balances" },
+    { "name": "Polymarket", "description": "Trade on Polymarket prediction markets" },
+    { "name": "Raw Signer", "description": "Sign arbitrary messages with Ethereum or Solana keys" },
+    { "name": "Data Sources", "description": "Proxy access to Twitter and Brave Search APIs (requires DATA_SOURCES secret type)" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key issued when a secret is created (`ssk_xxx`). Pass as `Authorization: Bearer ssk_xxx`."
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "const": true },
+          "data": {}
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "const": false },
+          "error": {
+            "type": "object",
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "details": {}
+            }
+          }
+        }
+      },
+      "SecretType": {
+        "type": "string",
+        "enum": ["EVM_WALLET", "POLYMARKET_WALLET", "RAW_SIGNER", "API_KEY", "SSH_KEY", "OAUTH_TOKEN", "DATA_SOURCES"],
+        "description": "Type of secret to create. Determines which skill endpoints are available."
+      },
+      "SkillExecutionResult": {
+        "type": "object",
+        "required": ["status", "transactionLogId"],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["executed", "denied", "pending_approval"]
+          },
+          "reason": {
+            "type": "string",
+            "description": "Present when status is 'denied' — explains which policy blocked the action"
+          },
+          "txHash": { "type": "string", "nullable": true, "description": "Transaction hash (null when pending or denied)" },
+          "transactionLogId": { "type": "string", "format": "uuid", "description": "Internal log ID for tracking" },
+          "explorerUrl": { "type": "string", "format": "uri", "description": "Block explorer link (present when executed)" },
+          "smartAccountAddress": { "type": "string", "description": "Smart account address that sent the transaction" }
+        }
+      },
+      "EthAddress": {
+        "type": "string",
+        "pattern": "^0x[a-fA-F0-9]{40}$",
+        "example": "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"
+      },
+      "Secret": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "type": { "$ref": "#/components/schemas/SecretType" },
+          "memo": { "type": "string" },
+          "userId": { "type": "string", "format": "uuid", "nullable": true, "description": "Set after the owner claims the secret" },
+          "smartAccountAddress": { "type": "string", "nullable": true, "description": "For EVM_WALLET / POLYMARKET_WALLET types" },
+          "eoaAddress": { "type": "string", "nullable": true, "description": "For EVM_WALLET / POLYMARKET_WALLET types" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/secrets": {
+      "post": {
+        "operationId": "createSecret",
+        "tags": ["Authentication"],
+        "summary": "Create a new secret and get an API key",
+        "description": "No authentication required. Creates a secret of the specified type and returns an API key for agent access.\n\nFor `EVM_WALLET` and `POLYMARKET_WALLET` types, a private key and smart account are generated automatically. For `RAW_SIGNER`, a signing seed is generated. For other types (`API_KEY`, `SSH_KEY`, `OAUTH_TOKEN`), the owner sets the value later via the dashboard.\n\nThe returned `claimUrl` should be given to the secret owner so they can claim ownership.\n\nRate limited to 5 requests per IP per 15 minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["type"],
+                "properties": {
+                  "type": { "$ref": "#/components/schemas/SecretType" },
+                  "memo": { "type": "string", "maxLength": 500, "description": "Optional memo describing the secret's purpose" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "secret": { "$ref": "#/components/schemas/Secret" },
+                            "apiKey": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string", "format": "uuid" },
+                                "key": { "type": "string", "description": "Plain API key (`ssk_xxx`). Only returned once — store it securely." }
+                              }
+                            },
+                            "claimUrl": { "type": "string", "format": "uri", "description": "URL for the owner to claim this secret" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": { "description": "Rate limited (5 per IP per 15 min)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/info": {
+      "get": {
+        "operationId": "getSecretInfo",
+        "tags": ["Authentication"],
+        "summary": "Get secret info for the current API key",
+        "description": "Returns the secret associated with the provided API key. Useful for checking secret type, wallet addresses, and claim status.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Secret info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "secret": { "$ref": "#/components/schemas/Secret" } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Invalid or missing API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/secrets/relink": {
+      "post": {
+        "operationId": "relinkSecret",
+        "tags": ["Authentication"],
+        "summary": "Obtain a new API key via re-link token",
+        "description": "No authentication required — the re-link token acts as proof of authorization.\n\nThe secret owner generates a one-time re-link token from the dashboard (valid for 10 minutes). The agent uses that token here to get a fresh API key.\n\nThe token is consumed on use and cannot be reused.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["relinkToken"],
+                "properties": {
+                  "relinkToken": { "type": "string", "minLength": 1, "description": "One-time re-link token from the secret owner" },
+                  "apiKeyName": { "type": "string", "maxLength": 100, "description": "Optional name for the new API key" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New API key issued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "secret": { "$ref": "#/components/schemas/Secret" },
+                            "apiKey": {
+                              "type": "object",
+                              "properties": {
+                                "id": { "type": "string", "format": "uuid" },
+                                "key": { "type": "string", "description": "Plain API key (`ssk_xxx`). Only returned once." }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": { "description": "Invalid or expired re-link token", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/skills/evm-wallet/address": {
+      "get": {
+        "operationId": "evmGetAddress",
+        "tags": ["EVM Wallet"],
+        "summary": "Get wallet addresses",
+        "description": "Returns the EOA address and smart account address for this wallet secret.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Wallet addresses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "eoaAddress": { "type": "string" },
+                            "smartAccountAddress": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/balances": {
+      "get": {
+        "operationId": "evmGetBalances",
+        "tags": ["EVM Wallet"],
+        "summary": "Get portfolio balances",
+        "description": "Returns token balances across chains for the wallet's smart account address.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "chainIds", "in": "query", "schema": { "type": "string" }, "description": "Comma-separated chain IDs to filter (e.g. `1,137,8453`). Omit for all chains." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Portfolio balances",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/transfer": {
+      "post": {
+        "operationId": "evmTransfer",
+        "tags": ["EVM Wallet"],
+        "summary": "Transfer ETH or ERC-20 tokens",
+        "description": "Transfers native ETH or an ERC-20 token from the smart account. Subject to policy checks (address allowlist, spending limits, etc.).",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to", "amount", "chainId"],
+                "properties": {
+                  "to": { "$ref": "#/components/schemas/EthAddress" },
+                  "amount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "Human-readable amount (e.g. `\"1.5\"`)" },
+                  "token": { "type": "string", "description": "ERC-20 token contract address. Omit for native ETH." },
+                  "chainId": { "type": "integer", "minimum": 1, "description": "EVM chain ID (e.g. 1 = Ethereum, 137 = Polygon, 8453 = Base)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending owner approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/send-transaction": {
+      "post": {
+        "operationId": "evmSendTransaction",
+        "tags": ["EVM Wallet"],
+        "summary": "Send an arbitrary EVM transaction",
+        "description": "Sends a raw transaction with custom calldata from the smart account. Use this for contract interactions not covered by other endpoints.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["to", "data", "chainId"],
+                "properties": {
+                  "to": { "$ref": "#/components/schemas/EthAddress" },
+                  "data": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$", "description": "ABI-encoded calldata" },
+                  "value": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "ETH value to send (optional)" },
+                  "chainId": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transaction executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending owner approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/swap/preview": {
+      "post": {
+        "operationId": "evmSwapPreview",
+        "tags": ["EVM Wallet"],
+        "summary": "Preview a token swap",
+        "description": "Returns a quote for swapping tokens without executing. Use this to show the user expected output before confirming.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "Human-readable amount to sell" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000, "description": "Slippage tolerance in basis points (e.g. 50 = 0.5%)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap preview",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/swap/execute": {
+      "post": {
+        "operationId": "evmSwapExecute",
+        "tags": ["EVM Wallet"],
+        "summary": "Execute a token swap",
+        "description": "Executes a token swap on-chain. Subject to policy checks.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["sellToken", "buyToken", "sellAmount", "chainId"],
+                "properties": {
+                  "sellToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "buyToken": { "$ref": "#/components/schemas/EthAddress" },
+                  "sellAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$" },
+                  "chainId": { "type": "integer", "minimum": 1 },
+                  "slippageBps": { "type": "integer", "minimum": 0, "maximum": 10000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Swap executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+
+    "/api/skills/polymarket/markets": {
+      "get": {
+        "operationId": "polymarketSearchMarkets",
+        "tags": ["Polymarket"],
+        "summary": "Search prediction markets",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "query", "in": "query", "schema": { "type": "string" }, "description": "Text search query" },
+          { "name": "active", "in": "query", "schema": { "type": "boolean", "default": true }, "description": "Filter active markets only (default: true)" },
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
+          { "name": "next_cursor", "in": "query", "schema": { "type": "string" }, "description": "Cursor for pagination" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Markets list",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/market/{conditionId}": {
+      "get": {
+        "operationId": "polymarketGetMarket",
+        "tags": ["Polymarket"],
+        "summary": "Get market info by condition ID",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "conditionId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Market info",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orderbook/{tokenId}": {
+      "get": {
+        "operationId": "polymarketGetOrderbook",
+        "tags": ["Polymarket"],
+        "summary": "Get order book for a token",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "tokenId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order book",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/bet": {
+      "post": {
+        "operationId": "polymarketBet",
+        "tags": ["Polymarket"],
+        "summary": "Place a bet on Polymarket",
+        "description": "Places a buy or sell order on a Polymarket outcome token. Subject to policy checks.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["tokenId", "side", "amount"],
+                "properties": {
+                  "tokenId": { "type": "string", "minLength": 1, "description": "Polymarket outcome token ID" },
+                  "side": { "type": "string", "enum": ["BUY", "SELL"] },
+                  "amount": { "type": "number", "exclusiveMinimum": 0, "description": "USDC amount" },
+                  "price": { "type": "number", "minimum": 0.001, "maximum": 0.999, "description": "Limit order price (0–1 range). Omit for market order." }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bet executed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+    "/api/skills/polymarket/positions": {
+      "get": {
+        "operationId": "polymarketGetPositions",
+        "tags": ["Polymarket"],
+        "summary": "Get open positions",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "market", "in": "query", "schema": { "type": "string" }, "description": "Filter by market condition ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Open positions",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/trades": {
+      "get": {
+        "operationId": "polymarketGetTrades",
+        "tags": ["Polymarket"],
+        "summary": "Get trade history",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "market", "in": "query", "schema": { "type": "string" }, "description": "Filter by market condition ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Trade history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    { "type": "object", "properties": { "data": { "type": "object", "properties": { "trades": { "type": "array", "items": { "type": "object" } } } } } }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/balance": {
+      "get": {
+        "operationId": "polymarketGetBalance",
+        "tags": ["Polymarket"],
+        "summary": "Get USDC balance on Polymarket",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Balance info",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orders/{orderId}": {
+      "delete": {
+        "operationId": "polymarketCancelOrder",
+        "tags": ["Polymarket"],
+        "summary": "Cancel a specific order",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "orderId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Order cancelled",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/polymarket/orders": {
+      "delete": {
+        "operationId": "polymarketCancelAllOrders",
+        "tags": ["Polymarket"],
+        "summary": "Cancel all open orders",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "All orders cancelled",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/api/skills/raw-signer/addresses": {
+      "get": {
+        "operationId": "rawSignerGetAddresses",
+        "tags": ["Raw Signer"],
+        "summary": "Get signing addresses (Ethereum and Solana)",
+        "description": "Returns the derived addresses for both Ethereum (secp256k1) and Solana (ed25519) curves.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Signing addresses",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/raw-signer/sign": {
+      "post": {
+        "operationId": "rawSign",
+        "tags": ["Raw Signer"],
+        "summary": "Sign a hex-encoded message",
+        "description": "Signs a hex-encoded message using the specified curve. Subject to policy checks.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["message", "curve"],
+                "properties": {
+                  "message": { "type": "string", "pattern": "^0x[a-fA-F0-9]*$", "description": "Hex-encoded message to sign (must start with `0x`)" },
+                  "curve": { "type": "string", "enum": ["ethereum", "solana"], "description": "Signing curve — `ethereum` for secp256k1, `solana` for ed25519" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Message signed",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+
+    "/api/data-sources/twitter/search": {
+      "get": {
+        "operationId": "twitterSearch",
+        "tags": ["Data Sources"],
+        "summary": "Search recent tweets",
+        "description": "Requires a `DATA_SOURCES` secret that has been claimed by a user with a payment method. Rate limited to 60 requests per API key per minute.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 512 }, "description": "Search query" },
+          { "name": "max_results", "in": "query", "schema": { "type": "integer", "minimum": 10, "maximum": 100, "default": 10 } },
+          { "name": "start_time", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "Start of time range (ISO 8601)" },
+          { "name": "end_time", "in": "query", "schema": { "type": "string", "format": "date-time" }, "description": "End of time range (ISO 8601)" }
+        ],
+        "responses": {
+          "200": { "description": "Search results", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Secret not claimed, wrong type, or no payment method", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "Rate limited (60/min per API key)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/data-sources/twitter/tweets/{tweetId}": {
+      "get": {
+        "operationId": "twitterGetTweet",
+        "tags": ["Data Sources"],
+        "summary": "Get a tweet by ID",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "tweetId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Tweet data", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/data-sources/twitter/users/{username}": {
+      "get": {
+        "operationId": "twitterGetUser",
+        "tags": ["Data Sources"],
+        "summary": "Get a Twitter user by username",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "username", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 50 } }
+        ],
+        "responses": {
+          "200": { "description": "User data", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/data-sources/twitter/users/{userId}/tweets": {
+      "get": {
+        "operationId": "twitterGetUserTweets",
+        "tags": ["Data Sources"],
+        "summary": "Get tweets by a user",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "userId", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "max_results", "in": "query", "schema": { "type": "integer", "minimum": 5, "maximum": 100, "default": 10 } }
+        ],
+        "responses": {
+          "200": { "description": "User tweets", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/data-sources/brave/web": {
+      "get": {
+        "operationId": "braveWebSearch",
+        "tags": ["Data Sources"],
+        "summary": "Brave web search",
+        "description": "Requires a `DATA_SOURCES` secret that has been claimed by a user with a payment method. Rate limited to 60 requests per API key per minute.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 400 }, "description": "Search query" },
+          { "name": "count", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20, "default": 10 }, "description": "Number of results" },
+          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "maximum": 9 }, "description": "Result offset for pagination" },
+          { "name": "freshness", "in": "query", "schema": { "type": "string", "enum": ["pd", "pw", "pm", "py"] }, "description": "Freshness filter: pd=past day, pw=past week, pm=past month, py=past year" },
+          { "name": "country", "in": "query", "schema": { "type": "string", "minLength": 2, "maxLength": 2 }, "description": "Two-letter country code" }
+        ],
+        "responses": {
+          "200": { "description": "Search results", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Secret not claimed, wrong type, or no payment method", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "429": { "description": "Rate limited (60/min per API key)", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/data-sources/brave/news": {
+      "get": {
+        "operationId": "braveNewsSearch",
+        "tags": ["Data Sources"],
+        "summary": "Brave news search",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 400 }, "description": "Search query" },
+          { "name": "count", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 20, "default": 10 } },
+          { "name": "freshness", "in": "query", "schema": { "type": "string", "enum": ["pd", "pw", "pm", "py"] }, "description": "Freshness filter" }
+        ],
+        "responses": {
+          "200": { "description": "News results", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    }
+  }
+}

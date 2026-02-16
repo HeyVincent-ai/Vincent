@@ -1,5 +1,5 @@
 import { Response, NextFunction } from 'express';
-import { AuthenticatedRequest, toSecretSafeData } from '../../types/index.js';
+import { AuthenticatedRequest } from '../../types/index.js';
 import { validateApiKey, trackApiKeyUsage } from '../../services/apiKey.service.js';
 import { errors } from '../../utils/response.js';
 import prisma from '../../db/client.js';
@@ -11,7 +11,7 @@ import prisma from '../../db/client.js';
  * Authorization: Bearer ssk_xxxxx
  *
  * On success, attaches apiKey and secret (WITHOUT the private key value) to the request.
- * 
+ *
  * SECURITY NOTE: The secret's `value` field (private key) is intentionally NOT attached
  * to the request object. Skill services that need the private key must fetch it directly
  * from the database at execution time. This prevents accidental exposure of private keys
@@ -91,7 +91,7 @@ export async function apiKeyAuthMiddleware(
 /**
  * Optional API key auth - doesn't fail if no key provided
  * Useful for endpoints that behave differently based on auth status
- * 
+ *
  * SECURITY NOTE: Like apiKeyAuthMiddleware, this does NOT attach the private key
  * value to the request object.
  */
