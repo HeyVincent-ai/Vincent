@@ -3,6 +3,7 @@ import { PositionMonitorService } from '../services/positionMonitor.service.js';
 import { RuleExecutorService } from '../services/ruleExecutor.service.js';
 import { RuleManagerService } from '../services/ruleManager.service.js';
 import { VincentClientService } from '../services/vincentClient.service.js';
+import { PolymarketWebSocketService, PriceUpdate } from '../services/polymarketWebSocket.service.js';
 import { logger } from '../utils/logger.js';
 
 export interface WorkerStatus {
@@ -11,6 +12,8 @@ export interface WorkerStatus {
   lastSyncTime?: string;
   consecutiveFailures: number;
   circuitBreakerUntil?: string;
+  webSocketConnected: boolean;
+  webSocketSubscriptions: number;
 }
 
 export class MonitoringWorker {
@@ -19,7 +22,10 @@ export class MonitoringWorker {
     running: false,
     activeRulesCount: 0,
     consecutiveFailures: 0,
+    webSocketConnected: false,
+    webSocketSubscriptions: 0,
   };
+  private readonly priceCache = new Map<string, number>();
 
   constructor(
     private readonly intervalSeconds: number,
@@ -28,8 +34,14 @@ export class MonitoringWorker {
     private readonly positionMonitor: PositionMonitorService,
     private readonly ruleManager: RuleManagerService,
     private readonly ruleExecutor: RuleExecutorService,
-    private readonly eventLogger: EventLoggerService
-  ) {}
+    private readonly eventLogger: EventLoggerService,
+    private readonly webSocketService?: PolymarketWebSocketService
+  ) {
+    // Set up WebSocket event handlers if enabled
+    if (this.webSocketService) {
+      this.setupWebSocketHandlers();
+    }
+  }
 
   getStatus(): WorkerStatus {
     return { ...this.status };
@@ -38,6 +50,14 @@ export class MonitoringWorker {
   startWorker(): void {
     if (this.timer) return;
     this.status.running = true;
+
+    // Start WebSocket connection if enabled
+    if (this.webSocketService) {
+      logger.info('[MonitoringWorker] Starting WebSocket connection');
+      this.webSocketService.connect();
+    }
+
+    // Start polling timer (serves as fallback and periodic sync)
     this.timer = setInterval(() => void this.tick(), this.intervalSeconds * 1000);
     void this.tick();
   }
@@ -46,6 +66,12 @@ export class MonitoringWorker {
     if (this.timer) clearInterval(this.timer);
     this.timer = undefined;
     this.status.running = false;
+
+    // Disconnect WebSocket if enabled
+    if (this.webSocketService) {
+      logger.info('[MonitoringWorker] Stopping WebSocket connection');
+      this.webSocketService.disconnect();
+    }
   }
 
   private async tick(): Promise<void> {
@@ -57,18 +83,26 @@ export class MonitoringWorker {
       const activeRules = await this.ruleManager.getRules('ACTIVE');
       this.status.activeRulesCount = activeRules.length;
 
+      // Sync WebSocket subscriptions with active rules
+      if (this.webSocketService) {
+        await this.syncWebSocketSubscriptions(activeRules);
+      }
+
+      // Update positions from Vincent API
       await this.positionMonitor.updatePositions();
 
-      const priceCache = new Map<string, number>();
+      // Evaluate all rules with current prices
+      // Use cached prices from WebSocket if available, otherwise fetch via HTTP
       for (const rule of activeRules) {
         const key = `${rule.marketId}:${rule.tokenId}`;
-        if (!priceCache.has(key)) {
-          priceCache.set(
-            key,
-            await this.positionMonitor.getCurrentPrice(rule.marketId, rule.tokenId)
-          );
+        let currentPrice = this.priceCache.get(rule.tokenId);
+
+        // Fallback to HTTP if no WebSocket price available
+        if (currentPrice === undefined) {
+          currentPrice = await this.positionMonitor.getCurrentPrice(rule.marketId, rule.tokenId);
+          this.priceCache.set(rule.tokenId, currentPrice);
         }
-        const currentPrice = priceCache.get(key) as number;
+
         const shouldTrigger = this.ruleExecutor.evaluateRule(rule, currentPrice);
         await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', { currentPrice, shouldTrigger });
         if (shouldTrigger) {
@@ -100,13 +134,108 @@ export class MonitoringWorker {
     const result = await this.ruleExecutor.executeRule(rule);
     await this.eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
   }
+
+  private setupWebSocketHandlers(): void {
+    if (!this.webSocketService) return;
+
+    this.webSocketService.on('connected', () => {
+      this.status.webSocketConnected = true;
+      logger.info('[MonitoringWorker] WebSocket connected');
+    });
+
+    this.webSocketService.on('disconnected', () => {
+      this.status.webSocketConnected = false;
+      logger.warn('[MonitoringWorker] WebSocket disconnected');
+    });
+
+    this.webSocketService.on('price', (update: PriceUpdate) => {
+      // Update price cache
+      this.priceCache.set(update.tokenId, update.price);
+      logger.debug(update, '[MonitoringWorker] Price update received');
+
+      // Evaluate rules for this token immediately
+      void this.evaluateRulesForToken(update.tokenId, update.price);
+    });
+
+    this.webSocketService.on('error', (error: Error) => {
+      logger.error({ error: error.message }, '[MonitoringWorker] WebSocket error');
+    });
+  }
+
+  private async evaluateRulesForToken(tokenId: string, price: number): Promise<void> {
+    try {
+      const activeRules = await this.ruleManager.getRules('ACTIVE');
+      const matchingRules = activeRules.filter((rule) => rule.tokenId === tokenId);
+
+      for (const rule of matchingRules) {
+        const shouldTrigger = this.ruleExecutor.evaluateRule(rule, price);
+        await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
+          currentPrice: price,
+          shouldTrigger,
+          source: 'websocket',
+        });
+
+        if (shouldTrigger) {
+          logger.info({
+            ruleId: rule.id,
+            tokenId,
+            price,
+          }, '[MonitoringWorker] Rule triggered by WebSocket price update');
+          await this.trigger(rule);
+        }
+      }
+    } catch (error) {
+      logger.error({
+        tokenId,
+        error,
+      }, '[MonitoringWorker] Failed to evaluate rules for token');
+    }
+  }
+
+  private async syncWebSocketSubscriptions(
+    activeRules: Array<{ tokenId: string }>
+  ): Promise<void> {
+    if (!this.webSocketService) return;
+
+    // Get unique token IDs from active rules
+    const requiredTokenIds = new Set(activeRules.map((rule) => rule.tokenId));
+    const currentTokenIds = new Set(this.webSocketService.getSubscribedTokens());
+
+    // Find tokens to subscribe and unsubscribe
+    const toSubscribe = [...requiredTokenIds].filter((id) => !currentTokenIds.has(id));
+    const toUnsubscribe = [...currentTokenIds].filter((id) => !requiredTokenIds.has(id));
+
+    if (toSubscribe.length > 0) {
+      logger.info({
+        count: toSubscribe.length,
+        tokens: toSubscribe,
+      }, '[MonitoringWorker] Subscribing to new tokens');
+      this.webSocketService.subscribeToTokens(toSubscribe);
+    }
+
+    if (toUnsubscribe.length > 0) {
+      logger.info({
+        count: toUnsubscribe.length,
+        tokens: toUnsubscribe,
+      }, '[MonitoringWorker] Unsubscribing from tokens');
+      this.webSocketService.unsubscribeFromTokens(toUnsubscribe);
+    }
+
+    this.status.webSocketSubscriptions = requiredTokenIds.size;
+  }
 }
 
 export const createWorkerDependencies = (
   vincentClient: VincentClientService,
   intervalSeconds: number,
   circuitBreakerThreshold: number,
-  circuitBreakerCooldownSeconds: number
+  circuitBreakerCooldownSeconds: number,
+  webSocketConfig?: {
+    enabled: boolean;
+    url: string;
+    reconnectInitialDelay: number;
+    reconnectMaxDelay: number;
+  }
 ): MonitoringWorker => {
   const eventLogger = new EventLoggerService();
   const ruleManager = new RuleManagerService(eventLogger);
@@ -118,6 +247,16 @@ export const createWorkerDependencies = (
     positionMonitor
   );
 
+  // Create WebSocket service if enabled
+  const webSocketService =
+    webSocketConfig?.enabled
+      ? new PolymarketWebSocketService({
+          url: webSocketConfig.url,
+          reconnectInitialDelay: webSocketConfig.reconnectInitialDelay,
+          reconnectMaxDelay: webSocketConfig.reconnectMaxDelay,
+        })
+      : undefined;
+
   return new MonitoringWorker(
     intervalSeconds,
     circuitBreakerThreshold,
@@ -125,6 +264,7 @@ export const createWorkerDependencies = (
     positionMonitor,
     ruleManager,
     ruleExecutor,
-    eventLogger
+    eventLogger,
+    webSocketService
   );
 };

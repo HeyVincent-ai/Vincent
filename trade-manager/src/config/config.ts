@@ -5,14 +5,19 @@ import { z } from 'zod';
 
 const configSchema = z.object({
   port: z.number().int().positive().default(19000),
-  pollIntervalSeconds: z.number().int().positive().default(15),
+  pollIntervalSeconds: z.number().int().positive().default(60), // Reduced default since WebSocket is primary
   vincentApiUrl: z.string().url().default('https://heyvincent.ai'),
-  vincentApiKey: z.string().min(1), // Will be auto-detected from Polymarket skill if not provided
+  vincentApiKey: z.string().min(1), // Required - must be from Polymarket skill's saved wallet
   databaseUrl: z
     .string()
     .default(`file:${path.join(os.homedir(), '.openclaw', 'trade-manager.db')}`),
   circuitBreakerThreshold: z.number().int().positive().default(5),
   circuitBreakerCooldownSeconds: z.number().int().positive().default(60),
+  // WebSocket configuration
+  enableWebSocket: z.boolean().default(true),
+  webSocketUrl: z.string().url().default('wss://ws-subscriptions-clob.polymarket.com/ws/market'),
+  webSocketReconnectInitialDelay: z.number().int().positive().default(1000),
+  webSocketReconnectMaxDelay: z.number().int().positive().default(60000),
 });
 
 export type TradeManagerConfig = z.infer<typeof configSchema>;
@@ -73,11 +78,21 @@ export const loadConfig = (): TradeManagerConfig => {
   const fileConfig = readJsonConfig();
   const walletApiKey = readWalletApiKey();
 
-  // Priority order for API key:
-  // 1. Polymarket skill's saved API key (from agentwallet directory) - PREFERRED
-  // 2. Environment variable
-  // 3. Config file
-  const apiKey = walletApiKey ?? process.env.VINCENT_API_KEY ?? fileConfig.vincentApiKey;
+  // IMPORTANT: Trade Manager REQUIRES a Polymarket wallet from the Polymarket skill
+  // We do NOT accept API keys from config file or environment variables
+  // This ensures there's only one source of truth for the wallet
+  if (!walletApiKey) {
+    throw new Error(
+      '❌ No Polymarket wallet found!\n\n' +
+        'Trade Manager requires a Polymarket wallet created via the Polymarket skill.\n\n' +
+        'Please use the Polymarket skill to either:\n' +
+        '  1. Create a new wallet: POST /api/secrets with type "POLYMARKET_WALLET"\n' +
+        '  2. Re-link an existing wallet: POST /api/secrets/relink with your re-link token\n\n' +
+        'The API key will be automatically saved to:\n' +
+        '  ~/.openclaw/credentials/agentwallet/<api-key-id>.json\n\n' +
+        'Once you have a Polymarket wallet set up, Trade Manager will automatically detect it.'
+    );
+  }
 
   const parsed = configSchema.parse({
     ...fileConfig,
@@ -86,8 +101,10 @@ export const loadConfig = (): TradeManagerConfig => {
       ? Number(process.env.POLL_INTERVAL_SECONDS)
       : fileConfig.pollIntervalSeconds,
     vincentApiUrl: process.env.VINCENT_API_URL ?? fileConfig.vincentApiUrl,
-    vincentApiKey: apiKey,
+    vincentApiKey: walletApiKey, // Only from Polymarket skill
     databaseUrl: process.env.DATABASE_URL ?? fileConfig.databaseUrl,
+    enableWebSocket: process.env.ENABLE_WEBSOCKET === 'false' ? false : fileConfig.enableWebSocket,
+    webSocketUrl: process.env.WEBSOCKET_URL ?? fileConfig.webSocketUrl,
   });
 
   process.env.DATABASE_URL = parsed.databaseUrl;
@@ -96,10 +113,14 @@ export const loadConfig = (): TradeManagerConfig => {
 
 export const defaultConfigTemplate = {
   port: 19000,
-  pollIntervalSeconds: 15,
+  pollIntervalSeconds: 60, // Reduced since WebSocket provides real-time updates
   vincentApiUrl: 'https://heyvincent.ai',
-  // vincentApiKey is auto-detected from ~/.openclaw/credentials/agentwallet/
-  // Only set this if you want to override the Polymarket skill's API key
-  vincentApiKey: '', // Optional - will use Polymarket skill's saved API key if not provided
+  // vincentApiKey is NOT configurable here
+  // It's automatically loaded from ~/.openclaw/credentials/agentwallet/
+  // You must use the Polymarket skill to create/link a wallet first
   databaseUrl: 'file:~/.openclaw/trade-manager.db',
+  enableWebSocket: true,
+  webSocketUrl: 'wss://ws-subscriptions-clob.polymarket.com/ws/market',
+  webSocketReconnectInitialDelay: 1000,
+  webSocketReconnectMaxDelay: 60000,
 };

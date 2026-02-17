@@ -27,10 +27,12 @@
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",
+    "@types/ws": "^8.18.1",
     "axios": "^1.7.9",
     "express": "^4.21.2",
     "pino": "^9.6.0",
     "pino-http": "^10.4.0",
+    "ws": "^8.19.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {

@@ -1,5 +1,7 @@
 # Testing Trade Manager Locally
 
+> **Note**: The Trade Manager now includes **WebSocket support** for real-time price updates. See [WEBSOCKET.md](./WEBSOCKET.md) for details on configuration and monitoring.
+
 ## Option 1: npm link (Test as global package)
 
 This simulates the actual `npm install -g` experience:
@@ -24,10 +26,11 @@ mkdir -p .openclaw
 cat > .openclaw/trade-manager.json << 'EOF'
 {
   "port": 19000,
-  "pollIntervalSeconds": 15,
+  "pollIntervalSeconds": 60,
   "vincentApiUrl": "https://heyvincent.ai",
-  "vincentApiKey": "test-key",
-  "databaseUrl": "file:/tmp/trade-manager-test.db"
+  "databaseUrl": "file:/tmp/trade-manager-test.db",
+  "enableWebSocket": true,
+  "webSocketUrl": "wss://ws-subscriptions-clob.polymarket.com/ws/market"
 }
 EOF
 
@@ -104,10 +107,10 @@ mkdir -p ~/.openclaw
 cat > ~/.openclaw/trade-manager.json << 'EOF'
 {
   "port": 19000,
-  "pollIntervalSeconds": 15,
+  "pollIntervalSeconds": 60,
   "vincentApiUrl": "https://heyvincent.ai",
-  "vincentApiKey": "YOUR_API_KEY_HERE",
-  "databaseUrl": "file:/tmp/trade-manager.db"
+  "databaseUrl": "file:/tmp/trade-manager.db",
+  "enableWebSocket": true
 }
 EOF
 

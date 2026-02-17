@@ -138,8 +138,10 @@ export class VincentClientService {
       }
 
       // Calculate mid price from best bid and best ask
-      const bestBid = bids[0]?.price ? Number(bids[0].price) : 0;
-      const bestAsk = asks[0]?.price ? Number(asks[0].price) : 0;
+      // Polymarket returns bids sorted ascending (lowest first), so take last element for highest bid
+      // Polymarket returns asks sorted descending (highest first), so take last element for lowest ask
+      const bestBid = bids.length > 0 && bids[bids.length - 1]?.price ? Number(bids[bids.length - 1].price) : 0;
+      const bestAsk = asks.length > 0 && asks[asks.length - 1]?.price ? Number(asks[asks.length - 1].price) : 0;
 
       let price: number;
       if (bestBid > 0 && bestAsk > 0) {

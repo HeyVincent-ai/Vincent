@@ -59,7 +59,10 @@ export class RuleManagerService {
 
   async cancelRule(id: string): Promise<any> {
     const existing = await this.getRule(id);
-    if (existing.status !== 'ACTIVE') throw new HttpError(400, 'Only active rules can be canceled');
+    // Allow canceling ACTIVE or FAILED rules (but not already CANCELED or TRIGGERED)
+    if (existing.status !== 'ACTIVE' && existing.status !== 'FAILED') {
+      throw new HttpError(400, 'Only active or failed rules can be canceled');
+    }
     const prisma = await getPrisma();
     const rule = await prisma.tradeRule.update({ where: { id }, data: { status: 'CANCELED' } });
     await this.eventLogger.logEvent(id, 'RULE_CANCELED', {});
