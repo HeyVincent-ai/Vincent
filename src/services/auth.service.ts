@@ -85,7 +85,22 @@ export async function validateSessionWithRoles(
     });
 
     return { user, roles };
-  } catch {
+  } catch (error: any) {
+    // Log a sanitized subset of the error for debugging (similar to syncSession)
+    const status =
+      (error && typeof error === 'object' && ('status_code' in error || 'status' in error))
+        ? (error.status_code ?? error.status)
+        : undefined;
+    const type =
+      (error && typeof error === 'object' && ('error_type' in error || 'code' in error))
+        ? (error.error_type ?? error.code)
+        : undefined;
+
+    console.error('[auth] validateSessionWithRoles error', {
+      status,
+      type,
+      message: error && typeof error === 'object' ? error.message : String(error),
+    });
     return { user: null, roles: [] };
   }
 }
