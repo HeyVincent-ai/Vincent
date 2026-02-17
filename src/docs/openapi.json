@@ -556,12 +556,12 @@
       "get": {
         "operationId": "polymarketGetHoldings",
         "tags": ["Polymarket"],
-        "summary": "Get current holdings with average entry prices",
-        "description": "Returns all token positions with non-zero shares, including the number of shares owned and average entry price. Calculated from trade history using standard cost basis accounting.",
+        "summary": "Get current holdings with P&L",
+        "description": "Returns all open positions from Polymarket Data API, including shares, average entry price, current price, and profit/loss metrics.",
         "security": [{ "ApiKeyAuth": [] }],
         "responses": {
           "200": {
-            "description": "Current holdings",
+            "description": "Current holdings with P&L",
             "content": {
               "application/json": {
                 "schema": {
@@ -581,7 +581,12 @@
                                 "properties": {
                                   "tokenId": { "type": "string", "description": "Conditional token ID" },
                                   "shares": { "type": "number", "description": "Number of shares owned", "example": 42.5 },
-                                  "averageEntryPrice": { "type": "number", "description": "Average entry price (0-1)", "example": 0.55 }
+                                  "averageEntryPrice": { "type": "number", "description": "Average entry price (0-1)", "example": 0.55 },
+                                  "currentPrice": { "type": "number", "description": "Current market price (0-1)", "example": 0.62 },
+                                  "pnl": { "type": "number", "description": "Unrealized profit/loss in USD", "example": 2.97 },
+                                  "pnlPercent": { "type": "number", "description": "Unrealized profit/loss percentage", "example": 12.73 },
+                                  "marketTitle": { "type": "string", "description": "Market question", "example": "Will Trump win 2024?" },
+                                  "outcome": { "type": "string", "description": "Outcome name", "example": "Yes" }
                                 }
                               }
                             }
