@@ -954,38 +954,40 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
 
     const holdings = res.body.data.holdings;
     console.log(`Holdings count: ${holdings.length}`);
+    expect(holdings.length).toBeGreaterThan(0);
 
-    if (holdings.length > 0) {
-      console.log('Holdings:', JSON.stringify(holdings, null, 2));
+    console.log('Holdings:', JSON.stringify(holdings, null, 2));
 
-      // Verify structure of first holding
-      const holding = holdings[0];
-      expect(holding.tokenId).toBeTruthy();
-      expect(typeof holding.shares).toBe('number');
-      expect(typeof holding.averageEntryPrice).toBe('number');
-      expect(typeof holding.currentPrice).toBe('number');
-      expect(typeof holding.pnl).toBe('number');
-      expect(typeof holding.pnlPercent).toBe('number');
-      expect(holding.marketTitle).toBeTruthy();
-      expect(holding.outcome).toBeTruthy();
+    // Verify structure of first holding
+    const holding = holdings[0];
+    expect(holding.tokenId).toBeTruthy();
+    expect(typeof holding.shares).toBe('number');
+    expect(typeof holding.averageEntryPrice).toBe('number');
+    expect(typeof holding.currentPrice).toBe('number');
+    expect(typeof holding.pnl).toBe('number');
+    expect(typeof holding.pnlPercent).toBe('number');
+    expect(holding.marketTitle).toBeTruthy();
+    expect(holding.outcome).toBeTruthy();
 
-      console.log(`  Token: ${holding.tokenId}`);
-      console.log(`  Market: ${holding.marketTitle}`);
-      console.log(`  Outcome: ${holding.outcome}`);
-      console.log(`  Shares: ${holding.shares}`);
-      console.log(`  Avg Entry Price: ${holding.averageEntryPrice}`);
-      console.log(`  Current Price: ${holding.currentPrice}`);
-      console.log(`  P&L: $${holding.pnl.toFixed(2)} (${holding.pnlPercent.toFixed(2)}%)`);
+    console.log(`  Token: ${holding.tokenId}`);
+    console.log(`  Market: ${holding.marketTitle}`);
+    console.log(`  Outcome: ${holding.outcome}`);
+    console.log(`  Shares: ${holding.shares}`);
+    console.log(`  Avg Entry Price: ${holding.averageEntryPrice}`);
+    console.log(`  Current Price: ${holding.currentPrice}`);
+    console.log(`  P&L: $${holding.pnl.toFixed(2)} (${holding.pnlPercent.toFixed(2)}%)`);
 
-      // Validate our position is in the holdings
-      const ourPosition = holdings.find((h: any) => h.tokenId === chosenTokenId);
-      if (ourPosition) {
-        expect(ourPosition.shares).toBeGreaterThan(0);
-        expect(ourPosition.averageEntryPrice).toBeCloseTo(buyPrice, 2);
-      }
-    } else {
-      // If no holdings yet, position might still be settling
-      console.log('⚠️ No holdings returned yet (position may still be settling)');
+    // Validate our position is in the holdings
+    const ourPosition = holdings.find((h: any) => h.tokenId === chosenTokenId);
+    if (ourPosition) {
+      expect(ourPosition.shares).toBeGreaterThan(0);
+      // Compare against actual fill price (not the limit price), computed from order details
+      const actualFillPrice =
+        evidence.buyOrderDetails?.makingAmount && evidence.buyOrderDetails?.takingAmount
+          ? parseFloat(evidence.buyOrderDetails.makingAmount) /
+            parseFloat(evidence.buyOrderDetails.takingAmount)
+          : buyPrice;
+      expect(ourPosition.averageEntryPrice).toBeCloseTo(actualFillPrice, 2);
     }
   }, 60_000);
 

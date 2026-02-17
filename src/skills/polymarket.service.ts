@@ -10,6 +10,7 @@ import type {
   UserMarketOrder,
   Side,
 } from '@polymarket/clob-client';
+import axios from 'axios';
 import prisma from '../db/client.js';
 import { env } from '../utils/env.js';
 import { initializePolymarketProxy } from '../utils/proxy.js';
@@ -740,18 +741,150 @@ export interface PolymarketPosition {
 /**
  * Get all positions for a wallet address from Polymarket Data API.
  * Returns positions with avg entry price, current price, and P&L.
+ *
+ * Tries the proxy wallet (Safe) address first, then falls back to the EOA
+ * address, because Polymarket may index positions under either.
  */
-export async function getPositions(walletAddress: string): Promise<PolymarketPosition[]> {
-  // Initialize proxy for geo-restricted regions
+export async function getPositions(
+  walletAddress: string,
+  fallbackAddress?: string
+): Promise<PolymarketPosition[]> {
+  // Initialize proxy for geo-restricted regions (uses axios, not fetch)
   await initializePolymarketProxy();
 
-  const url = new URL('https://data-api.polymarket.com/positions');
-  url.searchParams.set('user', walletAddress.toLowerCase());
+  const fetchPositions = async (address: string): Promise<PolymarketPosition[]> => {
+    const url = `https://data-api.polymarket.com/positions?user=${encodeURIComponent(address.toLowerCase())}`;
+    const response = await axios.get<PolymarketPosition[]>(url);
+    return response.data;
+  };
 
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error(`Polymarket Data API error: ${response.status} ${response.statusText}`);
+  const positions = await fetchPositions(walletAddress);
+  if (positions.length > 0 || !fallbackAddress) {
+    return positions;
   }
 
-  return response.json();
+  // Fallback: try the alternate address (EOA vs Safe)
+  return fetchPositions(fallbackAddress);
+}
+
+/**
+ * Compute holdings from trade history.
+ *
+ * This is a reliable fallback when the Data API hasn't indexed positions yet.
+ * Aggregates trades to compute net shares, average entry price, and P&L.
+ */
+export async function computeHoldingsFromTrades(
+  config: PolymarketClientConfig
+): Promise<PolymarketPosition[]> {
+  const trades = await getTrades(config);
+  if (trades.length === 0) return [];
+
+  // Aggregate trades by token (asset_id)
+  const tokenMap = new Map<
+    string,
+    {
+      totalShares: number;
+      totalCost: number; // sum of (shares * price) for BUY trades
+      outcome: string;
+      market: string; // condition ID
+    }
+  >();
+
+  for (const trade of trades) {
+    const existing = tokenMap.get(trade.asset_id) || {
+      totalShares: 0,
+      totalCost: 0,
+      outcome: trade.outcome,
+      market: trade.market,
+    };
+
+    const shares = parseFloat(trade.size);
+    const price = parseFloat(trade.price);
+
+    if (trade.side === 'BUY') {
+      // Track cost basis for BUY trades
+      existing.totalCost += shares * price;
+      existing.totalShares += shares;
+    } else {
+      // SELL reduces shares; we don't reduce cost basis (for realized P&L tracking)
+      existing.totalShares -= shares;
+    }
+
+    existing.outcome = trade.outcome;
+    existing.market = trade.market;
+    tokenMap.set(trade.asset_id, existing);
+  }
+
+  // Build positions for tokens with remaining shares
+  const positions: PolymarketPosition[] = [];
+
+  for (const [tokenId, data] of tokenMap.entries()) {
+    if (data.totalShares <= 0.001) continue; // Skip dust or closed positions
+
+    // Get current price from order book midpoint
+    let curPrice = '0';
+    try {
+      const midResult = await getMidpoint(tokenId);
+      // getMidpoint may return a string like "0.5" or an object like { mid: "0.5" }
+      if (typeof midResult === 'string') {
+        curPrice = midResult || '0';
+      } else if (midResult && typeof midResult === 'object') {
+        curPrice = (midResult as Record<string, string>).mid || '0';
+      }
+    } catch {
+      // Midpoint may not be available; fall back to order book
+      try {
+        const ob = await getOrderBook(tokenId);
+        if (ob.bids?.length && ob.asks?.length) {
+          const bestBid = parseFloat(ob.bids[0].price);
+          const bestAsk = parseFloat(ob.asks[0].price);
+          curPrice = ((bestBid + bestAsk) / 2).toString();
+        }
+      } catch {
+        // Use default 0
+      }
+    }
+
+    const avgPrice = data.totalShares > 0 ? (data.totalCost / data.totalShares).toString() : '0';
+    const currentValue = data.totalShares * parseFloat(curPrice);
+    const initialValue = data.totalCost;
+    const cashPnl = currentValue - initialValue;
+    const percentPnl = initialValue > 0 ? (cashPnl / initialValue) * 100 : 0;
+
+    // Look up market title from Gamma API
+    let title = `Market ${data.market.slice(0, 8)}...`;
+    try {
+      const market = await getMarket(data.market);
+      if (market?.question) {
+        title = market.question;
+      }
+    } catch {
+      // Market info may not be available
+    }
+
+    positions.push({
+      proxyWallet: config.safeAddress || '',
+      asset: tokenId,
+      conditionId: data.market,
+      size: data.totalShares.toString(),
+      avgPrice,
+      curPrice,
+      initialValue: initialValue.toString(),
+      currentValue: currentValue.toString(),
+      cashPnl: cashPnl.toString(),
+      percentPnl: percentPnl.toString(),
+      realizedPnl: '0',
+      percentRealizedPnl: '0',
+      title,
+      slug: '',
+      outcome: data.outcome,
+      outcomeIndex: 0,
+      endDate: '',
+      redeemable: false,
+      mergeable: false,
+      negativeRisk: false,
+    });
+  }
+
+  return positions;
 }

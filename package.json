@@ -20,7 +20,7 @@
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'src/e2e/**'",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
