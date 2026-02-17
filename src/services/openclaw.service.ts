@@ -370,7 +370,7 @@ AUTHEOF
 fi
 
 # Set model (agents.defaults.model is an object with "primary" key)
-openclaw config set agents.defaults.model --json '{"primary": "openrouter/google/gemini-3-pro-preview"}'
+openclaw config set agents.defaults.model --json '{"primary": "${env.OPENCLAW_DEFAULT_MODEL}"}'
 
 # Additional gateway settings not covered by onboard
 openclaw config set gateway.controlUi.allowInsecureAuth true

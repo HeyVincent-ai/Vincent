@@ -94,6 +94,9 @@ const envSchema = z.object({
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 
+  // OpenClaw Default Model
+  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/openrouter/auto'),
+
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
 
