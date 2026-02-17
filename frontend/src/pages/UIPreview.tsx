@@ -177,7 +177,7 @@ function DetailPreview({ account }: { account: Account }) {
     <div>
       <nav className="flex items-center gap-1.5 text-sm mb-4">
         <span className="text-muted-foreground">Accounts</span>
-        <span className="text-muted-foreground/30">/</span>
+        <span className="text-muted-foreground/50">/</span>
         <span className="text-foreground font-medium truncate max-w-[200px]">{accountName}</span>
       </nav>
 
@@ -187,11 +187,11 @@ function DetailPreview({ account }: { account: Account }) {
           {/* Identity */}
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <Icon className="w-4 h-4 text-muted-foreground/60" />
+              <Icon className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{typeConfig.label}</span>
             </div>
             <h1 className="text-lg font-semibold text-foreground">{accountName}</h1>
-            <p className="text-xs text-muted-foreground/50 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Created {new Date(account.createdAt).toLocaleDateString()}
             </p>
           </div>
@@ -199,14 +199,14 @@ function DetailPreview({ account }: { account: Account }) {
           {/* Addresses */}
           {addresses.length > 0 && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 Addresses
               </h3>
               <div className="space-y-1.5">
                 {addresses.map((a) => (
                   <div key={a.address} className="flex items-center justify-between gap-2 py-1">
                     <div className="min-w-0">
-                      <div className="text-[10px] text-muted-foreground/50">{a.label}</div>
+                      <div className="text-xs text-muted-foreground">{a.label}</div>
                       <code className="text-xs text-foreground/70 font-mono" title={a.address}>
                         {truncateAddress(a.address)}
                       </code>
@@ -221,33 +221,33 @@ function DetailPreview({ account }: { account: Account }) {
           {/* Ownership — EVM wallets only */}
           {account.type === 'EVM_WALLET' && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 Ownership
               </h3>
               <div className="text-xs text-green-400">
                 Transferred to{' '}
-                <code className="text-foreground/60 font-mono text-[10px]">0xAbCd…7890</code>
+                <code className="text-foreground/70 font-mono text-xs">0xAbCd…7890</code>
               </div>
-              <p className="text-[10px] text-muted-foreground/40 mt-0.5">Base Sepolia</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Base Sepolia</p>
             </div>
           )}
 
           {/* Agent Access */}
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Agent Access
             </h3>
             <button className="text-xs text-primary hover:text-primary/80 transition-colors">
               Generate re-link token
             </button>
-            <p className="text-[10px] text-muted-foreground/40 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               One-time token for agent access. Expires in 10 min.
             </p>
           </div>
 
           {/* Danger zone */}
           <div className="pt-4 border-t border-border/50">
-            <button className="text-xs text-muted-foreground/40 hover:text-destructive transition-colors">
+            <button className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors py-1">
               Delete account
             </button>
           </div>
@@ -265,7 +265,7 @@ function DetailPreview({ account }: { account: Account }) {
                   className={`px-3 pb-2 text-sm font-medium border-b-2 transition-colors ${
                     tab === t.id
                       ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground/60 hover:text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {t.label}
@@ -296,44 +296,40 @@ function MockEvmOverview() {
       <div>
         <div className="flex items-baseline justify-between mb-3">
           <div>
-            <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
-              Total Balance
-            </p>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Balance</p>
             <p className="text-xl font-semibold text-foreground font-mono">$2,847.32</p>
           </div>
-          <button className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors">
+          <button className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors">
             Refresh
           </button>
         </div>
 
         {/* Base */}
         <div className="mb-4">
-          <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider mb-1.5">
-            Base
-          </p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1.5">Base</p>
           <div className="space-y-0 divide-y divide-border/50">
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
-                  <span className="text-blue-400 text-[10px] font-bold">E</span>
+                  <span className="text-blue-400 text-[11px] font-bold">E</span>
                 </div>
                 <span className="text-sm text-foreground">ETH</span>
               </div>
               <div className="text-right">
                 <span className="text-sm text-foreground font-mono">0.5421</span>
-                <span className="text-xs text-muted-foreground/50 ml-2">$1,625.50</span>
+                <span className="text-xs text-muted-foreground ml-2">$1,625.50</span>
               </div>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2.5">
                 <div className="w-6 h-6 rounded-full bg-green-500/15 flex items-center justify-center">
-                  <span className="text-green-400 text-[10px] font-bold">U</span>
+                  <span className="text-green-400 text-[11px] font-bold">U</span>
                 </div>
                 <span className="text-sm text-foreground">USDC</span>
               </div>
               <div className="text-right">
                 <span className="text-sm text-foreground font-mono">295.00</span>
-                <span className="text-xs text-muted-foreground/50 ml-2">$295.00</span>
+                <span className="text-xs text-muted-foreground ml-2">$295.00</span>
               </div>
             </div>
           </div>
@@ -342,17 +338,15 @@ function MockEvmOverview() {
         {/* Base Sepolia */}
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">
-              Base Sepolia
-            </p>
-            <span className="text-[9px] px-1.5 py-0.5 text-yellow-400/60 bg-yellow-500/5 rounded">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">Base Sepolia</p>
+            <span className="text-[11px] px-2 py-0.5 text-yellow-400 bg-yellow-500/10 rounded">
               testnet
             </span>
           </div>
           <div className="flex items-center justify-between py-2.5">
             <div className="flex items-center gap-2.5">
               <div className="w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
-                <span className="text-blue-400 text-[10px] font-bold">E</span>
+                <span className="text-blue-400 text-[11px] font-bold">E</span>
               </div>
               <span className="text-sm text-foreground">ETH</span>
             </div>
@@ -372,7 +366,7 @@ function MockEvmOverview() {
             View plans
           </button>
         </div>
-        <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+        <p className="text-xs text-muted-foreground mt-1.5">
           Testnets always free. Mainnet $10/mo after trial.
         </p>
       </div>
@@ -380,7 +374,7 @@ function MockEvmOverview() {
       {/* Take Ownership */}
       <div className="py-4 border-t border-border/50">
         <p className="text-sm text-foreground font-medium mb-1">Take Ownership</p>
-        <p className="text-xs text-muted-foreground/60 mb-3">
+        <p className="text-xs text-muted-foreground mb-3">
           Transfer this wallet to your personal address on Base Sepolia.
         </p>
         <button className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors">
@@ -505,14 +499,14 @@ function MockDataSourcesOverview() {
       {/* Credits */}
       <div>
         <div className="flex items-baseline justify-between mb-2">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Credits</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
           <button className="text-xs text-primary hover:text-primary/80 transition-colors">
             Add credits
           </button>
         </div>
         <div className="flex items-baseline gap-3 mb-2">
           <span className="text-xl font-semibold text-foreground font-mono">$8.45</span>
-          <span className="text-xs text-muted-foreground/40">remaining</span>
+          <span className="text-xs text-muted-foreground">remaining</span>
         </div>
         <div className="w-full bg-muted/30 rounded-full h-1.5">
           <div
@@ -520,16 +514,12 @@ function MockDataSourcesOverview() {
             style={{ width: '72%' }}
           />
         </div>
-        <p className="text-[10px] text-muted-foreground/40 mt-1.5">
-          142 requests this month ($3.55)
-        </p>
+        <p className="text-xs text-muted-foreground mt-1.5">142 requests this month ($3.55)</p>
       </div>
 
       {/* Sources */}
       <div className="border-t border-border/50 pt-6">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
-          Data Sources
-        </p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Data Sources</p>
         <div className="space-y-0 divide-y divide-border/50">
           {[
             { name: 'X / Twitter', desc: 'Tweets, profiles, search', requests: 89, cost: '$2.23' },
@@ -538,11 +528,11 @@ function MockDataSourcesOverview() {
             <div key={src.name} className="flex items-center justify-between py-3">
               <div>
                 <p className="text-sm text-foreground">{src.name}</p>
-                <p className="text-[10px] text-muted-foreground/40">{src.desc}</p>
+                <p className="text-xs text-muted-foreground">{src.desc}</p>
               </div>
               <div className="text-right">
                 <p className="text-xs text-foreground font-mono">{src.cost}</p>
-                <p className="text-[10px] text-muted-foreground/40">{src.requests} requests</p>
+                <p className="text-xs text-muted-foreground">{src.requests} requests</p>
               </div>
             </div>
           ))}
@@ -551,9 +541,7 @@ function MockDataSourcesOverview() {
 
       {/* Usage History */}
       <div className="border-t border-border/50 pt-6">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
-          Usage History
-        </p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Usage History</p>
         <div className="space-y-0 divide-y divide-border/50">
           {[
             { month: 'Feb 2025', requests: 142, cost: '$3.55' },
@@ -562,9 +550,7 @@ function MockDataSourcesOverview() {
             <div key={row.month} className="flex items-center justify-between py-2.5">
               <span className="text-sm text-foreground">{row.month}</span>
               <div className="flex items-center gap-4">
-                <span className="text-xs text-muted-foreground/40 tabular-nums">
-                  {row.requests}
-                </span>
+                <span className="text-xs text-muted-foreground tabular-nums">{row.requests}</span>
                 <span className="text-sm text-foreground font-mono tabular-nums w-14 text-right">
                   {row.cost}
                 </span>
@@ -587,7 +573,7 @@ function MockPolicies() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Policies</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Policies</p>
         <button className="text-xs text-primary hover:text-primary/80 transition-colors">
           Add policy
         </button>
@@ -599,14 +585,14 @@ function MockPolicies() {
               <div className="flex items-center gap-2">
                 <span className="text-sm text-foreground">{p.label}</span>
                 {p.hasOverride && (
-                  <span className="text-[9px] px-1.5 py-0.5 text-yellow-400/70 bg-yellow-500/5 rounded">
+                  <span className="text-[11px] px-2 py-0.5 text-yellow-400 bg-yellow-500/10 rounded">
                     approval override
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground/40 font-mono mt-0.5">{p.config}</p>
+              <p className="text-xs text-muted-foreground/70 font-mono mt-0.5">{p.config}</p>
             </div>
-            <button className="text-xs text-muted-foreground/30 hover:text-destructive transition-colors ml-4 shrink-0">
+            <button className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors ml-4 shrink-0">
               Remove
             </button>
           </div>
@@ -626,7 +612,7 @@ function MockApiKeys() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">API Keys</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">API Keys</p>
         <button className="text-xs text-primary hover:text-primary/80 transition-colors">
           Create key
         </button>
@@ -636,17 +622,17 @@ function MockApiKeys() {
           <div key={k.id} className="flex items-center justify-between py-3">
             <div className="flex items-center gap-3">
               <span className="text-sm text-foreground">{k.name}</span>
-              <span className="text-xs text-muted-foreground/30 tabular-nums">
+              <span className="text-xs text-muted-foreground tabular-nums">
                 {new Date(k.createdAt).toLocaleDateString()}
               </span>
               {k.revokedAt && (
-                <span className="text-[9px] px-1.5 py-0.5 text-destructive/60 bg-destructive/5 rounded">
+                <span className="text-[11px] px-2 py-0.5 text-destructive/80 bg-destructive/10 rounded">
                   revoked
                 </span>
               )}
             </div>
             {!k.revokedAt && (
-              <button className="text-xs text-muted-foreground/30 hover:text-destructive transition-colors">
+              <button className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors">
                 Revoke
               </button>
             )}
@@ -681,14 +667,14 @@ function MockAuditLogs() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Audit Logs</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Audit Logs</p>
         <div className="flex gap-2">
-          <select className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60">
+          <select className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground">
             <option>All actions</option>
             <option>SIGN_TRANSACTION</option>
             <option>SIGN_MESSAGE</option>
           </select>
-          <select className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60">
+          <select className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground">
             <option>All statuses</option>
             <option>SUCCESS</option>
             <option>FAILED</option>
@@ -703,19 +689,19 @@ function MockAuditLogs() {
                 <div className={`w-1.5 h-1.5 rounded-full ${dot(log.status)}`} />
                 <span className="text-sm text-foreground font-mono">{log.action}</span>
               </div>
-              <span className="text-xs text-muted-foreground/30">{log.time}</span>
+              <span className="text-xs text-muted-foreground">{log.time}</span>
             </div>
             {log.error && <p className="text-xs text-red-400/70 ml-4 mt-0.5">{log.error}</p>}
           </div>
         ))}
       </div>
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-        <span className="text-[10px] text-muted-foreground/30">5 of 47</span>
+        <span className="text-xs text-muted-foreground">5 of 47</span>
         <div className="flex gap-1">
-          <button className="px-2 py-0.5 rounded text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors">
+          <button className="px-2 py-0.5 rounded text-xs text-muted-foreground/60 hover:text-foreground transition-colors">
             Prev
           </button>
-          <button className="px-2 py-0.5 rounded text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors">
+          <button className="px-2 py-0.5 rounded text-xs text-muted-foreground/60 hover:text-foreground transition-colors">
             Next
           </button>
         </div>
@@ -735,12 +721,12 @@ export default function UIPreview() {
       {/* Preview nav */}
       <div className="border-b border-border/50 px-6 py-2.5">
         <div className="flex items-center gap-3 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground/40 uppercase tracking-wider mr-2">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider mr-2">
             Preview
           </span>
           <button
             onClick={() => setView('dashboard')}
-            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${view === 'dashboard' ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground'}`}
+            className={`text-xs px-2.5 py-1 rounded-md transition-colors ${view === 'dashboard' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             Dashboard
           </button>
@@ -751,7 +737,7 @@ export default function UIPreview() {
                 setView('detail');
                 setSelectedAccount(a);
               }}
-              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${view === 'detail' && selectedAccount.id === a.id ? 'bg-muted text-foreground' : 'text-muted-foreground/50 hover:text-foreground'}`}
+              className={`text-xs px-2.5 py-1 rounded-md transition-colors ${view === 'detail' && selectedAccount.id === a.id ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
             >
               {a.memo || 'Unnamed'}
             </button>
