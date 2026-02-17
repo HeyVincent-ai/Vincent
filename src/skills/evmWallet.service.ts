@@ -1300,11 +1300,7 @@ export async function executeTransferBetweenSecrets(
     }
 
     // Cross-chain via Relay
-    const amountWei = await tokenAmountToWei(
-      input.tokenIn,
-      input.tokenInAmount,
-      input.fromChainId
-    );
+    const amountWei = await tokenAmountToWei(input.tokenIn, input.tokenInAmount, input.fromChainId);
 
     const quote = await relayService.getQuote({
       user: wallet.smartAccountAddress,

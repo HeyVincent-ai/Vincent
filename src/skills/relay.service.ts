@@ -146,10 +146,7 @@ export async function getStatus(requestId: string): Promise<RelayStatusResponse>
 // ============================================================
 
 export function isNativeToken(token: string): boolean {
-  return (
-    token.toUpperCase() === 'ETH' ||
-    token.toLowerCase() === NATIVE_TOKEN_ADDRESS
-  );
+  return token.toUpperCase() === 'ETH' || token.toLowerCase() === NATIVE_TOKEN_ADDRESS;
 }
 
 export function normalizeTokenAddress(token: string): string {

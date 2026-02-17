@@ -159,16 +159,30 @@ export async function sendUsdcEFromSafe(
     const safeTxHash = keccak256(
       encodeAbiParameters(
         [
-          { type: 'bytes32' }, { type: 'address' }, { type: 'uint256' },
-          { type: 'bytes32' }, { type: 'uint8' }, { type: 'uint256' },
-          { type: 'uint256' }, { type: 'uint256' }, { type: 'address' },
-          { type: 'address' }, { type: 'uint256' },
+          { type: 'bytes32' },
+          { type: 'address' },
+          { type: 'uint256' },
+          { type: 'bytes32' },
+          { type: 'uint8' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'uint256' },
+          { type: 'address' },
+          { type: 'address' },
+          { type: 'uint256' },
         ],
         [
-          SAFE_TX_TYPEHASH, safeTxData.to, safeTxData.value,
-          keccak256(safeTxData.data), safeTxData.operation, safeTxData.safeTxGas,
-          safeTxData.baseGas, safeTxData.gasPrice, safeTxData.gasToken,
-          safeTxData.refundReceiver, safeTxData.nonce,
+          SAFE_TX_TYPEHASH,
+          safeTxData.to,
+          safeTxData.value,
+          keccak256(safeTxData.data),
+          safeTxData.operation,
+          safeTxData.safeTxGas,
+          safeTxData.baseGas,
+          safeTxData.gasPrice,
+          safeTxData.gasToken,
+          safeTxData.refundReceiver,
+          safeTxData.nonce,
         ]
       )
     );
@@ -194,9 +208,16 @@ export async function sendUsdcEFromSafe(
       abi: safeAbi,
       functionName: 'execTransaction',
       args: [
-        safeTxData.to, safeTxData.value, safeTxData.data, safeTxData.operation,
-        safeTxData.safeTxGas, safeTxData.baseGas, safeTxData.gasPrice,
-        safeTxData.gasToken, safeTxData.refundReceiver, adjustedSig,
+        safeTxData.to,
+        safeTxData.value,
+        safeTxData.data,
+        safeTxData.operation,
+        safeTxData.safeTxGas,
+        safeTxData.baseGas,
+        safeTxData.gasPrice,
+        safeTxData.gasToken,
+        safeTxData.refundReceiver,
+        adjustedSig,
       ],
     });
 
@@ -275,7 +296,9 @@ export async function sendUsdcEFromSafeViaRelayer(
         const txns = await relayClient.getTransaction(response.transactionID);
         const state = txns?.[0]?.state ?? 'NOT_FOUND';
         const hash = txns?.[0]?.transactionHash ?? 'none';
-        console.log(`Relayer tx failed (txID=${response.transactionID}, state=${state}, hash=${hash})`);
+        console.log(
+          `Relayer tx failed (txID=${response.transactionID}, state=${state}, hash=${hash})`
+        );
       } catch {
         console.log(`Relayer tx failed (txID=${response.transactionID}, could not query state)`);
       }
