@@ -1,410 +1,158 @@
-# Local Testing Guide for Trade Manager
+# Local Testing Guide for AI Agent
 
-**You are an AI agent testing the OpenClaw Trade Manager service locally.**
+**You are an AI agent testing the Trade Manager skill locally.**
 
-## What is Trade Manager?
+## Your Mission
 
-Trade Manager is a standalone service that runs on each OpenClaw VPS to manage automated trading rules (stop-loss, take-profit) for Polymarket positions. It monitors positions and automatically executes trades when trigger conditions are met.
+Test the Trade Manager skill by actually using it alongside the Polymarket skill. Read the skill documentation files, understand how they work together, and use them to place bets and set automated stop-loss/take-profit rules.
 
-**Key components:**
-- **Local HTTP API** on `http://localhost:19000`
-- **Background worker** that polls positions every 15 seconds
-- **SQLite database** for rules, positions, and events
-- **Vincent Polymarket API integration** for executing trades
+## Setup Verification
 
-## Your Testing Mission
-
-Your goal is to:
-1. Verify the Trade Manager service is running
-2. Create various types of trading rules (stop-loss, take-profit)
-3. Inspect rules and their status
-4. Monitor the background worker's activity
-5. Test rule updates and cancellations
-6. Review event logs
-
-## Prerequisites - Verify These First
-
-Before testing, confirm:
+Before you start, verify your environment is ready:
 
 ```bash
-# 1. Trade Manager is running
+# 1. Check Trade Manager is running
 curl http://localhost:19000/health
-# Expected: {"status":"ok","version":"0.1.0"}
 
 # 2. Check worker status
 curl http://localhost:19000/status
-# Expected: JSON with worker info, active rules count, last sync time
 
-# 3. Config file exists
-cat ~/.openclaw/trade-manager.json
-# Should show Vincent API URL and key
+# 3. Verify you have access to Vincent Polymarket API
+# (Your API key should be in ~/.openclaw/credentials/agentwallet/ or provided by the user)
 ```
 
-If any of these fail, the service isn't running. See `TESTING.md` for setup instructions.
-
-## Skill Documentation Reference
+If any of these fail, ask the user for help setting up the environment.
 
-Read `skills/trade-manager/SKILL.md` for the complete skill specification. This is what OpenClaw agents use to interact with Trade Manager.
+## Skill Documentation
 
-Key points from the skill:
-- Local API at `http://localhost:19000`
-- Stores rules in local SQLite
-- Executes trades through Vincent Polymarket API
-- Supports STOP_LOSS and TAKE_PROFIT rule types
+Read these skill files to understand how to use both services:
 
-## Test Scenarios
-
-### Scenario 1: Health Check & Status
+### 1. Polymarket Skill
 
-**Goal:** Verify the service is healthy and operational.
+**Location:** `../skills/polymarket/SKILL.md` (relative to this file) OR `/Users/chris/Documents/WorkStuff/Lit/skills/SafeSkills-2/skills/polymarket/SKILL.md`
 
-```bash
-# Basic health check
-curl http://localhost:19000/health
+This skill explains how to:
 
-# Detailed status (includes worker info)
-curl http://localhost:19000/status
-```
-
-**What to check:**
-- Health endpoint returns 200 OK
-- Status shows worker is running
-- Circuit breaker state should be "CLOSED" (healthy)
-- Active rules count should be 0 initially
-
-### Scenario 2: Create a Stop-Loss Rule
-
-**Goal:** Create a rule that will sell a position if price drops below a threshold.
+- Create a Polymarket wallet
+- Browse and search markets
+- Place bets (BUY/SELL)
+- View positions and balances
+- Manage orders
 
-```bash
-# Create stop-loss at $0.40
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "0x123456test",
-    "tokenId": "789",
-    "ruleType": "STOP_LOSS",
-    "triggerPrice": 0.40,
-    "action": {"type": "SELL_ALL"}
-  }'
-```
+### 2. Trade Manager Skill
 
-**Expected response:**
-- Status 200
-- Returns created rule with `id`, `status: "ACTIVE"`, timestamps
-- `triggeredAt` should be null
-- `triggerTxHash` should be null
+**Location:** `skills/trade-manager/SKILL.md` (in the trade-manager directory) OR `/Users/chris/Documents/WorkStuff/Lit/skills/SafeSkills-2/skills/trade-manager/SKILL.md`
 
-**What to verify:**
-- Rule is created successfully
-- Rule ID is returned (save this for later tests)
-- Status is "ACTIVE"
-- Trigger price is correct
+This skill explains how to:
 
-### Scenario 3: Create a Take-Profit Rule
+- Create stop-loss rules (sell if price drops)
+- Create take-profit rules (sell if price rises)
+- List, update, and cancel rules
+- Monitor positions and event logs
+- Use Trade Manager alongside Polymarket
 
-**Goal:** Create a rule that will sell a position if price rises above a threshold.
+## Testing Workflow
 
-```bash
-# Create take-profit at $0.75
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "0x123456test",
-    "tokenId": "789",
-    "ruleType": "TAKE_PROFIT",
-    "triggerPrice": 0.75,
-    "action": {"type": "SELL_ALL"}
-  }'
-```
+Follow this workflow to test both skills working together:
 
-**Expected response:**
-- Same as stop-loss, but with `ruleType: "TAKE_PROFIT"`
+### Phase 1: Read the Skills
 
-### Scenario 4: List All Rules
+1. Read the Polymarket skill file completely
+2. Read the Trade Manager skill file completely
+3. Understand how they work together (see "Complete Workflow" section in Trade Manager skill)
 
-**Goal:** Retrieve all trading rules.
+### Phase 2: Test Polymarket Skill
 
-```bash
-# Get all rules
-curl http://localhost:19000/api/rules
+1. Check your Polymarket wallet balance
+2. Search for active markets
+3. (Optional) Place a small test bet if you have funds
 
-# Get only active rules
-curl 'http://localhost:19000/api/rules?status=ACTIVE'
+### Phase 3: Test Trade Manager Skill
 
-# Get triggered rules
-curl 'http://localhost:19000/api/rules?status=TRIGGERED'
-```
+1. Create a stop-loss rule on a position (or test position)
+2. Create a take-profit rule on the same position
+3. List your active rules
+4. Update a rule's trigger price
+5. Check the event log
+6. Cancel a rule
 
-**What to verify:**
-- Returns array of rules
-- Filter by status works correctly
-- All previously created rules are present
+### Phase 4: Verify Integration
 
-### Scenario 5: Get a Specific Rule
+1. Confirm Trade Manager worker is monitoring your positions
+2. Check that events are being logged every 15 seconds
+3. Verify circuit breaker state is healthy
 
-**Goal:** Retrieve details for a single rule.
+## What to Test
 
-```bash
-# Replace <rule-id> with actual ID from previous responses
-curl http://localhost:19000/api/rules/<rule-id>
-```
+Based on the skills you read, test these scenarios:
 
-**What to verify:**
-- Returns full rule details
-- Includes all fields: id, ruleType, marketId, tokenId, triggerPrice, action, status, timestamps
-
-### Scenario 6: Update a Rule's Trigger Price
-
-**Goal:** Modify the trigger price of an active rule.
-
-```bash
-# Update trigger price
-curl -X PATCH http://localhost:19000/api/rules/<rule-id> \
-  -H "Content-Type: application/json" \
-  -d '{
-    "triggerPrice": 0.45
-  }'
-```
-
-**What to verify:**
-- Rule is updated successfully
-- New trigger price is reflected
-- `updatedAt` timestamp changes
-- Other fields remain unchanged
-
-### Scenario 7: Cancel a Rule
-
-**Goal:** Deactivate a rule before it triggers.
-
-```bash
-# Cancel a rule
-curl -X DELETE http://localhost:19000/api/rules/<rule-id>
-```
-
-**Expected response:**
-- Rule status changes to "CANCELED"
-- `updatedAt` timestamp changes
-- Rule still exists (soft delete)
-
-**What to verify:**
-- GET /api/rules shows status as "CANCELED"
-- Rule no longer appears in `?status=ACTIVE` filter
-
-### Scenario 8: Monitor Positions
-
-**Goal:** Check cached position data that the worker is monitoring.
-
-```bash
-curl http://localhost:19000/api/positions
-```
-
-**Expected response:**
-- Array of monitored positions (may be empty initially)
-- Each position includes: marketId, tokenId, quantity, currentPrice, lastUpdatedAt
-
-**What to understand:**
-- This is a cache updated by the background worker
-- Worker fetches positions from Vincent API every 15 seconds
-- Positions are only monitored if there are active rules for them
-
-### Scenario 9: View Event Log
-
-**Goal:** Inspect the audit trail of rule evaluations and actions.
-
-```bash
-# All events
-curl http://localhost:19000/api/events
-
-# Events for specific rule
-curl 'http://localhost:19000/api/events?ruleId=<rule-id>'
-```
-
-**Expected event types:**
-- `RULE_CREATED` - When rule is first created
-- `RULE_EVALUATED` - When worker checks the rule (happens every poll)
-- `RULE_TRIGGERED` - When trigger condition is met
-- `ACTION_EXECUTED` - When trade executes successfully
-- `ACTION_FAILED` - When trade execution fails
-- `RULE_CANCELED` - When rule is manually canceled
-
-**What to verify:**
-- Events are logged chronologically
-- Each event includes: id, ruleId, eventType, eventData (JSON), createdAt
-- Filter by ruleId works correctly
-
-### Scenario 10: Test with Multiple Rules
-
-**Goal:** Create multiple rules on the same market and verify they're tracked independently.
-
-```bash
-# Create stop-loss
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "market-abc",
-    "tokenId": "100",
-    "ruleType": "STOP_LOSS",
-    "triggerPrice": 0.35,
-    "action": {"type": "SELL_ALL"}
-  }'
-
-# Create take-profit on same market
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "market-abc",
-    "tokenId": "100",
-    "ruleType": "TAKE_PROFIT",
-    "triggerPrice": 0.80,
-    "action": {"type": "SELL_ALL"}
-  }'
-
-# List all rules
-curl http://localhost:19000/api/rules
-```
-
-**What to verify:**
-- Both rules are created successfully
-- Both track the same market but different conditions
-- Worker status shows 2 active rules
-- Each rule has unique ID
-
-## Understanding the Background Worker
-
-The worker runs continuously and:
-
-1. **Every 15 seconds** (configurable):
-   - Fetches active rules from database
-   - Fetches current positions from Vincent API
-   - Fetches current prices for relevant markets
-   - Updates position cache
-   - Evaluates each rule against current price
-   - Executes trades if trigger conditions are met
-   - Logs events
-
-2. **Circuit Breaker**:
-   - If Vincent API fails 5+ consecutive times, worker pauses
-   - Enters "OPEN" state (visible in /status endpoint)
-   - Resumes after cooldown period
-
-3. **Idempotency**:
-   - Once a rule triggers, it's marked TRIGGERED atomically
-   - Same rule won't execute twice
-   - Uses database transactions for safety
-
-## Validation Rules
-
-The API enforces these constraints:
-
-- **triggerPrice**: Must be between 0 and 1 (Polymarket prices are probabilities)
-- **action.type**: Must be "SELL_ALL" (SELL_PARTIAL is v2 feature)
-- **ruleType**: Must be "STOP_LOSS" or "TAKE_PROFIT"
-- **marketId, tokenId**: Required strings
-
-Test invalid inputs to verify validation:
-
-```bash
-# Invalid trigger price (> 1)
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "test",
-    "tokenId": "123",
-    "ruleType": "STOP_LOSS",
-    "triggerPrice": 1.5,
-    "action": {"type": "SELL_ALL"}
-  }'
-# Expected: 400 Bad Request with validation error
-
-# Missing required field
-curl -X POST http://localhost:19000/api/rules \
-  -H "Content-Type: application/json" \
-  -d '{
-    "marketId": "test",
-    "ruleType": "STOP_LOSS",
-    "triggerPrice": 0.5,
-    "action": {"type": "SELL_ALL"}
-  }'
-# Expected: 400 Bad Request (missing tokenId)
-```
-
-## Testing with Real Polymarket Data (Optional)
-
-If you have a real Vincent API key configured:
-
-1. Find a real Polymarket market ID (from Vincent API or Polymarket.com)
-2. Get your current positions: Check Vincent `/api/skills/polymarket/positions`
-3. Create a rule for an actual position you hold
-4. Set trigger price near current price to test triggering
-5. Monitor worker logs to see actual execution
-
-**Warning:** This will execute real trades! Only do this with small amounts or test markets.
-
-## Expected Outputs & Success Criteria
-
-After completing all scenarios, you should have:
-
-✅ Verified service health and worker status
-✅ Created multiple stop-loss rules
-✅ Created multiple take-profit rules
-✅ Listed and filtered rules by status
-✅ Updated rule trigger prices
-✅ Canceled rules
-✅ Viewed monitored positions cache
-✅ Inspected event logs for audit trail
-✅ Tested validation with invalid inputs
-✅ Confirmed worker is polling every 15 seconds (check timestamps in /status)
-
-## Troubleshooting
-
-### Service won't start
-- Check config file: `cat ~/.openclaw/trade-manager.json`
-- Check database file exists and is writable
-- Check port 19000 isn't already in use: `lsof -i :19000`
-- Check logs for errors
-
-### Rules not triggering
-- Verify worker is running: `curl http://localhost:19000/status`
-- Check circuit breaker state (should be "CLOSED")
-- Verify Vincent API key is valid
-- Check if positions exist in Vincent API
-- Monitor event log for RULE_EVALUATED events
-
-### API returns errors
-- Check request format (JSON, proper headers)
-- Verify required fields are present
-- Check trigger price is valid (0 < price < 1)
-- Look at error message in response body
-
-## Reporting Results
-
-After testing, provide a summary including:
+**From Polymarket Skill:**
+
+- Can you search markets?
+- Can you get wallet balance?
+- Can you understand market structure (outcomes, prices, tokenIds)?
+
+**From Trade Manager Skill:**
+
+- Can you create rules with correct parameters?
+- Can you list rules with status filters?
+- Can you update trigger prices?
+- Can you cancel rules?
+- Can you view event logs?
+
+**Integration:**
+
+- Do the rules use the same API key as Polymarket?
+- Do the marketId and tokenId from Polymarket work in Trade Manager?
+- Does the worker fetch positions correctly?
+
+## Success Criteria
+
+After testing, you should be able to:
+
+✅ Explain how both skills work together
+✅ Create stop-loss and take-profit rules successfully
+✅ Monitor rule status and events
+✅ Understand when rules will trigger
+✅ Troubleshoot common errors
+
+## Report Your Findings
+
+After testing, provide a report including:
 
 1. **What worked:**
-   - Which scenarios passed
-   - What features worked as expected
+   - Which endpoints succeeded
+   - Which workflows completed end-to-end
 
-2. **What failed or behaved unexpectedly:**
-   - Error messages
-   - Unexpected responses
-   - Missing features
+2. **What needs clarification:**
+   - Confusing documentation
+   - Missing information
+   - Ambiguous instructions
 
-3. **Worker behavior:**
-   - Is it polling regularly?
-   - Are events being logged?
-   - Is the circuit breaker working?
+3. **Integration observations:**
+   - Did the skills work well together?
+   - Was it clear how to get the right IDs from Polymarket to use in Trade Manager?
+   - Were there any gaps in the documentation?
 
-4. **API observations:**
-   - Response times
-   - Data structure consistency
-   - Validation behavior
+4. **Suggestions for improvement:**
+   - What would make the skills easier to use?
+   - What examples would be helpful?
+   - What common errors should be documented?
 
-## Next Steps After Testing
+## Important Notes
 
-If everything works locally:
-1. The package is ready for npm publishing
-2. Can be deployed to real OpenClaw VPS
-3. OpenClaw agents can use this skill to manage trades
+- **You are testing the skill documentation** - not just the API endpoints
+- **A real agent will only have the SKILL.md files** - they won't have this LOCAL_TESTING_PROMPT.md
+- **Your goal** is to verify that the skill files contain enough information for an agent to use the features successfully
+- **If you can't figure something out from the skill files** - that's valuable feedback! Report what was unclear.
 
-See `PUBLISHING.md` for publishing instructions.
+## Getting Help
+
+If you encounter issues:
+
+- Check the skill files for error handling sections
+- Check the Trade Manager worker status for health issues
+- Look at event logs for detailed error messages
+- Ask the user if you need clarification on setup
+
+Good luck! 🚀
