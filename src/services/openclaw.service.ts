@@ -1002,6 +1002,12 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             ctx.serviceName = poolVps;
             ctx.hostname = ovhService.getVpsHostname(poolVps);
             addLog(`Claimed VPS from pool: ${poolVps}`);
+            await updateDeployment(deploymentId, {
+              ovhServiceName: ctx.serviceName,
+              hostname: ctx.hostname,
+              provisionLog: log,
+              provisionStage: stage,
+            });
             break;
           }
           addLog('VPS pool empty, proceeding with normal VPS ordering');
