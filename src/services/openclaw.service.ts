@@ -997,21 +997,25 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
         case 'plan_found': {
           // Try to claim a pre-provisioned VPS from the pool first.
-          addLog('Checking VPS pool...');
-          const poolVps = await claimPoolVps();
-          if (poolVps) {
-            ctx.serviceName = poolVps;
-            ctx.hostname = ovhService.getVpsHostname(poolVps);
-            addLog(`Claimed VPS from pool: ${poolVps}`);
-            await updateDeployment(deploymentId, {
-              ovhServiceName: ctx.serviceName,
-              hostname: ctx.hostname,
-              provisionLog: log,
-              provisionStage: stage,
-            });
-            break;
+          if (!ctx.serviceName) {
+            addLog('Checking VPS pool...');
+            const poolVps = await claimPoolVps();
+            if (poolVps) {
+              ctx.serviceName = poolVps;
+              ctx.hostname = ovhService.getVpsHostname(poolVps);
+              addLog(`Claimed VPS from pool: ${poolVps}`);
+              await updateDeployment(deploymentId, {
+                ovhServiceName: ctx.serviceName,
+                hostname: ctx.hostname,
+                provisionLog: log,
+                provisionStage: stage,
+              });
+              break;
+            }
+            addLog('VPS pool empty, proceeding with normal VPS ordering');
+          } else {
+            addLog(`VPS already claimed for this deployment: ${ctx.serviceName}`);
           }
-          addLog('VPS pool empty, proceeding with normal VPS ordering');
 
           // Pool empty — fall through to normal plan finding
           const planCode = options.planCode;
