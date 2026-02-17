@@ -10,6 +10,17 @@ export interface VincentPosition {
   currentPrice: number;
 }
 
+export interface VincentHolding {
+  tokenId: string;
+  shares: number;
+  averageEntryPrice: number;
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  marketTitle?: string;
+  outcome?: string;
+}
+
 export class VincentClientService {
   private readonly client: AxiosInstance;
   private readonly maxRetries = 3;
@@ -62,6 +73,42 @@ export class VincentClientService {
     } catch (error: any) {
       // Log full error details for debugging
       console.error('[VincentClient] Failed to fetch positions:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      return []; // Return empty array on error
+    }
+  }
+
+  async getHoldings(): Promise<VincentHolding[]> {
+    try {
+      const { data } = await this.withRetry(() =>
+        this.client.get('/api/skills/polymarket/holdings')
+      );
+
+      // Handle nested Vincent response format
+      // Format: { success: true, data: { walletAddress, holdings: [...] } }
+      if (data.success && data.data?.holdings && Array.isArray(data.data.holdings)) {
+        return data.data.holdings;
+      }
+      // Format 2: { data: { holdings: [...] } }
+      if (data.data?.holdings && Array.isArray(data.data.holdings)) {
+        return data.data.holdings;
+      }
+      // Format 3: { holdings: [...] }
+      if (data.holdings && Array.isArray(data.holdings)) {
+        return data.holdings;
+      }
+      // Format 4: Direct array
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      console.warn('[VincentClient] No holdings found in response, returning empty array');
+      return [];
+    } catch (error: any) {
+      console.error('[VincentClient] Failed to fetch holdings:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
