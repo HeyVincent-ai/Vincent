@@ -100,7 +100,59 @@ Before placing bets, the user must send USDC.e to the Safe address:
 
 **Do not send native USDC** (`0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359`). Polymarket only accepts bridged USDC.e.
 
-### 4. Browse & Search Markets
+### 4. Transfer from Vincent EVM Wallet (Alternative Funding Method)
+
+If you have a Vincent EVM wallet with funds, you can transfer directly to your Polymarket wallet using the `/transfer-between-secrets` endpoints. Vincent verifies you own both secrets and automatically handles token conversion and cross-chain bridging to get USDC.e on Polygon.
+
+**Example: Transfer USDC from Base to Polymarket on Polygon**
+
+```bash
+# Preview the transfer first
+curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/preview" \
+  -H "Authorization: Bearer <EVM_WALLET_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toSecretId": "<POLYMARKET_SECRET_ID>",
+    "fromChainId": 8453,
+    "toChainId": 137,
+    "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "tokenInAmount": "10",
+    "tokenOut": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "slippage": 100
+  }'
+
+# Execute the transfer
+curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/execute" \
+  -H "Authorization: Bearer <EVM_WALLET_API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toSecretId": "<POLYMARKET_SECRET_ID>",
+    "fromChainId": 8453,
+    "toChainId": 137,
+    "tokenIn": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "tokenInAmount": "10",
+    "tokenOut": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "slippage": 100
+  }'
+```
+
+**Key points:**
+
+- Use your **EVM wallet's API key** (not the Polymarket API key) as the Bearer token
+- The `toSecretId` must be your Polymarket wallet's secret ID
+- For Polymarket destinations, only `toChainId: 137` (Polygon) and `tokenOut: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174` (USDC.e) are allowed
+- The server verifies you own both secrets — transfers to other users' wallets are rejected
+- Same-chain, same-token transfers use direct transfer; otherwise uses Relay.link for cross-chain swap
+- For cross-chain transfers, use the returned `relayRequestId` with the status endpoint to track completion:
+
+```bash
+curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/status/<RELAY_REQUEST_ID>" \
+  -H "Authorization: Bearer <EVM_WALLET_API_KEY>"
+```
+
+This is often easier than manually bridging and swapping, especially when transferring from other chains like Base, Arbitrum, or Optimism.
+
+### 5. Browse & Search Markets
 
 ```bash
 # Search markets by keyword (recommended)
@@ -130,7 +182,7 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/market/<CONDITION_ID>" 
 - `tokenIds[0]` = "Yes" token ID
 - `tokenIds[1]` = "No" token ID
 
-### 5. Get Order Book
+### 6. Get Order Book
 
 ```bash
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/orderbook/<TOKEN_ID>" \
@@ -139,7 +191,7 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/orderbook/<TOKEN_ID>" \
 
 Returns bids and asks with prices and sizes. Use this to determine current market prices before placing orders.
 
-### 6. Place a Bet
+### 7. Place a Bet
 
 ```bash
 curl -X POST "https://heyvincent.ai/api/skills/polymarket/bet" \
@@ -176,7 +228,7 @@ Parameters:
 
 If a trade violates a policy, the server returns an error explaining which policy was triggered. If a trade requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
 
-### 7. View Positions & Orders
+### 8. View Positions & Orders
 
 ```bash
 # Get open orders
@@ -188,7 +240,7 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/trades" \
   -H "Authorization: Bearer <API_KEY>"
 ```
 
-### 8. Cancel Orders
+### 9. Cancel Orders
 
 ```bash
 # Cancel specific order
