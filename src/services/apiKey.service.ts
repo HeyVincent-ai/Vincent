@@ -106,7 +106,12 @@ export async function validateApiKey(plainKey: string): Promise<ValidateApiKeyRe
       revokedAt: null,
     },
     include: {
-      secret: true,
+      secret: {
+        select: {
+          id: true,
+          deletedAt: true,
+        },
+      },
     },
   });
 

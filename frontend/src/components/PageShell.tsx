@@ -72,7 +72,7 @@ export const SHARED_STYLES = `
   .vp .nav .container { display: flex; align-items: center; justify-content: space-between; width: 100%; }
   .vp .nav__logo { font-size: 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
   .vp .nav__logo-img { height: 28px; width: auto; filter: invert(1); opacity: .9; }
-  .vp .nav__tabs { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 0.25rem; }
+  .vp .nav__tabs { display: flex; justify-content: center; gap: 0.25rem; flex: 1; min-width: 0; }
   .vp .nav__tab {
     padding: 0.5rem 1rem; font-size: 0.9375rem; font-weight: 500; color: var(--text-muted);
     border-radius: var(--radius-sm); transition: color 150ms ease, background 150ms ease; position: relative;
@@ -209,7 +209,7 @@ export const SHARED_STYLES = `
   .vp .section-link svg { width: 18px; height: 18px; }
 
   /* Pricing */
-  .vp .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: stretch; }
+  .vp .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: stretch; }
   .vp .pricing-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 2.5rem 2rem; position: relative; display: flex; flex-direction: column;
@@ -312,6 +312,73 @@ export const SHARED_STYLES = `
   .vp .arch-arrow__line { width: 2px; height: 24px; background: var(--border); }
   .vp .arch-arrow__label { margin: 0.375rem 0; font-family: var(--font-mono); }
 
+  /* Diagram: horizontal arrow */
+  .vp .arch-arrow--horizontal { flex-direction: row; padding: 0 0.5rem; }
+  .vp .arch-arrow--horizontal .arch-arrow__line { width: 24px; height: 2px; }
+
+  /* Diagram: composability connector */
+  .vp .diagram-compose { color: var(--accent); font-weight: 700; font-size: 1.25rem; padding: 0.25rem 0; }
+
+  /* Diagram: flow row (horizontal layout) */
+  .vp .diagram-flow-row { display: flex; gap: 0.75rem; justify-content: center; align-items: center; width: 100%; }
+  .vp .diagram-flow-row .arch-box { flex: 1; padding: 1rem; }
+
+  /* Diagram: status indicators */
+  .vp .diagram-status { display: inline-flex; align-items: center; gap: 0.375rem; font-family: var(--font-mono); font-size: 0.8125rem; }
+  .vp .diagram-status--green { color: #22c55e; }
+  .vp .diagram-status--orange { color: var(--accent); }
+  .vp .diagram-status--dim { color: var(--text-dim); }
+
+  /* Diagram: role matrix */
+  .vp .diagram-matrix { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 0.8125rem; font-family: var(--font-mono); }
+  .vp .diagram-matrix th, .vp .diagram-matrix td {
+    padding: 0.75rem 0.5rem; text-align: center; border-bottom: 1px solid var(--border);
+  }
+  .vp .diagram-matrix th { color: var(--text-muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .vp .diagram-matrix td:first-child, .vp .diagram-matrix th:first-child { text-align: left; color: var(--text); font-weight: 600; }
+  .vp .diagram-matrix tr:last-child td { border-bottom: none; }
+  .vp .diagram-matrix .matrix-check { color: var(--accent); font-weight: 700; }
+  .vp .diagram-matrix .matrix-dash { color: var(--text-dim); }
+
+  /* Diagram: audit log */
+  .vp .diagram-log {
+    width: 100%; padding: 1.25rem 1.5rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.75rem; line-height: 2;
+    overflow-x: auto;
+  }
+  .vp .diagram-log__header {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .vp .diagram-log__dot { width: 8px; height: 8px; border-radius: 50%; }
+  .vp .diagram-log__dot--red { background: #ef4444; }
+  .vp .diagram-log__dot--yellow { background: #eab308; }
+  .vp .diagram-log__dot--green { background: #22c55e; }
+  .vp .diagram-log__entry { display: flex; gap: 0.75rem; white-space: nowrap; }
+  .vp .diagram-log__time { color: var(--text-dim); }
+  .vp .diagram-log__type { font-weight: 600; min-width: 80px; }
+  .vp .diagram-log__type--request { color: var(--accent); }
+  .vp .diagram-log__type--policy { color: var(--text-muted); }
+  .vp .diagram-log__type--approved { color: #22c55e; }
+  .vp .diagram-log__type--executed { color: #22c55e; }
+  .vp .diagram-log__msg { color: var(--text-muted); }
+
+  /* Diagram: code/config block */
+  .vp .diagram-code {
+    width: 100%; padding: 1.25rem 1.5rem; background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.8;
+    overflow-x: auto;
+  }
+  .vp .diagram-code__header {
+    display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted);
+  }
+  .vp .diagram-code__key { color: var(--accent); }
+  .vp .diagram-code__val { color: var(--text-muted); }
+  .vp .diagram-code__comment { color: var(--text-dim); }
+  .vp .diagram-code__line { white-space: pre; }
+  .vp .diagram-code__check { color: #22c55e; }
+
   /* Threat model */
   .vp .threat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
   .vp .threat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; }
@@ -399,8 +466,8 @@ function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }
           <Link className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`} to="/skills">Skills</Link>
         </nav>
         <div className="nav__right">
-          <Link className="btn btn-secondary" to="/skills">Add to Your Agent</Link>
-          <Link className="btn btn-primary" to="/login">Start Free Trial</Link>
+          <Link className="btn btn-secondary" to="/skills">Skills Only</Link>
+          <Link className="btn btn-primary" to="/login">Human Login</Link>
         </div>
       </div>
     </header>
@@ -412,11 +479,11 @@ function Footer() {
     <>
       <section className="footer-cta">
         <div className="container">
-          <h2>Ready to give your AI safe authority?</h2>
+          <h2>Ready to deploy your agent?</h2>
           <p>Start free. No credit card required.</p>
           <div className="cta-buttons">
-            <Link className="btn btn-primary btn-lg" to="/login">Start Free Trial</Link>
-            <Link className="btn btn-secondary btn-lg" to="/skills">Get the Skills File</Link>
+            <Link className="btn btn-primary btn-lg" to="/login">Deploy an Agent</Link>
+            <Link className="btn btn-secondary btn-lg" to="/skills">Skills Only</Link>
           </div>
         </div>
       </section>
@@ -425,7 +492,7 @@ function Footer() {
           <div className="footer-grid">
             <div className="footer-brand">
               <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
-              <p>Safe authority for AI</p>
+              <p>Self-improving AI agents, safe for money</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>
@@ -440,7 +507,7 @@ function Footer() {
               <h4>Resources</h4>
               <ul>
                 <li><Link to="/skills">Skills</Link></li>
-                <li><a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">Discord</a></li>
+                <li><a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">Discord</a></li>
                 <li><a href="mailto:support@litprotocol.com">Support</a></li>
               </ul>
             </div>
@@ -453,7 +520,7 @@ function Footer() {
           </div>
           <div className="footer-bottom">
             <span>&copy; {new Date().getFullYear()} Vincent. All rights reserved.</span>
-            <span>heyvincent.ai</span>
+            <span><Link to="/terms">Terms of Service</Link></span>
           </div>
         </div>
       </footer>

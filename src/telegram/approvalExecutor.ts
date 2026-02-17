@@ -7,9 +7,12 @@ import * as zeroExService from '../skills/zeroEx.service.js';
  * Execute a transaction that has been approved via Telegram.
  * Re-reads the secret/wallet data and executes based on the TransactionLog.
  */
-export async function executeApprovedTransaction(
-  txLog: { id: string; secretId: string; actionType: string; requestData: unknown }
-): Promise<{ txHash: string }> {
+export async function executeApprovedTransaction(txLog: {
+  id: string;
+  secretId: string;
+  actionType: string;
+  requestData: unknown;
+}): Promise<{ txHash: string }> {
   const secret = await prisma.secret.findFirst({
     where: { id: txLog.secretId, deletedAt: null },
     include: { walletMetadata: true },
@@ -75,9 +78,19 @@ export async function executeApprovedTransaction(
       if (!zeroExService.isNativeToken(sellToken)) {
         sellAmountDecimals = await zerodev.getTokenDecimals(sellToken as Address, chainId);
       }
-      const sellAmountWei = parseUnits(requestData.sellAmount as string, sellAmountDecimals).toString();
+      const sellAmountWei = parseUnits(
+        requestData.sellAmount as string,
+        sellAmountDecimals
+      ).toString();
       const takerAddress = secret.walletMetadata!.smartAccountAddress;
-      console.log(`getting quote with data`, { sellToken, buyToken, sellAmountWei, takerAddress, chainId, slippageBps });
+      console.log(`getting quote with data`, {
+        sellToken,
+        buyToken,
+        sellAmountWei,
+        takerAddress,
+        chainId,
+        slippageBps,
+      });
       const quote = await zeroExService.getQuote({
         sellToken,
         buyToken,

@@ -21,7 +21,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import supertest from 'supertest';
 import prisma from '../db/client.js';
-import type { User, OpenClawDeployment } from '@prisma/client';
+import type { User } from '@prisma/client';
 
 // Mock the auth service so we can bypass Stytch
 vi.mock('../services/auth.service.js', () => ({
@@ -196,9 +196,7 @@ describe('OpenClaw API E2E: HTTP Endpoints', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.deployments.length).toBeGreaterThan(0);
 
-    const found = res.body.data.deployments.find(
-      (d: any) => d.id === deploymentId
-    );
+    const found = res.body.data.deployments.find((d: any) => d.id === deploymentId);
     expect(found).toBeDefined();
     console.log(`  Deployments listed: ${res.body.data.deployments.length}`);
   }, 30_000);
@@ -221,7 +219,7 @@ describe('OpenClaw API E2E: HTTP Endpoints', () => {
       let finalDeployment: any = null;
 
       while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, DEPLOY_POLL_INTERVAL_MS));
+        await new Promise((r) => setTimeout(r, DEPLOY_POLL_INTERVAL_MS));
 
         const res = await request
           .get(`/api/openclaw/deployments/${deploymentId}`)
@@ -245,7 +243,9 @@ describe('OpenClaw API E2E: HTTP Endpoints', () => {
           console.log(`\n  Deployment READY!`);
           console.log(`  IP: ${deployment.ipAddress}`);
           console.log(`  Service: ${deployment.ovhServiceName}`);
-          console.log(`  Access token: ${deployment.accessToken ? deployment.accessToken.slice(0, 10) + '...' : 'none'}`);
+          console.log(
+            `  Access token: ${deployment.accessToken ? deployment.accessToken.slice(0, 10) + '...' : 'none'}`
+          );
           break;
         }
 
@@ -293,7 +293,9 @@ describe('OpenClaw API E2E: HTTP Endpoints', () => {
 
     // Only destroy if we have a real VPS (don't destroy during async provisioning)
     if (!ACTUALLY_ORDER_VPS) {
-      console.log('  Skipping destroy for dry-run (deployment is still provisioning asynchronously)');
+      console.log(
+        '  Skipping destroy for dry-run (deployment is still provisioning asynchronously)'
+      );
       return;
     }
 

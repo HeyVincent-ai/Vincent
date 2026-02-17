@@ -24,7 +24,7 @@ export async function recordGasUsage(input: RecordGasInput) {
   const { secretId, userId, transactionHash, chainId, gasUsed, gasPriceGwei } = input;
 
   // Calculate cost in ETH: gasUsed * gasPriceGwei / 1e9
-  const costEth = Number(gasUsed) * gasPriceGwei / 1e9;
+  const costEth = (Number(gasUsed) * gasPriceGwei) / 1e9;
 
   // Convert to USD
   let costUsd: number;

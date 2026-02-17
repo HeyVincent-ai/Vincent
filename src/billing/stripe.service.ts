@@ -175,6 +175,28 @@ export async function handleWebhookEvent(
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
+  const checkoutType = session.metadata?.type;
+  const deploymentId = session.metadata?.deploymentId;
+
+  // Handle one-time credit purchases (no subscription involved)
+  if (checkoutType === 'openclaw_credits' && deploymentId && userId) {
+    const amountCents = session.amount_total;
+    if (!amountCents) return;
+    const amountUsd = amountCents / 100;
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    console.log(
+      `[stripe] OpenClaw credit checkout completed: $${amountUsd} for deployment ${deploymentId}`
+    );
+    const openclawService = await import('../services/openclaw.service.js');
+    await openclawService.fulfillCreditPurchase(deploymentId, amountUsd, paymentIntentId);
+    return;
+  }
+
   if (!userId || !session.subscription) return;
 
   const stripe = getStripe();
@@ -185,17 +207,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const period = extractPeriodDates(stripeSubscription);
 
   // Check if this is an OpenClaw deployment checkout
-  const deploymentId = session.metadata?.deploymentId;
-  const checkoutType = session.metadata?.type;
-
   if (checkoutType === 'openclaw' && deploymentId) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
     const openclawService = await import('../services/openclaw.service.js');
-    await openclawService.startProvisioning(
-      deploymentId,
-      stripeSubscription.id,
-      period.end
-    );
+    await openclawService.startProvisioning(deploymentId, stripeSubscription.id, period.end);
     return;
   }
 
@@ -291,70 +306,38 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 }
 
 /**
- * Charge a customer off-session using their default payment method.
- * Used for OpenClaw LLM credit purchases.
- *
- * Returns success + paymentIntentId, or requiresAction + clientSecret
- * if 3D Secure authentication is needed.
+ * Create a Stripe Checkout session for a one-time credit purchase.
+ * Uses a custom_unit_amount price so the customer enters their desired amount
+ * on the Stripe Checkout page. Works even without a saved payment method.
  */
-export async function chargeCustomerOffSession(
+export async function createCreditsCheckoutSession(
   userId: string,
-  amountCents: number,
-  description: string,
-  metadata: Record<string, string> = {}
-): Promise<{
-  success: boolean;
-  paymentIntentId?: string;
-  requiresAction?: boolean;
-  clientSecret?: string;
-}> {
+  deploymentId: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ sessionId: string; url: string }> {
+  if (!env.STRIPE_CREDIT_PRICE_ID) {
+    throw new Error('STRIPE_CREDIT_PRICE_ID is not configured');
+  }
+
   const stripe = getStripe();
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+  const customerId = await getOrCreateStripeCustomer(userId);
 
-  if (!user.stripeCustomerId) {
-    throw new Error('User has no Stripe customer — subscribe first');
-  }
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [{ price: env.STRIPE_CREDIT_PRICE_ID, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      userId,
+      deploymentId,
+      type: 'openclaw_credits',
+    },
+  });
 
-  // Get the customer's default payment method
-  const customer = await stripe.customers.retrieve(user.stripeCustomerId);
-  if (customer.deleted) throw new Error('Stripe customer has been deleted');
-
-  const defaultPm =
-    customer.invoice_settings?.default_payment_method ??
-    customer.default_source;
-
-  if (!defaultPm) {
-    throw new Error('No default payment method on file — please add a card first');
-  }
-
-  const pmId = typeof defaultPm === 'string' ? defaultPm : defaultPm.id;
-
-  try {
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amountCents,
-      currency: 'usd',
-      customer: user.stripeCustomerId,
-      payment_method: pmId,
-      off_session: true,
-      confirm: true,
-      description,
-      metadata: { userId, ...metadata },
-    });
-
-    return { success: true, paymentIntentId: paymentIntent.id };
-  } catch (err: any) {
-    // Handle 3D Secure / authentication_required
-    if (err.code === 'authentication_required' && err.raw?.payment_intent) {
-      const pi = err.raw.payment_intent;
-      return {
-        success: false,
-        requiresAction: true,
-        clientSecret: pi.client_secret,
-        paymentIntentId: pi.id,
-      };
-    }
-    throw err;
-  }
+  return { sessionId: session.id, url: session.url! };
 }
 
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
