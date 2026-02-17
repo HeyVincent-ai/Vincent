@@ -176,9 +176,13 @@ Parameters:
 
 If a trade violates a policy, the server returns an error explaining which policy was triggered. If a trade requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
 
-### 7. View Positions & Orders
+### 7. View Holdings, Positions & Orders
 
 ```bash
+# Get current holdings with P&L (recommended)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/holdings" \
+  -H "Authorization: Bearer <API_KEY>"
+
 # Get open orders
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/positions" \
   -H "Authorization: Bearer <API_KEY>"
@@ -187,6 +191,39 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/positions" \
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/trades" \
   -H "Authorization: Bearer <API_KEY>"
 ```
+
+**Holdings endpoint** returns all positions with shares owned, average entry price, current price, and unrealized P&L:
+
+```json
+{
+  "success": true,
+  "data": {
+    "walletAddress": "0x...",
+    "holdings": [
+      {
+        "tokenId": "123456...",
+        "shares": 42.5,
+        "averageEntryPrice": 0.55,
+        "currentPrice": 0.62,
+        "pnl": 2.97,
+        "pnlPercent": 12.73,
+        "marketTitle": "Will Bitcoin hit $100k by end of 2025?",
+        "outcome": "Yes"
+      }
+    ]
+  }
+}
+```
+
+This is the best endpoint for:
+- Checking current positions before placing sell orders
+- Setting up stop-loss or take-profit rules
+- Calculating total portfolio value and performance
+- Showing the user their active bets
+
+**Positions endpoint** returns open limit orders (unfilled orders waiting in the order book).
+
+**Trades endpoint** returns historical trade activity.
 
 ### 8. Cancel Orders
 

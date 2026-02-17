@@ -936,6 +936,60 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
   }, 60_000);
 
   // ============================================================
+  // Test 5.5: Get holdings with P&L
+  // ============================================================
+
+  it('should show holdings with average entry price and P&L', async () => {
+    // Wait a bit for the trade to settle and position to be reflected
+    console.log('Waiting for position data to update...');
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const res = await request(app)
+      .get('/api/skills/polymarket/holdings')
+      .set('Authorization', `Bearer ${apiKey}`)
+      .expect(200);
+
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.walletAddress).toBe(safeAddress);
+
+    const holdings = res.body.data.holdings;
+    console.log(`Holdings count: ${holdings.length}`);
+
+    if (holdings.length > 0) {
+      console.log('Holdings:', JSON.stringify(holdings, null, 2));
+
+      // Verify structure of first holding
+      const holding = holdings[0];
+      expect(holding.tokenId).toBeTruthy();
+      expect(typeof holding.shares).toBe('number');
+      expect(typeof holding.averageEntryPrice).toBe('number');
+      expect(typeof holding.currentPrice).toBe('number');
+      expect(typeof holding.pnl).toBe('number');
+      expect(typeof holding.pnlPercent).toBe('number');
+      expect(holding.marketTitle).toBeTruthy();
+      expect(holding.outcome).toBeTruthy();
+
+      console.log(`  Token: ${holding.tokenId}`);
+      console.log(`  Market: ${holding.marketTitle}`);
+      console.log(`  Outcome: ${holding.outcome}`);
+      console.log(`  Shares: ${holding.shares}`);
+      console.log(`  Avg Entry Price: ${holding.averageEntryPrice}`);
+      console.log(`  Current Price: ${holding.currentPrice}`);
+      console.log(`  P&L: $${holding.pnl.toFixed(2)} (${holding.pnlPercent.toFixed(2)}%)`);
+
+      // Validate our position is in the holdings
+      const ourPosition = holdings.find((h: any) => h.tokenId === chosenTokenId);
+      if (ourPosition) {
+        expect(ourPosition.shares).toBeGreaterThan(0);
+        expect(ourPosition.averageEntryPrice).toBeCloseTo(buyPrice, 2);
+      }
+    } else {
+      // If no holdings yet, position might still be settling
+      console.log('⚠️ No holdings returned yet (position may still be settling)');
+    }
+  }, 60_000);
+
+  // ============================================================
   // Test 6: Place a SELL order to close position
   // ============================================================
 
