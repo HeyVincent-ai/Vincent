@@ -2,6 +2,7 @@ import { useState } from 'react';
 import AccountTypeGroup from '../components/AccountTypeGroup';
 import CreateAccountModal from '../components/CreateAccountModal';
 import ApiKeyRevealModal from '../components/ApiKeyRevealModal';
+import QrModal from '../components/QrModal';
 import CopyButton from '../components/CopyButton';
 import {
   ACCOUNT_TYPES,
@@ -74,12 +75,24 @@ const MOCK_ACCOUNTS: Account[] = [
 function DashboardPreview() {
   const [showCreate, setShowCreate] = useState(false);
   const [revealApiKey, setRevealApiKey] = useState<string | null>(null);
+  const [receiveAccount, setReceiveAccount] = useState<Account | null>(null);
 
   const activeGroups = ACCOUNT_TYPE_ORDER.map((type) => ({
     type,
     config: ACCOUNT_TYPES[type],
     accounts: MOCK_ACCOUNTS.filter((a) => a.type === type),
   })).filter((g) => g.accounts.length > 0);
+
+  // Calculate overview metrics
+  const totalAssets = MOCK_ACCOUNTS
+    .filter(
+      (a) =>
+        a.type === 'EVM_WALLET' ||
+        a.type === 'POLYMARKET_WALLET' ||
+        a.type === 'RAW_SIGNER'
+    )
+    .reduce((sum, a) => sum + (a.totalBalance || 0), 0);
+  const totalAccounts = MOCK_ACCOUNTS.length;
 
   return (
     <div>
@@ -93,6 +106,29 @@ function DashboardPreview() {
         </button>
       </div>
 
+      {/* Overview Section */}
+      <div className="bg-card rounded-lg border border-border px-4 py-3 mb-6">
+        <div className="flex items-baseline justify-between gap-6">
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+              Total Assets
+            </p>
+            <div className="flex items-baseline gap-2">
+              <p className="text-xl font-semibold text-foreground font-mono">
+                ${totalAssets.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              <span className="text-xs text-green-400">+2.3%</span>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">
+              Total Accounts
+            </p>
+            <p className="text-sm text-foreground font-mono">{totalAccounts}</p>
+          </div>
+        </div>
+      </div>
+
       <div>
         {activeGroups.map((group) => (
           <AccountTypeGroup
@@ -100,6 +136,7 @@ function DashboardPreview() {
             label={group.config.pluralLabel}
             icon={group.config.icon}
             accounts={group.accounts}
+            onReceive={setReceiveAccount}
           />
         ))}
       </div>
@@ -116,6 +153,14 @@ function DashboardPreview() {
 
       {revealApiKey && (
         <ApiKeyRevealModal apiKey={revealApiKey} onDone={() => setRevealApiKey(null)} />
+      )}
+
+      {receiveAccount && (
+        <QrModal
+          address={receiveAccount.walletAddress || receiveAccount.ethAddress || ''}
+          label={receiveAccount.memo || 'Unnamed account'}
+          onClose={() => setReceiveAccount(null)}
+        />
       )}
     </div>
   );
@@ -172,6 +217,8 @@ function DetailPreview({ account }: { account: Account }) {
   })();
 
   const [tab, setTab] = useState<TabId>(tabsForType[0].id);
+  const [showReceiveQr, setShowReceiveQr] = useState(false);
+  const [qrAddress, setQrAddress] = useState<string>('');
 
   return (
     <div>
@@ -211,7 +258,21 @@ function DetailPreview({ account }: { account: Account }) {
                         {truncateAddress(a.address)}
                       </code>
                     </div>
-                    <CopyButton text={a.address} />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setShowReceiveQr(true);
+                          setQrAddress(a.address);
+                        }}
+                        className="text-muted-foreground/60 hover:text-primary transition-colors p-1"
+                        title="Show QR code"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                      </button>
+                      <CopyButton text={a.address} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -224,8 +285,8 @@ function DetailPreview({ account }: { account: Account }) {
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 Ownership
               </h3>
-              <div className="text-xs text-green-400">
-                Transferred to{' '}
+              <div className="text-xs text-foreground/80">
+                Owner:{' '}
                 <code className="text-foreground/70 font-mono text-xs">0xAbCd…7890</code>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">Base Sepolia</p>
@@ -237,10 +298,10 @@ function DetailPreview({ account }: { account: Account }) {
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Agent Access
             </h3>
-            <button className="text-xs text-primary hover:text-primary/80 transition-colors">
+            <button className="text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-3 py-1.5 rounded-md border border-primary/20">
               Generate re-link token
             </button>
-            <p className="text-xs text-muted-foreground mt-1">
+            <p className="text-xs text-muted-foreground mt-2">
               One-time token for agent access. Expires in 10 min.
             </p>
           </div>
@@ -283,6 +344,14 @@ function DetailPreview({ account }: { account: Account }) {
           {tab === 'auditlogs' && <MockAuditLogs />}
         </div>
       </div>
+
+      {showReceiveQr && qrAddress && (
+        <QrModal
+          address={qrAddress}
+          label={accountName}
+          onClose={() => setShowReceiveQr(false)}
+        />
+      )}
     </div>
   );
 }
@@ -310,7 +379,16 @@ function MockEvmOverview() {
           <div className="space-y-0 divide-y divide-border/50">
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
+                <img
+                  src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png"
+                  alt="ETH"
+                  className="w-6 h-6 rounded-full"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <div className="hidden w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
                   <span className="text-blue-400 text-[11px] font-bold">E</span>
                 </div>
                 <span className="text-sm text-foreground">ETH</span>
@@ -322,7 +400,16 @@ function MockEvmOverview() {
             </div>
             <div className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-2.5">
-                <div className="w-6 h-6 rounded-full bg-green-500/15 flex items-center justify-center">
+                <img
+                  src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png"
+                  alt="USDC"
+                  className="w-6 h-6 rounded-full"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
+                />
+                <div className="hidden w-6 h-6 rounded-full bg-green-500/15 flex items-center justify-center">
                   <span className="text-green-400 text-[11px] font-bold">U</span>
                 </div>
                 <span className="text-sm text-foreground">USDC</span>
@@ -345,7 +432,16 @@ function MockEvmOverview() {
           </div>
           <div className="flex items-center justify-between py-2.5">
             <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
+              <img
+                src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png"
+                alt="ETH"
+                className="w-6 h-6 rounded-full"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden w-6 h-6 rounded-full bg-blue-500/15 flex items-center justify-center">
                 <span className="text-blue-400 text-[11px] font-bold">E</span>
               </div>
               <span className="text-sm text-foreground">ETH</span>

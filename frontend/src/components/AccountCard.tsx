@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { ReceiveIcon } from './icons';
 
 export interface Account {
   id: string;
@@ -11,6 +12,11 @@ export interface Account {
   createdAt: string;
   /** Total USD value across all tokens / positions. Undefined = not yet loaded. */
   totalBalance?: number;
+}
+
+interface AccountCardProps {
+  account: Account;
+  onReceive?: (account: Account) => void;
 }
 
 function truncateAddress(addr: string) {
@@ -33,23 +39,39 @@ function formatBalance(n: number) {
   return '$0.00';
 }
 
-export default function AccountCard({ account }: { account: Account }) {
+export default function AccountCard({ account, onReceive }: AccountCardProps) {
   const addr = getPrimaryAddress(account);
   const hasBalance = account.totalBalance !== undefined;
+  const canReceive = account.type === 'EVM_WALLET' || account.type === 'POLYMARKET_WALLET' || account.type === 'RAW_SIGNER';
 
   return (
-    <Link
-      to={`/secrets/${account.id}`}
-      className="flex items-center justify-between gap-4 px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group"
-    >
-      <div className="min-w-0 flex items-center gap-2">
-        <span className="text-sm text-foreground font-medium group-hover:text-primary transition-colors truncate">
-          {account.memo || 'Unnamed account'}
-        </span>
-        {addr && (
-          <span className="text-xs text-muted-foreground font-mono shrink-0 hidden sm:inline">
-            {truncateAddress(addr)}
+    <div className="flex items-center justify-between gap-4 px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group">
+      <div className="min-w-0 flex items-center gap-2 flex-1">
+        <Link
+          to={`/secrets/${account.id}`}
+          className="min-w-0 flex items-center gap-2"
+        >
+          <span className="text-sm text-foreground font-medium group-hover:text-primary transition-colors truncate">
+            {account.memo || 'Unnamed account'}
           </span>
+          {addr && (
+            <span className="text-xs text-muted-foreground font-mono shrink-0 hidden sm:inline">
+              {truncateAddress(addr)}
+            </span>
+          )}
+        </Link>
+        {canReceive && onReceive && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onReceive(account);
+            }}
+            className="text-muted-foreground/60 hover:text-primary transition-colors p-1 shrink-0"
+            title="Receive funds"
+          >
+            <ReceiveIcon className="w-4 h-4" />
+          </button>
         )}
       </div>
       <div className="flex items-center gap-3 shrink-0">
@@ -62,6 +84,6 @@ export default function AccountCard({ account }: { account: Account }) {
           {new Date(account.createdAt).toLocaleDateString()}
         </span>
       </div>
-    </Link>
+    </div>
   );
 }

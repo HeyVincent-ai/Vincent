@@ -6,9 +6,10 @@ interface AccountTypeGroupProps {
   label: string;
   icon: ComponentType<{ className?: string }>;
   accounts: Account[];
+  onReceive?: (account: Account) => void;
 }
 
-export default function AccountTypeGroup({ label, icon: Icon, accounts }: AccountTypeGroupProps) {
+export default function AccountTypeGroup({ label, icon: Icon, accounts, onReceive }: AccountTypeGroupProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -35,7 +36,7 @@ export default function AccountTypeGroup({ label, icon: Icon, accounts }: Accoun
       {!collapsed && (
         <div className="ml-3">
           {accounts.map((a) => (
-            <AccountCard key={a.id} account={a} />
+            <AccountCard key={a.id} account={a} onReceive={onReceive} />
           ))}
         </div>
       )}

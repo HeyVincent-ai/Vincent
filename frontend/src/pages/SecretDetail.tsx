@@ -9,6 +9,8 @@ import BalancesDisplay from '../components/BalancesDisplay';
 import TakeOwnership from '../components/TakeOwnership';
 import DataSourcesView from '../components/DataSourcesView';
 import CopyButton from '../components/CopyButton';
+import QrModal from '../components/QrModal';
+import { ReceiveIcon } from '../components/icons';
 import { getAccountTypeConfig } from '../components/accountTypes';
 import PolymarketPositions from '../components/PolymarketPositions';
 
@@ -134,6 +136,8 @@ export default function SecretDetail() {
   const [relinkExpiry, setRelinkExpiry] = useState<string | null>(null);
   const [relinkLoading, setRelinkLoading] = useState(false);
   const [subStatus, setSubStatus] = useState<SubscriptionStatusData | null>(null);
+  const [showQr, setShowQr] = useState(false);
+  const [qrAddress, setQrAddress] = useState<string>('');
 
   useEffect(() => {
     if (!id) return;
@@ -241,7 +245,19 @@ export default function SecretDetail() {
                         {truncateAddress(a.address)}
                       </code>
                     </div>
-                    <CopyButton text={a.address} />
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setShowQr(true);
+                          setQrAddress(a.address);
+                        }}
+                        className="text-muted-foreground/60 hover:text-primary transition-colors p-1"
+                        title="Show QR code"
+                      >
+                        <ReceiveIcon className="w-3.5 h-3.5" />
+                      </button>
+                      <CopyButton text={a.address} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -395,6 +411,14 @@ export default function SecretDetail() {
           {tab === 'auditlogs' && <AuditLogViewer secretId={secret.id} />}
         </div>
       </div>
+
+      {showQr && qrAddress && (
+        <QrModal
+          address={qrAddress}
+          label={accountName}
+          onClose={() => setShowQr(false)}
+        />
+      )}
     </div>
   );
 }
