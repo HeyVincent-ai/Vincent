@@ -34,15 +34,17 @@ import {
   parseEther,
   formatUnits,
   formatEther,
+  encodeFunctionData,
   type Hex,
   type Address,
   erc20Abi,
 } from 'viem';
-import { base } from 'viem/chains';
+import { base, polygon } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createApp } from '../app';
 import prisma from '../db/client';
 import * as secretService from '../services/secret.service.js';
+import { executeTransfer } from '../skills/zerodev.service';
 import type { Express } from 'express';
 
 // ============================================================
@@ -165,6 +167,230 @@ async function getUsdcBalance(address: Address): Promise<string> {
   return formatUnits(balance, USDC_DECIMALS);
 }
 
+function getPolygonRpcUrl(): string {
+  const alchemyKey = process.env.ALCHEMY_API_KEY;
+  if (!alchemyKey) throw new Error('ALCHEMY_API_KEY env var is required');
+  return `https://polygon-mainnet.g.alchemy.com/v2/${alchemyKey}`;
+}
+
+async function getUsdcEBalancePolygon(address: Address): Promise<string> {
+  const publicClient = createPublicClient({
+    chain: polygon,
+    transport: http(getPolygonRpcUrl()),
+  });
+
+  const balance = await publicClient.readContract({
+    address: USDC_E_POLYGON as Address,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: [address],
+  });
+
+  return formatUnits(balance, USDC_DECIMALS);
+}
+
+async function sendUsdcEFromSafe(
+  safeOwnerPrivateKey: Hex,
+  to: Address,
+  amount: string,
+  safeAddress: Address
+): Promise<string | null> {
+  try {
+    const account = privateKeyToAccount(safeOwnerPrivateKey);
+    const walletClient = createWalletClient({
+      account,
+      chain: polygon,
+      transport: http(getPolygonRpcUrl()),
+    });
+    const publicClient = createPublicClient({
+      chain: polygon,
+      transport: http(getPolygonRpcUrl()),
+    });
+
+    const eoaBalance = await publicClient.getBalance({ address: account.address });
+    const minGas = parseUnits('0.01', 18);
+    console.log(`EOA MATIC balance: ${formatUnits(eoaBalance, 18)} MATIC`);
+
+    if (eoaBalance < minGas) {
+      console.log('EOA has insufficient MATIC for direct Safe execution, trying relayer...');
+      return await sendUsdcEFromSafeViaRelayer(safeOwnerPrivateKey, to, amount, safeAddress);
+    }
+
+    const safeAbi = [
+      'function nonce() view returns (uint256)',
+      'function execTransaction(address to, uint256 value, bytes data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address refundReceiver, bytes signatures) returns (bool)',
+    ] as const;
+
+    const nonce = (await publicClient.readContract({
+      address: safeAddress,
+      abi: safeAbi,
+      functionName: 'nonce',
+    })) as bigint;
+
+    const amountWei = parseUnits(amount, USDC_DECIMALS);
+    const transferData = encodeFunctionData({
+      abi: erc20Abi,
+      functionName: 'transfer',
+      args: [to, amountWei],
+    });
+
+    const SAFE_TX_TYPEHASH = '0xbb8310d486368db6bd6f849402fdd73ad53d316b5a4b2644ad6efe0f941286d8';
+    const safeTxData = {
+      to: USDC_E_POLYGON as Address,
+      value: 0n,
+      data: transferData,
+      operation: 0,
+      safeTxGas: 0n,
+      baseGas: 0n,
+      gasPrice: 0n,
+      gasToken: '0x0000000000000000000000000000000000000000' as Address,
+      refundReceiver: '0x0000000000000000000000000000000000000000' as Address,
+      nonce,
+    };
+
+    const { keccak256, encodePacked, encodeAbiParameters } = await import('viem');
+
+    const domainSeparator = await publicClient.readContract({
+      address: safeAddress,
+      abi: [
+        {
+          name: 'domainSeparator',
+          type: 'function',
+          inputs: [],
+          outputs: [{ type: 'bytes32' }],
+          stateMutability: 'view',
+        },
+      ],
+      functionName: 'domainSeparator',
+    });
+
+    const safeTxHash = keccak256(
+      encodeAbiParameters(
+        [
+          { type: 'bytes32' }, { type: 'address' }, { type: 'uint256' },
+          { type: 'bytes32' }, { type: 'uint8' }, { type: 'uint256' },
+          { type: 'uint256' }, { type: 'uint256' }, { type: 'address' },
+          { type: 'address' }, { type: 'uint256' },
+        ],
+        [
+          SAFE_TX_TYPEHASH, safeTxData.to, safeTxData.value,
+          keccak256(safeTxData.data), safeTxData.operation, safeTxData.safeTxGas,
+          safeTxData.baseGas, safeTxData.gasPrice, safeTxData.gasToken,
+          safeTxData.refundReceiver, safeTxData.nonce,
+        ]
+      )
+    );
+
+    const txHash = keccak256(
+      encodePacked(
+        ['bytes1', 'bytes1', 'bytes32', 'bytes32'],
+        ['0x19', '0x01', domainSeparator, safeTxHash]
+      )
+    );
+
+    const signature = await walletClient.signMessage({ message: { raw: txHash } });
+    const sigBytes = signature.slice(2);
+    const r = sigBytes.slice(0, 64);
+    const s = sigBytes.slice(64, 128);
+    let v = parseInt(sigBytes.slice(128, 130), 16);
+    v += 4;
+    const adjustedSig = `0x${r}${s}${v.toString(16).padStart(2, '0')}` as Hex;
+
+    console.log(`Executing Safe transaction to transfer ${amount} USDC.e...`);
+    const hash = await walletClient.writeContract({
+      address: safeAddress,
+      abi: safeAbi,
+      functionName: 'execTransaction',
+      args: [
+        safeTxData.to, safeTxData.value, safeTxData.data, safeTxData.operation,
+        safeTxData.safeTxGas, safeTxData.baseGas, safeTxData.gasPrice,
+        safeTxData.gasToken, safeTxData.refundReceiver, adjustedSig,
+      ],
+    });
+
+    await publicClient.waitForTransactionReceipt({ hash });
+    console.log(`Returned ${amount} USDC.e to funder (tx: ${hash})`);
+    return hash;
+  } catch (err) {
+    console.error('Failed to return funds via direct Safe execution:', err);
+    return null;
+  }
+}
+
+async function sendUsdcEFromSafeViaRelayer(
+  safeOwnerPrivateKey: Hex,
+  to: Address,
+  amount: string,
+  safeAddress: Address
+): Promise<string | null> {
+  try {
+    const { Wallet } = await import('@ethersproject/wallet');
+    const { JsonRpcProvider } = await import('@ethersproject/providers');
+    const { Interface } = await import('@ethersproject/abi');
+    const { RelayClient, RelayerTxType } = await import('@polymarket/builder-relayer-client');
+    const { BuilderConfig } = await import('@polymarket/builder-signing-sdk');
+
+    if (
+      !process.env.POLY_BUILDER_API_KEY ||
+      !process.env.POLY_BUILDER_SECRET ||
+      !process.env.POLY_BUILDER_PASSPHRASE
+    ) {
+      console.log('Builder credentials not set, cannot use relayer');
+      return null;
+    }
+
+    const provider = new JsonRpcProvider(getPolygonRpcUrl(), 137);
+    const wallet = new Wallet(safeOwnerPrivateKey, provider);
+    const relayerUrl = process.env.POLYMARKET_RELAYER_HOST || 'https://relayer-v2.polymarket.com/';
+
+    const builderConfig = new BuilderConfig({
+      localBuilderCreds: {
+        key: process.env.POLY_BUILDER_API_KEY,
+        secret: process.env.POLY_BUILDER_SECRET,
+        passphrase: process.env.POLY_BUILDER_PASSPHRASE,
+      },
+    });
+
+    const relayClient = new RelayClient(relayerUrl, 137, wallet, builderConfig, RelayerTxType.SAFE);
+
+    const erc20Iface = new Interface(['function transfer(address to, uint256 amount)']);
+    const amountWei = parseUnits(amount, USDC_DECIMALS);
+
+    const txns = [
+      {
+        to: USDC_E_POLYGON,
+        data: erc20Iface.encodeFunctionData('transfer', [to, amountWei]),
+        value: '0',
+      },
+    ];
+
+    console.log(`Sending ${amount} USDC.e via relayer...`);
+    const response = await relayClient.execute(txns);
+    const tx = await relayClient.pollUntilState(
+      response.transactionID,
+      ['STATE_MINED', 'STATE_CONFIRMED'],
+      'STATE_FAILED',
+      60,
+      2000
+    );
+
+    if (!tx) {
+      console.log('Relayer transaction failed');
+      return null;
+    }
+
+    console.log(`Returned via relayer (tx: ${tx.transactionHash})`);
+    return tx.transactionHash;
+  } catch (err) {
+    console.error('Relayer fallback failed:', err);
+    return null;
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ============================================================
 // Test Suite
 // ============================================================
@@ -178,6 +404,12 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   let sourceClaimToken: string;
   let testUserId: string;
   let testUser2Id: string;
+
+  // Destination wallet info from tests 12 & 13 (hoisted for afterAll refund)
+  let toSecondSecretId: string;
+  let toSmartAccountAddress_test12: Address;
+  let pmSecretId_test13: string;
+  let pmSafeAddress_test13: Address;
 
   // Evidence collected for verification
   const evidence: {
@@ -346,6 +578,112 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     console.log('========================================\n');
 
     // ============================================================
+    // Refund USDC.e from test 12 destination (EVM_WALLET on Polygon)
+    // ============================================================
+    try {
+      if (toSecondSecretId && toSmartAccountAddress_test12 && funderAddress) {
+        console.log('\n--- Refunding USDC.e from test 12 destination ---');
+
+        // Poll for bridge completion (up to 120s)
+        for (let i = 0; i < 24; i++) {
+          const bal = await getUsdcEBalancePolygon(toSmartAccountAddress_test12);
+          console.log(`Test 12 dest USDC.e balance: ${bal} (poll ${i + 1}/24)`);
+          if (parseFloat(bal) > 0.01) break;
+          await sleep(5000);
+        }
+
+        const balance = await getUsdcEBalancePolygon(toSmartAccountAddress_test12);
+        const balNum = parseFloat(balance);
+        if (balNum > 0.01) {
+          // Get private key from DB
+          const destSecret = await prisma.secret.findUnique({
+            where: { id: toSecondSecretId },
+          });
+          if (destSecret?.value) {
+            const destKey = destSecret.value.startsWith('0x')
+              ? (destSecret.value as Hex)
+              : (`0x${destSecret.value}` as Hex);
+            const returnAmount = (balNum - 0.001).toFixed(6);
+            console.log(`Returning ${returnAmount} USDC.e from test 12 dest to funder via ZeroDev...`);
+
+            const result = await executeTransfer({
+              privateKey: destKey,
+              chainId: POLYGON_CHAIN_ID,
+              to: funderAddress,
+              tokenAddress: USDC_E_POLYGON as Address,
+              tokenAmount: parseUnits(returnAmount, USDC_DECIMALS),
+            });
+            console.log(`Test 12 USDC.e refund tx: ${result.txHash}`);
+          }
+        } else {
+          console.log('Test 12 dest has no USDC.e to refund (bridge may not have completed)');
+        }
+      }
+    } catch (err) {
+      console.error('Test 12 USDC.e refund failed:', err);
+    }
+
+    // ============================================================
+    // Refund USDC.e from test 13 destination (POLYMARKET_WALLET Safe on Polygon)
+    // ============================================================
+    try {
+      if (pmSecretId_test13 && funderAddress) {
+        console.log('\n--- Refunding USDC.e from test 13 destination ---');
+
+        // Get Safe address if not already stored
+        if (!pmSafeAddress_test13) {
+          const pmMeta = await prisma.polymarketWalletMetadata.findUnique({
+            where: { secretId: pmSecretId_test13 },
+          });
+          if (pmMeta?.safeAddress) {
+            pmSafeAddress_test13 = pmMeta.safeAddress as Address;
+          }
+        }
+
+        if (pmSafeAddress_test13) {
+          // Poll for bridge completion (up to 120s)
+          for (let i = 0; i < 24; i++) {
+            const bal = await getUsdcEBalancePolygon(pmSafeAddress_test13);
+            console.log(`Test 13 dest USDC.e balance: ${bal} (poll ${i + 1}/24)`);
+            if (parseFloat(bal) > 0.01) break;
+            await sleep(5000);
+          }
+
+          const balance = await getUsdcEBalancePolygon(pmSafeAddress_test13);
+          const balNum = parseFloat(balance);
+          if (balNum > 0.01) {
+            const pmSecret = await prisma.secret.findUnique({
+              where: { id: pmSecretId_test13 },
+            });
+            if (pmSecret?.value) {
+              const pmKey = pmSecret.value.startsWith('0x')
+                ? (pmSecret.value as Hex)
+                : (`0x${pmSecret.value}` as Hex);
+              const returnAmount = (balNum * 0.9).toFixed(6);
+              console.log(`Returning ${returnAmount} USDC.e from test 13 dest to funder via Safe...`);
+
+              const txHash = await sendUsdcEFromSafe(
+                pmKey,
+                funderAddress,
+                returnAmount,
+                pmSafeAddress_test13
+              );
+              if (txHash) {
+                console.log(`Test 13 USDC.e refund tx: ${txHash}`);
+              }
+            }
+          } else {
+            console.log('Test 13 dest has no USDC.e to refund (bridge may not have completed)');
+          }
+        } else {
+          console.log('Test 13 Safe address not found, skipping refund');
+        }
+      }
+    } catch (err) {
+      console.error('Test 13 USDC.e refund failed:', err);
+    }
+
+    // ============================================================
     // Database cleanup
     // ============================================================
     try {
@@ -364,6 +702,32 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       console.error('DB cleanup failed:', err);
     }
 
+    // DB cleanup for test 12 destination
+    try {
+      if (toSecondSecretId) {
+        await prisma.auditLog.deleteMany({ where: { secretId: toSecondSecretId } });
+        await prisma.transactionLog.deleteMany({ where: { secretId: toSecondSecretId } });
+        await prisma.apiKey.deleteMany({ where: { secretId: toSecondSecretId } });
+        await prisma.walletSecretMetadata.deleteMany({ where: { secretId: toSecondSecretId } });
+        await prisma.secret.delete({ where: { id: toSecondSecretId } }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Test 12 dest DB cleanup failed:', err);
+    }
+
+    // DB cleanup for test 13 destination
+    try {
+      if (pmSecretId_test13) {
+        await prisma.auditLog.deleteMany({ where: { secretId: pmSecretId_test13 } });
+        await prisma.transactionLog.deleteMany({ where: { secretId: pmSecretId_test13 } });
+        await prisma.apiKey.deleteMany({ where: { secretId: pmSecretId_test13 } });
+        await prisma.polymarketWalletMetadata.deleteMany({ where: { secretId: pmSecretId_test13 } });
+        await prisma.secret.delete({ where: { id: pmSecretId_test13 } }).catch(() => {});
+      }
+    } catch (err) {
+      console.error('Test 13 dest DB cleanup failed:', err);
+    }
+
     // Clean up test users
     try {
       if (testUserId) {
@@ -374,7 +738,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     }
 
     await prisma.$disconnect();
-  }, 300_000);
+  }, 600_000);
 
   // ============================================================
   // Test 1: Create a wallet
@@ -675,15 +1039,15 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       })
       .expect(201);
 
-    const toSecretId = toWalletRes.body.data.secret.id;
-    const toSmartAccountAddress = toWalletRes.body.data.secret.walletAddress;
-    console.log(`Created destination wallet: ${toSmartAccountAddress} (secret: ${toSecretId})`);
+    toSecondSecretId = toWalletRes.body.data.secret.id;
+    toSmartAccountAddress_test12 = toWalletRes.body.data.secret.walletAddress as Address;
+    console.log(`Created destination wallet: ${toSmartAccountAddress_test12} (secret: ${toSecondSecretId})`);
 
     // Claim destination with same user
     const toClaimUrl = new URL(toWalletRes.body.data.claimUrl);
     const toClaimToken = toClaimUrl.searchParams.get('token')!;
     await secretService.claimSecret({
-      secretId: toSecretId,
+      secretId: toSecondSecretId,
       claimToken: toClaimToken,
       userId: testUserId,
     });
@@ -694,7 +1058,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        toSecretId,
+        toSecretId: toSecondSecretId,
         tokenIn: USDC_ADDRESS,
         fromChainId: BASE_MAINNET_CHAIN_ID,
         toChainId: POLYGON_CHAIN_ID,
@@ -707,7 +1071,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     expect(previewRes.body.success).toBe(true);
     expect(previewRes.body.data.isSimpleTransfer).toBe(false);
     expect(previewRes.body.data.balanceCheck.sufficient).toBe(true);
-    expect(previewRes.body.data.toWalletAddress).toBe(toSmartAccountAddress);
+    expect(previewRes.body.data.toWalletAddress).toBe(toSmartAccountAddress_test12);
     expect(previewRes.body.data.amountOut).toBeDefined();
     expect(previewRes.body.data.timeEstimate).toBeGreaterThan(0);
 
@@ -720,7 +1084,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       .post('/api/skills/evm-wallet/transfer-between-secrets/execute')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        toSecretId,
+        toSecretId: toSecondSecretId,
         tokenIn: USDC_ADDRESS,
         fromChainId: BASE_MAINNET_CHAIN_ID,
         toChainId: POLYGON_CHAIN_ID,
@@ -756,16 +1120,6 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       console.log(`Relay status:`, statusRes.body.data.requests);
     }
 
-    // Cleanup: delete destination secret
-    try {
-      await prisma.auditLog.deleteMany({ where: { secretId: toSecretId } });
-      await prisma.transactionLog.deleteMany({ where: { secretId: toSecretId } });
-      await prisma.apiKey.deleteMany({ where: { secretId: toSecretId } });
-      await prisma.walletSecretMetadata.deleteMany({ where: { secretId: toSecretId } });
-      await prisma.secret.delete({ where: { id: toSecretId } }).catch(() => {});
-    } catch (err) {
-      console.error('Destination wallet cleanup failed:', err);
-    }
   }, 180_000);
 
   // ============================================================
@@ -782,25 +1136,34 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       })
       .expect(201);
 
-    const pmSecretId = pmRes.body.data.secret.id;
-    console.log(`Created POLYMARKET_WALLET secret: ${pmSecretId}`);
+    pmSecretId_test13 = pmRes.body.data.secret.id;
+    console.log(`Created POLYMARKET_WALLET secret: ${pmSecretId_test13}`);
 
     // Claim with same user
     const pmClaimUrl = new URL(pmRes.body.data.claimUrl);
     const pmClaimToken = pmClaimUrl.searchParams.get('token')!;
     await secretService.claimSecret({
-      secretId: pmSecretId,
+      secretId: pmSecretId_test13,
       claimToken: pmClaimToken,
       userId: testUserId,
     });
     console.log(`Claimed POLYMARKET_WALLET for user ${testUserId}`);
+
+    // Store Safe address for afterAll refund
+    const pmMeta = await prisma.polymarketWalletMetadata.findUnique({
+      where: { secretId: pmSecretId_test13 },
+    });
+    if (pmMeta?.safeAddress) {
+      pmSafeAddress_test13 = pmMeta.safeAddress as Address;
+      console.log(`PM Safe address: ${pmSafeAddress_test13}`);
+    }
 
     // Preview
     const previewRes = await request(app)
       .post('/api/skills/evm-wallet/transfer-between-secrets/preview')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        toSecretId: pmSecretId,
+        toSecretId: pmSecretId_test13,
         tokenIn: USDC_ADDRESS,
         fromChainId: BASE_MAINNET_CHAIN_ID,
         toChainId: POLYGON_CHAIN_ID,
@@ -815,12 +1178,17 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     expect(previewRes.body.data.isSimpleTransfer).toBe(false);
     console.log(`Preview OK — toWalletAddress: ${previewRes.body.data.toWalletAddress}`);
 
+    // Store the Safe address from preview if we didn't get it from DB
+    if (!pmSafeAddress_test13 && previewRes.body.data.toWalletAddress) {
+      pmSafeAddress_test13 = previewRes.body.data.toWalletAddress as Address;
+    }
+
     // Execute
     const executeRes = await request(app)
       .post('/api/skills/evm-wallet/transfer-between-secrets/execute')
       .set('Authorization', `Bearer ${apiKey}`)
       .send({
-        toSecretId: pmSecretId,
+        toSecretId: pmSecretId_test13,
         tokenIn: USDC_ADDRESS,
         fromChainId: BASE_MAINNET_CHAIN_ID,
         toChainId: POLYGON_CHAIN_ID,
@@ -849,17 +1217,6 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       expect(statusRes.body.success).toBe(true);
       expect(statusRes.body.data.requests).toBeDefined();
       console.log(`Relay status:`, statusRes.body.data.requests);
-    }
-
-    // Cleanup: delete PM secret + related records
-    try {
-      await prisma.auditLog.deleteMany({ where: { secretId: pmSecretId } });
-      await prisma.transactionLog.deleteMany({ where: { secretId: pmSecretId } });
-      await prisma.apiKey.deleteMany({ where: { secretId: pmSecretId } });
-      await prisma.polymarketWalletMetadata.deleteMany({ where: { secretId: pmSecretId } });
-      await prisma.secret.delete({ where: { id: pmSecretId } }).catch(() => {});
-    } catch (err) {
-      console.error('POLYMARKET_WALLET cleanup failed:', err);
     }
   }, 180_000);
 
