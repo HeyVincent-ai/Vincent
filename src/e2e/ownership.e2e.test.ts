@@ -210,7 +210,7 @@ describe('Ownership Routes & Service Integration', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data.challenge).toContain('SafeSkills Ownership Verification');
+      expect(res.body.data.challenge).toContain('Vincent Ownership Verification');
       expect(res.body.data.challenge).toContain(SMART_ACCOUNT_ADDRESS);
       expect(res.body.data.challenge).toContain(userAddress);
       expect(res.body.data.expiresAt).toBeDefined();

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This feature allows users to take ownership of their ZeroDev smart wallet while ensuring SafeSkills' backend EOA can still sign transactions (via the weighted ECDSA guardian validator). This enables true self-custody where the user owns their smart account, but our backend can still execute transactions on their behalf (subject to policies).
+This feature allows users to take ownership of their ZeroDev smart wallet while ensuring Vincent's backend EOA can still sign transactions (via the weighted ECDSA guardian validator). This enables true self-custody where the user owns their smart account, but our backend can still execute transactions on their behalf (subject to policies).
 
 ## Current State
 
@@ -386,7 +386,7 @@ export function generateOwnershipChallenge(
   const timestamp = Date.now();
   const nonce = randomBytes(16).toString('hex');
 
-  return `SafeSkills Ownership Verification
+  return `Vincent Ownership Verification
 
 I am taking ownership of the smart wallet:
 ${walletAddress}
@@ -396,7 +396,7 @@ Secret ID: ${secretId}
 Timestamp: ${timestamp}
 Nonce: ${nonce}
 
-By signing this message, I confirm that I control the address above and authorize SafeSkills to transfer smart account ownership to me.`;
+By signing this message, I confirm that I control the address above and authorize Vincent to transfer smart account ownership to me.`;
 }
 
 /**
@@ -753,7 +753,7 @@ import { getDefaultConfig } from '@rainbow-me/rainbowkit';
 import { mainnet, base, sepolia, baseSepolia, arbitrum, optimism, polygon } from 'wagmi/chains';
 
 export const config = getDefaultConfig({
-  appName: 'SafeSkills',
+  appName: 'Vincent',
   projectId: import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
   chains: [mainnet, base, sepolia, baseSepolia, arbitrum, optimism, polygon],
   ssr: false,
@@ -917,7 +917,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
         <div className="bg-green-50 border border-green-200 rounded p-4">
           <p className="text-green-800 font-medium mb-2">✓ Ownership Transferred</p>
           <p className="text-green-700 text-sm mb-3">
-            You are now the owner of this smart wallet. SafeSkills can still execute
+            You are now the owner of this smart wallet. Vincent can still execute
             transactions on your behalf (subject to your policies).
           </p>
           {Object.entries(txHashes).length > 0 && (
@@ -1218,7 +1218,7 @@ describe('Take Ownership E2E Test', () => {
   it('should verify user signature and transfer ownership', async () => {
     // Generate challenge
     const timestamp = Date.now();
-    const challenge = `SafeSkills Ownership Verification
+    const challenge = `Vincent Ownership Verification
 
 I am taking ownership of the smart wallet:
 ${smartAccountAddress}
@@ -1228,7 +1228,7 @@ Secret ID: ${secretId}
 Timestamp: ${timestamp}
 Nonce: test-nonce-${timestamp}
 
-By signing this message, I confirm that I control the address above and authorize SafeSkills to transfer smart account ownership to me.`;
+By signing this message, I confirm that I control the address above and authorize Vincent to transfer smart account ownership to me.`;
 
     // User signs the challenge
     const userAccount = privateKeyToAccount(userPrivateKey);
