@@ -17,9 +17,13 @@ export default function AdminVpsPool() {
   const [addError, setAddError] = useState('');
 
   const load = () => {
+    setError('');
     setLoading(true);
     getAdminVpsPool()
-      .then((res) => setEntries(res.data.data.entries))
+      .then((res) => {
+        setEntries(res.data.data.entries);
+        setError('');
+      })
       .catch(() => setError('Failed to load VPS pool.'))
       .finally(() => setLoading(false));
   };
