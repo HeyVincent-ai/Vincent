@@ -1,12 +1,23 @@
 {
   "name": "@openclaw/trade-manager",
   "version": "0.1.0",
-  "private": true,
+  "private": false,
   "type": "module",
   "main": "dist/index.js",
+  "bin": {
+    "trade-manager": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "prisma"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "prisma generate && tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "start": "node dist/index.js",
     "db:migrate": "prisma migrate dev",
@@ -25,6 +36,8 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.4",
+    "@types/pino": "^7.0.4",
+    "@types/pino-http": "^5.8.4",
     "prisma": "^6.3.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",

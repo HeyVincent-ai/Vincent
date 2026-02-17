@@ -15,23 +15,27 @@ export const createRulesRoutes = (ruleManager: RuleManagerService): Router => {
   });
 
   router.get('/api/rules', async (req, res) => {
-    const status = Array.isArray(req.query.status) ? req.query.status[0] : req.query.status;
-    const rules = await ruleManager.getRules(status);
+    const statusParam = req.query.status;
+    const status = Array.isArray(statusParam) ? statusParam[0] : statusParam;
+    const rules = await ruleManager.getRules(typeof status === 'string' ? status : undefined);
     res.json(rules);
   });
 
   router.get('/api/rules/:id', async (req, res) => {
-    const rule = await ruleManager.getRule(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const rule = await ruleManager.getRule(id);
     res.json(rule);
   });
 
   router.patch('/api/rules/:id', validateBody(updateRuleSchema), async (req, res) => {
-    const rule = await ruleManager.updateRule(req.params.id, req.body);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const rule = await ruleManager.updateRule(id, req.body);
     res.json(rule);
   });
 
   router.delete('/api/rules/:id', async (req, res) => {
-    const rule = await ruleManager.cancelRule(req.params.id);
+    const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+    const rule = await ruleManager.cancelRule(id);
     res.json(rule);
   });
 

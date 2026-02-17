@@ -4,6 +4,17 @@ Standalone service for automated stop-loss and take-profit rules against Polymar
 
 ## Installation
 
+### Production (from npm)
+
+```bash
+npm install -g @openclaw/trade-manager
+trade-manager version
+```
+
+See [PUBLISHING.md](./PUBLISHING.md) for publishing instructions.
+
+### Development (from source)
+
 ```bash
 cd trade-manager
 npm install

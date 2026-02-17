@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { loadConfig } from './config/config.js';
 
 const command = process.argv[2] ?? 'version';
