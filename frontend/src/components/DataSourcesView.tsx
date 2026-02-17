@@ -96,110 +96,128 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
 
   if (loading) {
     return (
-      <div className="space-y-4">
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="skeleton h-4 w-32 mb-3" />
-          <div className="skeleton h-2.5 w-full rounded-full mb-2" />
-          <div className="skeleton h-3 w-48" />
+      <div className="space-y-6">
+        <div>
+          <div className="skeleton h-3 w-20 mb-2" />
+          <div className="skeleton h-6 w-24 mb-2" />
+          <div className="skeleton h-1.5 w-full rounded-full" />
         </div>
-        <div className="bg-card rounded-lg border border-border p-4">
-          <div className="skeleton h-4 w-40 mb-3" />
-          <div className="grid grid-cols-2 gap-3">
-            <div className="skeleton h-24 rounded-lg" />
-            <div className="skeleton h-24 rounded-lg" />
-          </div>
+        <div>
+          <div className="skeleton h-3 w-28 mb-3" />
+          <div className="skeleton h-16 w-full" />
         </div>
       </div>
     );
   }
 
   const balanceColor =
-    balance <= 0 ? 'bg-destructive' : balance < 2 ? 'bg-destructive' : balance < 5 ? 'bg-yellow-500' : 'bg-green-500';
+    balance <= 0
+      ? 'bg-destructive'
+      : balance < 2
+        ? 'bg-destructive'
+        : balance < 5
+          ? 'bg-yellow-500'
+          : 'bg-green-500';
 
   // Total spent this month across all sources
-  const totalMonthSpend = dataSources.reduce((sum, ds) => sum + ds.currentMonthUsage.totalCostUsd, 0);
-  const totalMonthRequests = dataSources.reduce((sum, ds) => sum + ds.currentMonthUsage.requestCount, 0);
+  const totalMonthSpend = dataSources.reduce(
+    (sum, ds) => sum + ds.currentMonthUsage.totalCostUsd,
+    0
+  );
+  const totalMonthRequests = dataSources.reduce(
+    (sum, ds) => sum + ds.currentMonthUsage.requestCount,
+    0
+  );
 
   // Aggregate usage history by month
-  const monthlyTotals = usageHistory.reduce<Record<string, { requests: number; cost: number }>>((acc, entry) => {
-    if (!acc[entry.month]) acc[entry.month] = { requests: 0, cost: 0 };
-    acc[entry.month].requests += entry.requestCount;
-    acc[entry.month].cost += entry.totalCostUsd;
-    return acc;
-  }, {});
+  const monthlyTotals = usageHistory.reduce<Record<string, { requests: number; cost: number }>>(
+    (acc, entry) => {
+      if (!acc[entry.month]) acc[entry.month] = { requests: 0, cost: 0 };
+      acc[entry.month].requests += entry.requestCount;
+      acc[entry.month].cost += entry.totalCostUsd;
+      return acc;
+    },
+    {}
+  );
   const sortedMonths = Object.entries(monthlyTotals).sort(([a], [b]) => b.localeCompare(a));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Credit Balance */}
-      <div className="bg-card rounded-lg border border-border p-4">
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-medium text-foreground">Data Source Credits</h3>
+      <div>
+        <div className="flex items-baseline justify-between mb-2">
+          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Credits</p>
           <button
             onClick={handleAddCredits}
             disabled={creditLoading}
-            className="text-xs bg-primary text-primary-foreground px-3 py-1 rounded hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            className="text-xs text-primary hover:text-primary/80 disabled:opacity-50 transition-colors"
           >
-            {creditLoading ? 'Redirecting...' : 'Add Credits'}
+            {creditLoading ? 'Redirecting...' : 'Add credits'}
           </button>
         </div>
-        <div className="w-full bg-muted rounded-full h-2.5 mb-2">
+        <div className="flex items-baseline gap-3 mb-2">
+          <span className="text-xl font-semibold text-foreground font-mono">
+            ${balance.toFixed(2)}
+          </span>
+          <span className="text-xs text-muted-foreground/40">remaining</span>
+        </div>
+        <div className="w-full bg-muted/30 rounded-full h-1.5">
           <div
-            className={`h-2.5 rounded-full transition-all ${balanceColor}`}
+            className={`h-1.5 rounded-full transition-all ${balanceColor}/60`}
             style={{
               width: `${balance <= 0 ? 100 : Math.max(4, Math.min(100, (balance / (balance + totalMonthSpend || 10)) * 100))}%`,
             }}
           />
         </div>
-        <div className="flex justify-between text-xs text-muted-foreground">
-          <span>
-            This month: {totalMonthRequests} request{totalMonthRequests !== 1 ? 's' : ''} (${totalMonthSpend.toFixed(2)})
-          </span>
-          <span className="font-medium">${balance.toFixed(2)} remaining</span>
-        </div>
+        <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+          {totalMonthRequests} request{totalMonthRequests !== 1 ? 's' : ''} this month ($
+          {totalMonthSpend.toFixed(2)})
+        </p>
         {balance <= 0 && (
-          <p className="text-xs text-destructive mt-2 font-medium">
+          <p className="text-xs text-destructive mt-2">
             Credits exhausted — add more to continue using data sources.
           </p>
         )}
       </div>
 
       {/* Available Data Sources */}
-      <div>
-        <h3 className="text-sm font-medium text-foreground mb-3">Available Data Sources</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="border-t border-border/50 pt-6">
+        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
+          Data Sources
+        </p>
+        <div className="divide-y divide-border/50">
           {dataSources.map((ds) => (
-            <div key={ds.id} className="bg-card rounded-lg border border-border p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="text-sm font-medium text-foreground">{ds.displayName}</h4>
+            <div key={ds.id} className="py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-foreground">{ds.displayName}</p>
                 {ds.status === 'coming_soon' ? (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    Coming soon
+                  <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground/50 bg-muted/30 rounded">
+                    soon
                   </span>
                 ) : (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/15 text-green-400">
-                    Active
+                  <span className="text-[9px] px-1.5 py-0.5 text-green-400/60 bg-green-500/5 rounded">
+                    active
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mb-3">{ds.description}</p>
+              <p className="text-[10px] text-muted-foreground/40 mt-0.5">{ds.description}</p>
 
               {/* Endpoints & Pricing */}
-              <div className="space-y-1 mb-3">
+              <div className="mt-2 space-y-0.5">
                 {Object.entries(ds.endpoints).map(([key, ep]) => (
-                  <div key={key} className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground">{ep.description}</span>
-                    <span className="text-foreground font-mono">${ep.costUsd.toFixed(3)}</span>
+                  <div key={key} className="flex items-center justify-between text-[10px]">
+                    <span className="text-muted-foreground/50">{ep.description}</span>
+                    <span className="text-foreground/60 font-mono">${ep.costUsd.toFixed(3)}</span>
                   </div>
                 ))}
               </div>
 
               {/* This month stats */}
               {ds.currentMonthUsage.requestCount > 0 && (
-                <div className="border-t border-border pt-2 flex justify-between text-xs text-muted-foreground">
-                  <span>{ds.currentMonthUsage.requestCount} requests this month</span>
-                  <span>${ds.currentMonthUsage.totalCostUsd.toFixed(3)}</span>
-                </div>
+                <p className="text-[10px] text-muted-foreground/30 mt-1.5">
+                  {ds.currentMonthUsage.requestCount} requests ($
+                  {ds.currentMonthUsage.totalCostUsd.toFixed(3)})
+                </p>
               )}
             </div>
           ))}
@@ -208,64 +226,48 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
 
       {/* Usage History */}
       {sortedMonths.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-foreground mb-3">Usage History</h3>
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Month</th>
-                  <th className="text-right text-xs text-muted-foreground font-medium px-4 py-2">Requests</th>
-                  <th className="text-right text-xs text-muted-foreground font-medium px-4 py-2">Cost</th>
-                </tr>
-              </thead>
-              <tbody>
-                {sortedMonths.map(([month, data]) => (
-                  <tr key={month} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-foreground">{month}</td>
-                    <td className="px-4 py-2 text-right text-muted-foreground tabular-nums">
-                      {data.requests.toLocaleString()}
-                    </td>
-                    <td className="px-4 py-2 text-right text-foreground font-mono tabular-nums">
-                      ${data.cost.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="border-t border-border/50 pt-6">
+          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
+            Usage History
+          </p>
+          <div className="divide-y divide-border/50">
+            {sortedMonths.map(([month, data]) => (
+              <div key={month} className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-foreground">{month}</span>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-muted-foreground/40 tabular-nums">
+                    {data.requests.toLocaleString()}
+                  </span>
+                  <span className="text-sm text-foreground font-mono tabular-nums w-14 text-right">
+                    ${data.cost.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
       {/* Recent Purchases */}
       {purchases.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-foreground mb-3">Credit Purchases</h3>
-          <div className="bg-card rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Date</th>
-                  <th className="text-right text-xs text-muted-foreground font-medium px-4 py-2">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {purchases.map((p) => (
-                  <tr key={p.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-2 text-foreground">
-                      {new Date(p.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-2 text-right text-green-400 font-mono tabular-nums">
-                      +${p.amountUsd.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <div className="border-t border-border/50 pt-6">
+          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
+            Credit Purchases
+          </p>
+          <div className="divide-y divide-border/50">
+            {purchases.map((p) => (
+              <div key={p.id} className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-foreground">
+                  {new Date(p.createdAt).toLocaleDateString()}
+                </span>
+                <span className="text-sm text-green-400 font-mono tabular-nums">
+                  +${p.amountUsd.toFixed(2)}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       )}
-
     </div>
   );
 }

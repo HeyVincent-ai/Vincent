@@ -17,6 +17,7 @@ import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
 import AdminReferrals from './pages/AdminReferrals';
+import UIPreview from './pages/UIPreview';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/security" element={<Security />} />
       <Route path="/skills" element={<Skills />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/preview" element={<UIPreview />} />
       <Route
         path="/login"
         element={
