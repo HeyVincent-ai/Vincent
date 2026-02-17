@@ -11,8 +11,8 @@ export interface AccountTypeConfig {
 
 export const ACCOUNT_TYPES: Record<string, AccountTypeConfig> = {
   EVM_WALLET: {
-    label: 'Smart Wallet',
-    pluralLabel: 'Smart Wallets',
+    label: 'Smart Contract Wallet',
+    pluralLabel: 'Smart Contract Wallets',
     icon: WalletIcon,
     description:
       'An EVM smart account for on-chain transactions. Supports ETH, Base, Polygon, and more.',
@@ -26,11 +26,11 @@ export const ACCOUNT_TYPES: Record<string, AccountTypeConfig> = {
     memoPlaceholder: 'e.g. Election predictions',
   },
   RAW_SIGNER: {
-    label: 'EOA Signer',
-    pluralLabel: 'EOA Signers',
+    label: 'EOA Wallet',
+    pluralLabel: 'EOA Wallets',
     icon: SignerIcon,
     description:
-      'An externally owned account with both Ethereum and Solana addresses for cross-chain signing.',
+      'An externally owned account with Ethereum, Solana, and Bitcoin addresses. Supports x402 payments.',
     memoPlaceholder: 'e.g. Cross-chain agent signer',
   },
   DATA_SOURCES: {

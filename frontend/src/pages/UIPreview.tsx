@@ -590,6 +590,36 @@ function MockPolymarketOverview() {
 }
 
 function MockDataSourcesOverview() {
+  const mockDataSources = [
+    {
+      id: 'twitter',
+      displayName: 'Twitter / X.com',
+      description: 'Search tweets, get user profiles, and retrieve recent tweets via the X API v2.',
+      status: 'active' as const,
+      endpoints: [
+        { name: 'Search recent tweets', cost: 0.01 },
+        { name: 'Get tweet by ID', cost: 0.005 },
+        { name: 'Get user profile by username', cost: 0.005 },
+        { name: "Get a user's recent tweets", cost: 0.01 },
+      ],
+      currentMonth: { requests: 89, cost: 2.23 },
+    },
+    {
+      id: 'brave',
+      displayName: 'Brave Search',
+      description: 'Web and news search powered by Brave Search.',
+      status: 'active' as const,
+      endpoints: [
+        { name: 'Web search', cost: 0.005 },
+        { name: 'News search', cost: 0.005 },
+      ],
+      currentMonth: { requests: 53, cost: 1.32 },
+    },
+  ];
+
+  const totalMonthRequests = mockDataSources.reduce((s, d) => s + d.currentMonth.requests, 0);
+  const totalMonthSpend = mockDataSources.reduce((s, d) => s + d.currentMonth.cost, 0);
+
   return (
     <div className="space-y-6">
       {/* Credits */}
@@ -610,26 +640,50 @@ function MockDataSourcesOverview() {
             style={{ width: '72%' }}
           />
         </div>
-        <p className="text-xs text-muted-foreground mt-1.5">142 requests this month ($3.55)</p>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          {totalMonthRequests} requests this month (${totalMonthSpend.toFixed(2)})
+        </p>
       </div>
 
-      {/* Sources */}
+      {/* Available Data Sources */}
       <div className="border-t border-border/50 pt-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Data Sources</p>
-        <div className="space-y-0 divide-y divide-border/50">
-          {[
-            { name: 'X / Twitter', desc: 'Tweets, profiles, search', requests: 89, cost: '$2.23' },
-            { name: 'Internet & News', desc: 'Web search, articles', requests: 53, cost: '$1.32' },
-          ].map((src) => (
-            <div key={src.name} className="flex items-center justify-between py-3">
-              <div>
-                <p className="text-sm text-foreground">{src.name}</p>
-                <p className="text-xs text-muted-foreground">{src.desc}</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+          Available Data Sources
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {mockDataSources.map((ds) => (
+            <div key={ds.id} className="border border-border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground">{ds.displayName}</p>
+                <span className="text-[11px] px-2 py-0.5 text-green-400 bg-green-500/10 rounded">
+                  Active
+                </span>
               </div>
-              <div className="text-right">
-                <p className="text-xs text-foreground font-mono">{src.cost}</p>
-                <p className="text-xs text-muted-foreground">{src.requests} requests</p>
+              <p className="text-xs text-muted-foreground mb-3">{ds.description}</p>
+
+              {/* Per-endpoint pricing */}
+              <div className="space-y-1 mb-3">
+                {ds.endpoints.map((ep) => (
+                  <div key={ep.name} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{ep.name}</span>
+                    <span className="text-foreground font-mono">${ep.cost.toFixed(3)}</span>
+                  </div>
+                ))}
               </div>
+
+              {/* Current month usage */}
+              {ds.currentMonth.requests > 0 && (
+                <div className="border-t border-border/50 pt-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {ds.currentMonth.requests} requests this month
+                    </span>
+                    <span className="text-foreground font-mono">
+                      ${ds.currentMonth.cost.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -638,19 +692,51 @@ function MockDataSourcesOverview() {
       {/* Usage History */}
       <div className="border-t border-border/50 pt-6">
         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Usage History</p>
-        <div className="space-y-0 divide-y divide-border/50">
+        <div className="border border-border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Month</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Requests</th>
+                <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Cost</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/50">
+              {[
+                { month: '2026-02', requests: 142, cost: 3.55 },
+                { month: '2026-01', requests: 310, cost: 7.75 },
+                { month: '2025-12', requests: 198, cost: 4.95 },
+              ].map((row) => (
+                <tr key={row.month}>
+                  <td className="px-4 py-2.5 text-foreground">{row.month}</td>
+                  <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">{row.requests}</td>
+                  <td className="px-4 py-2.5 text-right text-foreground font-mono tabular-nums font-semibold">
+                    ${row.cost.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Credit Purchases */}
+      <div className="border-t border-border/50 pt-6">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+          Credit Purchases
+        </p>
+        <div className="divide-y divide-border/50">
           {[
-            { month: 'Feb 2025', requests: 142, cost: '$3.55' },
-            { month: 'Jan 2025', requests: 310, cost: '$7.75' },
-          ].map((row) => (
-            <div key={row.month} className="flex items-center justify-between py-2.5">
-              <span className="text-sm text-foreground">{row.month}</span>
-              <div className="flex items-center gap-4">
-                <span className="text-xs text-muted-foreground tabular-nums">{row.requests}</span>
-                <span className="text-sm text-foreground font-mono tabular-nums w-14 text-right">
-                  {row.cost}
-                </span>
-              </div>
+            { date: '2026-01-15', amount: 25.0 },
+            { date: '2025-12-01', amount: 10.0 },
+          ].map((p) => (
+            <div key={p.date} className="flex items-center justify-between py-2.5">
+              <span className="text-sm text-foreground">
+                {new Date(p.date).toLocaleDateString()}
+              </span>
+              <span className="text-sm text-green-400 font-mono tabular-nums">
+                +${p.amount.toFixed(2)}
+              </span>
             </div>
           ))}
         </div>

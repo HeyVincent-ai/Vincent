@@ -182,26 +182,28 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
 
       {/* Available Data Sources */}
       <div className="border-t border-border/50 pt-6">
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Data Sources</p>
-        <div className="divide-y divide-border/50">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
+          Available Data Sources
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {dataSources.map((ds) => (
-            <div key={ds.id} className="py-3">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-foreground">{ds.displayName}</p>
+            <div key={ds.id} className="border border-border rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm font-medium text-foreground">{ds.displayName}</p>
                 {ds.status === 'coming_soon' ? (
                   <span className="text-[11px] px-2 py-0.5 text-muted-foreground bg-muted/30 rounded">
-                    soon
+                    Coming Soon
                   </span>
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 text-green-400 bg-green-500/10 rounded">
-                    active
+                    Active
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{ds.description}</p>
+              <p className="text-xs text-muted-foreground mb-3">{ds.description}</p>
 
-              {/* Endpoints & Pricing */}
-              <div className="mt-2 space-y-0.5">
+              {/* Per-endpoint pricing */}
+              <div className="space-y-1 mb-3">
                 {Object.entries(ds.endpoints).map(([key, ep]) => (
                   <div key={key} className="flex items-center justify-between text-xs">
                     <span className="text-muted-foreground">{ep.description}</span>
@@ -210,12 +212,18 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
                 ))}
               </div>
 
-              {/* This month stats */}
+              {/* Current month usage */}
               {ds.currentMonthUsage.requestCount > 0 && (
-                <p className="text-xs text-muted-foreground/70 mt-1.5">
-                  {ds.currentMonthUsage.requestCount} requests ($
-                  {ds.currentMonthUsage.totalCostUsd.toFixed(3)})
-                </p>
+                <div className="border-t border-border/50 pt-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">
+                      {ds.currentMonthUsage.requestCount} request{ds.currentMonthUsage.requestCount !== 1 ? 's' : ''} this month
+                    </span>
+                    <span className="text-foreground font-mono">
+                      ${ds.currentMonthUsage.totalCostUsd.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
               )}
             </div>
           ))}
@@ -228,20 +236,29 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
           <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
             Usage History
           </p>
-          <div className="divide-y divide-border/50">
-            {sortedMonths.map(([month, data]) => (
-              <div key={month} className="flex items-center justify-between py-2.5">
-                <span className="text-sm text-foreground">{month}</span>
-                <div className="flex items-center gap-4">
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {data.requests.toLocaleString()}
-                  </span>
-                  <span className="text-sm text-foreground font-mono tabular-nums w-14 text-right">
-                    ${data.cost.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            ))}
+          <div className="border border-border rounded-lg overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Month</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Requests</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">Cost</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/50">
+                {sortedMonths.map(([month, data]) => (
+                  <tr key={month}>
+                    <td className="px-4 py-2.5 text-foreground">{month}</td>
+                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                      {data.requests.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-foreground font-mono tabular-nums font-semibold">
+                      ${data.cost.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
