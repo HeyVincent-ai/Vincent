@@ -76,7 +76,9 @@ export async function validateSessionWithRoles(
     const stytchUserId = response.user.user_id;
     const roles: string[] = response.user.roles ?? [];
 
-    console.log('[auth] user roles for', response.user.emails[0]?.email, ':', roles);
+    if (env.NODE_ENV !== 'production') {
+      console.log('[auth] user roles:', roles);
+    }
 
     const user = await prisma.user.findUnique({
       where: { stytchUserId },
