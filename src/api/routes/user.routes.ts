@@ -8,6 +8,7 @@ import prisma from '../../db/client.js';
 import * as secretService from '../../services/secret.service.js';
 import { generateLinkingCode } from '../../telegram/index.js';
 import { env } from '../../utils/env.js';
+import * as referralService from '../../services/referral.service.js';
 
 const router = Router();
 
@@ -113,6 +114,35 @@ router.post(
       linkingCode: code,
       botUsername: env.TELEGRAM_BOT_USERNAME || null,
       expiresInMinutes: 10,
+    });
+  })
+);
+
+/**
+ * GET /api/user/referral
+ * Get referral link and stats for the current user
+ */
+router.get(
+  '/referral',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (!req.user) {
+      errors.unauthorized(res);
+      return;
+    }
+
+    const stats = await referralService.getReferralStats(req.user.id);
+    const frontendUrl = env.FRONTEND_URL || 'https://heyvincent.ai';
+    const referralLink = `${frontendUrl}/?ref=${stats.referralCode}`;
+
+    sendSuccess(res, {
+      referralCode: stats.referralCode,
+      referralLink,
+      stats: {
+        totalReferred: stats.totalReferred,
+        totalRewarded: stats.totalRewarded,
+        totalEarnedUsd: stats.totalEarnedUsd,
+        pendingRewards: stats.pendingRewards,
+      },
     });
   })
 );

@@ -10,6 +10,7 @@ import type {
   UserMarketOrder,
   Side,
 } from '@polymarket/clob-client';
+import axios from 'axios';
 import prisma from '../db/client.js';
 import { env } from '../utils/env.js';
 import { initializePolymarketProxy } from '../utils/proxy.js';
@@ -708,4 +709,44 @@ export async function updateCollateralAllowance(config: PolymarketClientConfig):
   await client.updateBalanceAllowance({
     asset_type: 'COLLATERAL' as AssetType,
   });
+}
+
+// ============================================================
+// Positions (from Data API)
+// ============================================================
+
+export interface PolymarketPosition {
+  proxyWallet: string;
+  asset: string; // token ID
+  conditionId: string;
+  size: string; // shares owned
+  avgPrice: string; // average entry price
+  curPrice: string;
+  initialValue: string;
+  currentValue: string;
+  cashPnl: string;
+  percentPnl: string;
+  realizedPnl: string;
+  percentRealizedPnl: string;
+  title: string;
+  slug: string;
+  outcome: string;
+  outcomeIndex: number;
+  endDate: string;
+  redeemable: boolean;
+  mergeable: boolean;
+  negativeRisk: boolean;
+}
+
+/**
+ * Get all positions for a wallet address from Polymarket Data API.
+ * Returns positions with avg entry price, current price, and P&L.
+ */
+export async function getPositions(walletAddress: string): Promise<PolymarketPosition[]> {
+  // Initialize proxy for geo-restricted regions (uses axios, not fetch)
+  await initializePolymarketProxy();
+
+  const url = `https://data-api.polymarket.com/positions?user=${encodeURIComponent(walletAddress.toLowerCase())}`;
+  const response = await axios.get<PolymarketPosition[]>(url);
+  return response.data;
 }
