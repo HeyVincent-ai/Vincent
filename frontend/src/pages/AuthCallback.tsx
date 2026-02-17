@@ -42,9 +42,11 @@ export default function AuthCallback() {
     authPromise
       .then((resp) => {
         const sessionToken = resp.session_token;
-        return syncSession(sessionToken).then((res) => {
+        const referralCode = localStorage.getItem('referralCode') || undefined;
+        return syncSession(sessionToken, referralCode).then((res) => {
           const { user } = res.data.data;
           setSession(sessionToken, user);
+          localStorage.removeItem('referralCode');
 
           const pending = localStorage.getItem('pendingClaim');
           if (pending) {

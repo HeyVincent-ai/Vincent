@@ -1,8 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { getUserSecrets, createSecret, claimSecret } from '../api';
+import {
+  getUserSecrets,
+  createSecret,
+  claimSecret,
+  getOpenClawDeployments,
+  deployOpenClaw,
+} from '../api';
 import { QRCodeSVG } from 'qrcode.react';
 import { useToast } from '../components/Toast';
+import WelcomeOnboarding from '../components/WelcomeOnboarding';
 
 interface Secret {
   id: string;
@@ -347,6 +354,9 @@ function SecretCard({ secret }: { secret: Secret }) {
 
 export default function Dashboard() {
   const [secrets, setSecrets] = useState<Secret[]>([]);
+  const [deployments, setDeployments] = useState<{ id: string; status: string }[]>([]);
+  const [deploymentsLoaded, setDeploymentsLoaded] = useState(false);
+  const [deploymentLoadError, setDeploymentLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [createType, setCreateType] = useState('EVM_WALLET');
@@ -354,18 +364,52 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [deploying, setDeploying] = useState(false);
+  const [deployError, setDeployError] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    Promise.all([
+      getUserSecrets()
+        .then((res) => setSecrets(res.data.data.secrets))
+        .catch(() => {}),
+      getOpenClawDeployments()
+        .then((res) => {
+          setDeployments(res.data.data.deployments);
+          setDeploymentsLoaded(true);
+          setDeploymentLoadError(null);
+        })
+        .catch(() => {
+          setDeploymentsLoaded(false);
+          setDeploymentLoadError('Unable to load deployments. Please refresh to try again.');
+        }),
+    ]).finally(() => setLoading(false));
+  }, []);
 
   const loadSecrets = () => {
     getUserSecrets()
       .then((res) => setSecrets(res.data.data.secrets))
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   };
 
-  useEffect(() => {
-    loadSecrets();
-  }, []);
+  const handleDeploy = async () => {
+    setDeploying(true);
+    setDeployError(null);
+    try {
+      const currentUrl = window.location.origin + '/agents';
+      const res = await deployOpenClaw(
+        `${currentUrl}?openclaw_deploy=success`,
+        `${currentUrl}?openclaw_deploy=canceled`
+      );
+      const { checkoutUrl } = res.data.data;
+      window.location.href = checkoutUrl;
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
+      setDeployError(msg || 'Failed to start deployment');
+      setDeploying(false);
+    }
+  };
 
   const handleCreate = async () => {
     setCreating(true);
@@ -415,6 +459,20 @@ export default function Dashboard() {
     );
   }
 
+  const hasDeployments = deployments.some((d) => d.status !== 'DESTROYED');
+  const hasSecrets = secrets.length > 0;
+
+  if (!showCreate && deploymentsLoaded && !hasDeployments && !hasSecrets) {
+    return (
+      <WelcomeOnboarding
+        onDeploy={handleDeploy}
+        deploying={deploying}
+        error={deployError}
+        onCreateSecret={() => setShowCreate(true)}
+      />
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -426,6 +484,12 @@ export default function Dashboard() {
           + Create Secret
         </button>
       </div>
+
+      {deploymentLoadError && !hasSecrets && (
+        <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {deploymentLoadError}
+        </div>
+      )}
 
       {showCreate && (
         <div className="bg-card rounded-lg border border-border p-4 mb-6">

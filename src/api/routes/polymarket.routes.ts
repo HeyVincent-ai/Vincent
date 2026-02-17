@@ -85,6 +85,23 @@ router.get(
 );
 
 // ============================================================
+// GET /api/skills/polymarket/holdings
+// ============================================================
+
+router.get(
+  '/holdings',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const result = await polymarketSkill.getHoldings(req.secret.id);
+    sendSuccess(res, result);
+  })
+);
+
+// ============================================================
 // GET /api/skills/polymarket/trades
 // ============================================================
 

@@ -167,7 +167,7 @@ export default function OpenClawSection() {
                       {d.status === 'CANCELING' ? 'CANCELING' : d.status}
                     </span>
                     {d.status === 'CANCELING' && d.currentPeriodEnd && (
-                      <span className="text-sm text-orange-400">
+                      <span className="text-sm text-violet-400">
                         Active until {new Date(d.currentPeriodEnd).toLocaleDateString()}
                       </span>
                     )}
