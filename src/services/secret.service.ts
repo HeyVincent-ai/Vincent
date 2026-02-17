@@ -44,7 +44,18 @@ export interface ClaimSecretInput {
 export interface SetSecretValueInput {
   secretId: string;
   userId: string;
-  value: string;
+  value: unknown;
+}
+
+export interface SetSecretValueByAgentInput {
+  secretId: string;
+  apiKeyId: string;
+  value: unknown;
+}
+
+export interface SetSecretValueByAgentResult {
+  secret: SecretPublicData;
+  didOverwrite: boolean;
 }
 
 // Generate a secure claim token
@@ -56,6 +67,63 @@ function generateClaimToken(): string {
 // In production, this would use proper cryptographic libraries
 function generatePrivateKey(): string {
   return '0x' + randomBytes(32).toString('hex');
+}
+
+const MAX_SECRET_VALUE_BYTES = 16 * 1024;
+
+const AGENT_SETTABLE_SECRET_TYPES = new Set<SecretType>([
+  SecretType.API_KEY,
+  SecretType.SSH_KEY,
+  SecretType.OAUTH_TOKEN,
+  SecretType.CREDENTIALS,
+]);
+
+function enforceMaxSecretValueSize(serializedValue: string): void {
+  if (Buffer.byteLength(serializedValue, 'utf8') > MAX_SECRET_VALUE_BYTES) {
+    throw new AppError(
+      'VALUE_TOO_LARGE',
+      `Secret value exceeds ${MAX_SECRET_VALUE_BYTES} bytes`,
+      413
+    );
+  }
+}
+
+export function serializeSecretValue(secretType: SecretType, value: unknown): string {
+  switch (secretType) {
+    case SecretType.API_KEY:
+    case SecretType.SSH_KEY:
+    case SecretType.OAUTH_TOKEN: {
+      if (typeof value !== 'string' || value.length === 0) {
+        throw new AppError('INVALID_VALUE', 'Secret value must be a non-empty string', 400);
+      }
+      enforceMaxSecretValueSize(value);
+      return value;
+    }
+    case SecretType.CREDENTIALS: {
+      if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        throw new AppError('INVALID_VALUE', 'Credentials must be a JSON object', 400);
+      }
+      const record = value as Record<string, unknown>;
+      const secretField = record.secret;
+      const passwordField = record.password;
+      if (typeof secretField !== 'string' && typeof passwordField !== 'string') {
+        throw new AppError(
+          'INVALID_VALUE',
+          'Credentials must include a string "secret" or "password" field',
+          400
+        );
+      }
+      const serialized = JSON.stringify(record);
+      enforceMaxSecretValueSize(serialized);
+      return serialized;
+    }
+    default:
+      throw new AppError(
+        'INVALID_SECRET_TYPE',
+        `Secrets of type ${secretType} cannot be updated via this endpoint`,
+        403
+      );
+  }
 }
 
 /**
@@ -341,9 +409,14 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
     throw new AppError('VALUE_ALREADY_SET', 'Secret value has already been set', 409);
   }
 
+  const serializedValue = serializeSecretValue(secret.type, value);
+
   const updatedSecret = await prisma.secret.update({
     where: { id: secretId },
-    data: { value },
+    data: {
+      value: serializedValue,
+      valueSetByApiKeyId: null,
+    },
     include: {
       walletMetadata: true,
       polymarketWalletMetadata: true,
@@ -352,6 +425,62 @@ export async function setSecretValue(input: SetSecretValueInput): Promise<Secret
   });
 
   return toPublicData(updatedSecret);
+}
+
+/**
+ * Set or overwrite secret value using an agent API key.
+ * Overwrites are only allowed by the same API key that originally set the value.
+ */
+export async function setSecretValueByAgent(
+  input: SetSecretValueByAgentInput
+): Promise<SetSecretValueByAgentResult> {
+  const { secretId, apiKeyId, value } = input;
+
+  const secret = await prisma.secret.findFirst({
+    where: {
+      id: secretId,
+      deletedAt: null,
+    },
+    include: {
+      walletMetadata: true,
+      polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
+    },
+  });
+
+  if (!secret) {
+    throw new AppError('NOT_FOUND', 'Secret not found', 404);
+  }
+
+  if (!AGENT_SETTABLE_SECRET_TYPES.has(secret.type)) {
+    throw new AppError('FORBIDDEN', 'Secret type cannot be updated by agent', 403);
+  }
+
+  if (secret.value !== null && secret.valueSetByApiKeyId !== apiKeyId) {
+    throw new AppError(
+      'FORBIDDEN',
+      'Only the API key that set this secret can overwrite it',
+      403
+    );
+  }
+
+  const serializedValue = serializeSecretValue(secret.type, value);
+  const didOverwrite = secret.value !== null;
+
+  const updatedSecret = await prisma.secret.update({
+    where: { id: secretId },
+    data: {
+      value: serializedValue,
+      valueSetByApiKeyId: apiKeyId,
+    },
+    include: {
+      walletMetadata: true,
+      polymarketWalletMetadata: true,
+      rawSignerMetadata: true,
+    },
+  });
+
+  return { secret: toPublicData(updatedSecret), didOverwrite };
 }
 
 /**

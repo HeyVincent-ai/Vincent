@@ -56,6 +56,9 @@ Secrets are stored encrypted and never exposed to agents. Each secret has:
 - A **memo** for user notes
 - A **claim token** for ownership transfer
 
+Agent-first onboarding is supported: when an agent creates a secret via the API, it receives
+a **claim URL** and must send it to the user so they can claim ownership later.
+
 ### Skills
 
 Skills are capabilities tied to secret types. Current skills:
