@@ -630,6 +630,7 @@ async function claimPoolVps(): Promise<string | null> {
     WHERE "id" = (
       SELECT "id" FROM "vps_pool"
       ORDER BY "created_at" LIMIT 1
+      FOR UPDATE SKIP LOCKED
     )
     RETURNING "ovh_service_name"
   `;
