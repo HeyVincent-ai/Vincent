@@ -1037,6 +1037,8 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
           if (ctx.serviceName) {
             addLog(`VPS from pool (${ctx.serviceName}), skipping order`);
             await updateDeployment(deploymentId, {
+              ovhServiceName: ctx.serviceName,
+              hostname: ctx.hostname,
               provisionLog: log,
               provisionStage: stage,
             });
