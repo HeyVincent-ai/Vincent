@@ -1017,7 +1017,7 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             addLog(`VPS already claimed for this deployment: ${ctx.serviceName}`);
           }
 
-          // Pool empty — fall through to normal plan finding
+          // Pool empty — proceed with normal plan finding
           const planCode = options.planCode;
           const datacenter = options.datacenter;
           if (!planCode || !datacenter) {
