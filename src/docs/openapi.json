@@ -552,6 +552,52 @@
         }
       }
     },
+    "/api/skills/polymarket/holdings": {
+      "get": {
+        "operationId": "polymarketGetHoldings",
+        "tags": ["Polymarket"],
+        "summary": "Get current holdings with average entry prices",
+        "description": "Returns all token positions with non-zero shares, including the number of shares owned and average entry price. Calculated from trade history using standard cost basis accounting.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Current holdings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "walletAddress": { "type": "string", "description": "Polymarket wallet address" },
+                            "holdings": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "tokenId": { "type": "string", "description": "Conditional token ID" },
+                                  "shares": { "type": "number", "description": "Number of shares owned", "example": 42.5 },
+                                  "averageEntryPrice": { "type": "number", "description": "Average entry price (0-1)", "example": 0.55 }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
     "/api/skills/polymarket/trades": {
       "get": {
         "operationId": "polymarketGetTrades",

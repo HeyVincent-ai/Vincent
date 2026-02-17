@@ -375,3 +375,82 @@ export async function getTrades(secretId: string, market?: string): Promise<poly
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.getTrades(clientConfig, { market });
 }
+
+// ============================================================
+// Holdings
+// ============================================================
+
+export interface Holding {
+  tokenId: string;
+  shares: number;
+  averageEntryPrice: number;
+}
+
+export interface HoldingsOutput {
+  walletAddress: string;
+  holdings: Holding[];
+}
+
+export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
+  const wallet = await getWalletData(secretId);
+  const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
+
+  // Get all trades for this wallet
+  const trades = await polymarket.getTrades(clientConfig);
+
+  // Group trades by tokenId and calculate position
+  const positionMap = new Map<string, { shares: number; totalCost: number }>();
+
+  for (const trade of trades) {
+    const tokenId = trade.asset_id;
+    const size = parseFloat(trade.size);
+    const price = parseFloat(trade.price);
+
+    const existing = positionMap.get(tokenId) || { shares: 0, totalCost: 0 };
+
+    if (trade.side === 'BUY') {
+      // BUY adds to position
+      existing.shares += size;
+      existing.totalCost += size * price;
+    } else {
+      // SELL reduces position
+      // Calculate the average cost basis before the sell
+      const sharesBeforeSell = existing.shares;
+      existing.shares -= size;
+
+      // Reduce cost proportionally based on shares sold
+      if (sharesBeforeSell > 0 && existing.totalCost > 0) {
+        // Cost per share before sell
+        const avgCostPerShare = existing.totalCost / sharesBeforeSell;
+        // Reduce total cost by the cost of shares sold
+        existing.totalCost = existing.shares * avgCostPerShare;
+      }
+
+      // If we've sold everything or went negative (shouldn't happen), reset
+      if (existing.shares <= 0) {
+        existing.shares = 0;
+        existing.totalCost = 0;
+      }
+    }
+
+    positionMap.set(tokenId, existing);
+  }
+
+  // Filter out closed positions and calculate average entry price
+  const holdings: Holding[] = [];
+  for (const [tokenId, position] of positionMap.entries()) {
+    // Only include positions with shares > 0.01 (accounting for rounding)
+    if (position.shares > 0.01) {
+      holdings.push({
+        tokenId,
+        shares: position.shares,
+        averageEntryPrice: position.totalCost / position.shares,
+      });
+    }
+  }
+
+  return {
+    walletAddress: wallet.walletAddress,
+    holdings,
+  };
+}
