@@ -126,7 +126,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
 
   return (
     <div className="bg-card rounded-lg border border-border p-6">
-      <h3 className="text-sm font-medium text-foreground mb-2">Take Ownership</h3>
+      <h3 className="text-sm font-medium text-foreground mb-2">Self-Custody</h3>
 
       {step === 'not-eligible' && (
         <p className="text-sm text-muted-foreground">
@@ -137,21 +137,32 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       )}
 
       {step === 'not-ready' && (
-        <div className="bg-status-warning-muted border border-status-warning/20 rounded p-4">
-          <p className="text-status-warning text-sm">
-            This wallet hasn't been used on any chain yet. Make at least one transaction before
-            taking ownership.
-          </p>
+        <div className="rounded-lg border border-border bg-muted/30 p-4">
+          <div className="flex items-start gap-3">
+            <div className="mt-0.5 shrink-0 w-8 h-8 rounded-full bg-yellow-500/10 flex items-center justify-center">
+              <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm text-foreground font-medium mb-1">On-chain transaction required</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Transfer on-chain ownership of this smart contract wallet to your personal address.
+                Your wallet needs at least one transaction before self-custody can be claimed.
+                Vincent will still execute transactions on your behalf, subject to your policies.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
       {step === 'success' && (
         <>
           <div className="bg-status-success-muted border border-status-success/20 rounded p-4">
-            <p className="text-status-success font-medium mb-2">Ownership Transferred</p>
+            <p className="text-status-success font-medium mb-2">Self-Custody Claimed</p>
             <p className="text-status-success text-sm mb-3">
-              You are now the owner of this smart wallet. Vincent can still execute transactions on
-              your behalf (subject to your policies).
+              You have on-chain ownership of this smart contract wallet. Vincent can still execute
+              transactions on your behalf, subject to your policies.
             </p>
             {ownerAddress && (
               <p className="text-status-success/80 text-xs mb-3">
@@ -193,9 +204,10 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
       {(step === 'connect' || step === 'ready' || step === 'signing' || step === 'processing') && (
         <>
           <p className="text-sm text-muted-foreground mb-4">
-            Transfer ownership of this smart wallet to your personal wallet. After transfer, you'll
-            be the owner of the account at{' '}
+            Claim on-chain ownership of this smart contract wallet. After transfer, you'll have
+            self-custody of{' '}
             <code className="bg-muted px-1 rounded text-xs text-foreground">{walletAddress}</code>.
+            Vincent will still execute transactions on your behalf, subject to your policies.
           </p>
 
           {chainsToTransfer.length > 0 && (
@@ -233,7 +245,7 @@ export default function TakeOwnership({ secretId, walletAddress, onOwnershipTran
                   onClick={handleTakeOwnership}
                   className="text-sm bg-primary text-primary-foreground px-4 py-2 rounded hover:bg-primary/90 transition-colors"
                 >
-                  Take Ownership
+                  Claim Self-Custody
                 </button>
               )}
 

@@ -17,14 +17,23 @@ import type { Account } from '../components/AccountCard';
 
 // ── Mock Data ───────────────────────────────────────────────────────
 
-const MOCK_ACCOUNTS: Account[] = [
+type CustodyState = 'not-ready' | 'claimable' | 'claimed';
+
+interface MockAccount extends Account {
+  custodyState?: CustodyState;
+  ownerAddress?: string;
+  custodyChains?: string[];
+}
+
+const MOCK_ACCOUNTS: MockAccount[] = [
   {
     id: '1',
     type: 'EVM_WALLET',
-    memo: 'Trading Bot Wallet',
+    memo: 'Trading Bot (New)',
     walletAddress: '0x1F74b3C2a8c5D9E6F7A8B9C0D1E2F3A4B5C6D7E8',
     createdAt: '2025-01-15T10:00:00Z',
-    totalBalance: 2847.32,
+    totalBalance: 0,
+    custodyState: 'not-ready',
   },
   {
     id: '2',
@@ -33,6 +42,19 @@ const MOCK_ACCOUNTS: Account[] = [
     walletAddress: '0xAaBbCcDdEeFf00112233445566778899AaBbCcDd',
     createdAt: '2025-02-01T14:30:00Z',
     totalBalance: 14520.0,
+    custodyState: 'claimable',
+    custodyChains: ['Base', 'Base Sepolia'],
+  },
+  {
+    id: '7',
+    type: 'EVM_WALLET',
+    memo: 'Production Wallet',
+    walletAddress: '0xFa3b2C1d0E9F8A7B6C5D4E3F2A1B0C9D8E7F6A5B',
+    createdAt: '2024-12-01T08:00:00Z',
+    totalBalance: 2847.32,
+    custodyState: 'claimed',
+    ownerAddress: '0xAbCd…7890',
+    custodyChains: ['Base', 'Base Sepolia'],
   },
   {
     id: '3',
@@ -174,7 +196,7 @@ function truncateAddress(addr: string) {
 
 type TabId = 'overview' | 'policies' | 'apikeys' | 'auditlogs';
 
-function DetailPreview({ account }: { account: Account }) {
+function DetailPreview({ account }: { account: MockAccount }) {
   const typeConfig = getAccountTypeConfig(account.type);
   const Icon = typeConfig.icon;
   const accountName = account.memo || 'Unnamed Account';
@@ -279,17 +301,47 @@ function DetailPreview({ account }: { account: Account }) {
             </div>
           )}
 
-          {/* Ownership — EVM wallets only */}
-          {account.type === 'EVM_WALLET' && (
+          {/* Self-Custody — EVM wallets only */}
+          {account.type === 'EVM_WALLET' && account.custodyState && (
             <div>
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
-                Ownership
+                Self-Custody
               </h3>
-              <div className="text-xs text-foreground/80">
-                Owner:{' '}
-                <code className="text-foreground/70 font-mono text-xs">0xAbCd…7890</code>
-              </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Base Sepolia</p>
+              {account.custodyState === 'not-ready' && (
+                <>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Make at least one on-chain transaction to enable self-custody.
+                  </p>
+                </>
+              )}
+              {account.custodyState === 'claimable' && (
+                <>
+                  <button className="text-xs bg-primary/10 text-primary hover:bg-primary/20 transition-colors px-3 py-1.5 rounded-md border border-primary/20">
+                    Claim self-custody
+                  </button>
+                  <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                    Transfer on-chain ownership to your personal wallet. Vincent still operates on your behalf, subject to your policies.
+                  </p>
+                </>
+              )}
+              {account.custodyState === 'claimed' && (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+                    <span className="text-xs text-green-400">Claimed</span>
+                  </div>
+                  {account.ownerAddress && (
+                    <code className="text-xs text-foreground/70 font-mono mt-1 block">
+                      {account.ownerAddress}
+                    </code>
+                  )}
+                  {account.custodyChains && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {account.custodyChains.join(', ')}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
           )}
 
@@ -467,16 +519,6 @@ function MockEvmOverview() {
         </p>
       </div>
 
-      {/* Take Ownership */}
-      <div className="py-4 border-t border-border/50">
-        <p className="text-sm text-foreground font-medium mb-1">Take Ownership</p>
-        <p className="text-xs text-muted-foreground mb-3">
-          Transfer this wallet to your personal address on Base Sepolia.
-        </p>
-        <button className="text-xs bg-primary text-primary-foreground px-3 py-1.5 rounded-md hover:bg-primary/90 transition-colors">
-          Connect Wallet
-        </button>
-      </div>
     </div>
   );
 }
@@ -896,7 +938,7 @@ function MockAuditLogs() {
 
 export default function UIPreview() {
   const [view, setView] = useState<'dashboard' | 'detail'>('dashboard');
-  const [selectedAccount, setSelectedAccount] = useState<Account>(MOCK_ACCOUNTS[0]);
+  const [selectedAccount, setSelectedAccount] = useState<MockAccount>(MOCK_ACCOUNTS[0]);
 
   return (
     <div className="min-h-screen bg-background">
