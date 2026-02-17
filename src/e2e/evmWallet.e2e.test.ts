@@ -320,7 +320,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
         console.log('\n--- Refunding USDC.e from test 12 destination ---');
 
         // Poll for bridge completion (up to 120s)
-        for (let i = 0; i < 24; i++) {
+        for (let i = 0; i < 10; i++) {
           const bal = await getUsdcEBalancePolygon(toSmartAccountAddressEvm2);
           console.log(`Test 12 dest USDC.e balance: ${bal} (poll ${i + 1}/24)`);
           if (parseFloat(bal) > 0.01) break;
@@ -376,7 +376,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
 
         if (pmSafeAddress) {
           // Poll for bridge completion (up to 120s)
-          for (let i = 0; i < 24; i++) {
+          for (let i = 0; i < 10; i++) {
             const bal = await getUsdcEBalancePolygon(pmSafeAddress);
             console.log(`Test 13 dest USDC.e balance: ${bal} (poll ${i + 1}/24)`);
             if (parseFloat(bal) > 0.01) break;
@@ -625,39 +625,50 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   // ============================================================
 
   it('should show balance with ETH and USDC', async () => {
-    const res = await request(app)
-      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
-      .set('Authorization', `Bearer ${apiKey}`)
-      .expect(200);
+    let usdcBalance = 0;
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.address).toBe(smartAccountAddress);
+    // Poll until Alchemy indexes the balance (up to 60s)
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .expect(200);
 
-    const tokens = res.body.data.tokens;
-    expect(tokens).toBeDefined();
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.address).toBe(smartAccountAddress);
 
-    // Commented balance assertions since Alchemy API was flaky and shows 0 balance despite the tx being successful
-    // // Find native ETH (tokenAddress is null)
-    // const ethToken = tokens.find(
-    //   (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
-    // );
-    // expect(ethToken).toBeDefined();
-    // expect(ethToken.symbol).toBe('ETH');
-    // const ethBalance = parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals));
-    // expect(ethBalance).toBeGreaterThan(0);
+      const tokens = res.body.data.tokens;
+      expect(tokens).toBeDefined();
 
-    // Find USDC
-    const usdcToken = tokens.find(
-      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
-    );
-    // expect(usdcToken).toBeDefined();
-    // expect(usdcToken.symbol).toBe('USDC');
-    const usdcBalance = parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals));
-    // expect(usdcBalance).toBeGreaterThan(0);
+      // // Find native ETH (tokenAddress is null)
+      // const ethToken = tokens.find(
+      //   (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+      // );
+      // expect(ethToken).toBeDefined();
+      // expect(ethToken.symbol).toBe('ETH');
+      // const ethBalance = parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals));
+      // expect(ethBalance).toBeGreaterThan(0);
 
-    // console.log(`Balance check - ETH: ${ethBalance}`);
-    console.log(`Balance check - USDC: ${usdcBalance}`);
-  }, 30_000);
+      // Find USDC
+      const usdcToken = tokens.find(
+        (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+      );
+      // expect(usdcToken).toBeDefined();
+      // expect(usdcToken.symbol).toBe('USDC');
+      if (usdcToken) {
+        usdcBalance = parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals));
+        // console.log(`Balance check - ETH: ${ethBalance}`);
+        console.log(`Balance poll ${i + 1}/10 - USDC: ${usdcBalance}`);
+        if (usdcBalance > 0) break;
+      } else {
+        console.log(`Balance poll ${i + 1}/10 - USDC token not found yet`);
+      }
+
+      await sleep(5000);
+    }
+
+    expect(usdcBalance).toBeGreaterThan(0);
+  }, 60_000);
 
   // // ============================================================
   // // Test 6: Transfer ETH

@@ -256,8 +256,11 @@ export async function sendUsdcEFromSafeViaRelayer(
       },
     ];
 
-    console.log(`Sending ${amount} USDC.e via relayer...`);
+    console.log(`Sending ${amount} USDC.e via relayer from Safe ${safeAddress}...`);
+
     const response = await relayClient.execute(txns);
+    console.log(`Relayer execute response: txID=${response.transactionID}`);
+
     const tx = await relayClient.pollUntilState(
       response.transactionID,
       ['STATE_MINED', 'STATE_CONFIRMED'],
@@ -267,7 +270,15 @@ export async function sendUsdcEFromSafeViaRelayer(
     );
 
     if (!tx) {
-      console.log('Relayer transaction failed');
+      // Query final state for debugging
+      try {
+        const txns = await relayClient.getTransaction(response.transactionID);
+        const state = txns?.[0]?.state ?? 'NOT_FOUND';
+        const hash = txns?.[0]?.transactionHash ?? 'none';
+        console.log(`Relayer tx failed (txID=${response.transactionID}, state=${state}, hash=${hash})`);
+      } catch {
+        console.log(`Relayer tx failed (txID=${response.transactionID}, could not query state)`);
+      }
       return null;
     }
 
