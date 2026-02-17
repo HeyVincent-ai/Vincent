@@ -35,28 +35,83 @@ export class VincentClientService {
   }
 
   async getPositions(): Promise<VincentPosition[]> {
-    const { data } = await this.withRetry(() =>
-      this.client.get('/api/skills/polymarket/positions')
-    );
-    return data.positions ?? data;
+    try {
+      const { data } = await this.withRetry(() =>
+        this.client.get('/api/skills/polymarket/positions')
+      );
+      // Handle various response formats from Vincent API
+      // Format 1: { success: true, data: { openOrders: [...] } }
+      if (data.success && data.data?.openOrders && Array.isArray(data.data.openOrders)) {
+        return data.data.openOrders;
+      }
+      // Format 2: { data: { openOrders: [...] } }
+      if (data.data?.openOrders && Array.isArray(data.data.openOrders)) {
+        return data.data.openOrders;
+      }
+      // Format 3: { positions: [...] }
+      if (data.positions && Array.isArray(data.positions)) {
+        return data.positions;
+      }
+      // Format 4: Direct array
+      if (Array.isArray(data)) {
+        return data;
+      }
+      // No positions found, return empty array
+      console.warn('[VincentClient] No positions found in response, returning empty array');
+      return [];
+    } catch (error: any) {
+      // Log full error details for debugging
+      console.error('[VincentClient] Failed to fetch positions:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      return []; // Return empty array on error
+    }
   }
 
   async getMarketPrice(marketId: string, tokenId: string): Promise<number> {
-    const { data } = await this.withRetry(() =>
-      this.client.get('/api/skills/polymarket/markets', { params: { marketId, tokenId } })
-    );
-    return Number(data.price ?? data.markets?.[0]?.price ?? 0);
+    try {
+      const { data } = await this.withRetry(() =>
+        this.client.get('/api/skills/polymarket/markets', { params: { marketId, tokenId } })
+      );
+      // Handle nested Vincent response format
+      const actualData = data.success ? data.data : data;
+      return Number(actualData?.price ?? actualData?.markets?.[0]?.price ?? 0);
+    } catch (error: any) {
+      console.error('[VincentClient] Failed to fetch market price:', {
+        marketId,
+        tokenId,
+        message: error.message,
+      });
+      return 0;
+    }
   }
 
   async placeBet(input: Record<string, unknown>): Promise<{ orderId?: string; txHash?: string }> {
-    const { data } = await this.withRetry(() =>
-      this.client.post('/api/skills/polymarket/bet', input)
-    );
-    return data;
+    try {
+      const { data } = await this.withRetry(() =>
+        this.client.post('/api/skills/polymarket/bet', input)
+      );
+      // Handle nested Vincent response format
+      return data.success ? data.data : data;
+    } catch (error: any) {
+      console.error('[VincentClient] Failed to place bet:', {
+        message: error.message,
+        status: error.response?.status,
+      });
+      throw error;
+    }
   }
 
   async getBalance(): Promise<Record<string, unknown>> {
-    const { data } = await this.withRetry(() => this.client.get('/api/skills/polymarket/balance'));
-    return data;
+    try {
+      const { data } = await this.withRetry(() => this.client.get('/api/skills/polymarket/balance'));
+      // Handle nested Vincent response format
+      return data.success ? data.data : data;
+    } catch (error: any) {
+      console.error('[VincentClient] Failed to fetch balance:', error.message);
+      return {};
+    }
   }
 }
