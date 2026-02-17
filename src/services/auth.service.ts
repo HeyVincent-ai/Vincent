@@ -61,9 +61,11 @@ export async function syncSession(
 }
 
 /**
- * Validate a session token and return the user
+ * Validate a session token and return the user along with their Stytch RBAC roles.
  */
-export async function validateSession(sessionToken: string): Promise<User | null> {
+export async function validateSessionWithRoles(
+  sessionToken: string
+): Promise<{ user: User | null; roles: string[] }> {
   const client = getStytchClient();
 
   try {
@@ -72,15 +74,26 @@ export async function validateSession(sessionToken: string): Promise<User | null
     });
 
     const stytchUserId = response.user.user_id;
+    const roles: string[] = response.user.roles ?? [];
+
+    console.log('[auth] user roles for', response.user.emails[0]?.email, ':', roles);
 
     const user = await prisma.user.findUnique({
       where: { stytchUserId },
     });
 
-    return user;
+    return { user, roles };
   } catch {
-    return null;
+    return { user: null, roles: [] };
   }
+}
+
+/**
+ * Validate a session token and return the user
+ */
+export async function validateSession(sessionToken: string): Promise<User | null> {
+  const { user } = await validateSessionWithRoles(sessionToken);
+  return user;
 }
 
 /**

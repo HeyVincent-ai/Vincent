@@ -17,6 +17,10 @@ import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
 import AdminReferrals from './pages/AdminReferrals';
+import AdminDashboard from './pages/AdminDashboard';
+import AdminVpsPool from './pages/AdminVpsPool';
+import AdminWallets from './pages/AdminWallets';
+import AdminActiveAgents from './pages/AdminActiveAgents';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -29,6 +33,14 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <div className="p-8 text-muted-foreground">Loading...</div>;
   if (user) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="p-8 text-muted-foreground">Loading...</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (!user.isAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 }
 
@@ -104,11 +116,43 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminDashboard />
+            </AdminRoute>
+          }
+        />
+        <Route
           path="/admin/referrals"
           element={
-            <ProtectedRoute>
+            <AdminRoute>
               <AdminReferrals />
-            </ProtectedRoute>
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/vps-pool"
+          element={
+            <AdminRoute>
+              <AdminVpsPool />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/wallets"
+          element={
+            <AdminRoute>
+              <AdminWallets />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path="/admin/active-agents"
+          element={
+            <AdminRoute>
+              <AdminActiveAgents />
+            </AdminRoute>
           }
         />
       </Route>

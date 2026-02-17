@@ -7,6 +7,7 @@ interface User {
   telegramUsername: string | null;
   telegramLinked: boolean;
   createdAt: string;
+  isAdmin: boolean;
 }
 
 interface AuthCtx {

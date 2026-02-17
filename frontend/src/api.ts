@@ -162,6 +162,14 @@ export const getInvoices = () => api.get('/billing/invoices');
 export const getReferral = () => api.get('/user/referral');
 export const getAdminReferrals = () => api.get('/admin/referrals');
 
+// Admin
+export const getAdminVpsPool = () => api.get('/admin/vps-pool');
+export const addAdminVpsPool = (ovhServiceName: string) =>
+  api.post('/admin/vps-pool', { ovhServiceName });
+export const deleteAdminVpsPool = (id: string) => api.delete(`/admin/vps-pool/${id}`);
+export const getAdminWallets = () => api.get('/admin/wallets');
+export const getAdminActiveAgents = () => api.get('/admin/active-agents');
+
 // Ownership
 export const requestOwnershipChallenge = (secretId: string, address: string) =>
   api.post(`/secrets/${secretId}/take-ownership/challenge`, { address });

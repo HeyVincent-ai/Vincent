@@ -38,6 +38,7 @@ router.get(
         telegramUsername: req.user.telegramUsername,
         telegramLinked: !!req.user.telegramChatId,
         createdAt: req.user.createdAt,
+        isAdmin: req.stytchRoles?.includes('admin') ?? false,
       },
     });
   })
