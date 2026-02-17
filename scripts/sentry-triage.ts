@@ -339,6 +339,16 @@ type GitHubIssue = {
   html_url: string;
 };
 
+type GitHubRepo = {
+  default_branch: string;
+};
+
+type GitHubRef = {
+  object: {
+    sha: string;
+  };
+};
+
 async function githubRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = process.env.GITHUB_TOKEN;
   if (!token) throw new Error('GITHUB_TOKEN is required for GitHub issue sync');
@@ -359,6 +369,18 @@ async function githubRequest<T>(path: string, init: RequestInit = {}): Promise<T
   }
 
   return (await response.json()) as T;
+}
+
+function isSafeDraftFixCandidate(item: TriageResult): boolean {
+  const title = (item.issue.title || '').toLowerCase();
+  const value = (item.issue.metadata?.value || '').toLowerCase();
+  const haystack = `${title}\n${value}`;
+
+  return (
+    haystack.includes('cannot read properties of undefined') ||
+    haystack.includes('cannot read properties of null') ||
+    haystack.includes('typeerror')
+  );
 }
 
 async function ensureGitHubIssuesForActionable(results: TriageResult[], minConfidence: number): Promise<number> {
@@ -414,12 +436,132 @@ async function ensureGitHubIssuesForActionable(results: TriageResult[], minConfi
   return created;
 }
 
+async function ensureDraftFixPrsForActionable(
+  results: TriageResult[],
+  minConfidence: number,
+  maxDraftFixPrs: number,
+): Promise<number> {
+  const repo = process.env.GITHUB_REPOSITORY;
+  if (!repo) throw new Error('GITHUB_REPOSITORY is required for draft fix PR sync');
+
+  const [owner, name] = repo.split('/');
+  if (!owner || !name) throw new Error(`Invalid GITHUB_REPOSITORY format: ${repo}`);
+
+  const repoInfo = await githubRequest<GitHubRepo>(`/repos/${owner}/${name}`);
+  const baseBranch = repoInfo.default_branch || 'main';
+  const baseRef = await githubRequest<GitHubRef>(`/repos/${owner}/${name}/git/ref/heads/${baseBranch}`);
+
+  const candidates = results
+    .filter(
+      (r) =>
+        r.classification.category === 'actionable_bug' &&
+        r.classification.confidence >= minConfidence &&
+        isSafeDraftFixCandidate(r),
+    )
+    .slice(0, maxDraftFixPrs);
+
+  let created = 0;
+
+  for (const item of candidates) {
+    const shortId = (item.issue.shortId || item.issue.id).replace(/[^a-zA-Z0-9-]/g, '-');
+
+    const existing = await githubRequest<{ items: Array<{ number: number; title: string }> }>(
+      `/search/issues?q=${encodeURIComponent(`repo:${repo} is:pr in:title "${shortId}" "[sentry-autofix]"`)}`,
+    );
+    if (existing.items.length > 0) continue;
+
+    const branch = `sentry-autofix/${shortId.toLowerCase()}`;
+
+    try {
+      await githubRequest(`/repos/${owner}/${name}/git/refs`, {
+        method: 'POST',
+        body: JSON.stringify({
+          ref: `refs/heads/${branch}`,
+          sha: baseRef.object.sha,
+        }),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes('Reference already exists')) {
+        throw error;
+      }
+    }
+
+    const rawId = item.issue.shortId || item.issue.id;
+    const planPath = `plans/sentry-autofix/${rawId.replace(/[^a-zA-Z0-9-]/g, '-')}.md`;
+    const plan = [
+      `# Sentry Autofix Attempt: ${rawId}`,
+      '',
+      `- Project: ${item.project}`,
+      `- Sentry link: ${item.issue.permalink || 'n/a'}`,
+      `- Confidence: ${item.classification.confidence.toFixed(2)}`,
+      '',
+      '## Why this is a safe candidate',
+      '- TypeError / nullish access style issue detected',
+      '- Candidate for defensive null/undefined guard',
+      '',
+      '## Suggested patch approach',
+      '- Reproduce using stack trace and culprit path from Sentry',
+      '- Add a narrow null/undefined guard at the faulting access',
+      '- Preserve existing behavior for valid inputs',
+      '- Add a regression test for the failing payload/path',
+      '',
+      '## Heuristic signals',
+      ...item.classification.reasons.map((r) => `- ${r}`),
+      '',
+      '## Human review checklist',
+      '- [ ] Confirm root cause in logs/stack',
+      '- [ ] Confirm guard does not mask deeper invariant break',
+      '- [ ] Add/verify tests',
+      '- [ ] Merge only if behavior is correct',
+      '',
+    ].join('\n');
+
+    await githubRequest(`/repos/${owner}/${name}/contents/${planPath}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        message: `chore(sentry): add autofix attempt plan for ${rawId}`,
+        content: Buffer.from(plan, 'utf8').toString('base64'),
+        branch,
+      }),
+    });
+
+    const prTitle = `[sentry-autofix] Draft fix attempt for ${rawId}`;
+    const prBody = [
+      'Automated draft PR for a safe Sentry autofix candidate.',
+      '',
+      `Sentry issue: ${item.issue.permalink || rawId}`,
+      `Confidence: ${item.classification.confidence.toFixed(2)}`,
+      '',
+      'This PR currently contains a structured fix plan/checklist to keep automation conservative.',
+      'Next step is implementing and validating the concrete code fix before merge.',
+    ].join('\n');
+
+    await githubRequest(`/repos/${owner}/${name}/pulls`, {
+      method: 'POST',
+      body: JSON.stringify({
+        title: prTitle,
+        head: branch,
+        base: baseBranch,
+        body: prBody,
+        draft: true,
+      }),
+    });
+
+    created += 1;
+  }
+
+  return created;
+}
+
 async function main() {
   const args = parseArgs();
   const lookbackHours = Number(args.hours || '24');
   const limitPerProject = Number(args.limit || '25');
   const minConfidence = Number(args.minConfidence || '0.85');
   const syncGitHubIssues = (args.syncGithubIssues || 'false') === 'true';
+  const openDraftFixPrs = (args.openDraftFixPrs || 'false') === 'true';
+  const maxDraftFixPrs = Number(args.maxDraftFixPrs || '1');
   const sendTelegram = (args.sendTelegram || 'false') === 'true';
 
   const credentialsPath = resolve(
@@ -430,13 +572,18 @@ async function main() {
 
   const config = readConfig(credentialsPath);
   const statsPeriod = `${lookbackHours}h`;
+  const onlyActiveInLookback = (args.onlyActiveInLookback || 'false') === 'true';
 
   const allResults: TriageResult[] = [];
 
   for (const project of config.projectSlugs) {
+    const query = onlyActiveInLookback
+      ? `is:unresolved statsPeriod:${statsPeriod}`
+      : 'is:unresolved';
+
     const issues = await sentryGet<SentryIssue[]>(
       config,
-      `/api/0/projects/${encodeURIComponent(config.orgSlug)}/${encodeURIComponent(project)}/issues/?query=is:unresolved+statsPeriod:${encodeURIComponent(statsPeriod)}&limit=${limitPerProject}`,
+      `/api/0/projects/${encodeURIComponent(config.orgSlug)}/${encodeURIComponent(project)}/issues/?query=${encodeURIComponent(query)}&limit=${limitPerProject}`,
     );
 
     for (const issue of issues) {
@@ -468,6 +615,11 @@ async function main() {
   if (syncGitHubIssues) {
     const created = await ensureGitHubIssuesForActionable(allResults, minConfidence);
     console.log(`GitHub issue sync complete. Created: ${created}`);
+  }
+
+  if (openDraftFixPrs) {
+    const created = await ensureDraftFixPrsForActionable(allResults, minConfidence, maxDraftFixPrs);
+    console.log(`Draft fix PR sync complete. Created: ${created}`);
   }
 
   if (sendTelegram) {

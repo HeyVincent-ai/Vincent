@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
+import * as referralService from '../services/referral.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -197,6 +198,23 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
     return;
   }
 
+  // Handle data source credit purchases
+  if (checkoutType === 'data_source_credits' && userId) {
+    const amountCents = session.amount_total;
+    if (!amountCents) return;
+    const amountUsd = amountCents / 100;
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    console.log(`[stripe] Data source credit checkout completed: $${amountUsd} for user ${userId}`);
+    const creditService = await import('../dataSources/credit.service.js');
+    await creditService.addCredits(userId, amountUsd, paymentIntentId);
+    return;
+  }
+
   if (!userId || !session.subscription) return;
 
   const stripe = getStripe();
@@ -233,6 +251,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const amountPaidUsd = Number(invoice.amount_paid ?? 0) / 100;
+  if (amountPaidUsd <= 0) {
+    console.log('[stripe] Skipping referral fulfillment for non-paid invoice');
+  }
+
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
@@ -245,6 +268,28 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       where: { id: sub.id },
       data: { status: 'ACTIVE' },
     });
+
+    if (amountPaidUsd > 0) {
+      try {
+        await referralService.fulfillReferralReward(sub.userId);
+      } catch (err: any) {
+        console.error('[stripe] Failed to fulfill referral reward:', err.message);
+      }
+    }
+    return;
+  }
+
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    select: { userId: true },
+  });
+
+  if (openclawDeployment && amountPaidUsd > 0) {
+    try {
+      await referralService.fulfillReferralReward(openclawDeployment.userId);
+    } catch (err: any) {
+      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    }
   }
 }
 
@@ -334,6 +379,39 @@ export async function createCreditsCheckoutSession(
       userId,
       deploymentId,
       type: 'openclaw_credits',
+    },
+  });
+
+  return { sessionId: session.id, url: session.url! };
+}
+
+/**
+ * Create a Stripe Checkout session for a one-time data-source credit purchase.
+ * Uses a custom_unit_amount price so the customer enters their desired amount
+ * on the Stripe Checkout page.
+ */
+export async function createDataSourceCreditsCheckoutSession(
+  userId: string,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ sessionId: string; url: string }> {
+  if (!env.STRIPE_DATASOURCES_CREDITS_PRICE_ID) {
+    throw new Error('STRIPE_DATASOURCES_CREDITS_PRICE_ID is not configured');
+  }
+
+  const stripe = getStripe();
+  const customerId = await getOrCreateStripeCustomer(userId);
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [{ price: env.STRIPE_DATASOURCES_CREDITS_PRICE_ID, quantity: 1 }],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      userId,
+      type: 'data_source_credits',
     },
   });
 

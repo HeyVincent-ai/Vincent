@@ -1,41 +1,505 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import PageShell, { CheckSvg, ChevronDown } from '../components/PageShell';
+import PageShell, { CheckSvg, ChevronDown, SkillsCopyButton } from '../components/PageShell';
+
+/* ── Icon components ─────────────────────────────────────────────── */
+
+const XIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z" />
+  </svg>
+);
+const GlobeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" />
+  </svg>
+);
+const EthIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z" />
+  </svg>
+);
+const PulseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+  </svg>
+);
+const PolyIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 42.76 53.02" fill="currentColor">
+    <path fillRule="evenodd" d="M42.76,24.28V0L0,12.04v28.93l42.76,12.04v-28.74ZM38.63,23.12V5.42L7.21,14.27l31.42,8.85ZM35.55,26.51L4.14,17.66v17.69l31.42-8.85ZM7.21,38.75l31.42,8.85v-17.71l-31.42,8.85v.02Z" />
+  </svg>
+);
+const SolIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="m23.8764 18.0313-3.962 4.1393a.9201.9201 0 0 1-.306.2106.9407.9407 0 0 1-.367.0742H.4599a.4689.4689 0 0 1-.2522-.0733.4513.4513 0 0 1-.1696-.1962.4375.4375 0 0 1-.0314-.2545.4438.4438 0 0 1 .117-.2298l3.9649-4.1393a.92.92 0 0 1 .3052-.2102.9407.9407 0 0 1 .3658-.0746H23.54a.4692.4692 0 0 1 .2523.0734.4531.4531 0 0 1 .1697.196.438.438 0 0 1 .0313.2547.4442.4442 0 0 1-.1169.2297zm-3.962-8.3355a.9202.9202 0 0 0-.306-.2106.941.941 0 0 0-.367-.0742H.4599a.4687.4687 0 0 0-.2522.0734.4513.4513 0 0 0-.1696.1961.4376.4376 0 0 0-.0314.2546.444.444 0 0 0 .117.2297l3.9649 4.1394a.9204.9204 0 0 0 .3052.2102c.1154.049.24.0744.3658.0746H23.54a.469.469 0 0 0 .2523-.0734.453.453 0 0 0 .1697-.1961.4382.4382 0 0 0 .0313-.2546.4444.4444 0 0 0-.1169-.2297zM.46 6.7225h18.7815a.9411.9411 0 0 0 .367-.0742.9202.9202 0 0 0 .306-.2106l3.962-4.1394a.4442.4442 0 0 0 .117-.2297.4378.4378 0 0 0-.0314-.2546.453.453 0 0 0-.1697-.196.469.469 0 0 0-.2523-.0734H4.7596a.941.941 0 0 0-.3658.0745.9203.9203 0 0 0-.3052.2102L.1246 5.9687a.4438.4438 0 0 0-.1169.2295.4375.4375 0 0 0 .0312.2544.4512.4512 0 0 0 .1692.196.4689.4689 0 0 0 .2518.0739z" />
+  </svg>
+);
+
+const TelegramIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" />
+  </svg>
+);
+
+const SourceIcon = ({ type }: { type: string }) => {
+  switch (type) {
+    case 'x': return <XIcon />;
+    case 'web': return <GlobeIcon />;
+    case 'eth': return <EthIcon />;
+    case 'chart': return <PulseIcon />;
+    case 'poly': return <PolyIcon />;
+    case 'sol': return <SolIcon />;
+    case 'telegram': return <TelegramIcon />;
+    default: return <GlobeIcon />;
+  }
+};
+
+/* ── Large hero icons ────────────────────────────────────────────── */
+
+const SearchIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" />
+  </svg>
+);
+const XSearchIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 21l-4.35-4.35" /><circle cx="11" cy="11" r="8" /><path d="M8 8l6 6M14 8l-6 6" />
+  </svg>
+);
+const TargetIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="6" /><circle cx="12" cy="12" r="2" />
+  </svg>
+);
+const PulseIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+  </svg>
+);
+const ShieldIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
+    <path d="m9 12 2 2 4-4" />
+  </svg>
+);
+const BoltIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+  </svg>
+);
+const TerminalIcon24 = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 17 10 11 4 5" /><line x1="12" x2="20" y1="19" y2="19" />
+  </svg>
+);
+
+/* ── Integration logos ───────────────────────────────────────────── */
+
+function IntegrationLogos() {
+  return (
+    <div className="hero__integrations anim anim-d3">
+      <div className="hero__int-groups">
+        {/* Venues */}
+        <div className="hero__int-group">
+          <span className="hero__int-group-label">Venues</span>
+          <div className="hero__int-icons">
+            <span className="hero__int-icon" title="Polymarket">
+              <svg viewBox="0 0 42.76 53.02" fill="currentColor"><path fillRule="evenodd" d="M42.76,24.28V0L0,12.04v28.93l42.76,12.04v-28.74ZM38.63,23.12V5.42L7.21,14.27l31.42,8.85ZM35.55,26.51L4.14,17.66v17.69l31.42-8.85ZM7.21,38.75l31.42,8.85v-17.71l-31.42,8.85v.02Z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Ethereum">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Solana">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="m23.8764 18.0313-3.962 4.1393a.9201.9201 0 0 1-.306.2106.9407.9407 0 0 1-.367.0742H.4599a.4689.4689 0 0 1-.2522-.0733.4513.4513 0 0 1-.1696-.1962.4375.4375 0 0 1-.0314-.2545.4438.4438 0 0 1 .117-.2298l3.9649-4.1393a.92.92 0 0 1 .3052-.2102.9407.9407 0 0 1 .3658-.0746H23.54a.4692.4692 0 0 1 .2523.0734.4531.4531 0 0 1 .1697.196.438.438 0 0 1 .0313.2547.4442.4442 0 0 1-.1169.2297zm-3.962-8.3355a.9202.9202 0 0 0-.306-.2106.941.941 0 0 0-.367-.0742H.4599a.4687.4687 0 0 0-.2522.0734.4513.4513 0 0 0-.1696.1961.4376.4376 0 0 0-.0314.2546.444.444 0 0 0 .117.2297l3.9649 4.1394a.9204.9204 0 0 0 .3052.2102c.1154.049.24.0744.3658.0746H23.54a.469.469 0 0 0 .2523-.0734.453.453 0 0 0 .1697-.1961.4382.4382 0 0 0 .0313-.2546.4444.4444 0 0 0-.1169-.2297zM.46 6.7225h18.7815a.9411.9411 0 0 0 .367-.0742.9202.9202 0 0 0 .306-.2106l3.962-4.1394a.4442.4442 0 0 0 .117-.2297.4378.4378 0 0 0-.0314-.2546.453.453 0 0 0-.1697-.196.469.469 0 0 0-.2523-.0734H4.7596a.941.941 0 0 0-.3658.0745.9203.9203 0 0 0-.3052.2102L.1246 5.9687a.4438.4438 0 0 0-.1169.2295.4375.4375 0 0 0 .0312.2544.4512.4512 0 0 0 .1692.196.4689.4689 0 0 0 .2518.0739z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Bitcoin">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.548v-.002zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.236c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.524 2.75 2.084v.006z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Base">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12c6.628 0 12-5.373 12-12S18.628 0 12 0zm-.052 20.22c-4.542 0-8.222-3.68-8.222-8.22S7.406 3.78 11.948 3.78c4.13 0 7.545 3.047 8.137 7.015h-10.87v2.41h10.87c-.592 3.968-4.008 7.015-8.137 7.015z"/></svg>
+            </span>
+          </div>
+        </div>
+        {/* Data */}
+        <div className="hero__int-group">
+          <span className="hero__int-group-label">Data</span>
+          <div className="hero__int-icons">
+            <span className="hero__int-icon" title="X (Twitter)">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14.234 10.162 22.977 0h-2.072l-7.591 8.824L7.251 0H.258l9.168 13.343L.258 24H2.33l8.016-9.318L16.749 24h6.993zm-2.837 3.299-.929-1.329L3.076 1.56h3.182l5.965 8.532.929 1.329 7.754 11.09h-3.182z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Google">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="RSS">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.199 24C19.199 13.467 10.533 4.8 0 4.8V0c13.165 0 24 10.835 24 24h-4.801zM3.291 17.415c1.814 0 3.293 1.479 3.293 3.295 0 1.813-1.485 3.29-3.301 3.29C1.47 24 0 22.526 0 20.71s1.475-3.294 3.291-3.295zM15.909 24h-4.665c0-6.169-5.075-11.245-11.244-11.245V8.09c8.727 0 15.909 7.184 15.909 15.91z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="TradingView">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.8654 8.2789c0 1.3541-1.0978 2.4519-2.452 2.4519-1.354 0-2.4519-1.0978-2.4519-2.452 0-1.354 1.0978-2.4518 2.452-2.4518 1.3541 0 2.4519 1.0977 2.4519 2.4519zM9.75 6H0v4.9038h4.8462v7.2692H9.75Zm8.5962 0H24l-5.1058 12.173h-5.6538z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="CoinMarketCap">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.738 14.341c-.419.265-.912.298-1.286.087-.476-.27-.738-.898-.738-1.774v-2.618c0-1.264-.5-2.164-1.336-2.407-1.416-.413-2.482 1.32-2.882 1.972l-2.498 4.05v-4.95c-.028-1.14-.398-1.821-1.1-2.027-.466-.135-1.161-.081-1.837.953l-5.597 8.987A9.875 9.875 0 0 1 2.326 12c0-5.414 4.339-9.818 9.672-9.818 5.332 0 9.67 4.404 9.67 9.818.004.018.002.034.003.053.05 1.049-.29 1.883-.933 2.29zm3.08-2.34-.001-.055C23.787 5.353 18.497 0 11.997 0 5.48 0 .177 5.383.177 12c0 6.616 5.303 12 11.82 12 2.991 0 5.846-1.137 8.037-3.2.435-.41.46-1.1.057-1.541a1.064 1.064 0 0 0-1.519-.059 9.56 9.56 0 0 1-6.574 2.618c-2.856 0-5.425-1.263-7.197-3.268l5.048-8.105v3.737c0 1.794.696 2.374 1.28 2.544.584.17 1.476.054 2.413-1.468.998-1.614 2.025-3.297 3.023-4.88v2.276c0 1.678.672 3.02 1.843 3.68 1.056.597 2.384.543 3.465-.14 1.312-.828 2.018-2.354 1.944-4.193z"/></svg>
+            </span>
+          </div>
+        </div>
+        {/* Channels */}
+        <div className="hero__int-group">
+          <span className="hero__int-group-label">Channels</span>
+          <div className="hero__int-icons">
+            <span className="hero__int-icon" title="Telegram">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.479.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Discord">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Slack">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z"/></svg>
+            </span>
+            <span className="hero__int-icon" title="Email">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            </span>
+            <span className="hero__int-icon" title="iMessage">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Hero card carousel data ─────────────────────────────────────── */
+
+const HERO_SCENARIOS = [
+  {
+    alert: {
+      title: 'ETH Whale Movement',
+      sources: [
+        { icon: 'eth', text: 'ETH $3,841 → $3,680 (-4.2%)' },
+        { icon: 'x', text: '@whale_alert: 12,400 ETH moved to Coinbase' },
+        { icon: 'web', text: 'coinglass.com: funding rate flipped negative' },
+      ],
+      badges: ['ALERT FIRED', '3 SOURCES'],
+    },
+    reason: {
+      title: 'Bearish signal confirmed',
+      sources: [
+        { icon: 'x', text: 'X sentiment: 73% bearish (last 4h)' },
+        { icon: 'eth', text: 'On-chain: exchange inflows +340%' },
+      ],
+      cost: '$0.003',
+    },
+    approval: {
+      title: 'Sell 2.5 ETH?',
+      sources: [
+        { icon: 'telegram', text: 'Sent to Telegram · Awaiting response' },
+      ],
+      response: 'Approved via Telegram',
+    },
+    exec: { title: 'Sold 2.5 ETH on Base', detail: 'TX 0x8f2a...confirmed', amount: '+$9,618 USDC' },
+  },
+  {
+    alert: {
+      title: 'Polymarket Odds Shift',
+      sources: [
+        { icon: 'poly', text: 'Next President' },
+        { icon: 'x', text: '@NateSilver: debate moved prediction markets hard' },
+        { icon: 'web', text: 'fivethirtyeight.com: polling average shifted +3.2' },
+      ],
+      badges: ['ALERT FIRED', '3 SOURCES'],
+    },
+    reason: {
+      title: 'Sharp odds movement detected',
+      sources: [
+        { icon: 'poly', text: 'Volume surge: $2.4M in last hour' },
+        { icon: 'web', text: 'Historical: debate moves revert 40% within 48h' },
+      ],
+      cost: '$0.004',
+    },
+    exec: { title: 'Bought $500 YES on Polymarket', detail: 'Policy approved · Position opened', amount: '-$500 USDC' },
+  },
+  {
+    alert: {
+      title: 'Solana DeFi Yield Alert',
+      sources: [
+        { icon: 'sol', text: 'Marinade: stSOL yield spiked to 12.4% APY' },
+        { icon: 'web', text: 'defillama.com: Solana TVL up 18% this week' },
+        { icon: 'x', text: '@solana_daily: new liquidity mining program live' },
+      ],
+      badges: ['ALERT FIRED', '3 SOURCES'],
+    },
+    reason: {
+      title: 'Yield opportunity confirmed',
+      sources: [
+        { icon: 'web', text: 'Protocol audit: verified by OtterSec' },
+        { icon: 'sol', text: 'TVL stable for 14 days, no unlock events' },
+      ],
+      cost: '$0.002',
+    },
+    exec: { title: 'Deposited 50 SOL into Marinade', detail: 'Policy approved · Staked via smart account', amount: '50 stSOL' },
+  },
+];
+
+/* ── Hero visual (animated cards) ────────────────────────────────── */
+
+// Phase delays per scenario — index 0 = ETH (4 cards), 1 & 2 = 3 cards
+// Last entry in each array is the "hold" time before cycling
+const SCENARIO_PHASES: number[][] = [
+  // ETH: 14 phases — alert(1-3), reason(4-7), approval(8-11), vault(12-14)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 3600, 3800, 4200, 4400, 5200, 8200],
+  // Polymarket: 10 phases — alert(1-3), reason(4-7), vault(8-10)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500],
+  // Solana: 10 phases — alert(1-3), reason(4-7), vault(8-10)
+  [0, 0, 900, 1200, 1600, 1800, 2300, 2600, 3000, 3200, 4000, 6500],
+];
+
+function SceneCards({ scenario, phase, isExiting }: {
+  scenario: typeof HERO_SCENARIOS[number];
+  phase: number;
+  isExiting?: boolean;
+}) {
+  const p = isExiting ? 99 : phase;
+  const has4Cards = !!scenario.approval;
+
+  const card1Classes = [
+    'hero__card',
+    p >= 1 ? 'hero__card--show' : '',
+    p >= 1 ? 'hero__card--sources-visible' : '',
+    p >= 2 ? 'hero__card--badges-visible' : '',
+    p >= 1 && p <= 3 ? 'hero__card--glow-yellow' : '',
+  ].filter(Boolean).join(' ');
+
+  const card2Classes = [
+    'hero__card',
+    p >= 4 ? 'hero__card--show' : '',
+    p >= 5 ? 'hero__card--sources-visible' : '',
+    p >= 6 ? 'hero__card--badges-visible' : '',
+    p >= 4 && p <= 7 ? 'hero__card--glow-purple' : '',
+  ].filter(Boolean).join(' ');
+
+  // If 4 cards: approval card at phases 8-11, vault at 12-14
+  // If 3 cards: vault at phases 8-10
+  const approvalClasses = has4Cards ? [
+    'hero__card',
+    p >= 8 ? 'hero__card--show' : '',
+    p >= 9 ? 'hero__card--sources-visible' : '',
+    p >= 10 ? 'hero__card--badges-visible' : '',
+    p >= 8 && p <= 11 ? 'hero__card--glow-blue' : '',
+  ].filter(Boolean).join(' ') : '';
+
+  const vaultStart = has4Cards ? 12 : 8;
+  const vaultEnd = has4Cards ? 14 : 10;
+  const card3Classes = [
+    'hero__card',
+    p >= vaultStart ? 'hero__card--show' : '',
+    p >= (vaultStart + 1) ? 'hero__card--sources-visible' : '',
+    p >= (vaultStart + 1) ? 'hero__card--badges-visible' : '',
+    p >= vaultStart && p <= vaultEnd ? 'hero__card--glow-green' : '',
+  ].filter(Boolean).join(' ');
+
+  return (
+    <>
+      {/* Card 1: Strategy Alert */}
+      <div className={card1Classes}>
+        <div className="hero__card-label" style={{ color: '#eab308' }}>
+          <span className="hero__card-dot hero__card-dot--yellow" />Strategy Alert
+        </div>
+        <div className="hero__card-title">{scenario.alert.title}</div>
+        <div className="hero__card-sources">
+          {scenario.alert.sources.map((src, i) => (
+            <div className="hero__source" key={i}>
+              <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+              <span className="hero__source-text">{src.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="hero__card-meta">
+          <span className="hero__card-badge hero__card-badge--alert">{scenario.alert.badges[0]}</span>
+          <span className="hero__card-badge hero__card-badge--sources">{scenario.alert.badges[1]}</span>
+        </div>
+      </div>
+
+      {/* Connector 1→2 */}
+      <div className={`hero__connector ${p >= 3 ? 'hero__connector--active' : ''}`}>
+        <div className="hero__connector-line" />
+        <div className="hero__connector-pulse" />
+      </div>
+
+      {/* Card 2: Agent Reasoning */}
+      <div className={card2Classes}>
+        <div className="hero__card-label" style={{ color: 'var(--accent)' }}>
+          <span className="hero__card-dot hero__card-dot--purple" />Agent Reasoning
+        </div>
+        <div className="hero__card-title">{scenario.reason.title}</div>
+        <div className="hero__card-sources">
+          {scenario.reason.sources.map((src, i) => (
+            <div className="hero__source" key={i}>
+              <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+              <span className="hero__source-text">{src.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="hero__card-meta">
+          <span className="hero__card-cost">LLM cost: {scenario.reason.cost}</span>
+        </div>
+      </div>
+
+      {/* Connector 2→3 */}
+      <div className={`hero__connector ${p >= 7 ? 'hero__connector--active' : ''}`}>
+        <div className="hero__connector-line" />
+        <div className="hero__connector-pulse" />
+      </div>
+
+      {/* Card 3: User Approval (only for scenarios with approval) */}
+      {has4Cards && scenario.approval && (
+        <>
+          <div className={approvalClasses}>
+            <div className="hero__card-label" style={{ color: '#38bdf8' }}>
+              <span className="hero__card-dot hero__card-dot--blue" />User Approval
+            </div>
+            <div className="hero__card-title">{scenario.approval.title}</div>
+            <div className="hero__card-sources">
+              {scenario.approval.sources.map((src, i) => (
+                <div className="hero__source" key={i}>
+                  <span className="hero__source-icon"><SourceIcon type={src.icon} /></span>
+                  <span className="hero__source-text">{src.text}</span>
+                </div>
+              ))}
+            </div>
+            <div className="hero__card-meta">
+              <span className="hero__card-badge hero__card-badge--approved">{scenario.approval.response}</span>
+            </div>
+          </div>
+
+          {/* Connector 3→4 */}
+          <div className={`hero__connector ${p >= 11 ? 'hero__connector--active' : ''}`}>
+            <div className="hero__connector-line" />
+            <div className="hero__connector-pulse" />
+          </div>
+        </>
+      )}
+
+      {/* Card: Self-Custody Vault */}
+      <div className={card3Classes}>
+        <div className="hero__card-label" style={{ color: '#22c55e' }}>
+          <span className="hero__card-dot hero__card-dot--green" />Self-Custody Vault
+        </div>
+        <div className="hero__card-title">{scenario.exec.title}</div>
+        <div className="hero__card-body">{scenario.exec.detail}</div>
+        <div className="hero__card-meta">
+          <span className="hero__card-badge hero__card-badge--approved">EXECUTED</span>
+          <span className="hero__card-amount">{scenario.exec.amount}</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function HeroVisual() {
+  const [sceneIdx, setSceneIdx] = useState(0);
+  const [phase, setPhase] = useState(0);
+  const sceneRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+
+    const scheduleCycle = () => {
+      if (cancelled) return;
+      const delays = SCENARIO_PHASES[sceneRef.current];
+      const maxPhase = delays.length - 2; // last entry is cycle end time
+      // Schedule phase 1..maxPhase
+      for (let i = 1; i <= maxPhase; i++) {
+        timers.push(setTimeout(() => {
+          if (!cancelled) setPhase(i);
+        }, delays[i]));
+      }
+
+      // End of cycle: reset and advance to next scenario
+      timers.push(setTimeout(() => {
+        if (cancelled) return;
+        setPhase(0);
+        const next = (sceneRef.current + 1) % HERO_SCENARIOS.length;
+        sceneRef.current = next;
+        setSceneIdx(next);
+
+        // Brief pause, then start the new cycle
+        timers.push(setTimeout(() => {
+          if (cancelled) return;
+          scheduleCycle();
+        }, 150));
+      }, delays[delays.length - 1]));
+    };
+
+    // Kick off the first cycle after a brief delay
+    timers.push(setTimeout(() => {
+      if (!cancelled) scheduleCycle();
+    }, 50));
+
+    return () => {
+      cancelled = true;
+      timers.forEach(clearTimeout);
+    };
+  }, []);
+
+  return (
+    <div className="hero__visual">
+      <div className="hero__cards-inner" key={`scene-${sceneIdx}`}>
+        <SceneCards scenario={HERO_SCENARIOS[sceneIdx]} phase={phase} />
+      </div>
+    </div>
+  );
+}
+
+/* ── FAQ data ────────────────────────────────────────────────────── */
 
 const FAQ_DATA = [
   {
     q: 'What is Vincent?',
-    a: 'Vincent deploys self-improving AI agents that can safely handle money and APIs on your behalf. Each agent runs on the OpenClaw runtime and comes with an airgapped secret manager \u2014 so your credentials are never exposed, even if the AI is compromised.',
+    a: 'Vincent is the infrastructure layer between you and your money. It provides AI agents with real-time search, strategies & alerts, smart LLM routing, a policy engine, and a self-custody vault \u2014 so your agent can monitor markets, execute trades, and manage money safely on your behalf.',
   },
   {
-    q: 'What makes Vincent agents self-improving?',
-    a: 'Vincent agents learn from every interaction. They refine their strategies, remember what works, and adapt to your workflows over time \u2014 getting better without manual fine-tuning.',
+    q: 'Can I use Vincent with my own bot?',
+    a: 'Yes. The Vincent skill can be added to any agent \u2014 just point it at the skills repo (github.com/HeyVincent-ai/agent-skills). Or let us deploy OpenClaw for you. Either way you get the same vault, policies, and audit trail.',
   },
   {
-    q: 'How are secrets kept safe?',
-    a: 'Your agent never holds secrets directly. When it needs to execute an action (like making a payment or calling an API), the request goes through a mediator that evaluates your policies and executes using credentials stored in a hardware-backed vault. The AI never sees raw credentials.',
-  },
-  {
-    q: 'Can I use Vincent skills with my own bot?',
-    a: 'Yes. If you already run your own agent, you can add the Vincent skills file to give it access to the airgapped secret manager and policy engine \u2014 no migration needed. That\u2019s what the Skills Only plan is for.',
+    q: 'How are keys kept safe?',
+    a: "Your agent's signing key is managed by Lit Protocol's HSM network, completely airgapped from the agent runtime. The AI requests actions but never touches the key. On-chain, smart accounts let you claim full self-custody at any time \u2014 you're never locked in.",
   },
   {
     q: 'What happens if the AI is compromised?',
     a: 'Nothing happens to your secrets. The agent runtime is deliberately separated from the secret vault. Prompt injection, malicious plugins, or a full runtime breach cannot access your credentials. You retain full control and can revoke access at any time.',
   },
   {
+    q: 'What are Strategies?',
+    a: 'Strategies are custom monitoring rules you define for your agent. Each strategy contains alerts that fire when specific conditions are met \u2014 price movements, sentiment shifts, on-chain events, or anything else you want to track. You can toggle strategies on or off at any time.',
+  },
+  {
+    q: 'How are Alerts different from cron jobs?',
+    a: 'Traditional bots run LLM inference on every cron tick, burning tokens whether anything happened or not. Vincent alerts only fire LLM tokens when a strategy condition is actually met \u2014 making them dramatically more cost-efficient for monitoring tasks.',
+  },
+  {
+    q: 'What can the agent search?',
+    a: 'Your agent has access to real-time internet search for market data, news, and web-accessible information, plus full X (Twitter) API search for sentiment analysis, breaking news, and alpha discovery.',
+  },
+  {
+    q: 'How does Smart LLM Routing work?',
+    a: 'Vincent intelligently routes requests across multiple LLM providers to minimize cost while maintaining quality. Simple monitoring tasks use cheaper, faster models. Complex reasoning and decision-making gets routed to more capable models automatically.',
+  },
+  {
     q: 'What kinds of secrets can Vincent manage?',
     a: 'Any secret. API keys, crypto wallet credentials, payment processor tokens, vendor credentials \u2014 Vincent treats them all the same. The difference is in the policies you assign: spending limits, approval requirements, action restrictions, and more.',
   },
   {
-    q: 'How does multi-party approval work?',
-    a: 'You can require n-of-m approval for any action. For example, require 2-of-3 team members to approve withdrawals over $1,000 while letting the agent handle smaller transactions autonomously. Approval flows are configurable per secret and per action type.',
+    q: 'What blockchains are supported?',
+    a: 'Vincent supports all chains. EVM, Solana, Bitcoin, Sui, and more \u2014 if it has a blockchain, Vincent can work with it.',
   },
   {
     q: 'Is there a free trial?',
     a: 'Yes. Every hosted agent comes with a 7-day free trial and $25 of free LLM credit. You can also use the Skills Only plan to add Vincent capabilities to your own bot at a lower cost.',
   },
 ];
+
+/* ── Landing page ────────────────────────────────────────────────── */
 
 export default function Landing() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -45,124 +509,99 @@ export default function Landing() {
       {/* Hero */}
       <section className="hero">
         <div className="container">
-          <div className="hero__badge anim">Now in early access</div>
-          <h1 className="anim anim-d1">
-            Deploy a <em>self-improving AI agent</em> that&rsquo;s safe to use with money
-          </h1>
-          <p className="anim anim-d2">
-            Vincent deploys AI agents that get smarter over time &mdash; and come with built-in
-            secret management, spending policies, and an airgapped vault so you can trust them with
-            real credentials and real money.
-          </p>
-          <div className="hero__paths anim anim-d3">
-            <div className="hero__path">
-              <h3>Deploy an agent</h3>
-              <p>
-                Get a fully hosted, self-improving AI agent with safe secret management and
-                policy controls out of the box.
+          <div className="hero__split">
+            <div className="hero__text">
+              <h1 className="anim">
+                Your Money Has an <em>Operator</em> Now.
+              </h1>
+              <p className="anim anim-d1">
+                Vincent powers 24/7 autonomous agents &mdash; launch one instantly or embed it into
+                your own &mdash; to monitor markets, reason over live signals, and execute from your
+                self-custodied vault.
               </p>
-              <Link className="btn btn-primary" to="/login">
-                Start Free Trial
-              </Link>
+              <div className="hero__ctas anim anim-d2">
+                <Link className="btn btn-primary btn-lg" to="/login">
+                  Launch Your Agent &mdash; Free
+                </Link>
+                <SkillsCopyButton className="btn btn-secondary btn-lg">
+                  Get the Skills
+                </SkillsCopyButton>
+              </div>
+              <IntegrationLogos />
             </div>
-            <div className="hero__path">
-              <h3>Already have a bot?</h3>
-              <p>
-                Add Vincent skills to your existing agent to give it safe access to secrets and
-                policy-controlled execution.
-              </p>
-              <Link className="btn btn-secondary" to="/skills">
-                Get the Skills File
-              </Link>
-            </div>
+            <HeroVisual />
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="section" id="how-it-works">
-        <div className="container">
-          <div className="section-header">
-            <div className="section-label">How It Works</div>
-            <h2>From deploy to autonomous in minutes</h2>
-          </div>
-          <div className="steps">
-            <div className="step">
-              <div className="step__number">01</div>
-              <h3>Deploy your agent</h3>
-              <p>
-                Launch a hosted AI agent in one click. It comes pre-configured with the OpenClaw
-                runtime and the airgapped secret vault.
-              </p>
-            </div>
-            <div className="step">
-              <div className="step__number">02</div>
-              <h3>Add secrets &amp; set policies</h3>
-              <p>
-                Store API keys, wallet credentials, or any secret. Set spending limits, approval
-                flows, and access controls.
-              </p>
-            </div>
-            <div className="step">
-              <div className="step__number">03</div>
-              <h3>Let it learn and act</h3>
-              <p>
-                Your agent executes tasks, learns from outcomes, and self-improves &mdash; while
-                policies and the vault keep everything safe.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Use Cases */}
+      {/* Capabilities */}
       <section className="section section--alt">
         <div className="container">
           <div className="section-header">
-            <div className="section-label">Use Cases</div>
-            <h2>Agents that handle real work, safely</h2>
+            <div className="section-label">Capabilities</div>
+            <h2>Everything your agent needs to put money to work</h2>
           </div>
-          <div className="use-cases-grid">
-            <div className="use-case-card">
-              <h3>Crypto &amp; DeFi</h3>
+          <div className="capabilities-grid">
+            <div className="capability-card">
+              <div className="card-icon"><SearchIcon24 /></div>
+              <h3>Real-time Internet Search</h3>
+              <p>Your agent searches the live web for market data, news, and opportunities in real time.</p>
+            </div>
+            <div className="capability-card">
+              <div className="card-icon"><XSearchIcon24 /></div>
+              <h3>X (Twitter) Search</h3>
+              <p>Full API access to search anything on X &mdash; sentiment, breaking news, alpha, and announcements.</p>
+            </div>
+            <div className="capability-card">
+              <div className="card-icon"><TargetIcon24 /></div>
+              <h3>Strategies &amp; Alerts</h3>
+              <p>Custom monitoring strategies with event-driven alerts. Your agent only reasons when conditions are met &mdash; no wasted LLM tokens.</p>
+            </div>
+            <div className="capability-card">
+              <div className="card-icon"><PulseIcon24 /></div>
+              <h3>Smart LLM Routing</h3>
+              <p>Intelligent model routing keeps LLM costs down. Simple tasks get cheap models; complex reasoning gets the best.</p>
+            </div>
+            <div className="capability-card">
+              <div className="card-icon"><ShieldIcon24 /></div>
+              <h3>Self-Custody Vault</h3>
+              <p>Agent key managed via Lit HSM, airgapped from the runtime. Smart accounts give you on-chain self-custody &mdash; claim your keys anytime.</p>
+            </div>
+            <div className="capability-card">
+              <div className="card-icon"><BoltIcon24 /></div>
+              <h3>Policy Engine</h3>
+              <p>Spending limits, action restrictions, and multi-party approval flows. Your agent only does what your policies allow.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Why Vincent (moved up — breaks up Capabilities and Features) */}
+      <section className="section" id="why-vincent">
+        <div className="container">
+          <div className="section-header">
+            <div className="section-label">Why Vincent</div>
+            <h2>Stop babysitting your bot</h2>
+          </div>
+          <div className="compare-grid">
+            <div className="compare-col compare-col--old">
+              <div className="compare-col__header">Traditional bots</div>
               <ul>
-                <li>
-                  <CheckSvg /> Autonomous trading with spending limits
-                </li>
-                <li>
-                  <CheckSvg /> DAO treasury management
-                </li>
-                <li>
-                  <CheckSvg /> Multi-sig approval for high-value actions
-                </li>
+                <li><span className="compare-x">&times;</span> Secrets hardcoded or in .env files</li>
+                <li><span className="compare-x">&times;</span> LLM runs on every cron tick, burning tokens</li>
+                <li><span className="compare-x">&times;</span> No spending limits or approval gates</li>
+                <li><span className="compare-x">&times;</span> Single model, single chain</li>
+                <li><span className="compare-x">&times;</span> One compromise = everything lost</li>
               </ul>
             </div>
-            <div className="use-case-card">
-              <h3>API Automation</h3>
+            <div className="compare-col compare-col--new">
+              <div className="compare-col__header">Vincent</div>
               <ul>
-                <li>
-                  <CheckSvg /> Agent manages 20+ API keys securely
-                </li>
-                <li>
-                  <CheckSvg /> Scoped access per project or task
-                </li>
-                <li>
-                  <CheckSvg /> Self-improving workflows across services
-                </li>
-              </ul>
-            </div>
-            <div className="use-case-card">
-              <h3>Teams &amp; Startups</h3>
-              <ul>
-                <li>
-                  <CheckSvg /> Shared agent with approval flows
-                </li>
-                <li>
-                  <CheckSvg /> Team credential management
-                </li>
-                <li>
-                  <CheckSvg /> Agent gets better as your team uses it
-                </li>
+                <li><span className="compare-check">&#10003;</span> Agent key airgapped via Lit + on-chain self-custody</li>
+                <li><span className="compare-check">&#10003;</span> Alerts fire only when conditions are met</li>
+                <li><span className="compare-check">&#10003;</span> Policy engine with multi-party approvals</li>
+                <li><span className="compare-check">&#10003;</span> Smart LLM routing across providers + chains</li>
+                <li><span className="compare-check">&#10003;</span> Compromised agent can&rsquo;t access keys</li>
               </ul>
             </div>
           </div>
@@ -170,117 +609,39 @@ export default function Landing() {
       </section>
 
       {/* Features */}
-      <section className="section">
+      <section className="section section--alt">
         <div className="container">
           <div className="section-header">
             <div className="section-label">Features</div>
-            <h2>Self-improving agents, enterprise-grade security</h2>
+            <h2>Intelligent agents, enterprise-grade security</h2>
           </div>
           <div className="highlights-grid">
             <div className="highlight">
-              <div className="card-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                </svg>
-              </div>
-              <h3>Self-Improving</h3>
-              <p>Agents learn from every interaction and get better over time, automatically.</p>
+              <div className="card-icon"><BoltIcon24 /></div>
+              <h3>Strategies &amp; Alerts</h3>
+              <p>Custom strategies with event-driven alerts. Your agent only reasons when conditions are met.</p>
             </div>
             <div className="highlight">
-              <div className="card-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z" />
-                  <path d="m9 12 2 2 4-4" />
-                </svg>
-              </div>
-              <h3>Airgapped Vault</h3>
-              <p>Secrets stored in hardware-backed HSM, completely separated from the agent.</p>
+              <div className="card-icon"><ShieldIcon24 /></div>
+              <h3>Self-Custody Vault</h3>
+              <p>Lit-managed agent key, airgapped from runtime. Smart accounts for on-chain self-custody.</p>
             </div>
             <div className="highlight">
-              <div className="card-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                  <polyline points="14 2 14 8 20 8" />
-                  <line x1="16" x2="8" y1="13" y2="13" />
-                  <line x1="16" x2="8" y1="17" y2="17" />
-                  <line x1="10" x2="8" y1="9" y2="9" />
-                </svg>
-              </div>
-              <h3>Granular Policies</h3>
-              <p>Spending limits, action restrictions, and composable rules for exact control.</p>
+              <div className="card-icon"><PulseIcon24 /></div>
+              <h3>Smart LLM Routing</h3>
+              <p>Intelligent model routing minimizes LLM costs without sacrificing quality.</p>
             </div>
             <div className="highlight">
-              <div className="card-icon">
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                  <circle cx="9" cy="7" r="4" />
-                  <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                </svg>
-              </div>
+              <div className="card-icon"><TerminalIcon24 /></div>
               <h3>Advanced Mode</h3>
-              <p>
-                Access the full OpenClaw runtime — install skills, customize behavior, extend
-                capabilities.
-              </p>
+              <p>Access the full OpenClaw runtime &mdash; install skills, customize behavior, extend capabilities.</p>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <Link className="section-link" to="/features">
               See all features
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="18"
-                height="18"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" /><path d="m12 5 7 7-7 7" />
               </svg>
             </Link>
           </div>
@@ -288,39 +649,27 @@ export default function Landing() {
       </section>
 
       {/* Pricing */}
-      <section className="section section--alt" id="pricing">
+      <section className="section" id="pricing">
         <div className="container">
           <div className="section-header">
             <div className="section-label">Pricing</div>
-            <h2>Start free, scale when you&rsquo;re ready</h2>
+            <h2>Simple pricing, powerful agents</h2>
           </div>
-          <div className="pricing-grid" style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div className="pricing-grid">
             <div className="pricing-card">
               <h3>Skills Only</h3>
               <div className="pricing-card__price">
                 $10<span>/mo</span>
               </div>
-              <div className="pricing-card__desc">For teams already running their own bot</div>
+              <div className="pricing-card__desc">Add Vincent to any existing agent</div>
               <ul className="pricing-card__features">
-                <li>
-                  <CheckSvg /> Airgapped secret manager
-                </li>
-                <li>
-                  <CheckSvg /> Policy engine &amp; spending limits
-                </li>
-                <li>
-                  <CheckSvg /> Multi-party approval flows
-                </li>
-                <li>
-                  <CheckSvg /> Skills file for any agent
-                </li>
-                <li>
-                  <CheckSvg /> Bring your own bot &amp; LLM
-                </li>
+                <li><CheckSvg /> Airgapped secret manager</li>
+                <li><CheckSvg /> Policy engine &amp; spending limits</li>
+                <li><CheckSvg /> Multi-party approval flows</li>
+                <li><CheckSvg /> Skills file for any agent</li>
+                <li><CheckSvg /> Bring your own bot &amp; LLM</li>
               </ul>
-              <Link className="btn btn-secondary" to="/skills">
-                Get the Skills File
-              </Link>
+              <SkillsCopyButton className="btn btn-secondary">Get the Skills Repo</SkillsCopyButton>
             </div>
             <div className="pricing-card pricing-card--featured">
               <div className="pricing-card__badge">Most Popular</div>
@@ -330,32 +679,39 @@ export default function Landing() {
               </div>
               <div className="pricing-card__desc">Per agent, billed monthly</div>
               <ul className="pricing-card__features">
-                <li>
-                  <CheckSvg /> Everything in Skills Only
-                </li>
-                <li>
-                  <CheckSvg /> 7-day free trial
-                </li>
-                <li>
-                  <CheckSvg /> 1 fully hosted, self-improving agent
-                </li>
-                <li>
-                  <CheckSvg /> $25 free LLM credit to start
-                </li>
-                <li>
-                  <CheckSvg /> Priority support
-                </li>
+                <li><CheckSvg /> Everything in Skills Only</li>
+                <li><CheckSvg /> 7-day free trial</li>
+                <li><CheckSvg /> 1 fully hosted, self-improving agent</li>
+                <li><CheckSvg /> $25 free LLM credit to start</li>
+                <li><CheckSvg /> Priority support</li>
               </ul>
               <Link className="btn btn-primary" to="/login">
                 Start Free Trial
               </Link>
+            </div>
+            <div className="pricing-card">
+              <h3>Teams</h3>
+              <div className="pricing-card__price">
+                Custom
+              </div>
+              <div className="pricing-card__desc">We build it with you</div>
+              <ul className="pricing-card__features">
+                <li><CheckSvg /> Everything in Hosted Agent</li>
+                <li><CheckSvg /> We set up your custody &amp; SAFE vaults</li>
+                <li><CheckSvg /> We configure OpenClaw for your data needs</li>
+                <li><CheckSvg /> We write your policy &amp; compliance rules</li>
+                <li><CheckSvg /> Ongoing managed support</li>
+              </ul>
+              <a className="btn btn-secondary" href="https://docs.google.com/forms/d/e/1FAIpQLScMvEpTBOmB4QOgKimhDYT-3zZRT5U_Jsz5sXkIGGmn4tx9Hg/viewform?usp=publish-editor" target="_blank" rel="noopener noreferrer">
+                Contact Us
+              </a>
             </div>
           </div>
         </div>
       </section>
 
       {/* FAQ */}
-      <section className="section" id="faq">
+      <section className="section section--alt" id="faq">
         <div className="container">
           <div className="section-header">
             <div className="section-label">FAQ</div>

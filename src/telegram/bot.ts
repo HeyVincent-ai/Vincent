@@ -36,7 +36,7 @@ export async function startBot(): Promise<void> {
       await handleLinkCommand(ctx, payload);
     } else {
       await ctx.reply(
-        'Welcome to SafeSkills! To link your Telegram account, use the linking code from the SafeSkills dashboard.\n\n' +
+        'Welcome to Vincent! To link your Telegram account, use the linking code from the Vincent dashboard.\n\n' +
           'Send /start <linking_code> to link your account.'
       );
     }
@@ -51,7 +51,7 @@ export async function startBot(): Promise<void> {
     if (user) {
       await ctx.reply(`Linked to account: ${user.email}`);
     } else {
-      await ctx.reply('Your Telegram is not linked to any SafeSkills account.');
+      await ctx.reply('Your Telegram is not linked to any Vincent account.');
     }
   });
 
@@ -66,9 +66,9 @@ export async function startBot(): Promise<void> {
         where: { id: user.id },
         data: { telegramChatId: null },
       });
-      await ctx.reply('Your Telegram account has been unlinked from SafeSkills.');
+      await ctx.reply('Your Telegram account has been unlinked from Vincent.');
     } else {
-      await ctx.reply('Your Telegram is not linked to any SafeSkills account.');
+      await ctx.reply('Your Telegram is not linked to any Vincent account.');
     }
   });
 
@@ -198,7 +198,7 @@ async function handleLinkCommand(ctx: Context, code: string): Promise<void> {
 
   if (!entry) {
     await ctx.reply(
-      'Invalid or expired linking code. Please generate a new one from the SafeSkills dashboard.'
+      'Invalid or expired linking code. Please generate a new one from the Vincent dashboard.'
     );
     return;
   }
@@ -224,7 +224,7 @@ async function handleLinkCommand(ctx: Context, code: string): Promise<void> {
   linkingCodes.delete(code);
 
   await ctx.reply(
-    'Your Telegram account has been linked to SafeSkills! You will now receive approval requests here.'
+    'Your Telegram account has been linked to Vincent! You will now receive approval requests here.'
   );
 }
 

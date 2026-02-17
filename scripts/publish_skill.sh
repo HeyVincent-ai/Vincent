@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Publish all SKILL.md files to multiple locations and publish to clawhub
-# Skills: wallet, polymarket
+# Skills: wallet, polymarket, twitter, brave-search
 
 set -e
 
@@ -73,6 +73,44 @@ echo "Copied to frontend/public/vincentpolymarket/SKILL.md"
 # Publish to clawhub
 echo "Publishing polymarket to clawhub..."
 clawhub publish skills/polymarket --slug vincentpolymarket --name "Vincent - Polymarket" --version "$NEW_VERSION"
+
+# --- Twitter data source skill ---
+TWITTER_SOURCE="$PROJECT_ROOT/skills/twitter/SKILL.md"
+if [ ! -f "$TWITTER_SOURCE" ]; then
+    echo "Error: Twitter skill not found: $TWITTER_SOURCE"
+    exit 1
+fi
+
+echo ""
+echo "=== Publishing twitter skill ==="
+
+# Copy to frontend/public
+mkdir -p "$PROJECT_ROOT/frontend/public/vincent-twitter"
+cp "$TWITTER_SOURCE" "$PROJECT_ROOT/frontend/public/vincent-twitter/SKILL.md"
+echo "Copied to frontend/public/vincent-twitter/SKILL.md"
+
+# Publish to clawhub
+echo "Publishing twitter to clawhub..."
+clawhub publish skills/twitter --slug vincent-twitter --name "Vincent - Twitter" --version "$NEW_VERSION"
+
+# --- Brave Search data source skill ---
+BRAVE_SOURCE="$PROJECT_ROOT/skills/brave-search/SKILL.md"
+if [ ! -f "$BRAVE_SOURCE" ]; then
+    echo "Error: Brave Search skill not found: $BRAVE_SOURCE"
+    exit 1
+fi
+
+echo ""
+echo "=== Publishing brave-search skill ==="
+
+# Copy to frontend/public
+mkdir -p "$PROJECT_ROOT/frontend/public/vincent-brave-search"
+cp "$BRAVE_SOURCE" "$PROJECT_ROOT/frontend/public/vincent-brave-search/SKILL.md"
+echo "Copied to frontend/public/vincent-brave-search/SKILL.md"
+
+# Publish to clawhub
+echo "Publishing brave-search to clawhub..."
+clawhub publish skills/brave-search --slug vincent-brave-search --name "Vincent - Brave Search" --version "$NEW_VERSION"
 
 # --- Copy skills to ../agent-skills/ repo and push ---
 AGENT_SKILLS_REPO="$PROJECT_ROOT/../agent-skills"

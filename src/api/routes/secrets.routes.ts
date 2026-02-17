@@ -286,6 +286,16 @@ router.put(
     const id = (req.params as Record<string, string>).id;
     const body = setSecretValueSchema.parse(req.body);
 
+    const existing = await secretService.getSecretById(id);
+    if (!existing) {
+      errors.notFound(res, 'Secret');
+      return;
+    }
+    if (existing.type !== SecretType.API_KEY) {
+      errors.forbidden(res, 'Only API_KEY secrets can be updated manually');
+      return;
+    }
+
     const secret = await secretService.setSecretValue({
       secretId: id,
       userId: req.user!.id,

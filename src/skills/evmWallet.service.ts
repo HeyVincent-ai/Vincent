@@ -86,7 +86,66 @@ async function getWalletData(secretId: string) {
     smartAccountAddress: secret.walletMetadata.smartAccountAddress as Address,
     userId: secret.userId,
     createdAt: secret.createdAt,
+    canTakeOwnership: secret.walletMetadata.canTakeOwnership,
+    ownershipTransferred: secret.walletMetadata.ownershipTransferred,
+    sessionKeyData: secret.walletMetadata.sessionKeyData,
   };
+}
+
+/**
+ * Track which chains have been used for transactions.
+ * This is needed for ownership transfer - we need to execute recovery on all chains
+ * where the wallet has been deployed/used.
+ */
+async function trackChainUsage(secretId: string, chainId: number): Promise<void> {
+  await prisma.walletSecretMetadata.updateMany({
+    where: {
+      secretId,
+      NOT: {
+        chainsUsed: {
+          has: chainId,
+        },
+      },
+    },
+    data: {
+      chainsUsed: {
+        push: chainId,
+      },
+    },
+  });
+}
+
+/**
+ * Get smartAccountAddress for ZeroDev execution calls.
+ * Only wallets created with session key initConfig (canTakeOwnership=true) should
+ * pass their address, as it triggers initConfig reconstruction in getKernelClient.
+ * Legacy wallets were created without this initConfig, so passing their address
+ * would cause counterfactual address mismatches on undeployed chains.
+ */
+function getSmartAccountAddressForExec(wallet: {
+  smartAccountAddress: Address;
+  canTakeOwnership: boolean;
+}): Address | undefined {
+  return wallet.canTakeOwnership ? wallet.smartAccountAddress : undefined;
+}
+
+/**
+ * Get sessionKeyData for post-ownership-transfer signing.
+ * Throws if ownership was transferred but no session key exists (legacy account).
+ */
+function getSessionKeyForSigning(wallet: {
+  ownershipTransferred: boolean;
+  sessionKeyData: string | null;
+}): string | undefined {
+  if (!wallet.ownershipTransferred) return undefined;
+  if (!wallet.sessionKeyData) {
+    throw new AppError(
+      'LEGACY_ACCOUNT',
+      'This wallet was created before session key support. Backend signing is not available after ownership transfer.',
+      400
+    );
+  }
+  return wallet.sessionKeyData;
 }
 
 // ============================================================
@@ -217,6 +276,8 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         chainId: chainId,
         to: to as Address,
         value: parseEther(amount),
+        sessionKeyData: getSessionKeyForSigning(wallet),
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     } else {
       // Get token decimals for proper amount conversion
@@ -228,6 +289,8 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         to: to as Address,
         tokenAddress: token as Address,
         tokenAmount: parseUnits(amount, decimals),
+        sessionKeyData: getSessionKeyForSigning(wallet),
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     }
 
@@ -243,6 +306,9 @@ export async function executeTransfer(input: TransferInput): Promise<TransferOut
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,
@@ -395,6 +461,8 @@ export async function executeSendTransaction(
       to: to as Address,
       data: data as Hex,
       value: value ? parseEther(value) : 0n,
+      sessionKeyData: getSessionKeyForSigning(wallet),
+      smartAccountAddress: getSmartAccountAddressForExec(wallet),
     });
 
     await prisma.transactionLog.update({
@@ -408,6 +476,9 @@ export async function executeSendTransaction(
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,
@@ -766,6 +837,8 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         to: calls[0].to,
         data: calls[0].data,
         value: calls[0].value,
+        sessionKeyData: getSessionKeyForSigning(wallet),
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     } else {
       // Batch call (approval + swap)
@@ -773,6 +846,8 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         privateKey: wallet.privateKey,
         chainId,
         calls,
+        sessionKeyData: getSessionKeyForSigning(wallet),
+        smartAccountAddress: getSmartAccountAddressForExec(wallet),
       });
     }
 
@@ -788,6 +863,9 @@ export async function executeSwap(input: SwapExecuteInput): Promise<SwapExecuteO
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(secretId, chainId);
 
     return {
       txHash: result.txHash,

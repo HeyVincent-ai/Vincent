@@ -1,4 +1,5 @@
 import * as Sentry from '@sentry/node';
+import { shouldIgnoreSentryEvent } from './observability/sentryFilters.js';
 
 export function initSentry() {
   const dsn = process.env.SENTRY_DSN;
@@ -18,8 +19,12 @@ export function initSentry() {
     integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
     // Don't send errors in test environment
     enabled: process.env.NODE_ENV !== 'test',
-    // Filter out sensitive data
+    // Filter out sensitive data and known non-actionable noise
     beforeSend(event) {
+      if (shouldIgnoreSentryEvent(event)) {
+        return null;
+      }
+
       // Remove sensitive headers
       if (event.request?.headers) {
         delete event.request.headers['authorization'];

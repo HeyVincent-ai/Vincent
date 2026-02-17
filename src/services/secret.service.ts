@@ -74,24 +74,36 @@ export async function createSecret(input: CreateSecretInput): Promise<CreateSecr
     | Prisma.PolymarketWalletMetadataCreateNestedOneWithoutSecretInput
     | undefined;
 
+  // DATA_SOURCES secrets have no value — the secret record exists for API key ownership & billing
+  if (type === SecretType.DATA_SOURCES) {
+    // secretValue stays null, no metadata needed
+  }
+
   // For EVM_WALLET, generate the private key and smart account
   if (type === SecretType.EVM_WALLET) {
     secretValue = generatePrivateKey();
 
-    // Use Sepolia for counterfactual address derivation. With ZeroDev, the
+    // Use Base Sepolia for counterfactual address derivation. With ZeroDev, the
     // smart account address is the same on all chains, so the chain used
     // here doesn't matter — the wallet works on any chain.
     const derivationChainId = 84532; // Base Sepolia
 
-    // Create ZeroDev smart account if configured, otherwise use placeholder
-    const smartAccountAddress = await zerodev.createSmartAccount(
+    // Create ZeroDev smart account with recovery guardian and session key enabled
+    // This sets up the backend EOA as sudo (owner), guardian, and session key signer
+    const result = await zerodev.createSmartAccountWithRecovery(
       secretValue as Hex,
       derivationChainId
     );
+    const smartAccountAddress = result.address;
+    const sessionKeyData = result.sessionKeyData;
 
     walletMetadata = {
       create: {
         smartAccountAddress,
+        canTakeOwnership: true,
+        ownershipTransferred: false,
+        chainsUsed: [], // Will be populated as transactions are made
+        sessionKeyData,
       },
     };
   }

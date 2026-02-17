@@ -20,6 +20,12 @@ COMMON_ARGS=(--hours 24 --limit 25)
 
 if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
   COMMON_ARGS+=(--syncGithubIssues true --minConfidence 0.85)
+
+  ENABLE_DRAFT_FIX_PRS="${ENABLE_DRAFT_FIX_PRS:-true}"
+  MAX_DRAFT_FIX_PRS="${MAX_DRAFT_FIX_PRS:-1}"
+  if [ "$ENABLE_DRAFT_FIX_PRS" = "true" ]; then
+    COMMON_ARGS+=(--openDraftFixPrs true --maxDraftFixPrs "$MAX_DRAFT_FIX_PRS")
+  fi
 fi
 
 if [ "$MODE" = "morning" ]; then

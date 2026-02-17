@@ -1,12 +1,38 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
+const SKILLS_REPO_URL = 'https://github.com/HeyVincent-ai/agent-skills';
+
 const CheckSvg = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <polyline points="20 6 9 17 4 12" />
+  </svg>
 );
 
 const ChevronDown = ({ size = 16 }: { size?: number }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="m6 9 6 6 6-6" />
+  </svg>
 );
 
 export { CheckSvg, ChevronDown };
@@ -22,11 +48,11 @@ export const SHARED_STYLES = `
     --text: #e6edf3;
     --text-muted: #8b949e;
     --text-dim: #484f58;
-    --accent: #f97316;
-    --accent-hover: #ea580c;
-    --accent-light: #fed7aa;
-    --accent-glow: rgba(249, 115, 22, 0.15);
-    --accent-glow-strong: rgba(249, 115, 22, 0.3);
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --accent-light: #c4b5fd;
+    --accent-glow: rgba(139, 92, 246, 0.15);
+    --accent-glow-strong: rgba(139, 92, 246, 0.3);
     --font-mono: 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
     --max-width: 1200px;
     --radius: 12px;
@@ -85,6 +111,17 @@ export const SHARED_STYLES = `
   }
   .vp .nav__right { display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0; }
 
+  /* Skills copy button */
+  .vp .skills-copy-btn { position: relative; cursor: pointer; }
+  .vp .skills-copy-btn svg { display: none; }
+  .vp .skills-copy-tooltip {
+    position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+    background: var(--surface); border: 1px solid var(--accent); color: var(--accent-light);
+    padding: 0.375rem 0.75rem; border-radius: var(--radius-sm); font-size: 0.75rem; white-space: nowrap;
+    pointer-events: none; z-index: 10;
+  }
+  .vp .skills-copy-tooltip--down { bottom: auto; top: calc(100% + 8px); }
+
   /* Buttons */
   .vp .btn {
     display: inline-flex; align-items: center; gap: 0.5rem;
@@ -94,22 +131,29 @@ export const SHARED_STYLES = `
   .vp .btn-primary { background: var(--accent); color: #fff; }
   .vp .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 24px var(--accent-glow-strong); }
   .vp .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
-  .vp .btn-secondary:hover { border-color: var(--accent); color: var(--accent-light); }
-  .vp .btn-lg { padding: 0.75rem 1.5rem; font-size: 1rem; }
+  .vp .btn-secondary:hover { border-color: var(--accent); color: var(--accent-light); background: rgba(139,92,246,0.06); }
+  .vp .btn-lg { padding: 0.875rem 2rem; font-size: 1.0625rem; }
 
   /* Sections */
-  .vp .section { padding: 6rem 0; }
+  .vp .section { padding: 8rem 0; }
   .vp .section--alt {
     background-color: var(--bg-alt);
-    background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.025) 1px, transparent 0);
-    background-size: 32px 32px;
+    background-image:
+      linear-gradient(rgba(139,92,246,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139,92,246,0.025) 1px, transparent 1px);
+    background-size: 64px 64px;
+    border-top: 1px solid rgba(139,92,246,0.08);
+    border-bottom: 1px solid rgba(139,92,246,0.08);
   }
   .vp .section-label {
-    display: inline-block; font-size: 0.8125rem; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.08em; color: var(--accent); margin-bottom: 1rem;
+    display: inline-block; font-size: 0.75rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--accent-light); margin-bottom: 1rem;
+    padding: 0.25rem 0.75rem; border-radius: 999px;
+    background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.12);
   }
-  .vp .section-header { text-align: center; margin-bottom: 3.5rem; }
-  .vp .section-header p { max-width: 640px; margin: 1rem auto 0; font-size: 1.125rem; }
+  .vp .section-header { text-align: center; margin-bottom: 4.5rem; }
+  .vp .section-header h2 { margin-bottom: 1.25rem; }
+  .vp .section-header p { max-width: 640px; margin: 0 auto; font-size: 1.1875rem; line-height: 1.7; }
 
   /* Cards */
   .vp .card {
@@ -118,9 +162,11 @@ export const SHARED_STYLES = `
   }
   .vp .card:hover { border-color: var(--border-light); transform: translateY(-2px); }
   .vp .card-icon {
-    width: 48px; height: 48px; border-radius: 50%;
-    background: var(--accent-glow); display: flex; align-items: center; justify-content: center;
+    width: 52px; height: 52px; border-radius: 14px;
+    background: rgba(139,92,246,0.08); display: flex; align-items: center; justify-content: center;
     margin-bottom: 1.25rem; color: var(--accent);
+    border: 1px solid rgba(139,92,246,0.12);
+    box-shadow: 0 0 20px rgba(139,92,246,0.06);
   }
   .vp .card-icon svg { width: 24px; height: 24px; }
   .vp .card h3 { margin-bottom: 0.75rem; }
@@ -132,32 +178,44 @@ export const SHARED_STYLES = `
   .vp .page-hero h1 { max-width: 700px; margin: 0 auto 1rem; }
   .vp .page-hero p { max-width: 600px; margin: 0 auto; font-size: 1.125rem; }
 
-  /* Hero (home) */
-  .vp .hero { padding: 10rem 0 5rem; text-align: center; position: relative; overflow: hidden; }
+  /* Hero (home) — side-by-side */
+  .vp .hero { padding: 10rem 0 5rem; position: relative; overflow: hidden; }
   .vp .hero::before {
-    content: ''; position: absolute; top: 0; left: 50%; transform: translateX(-50%);
-    width: 800px; height: 600px;
-    background: radial-gradient(ellipse at 50% 30%, rgba(249,115,22,0.08) 0%, transparent 70%);
-    pointer-events: none;
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background:
+      linear-gradient(rgba(139,92,246,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(139,92,246,0.03) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black, transparent);
   }
   .vp .hero .container { position: relative; z-index: 1; }
-  .vp .hero__badge {
-    display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.375rem 1rem;
-    border: 1px solid var(--accent); border-radius: 999px; font-size: 0.8125rem; font-weight: 600;
-    color: var(--accent); background: var(--accent-glow); margin-bottom: 2rem;
+  .vp .hero__split {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: start; min-height: 520px;
   }
-  .vp .hero h1 { max-width: 800px; margin: 0 auto 1.5rem; }
+  .vp .hero__text { padding-top: 4rem; }
+  .vp .hero__text h1 { margin-bottom: 1.5rem; }
   .vp .hero h1 em { font-style: normal; color: var(--accent); }
-  .vp .hero > .container > p { max-width: 640px; margin: 0 auto 2.5rem; font-size: 1.25rem; }
-  .vp .hero__paths { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 700px; margin: 0 auto 3rem; }
-  .vp .hero__path {
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 2rem; text-align: left; transition: border-color 150ms ease;
+  .vp .hero__text > p { font-size: 1.1875rem; line-height: 1.7; margin-bottom: 2rem; max-width: 540px; }
+  .vp .hero__ctas { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .vp .hero__integrations { margin-top: 2rem; }
+  .vp .hero__int-groups { display: flex; gap: 1.75rem; }
+  .vp .hero__int-group {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 0.375rem;
+    position: relative;
   }
-  .vp .hero__path:hover { border-color: var(--accent); }
-  .vp .hero__path h3 { margin-bottom: 0.5rem; font-size: 1.125rem; }
-  .vp .hero__path p { font-size: 0.875rem; margin-bottom: 1.25rem; }
-  .vp .hero__path .btn { width: 100%; justify-content: center; }
+  .vp .hero__int-group:not(:last-child)::after {
+    content: ''; position: absolute; right: -0.875rem; top: 0; bottom: 0;
+    width: 1px; background: var(--border);
+  }
+  .vp .hero__int-group-label {
+    font-size: 0.625rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: var(--text-dim);
+  }
+  .vp .hero__int-icons { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+  .vp .hero__int-icon { display: flex; align-items: center; justify-content: center; color: var(--text-dim); transition: color 150ms ease; cursor: default; }
+  .vp .hero__int-icon:hover { color: var(--text-muted); }
+  .vp .hero__int-icon svg { width: 18px; height: 18px; display: block; }
 
   /* Steps */
   .vp .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; position: relative; }
@@ -209,7 +267,7 @@ export const SHARED_STYLES = `
   .vp .section-link svg { width: 18px; height: 18px; }
 
   /* Pricing */
-  .vp .pricing-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem; align-items: stretch; }
+  .vp .pricing-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; align-items: stretch; max-width: 1000px; margin: 0 auto; }
   .vp .pricing-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
     padding: 2.5rem 2rem; position: relative; display: flex; flex-direction: column;
@@ -251,7 +309,7 @@ export const SHARED_STYLES = `
   .vp .footer-cta::before {
     content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
     width: 600px; height: 400px;
-    background: radial-gradient(ellipse at 50% 50%, rgba(249,115,22,0.06) 0%, transparent 70%);
+    background: radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.06) 0%, transparent 70%);
     pointer-events: none;
   }
   .vp .footer-cta .container { position: relative; z-index: 1; }
@@ -412,25 +470,214 @@ export const SHARED_STYLES = `
   .vp .trust-box--old li svg { color: #ef4444; }
   .vp .trust-box--new li svg { color: #22c55e; }
 
-  /* Animations */
-  @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-  .vp .anim { animation: fadeInUp 0.6s ease both; }
-  .vp .anim-d1 { animation-delay: 0.1s; }
-  .vp .anim-d2 { animation-delay: 0.2s; }
-  .vp .anim-d3 { animation-delay: 0.3s; }
+  /* Capabilities grid */
+  .vp .capabilities-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem; }
+  .vp .capability-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
+    padding: 2.5rem; transition: border-color 200ms ease, transform 200ms ease, box-shadow 200ms ease;
+    border-top: 1px solid rgba(255,255,255,0.04);
+  }
+  .vp .capability-card:hover { border-color: var(--accent); border-top-color: var(--accent); transform: translateY(-4px); box-shadow: 0 16px 48px rgba(139,92,246,0.1), 0 0 0 1px rgba(139,92,246,0.08); }
+  .vp .capability-card .card-icon { margin-bottom: 1.5rem; width: 56px; height: 56px; }
+  .vp .capability-card .card-icon svg { width: 28px; height: 28px; }
+  .vp .capability-card h3 { margin-bottom: 0.75rem; font-size: 1.1875rem; }
+  .vp .capability-card p { font-size: 1rem; line-height: 1.7; }
+
+  /* Comparison grid (Why Vincent) */
+  .vp .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; max-width: 800px; margin: 0 auto; }
+  .vp .compare-col { padding: 2.5rem; border-radius: var(--radius-lg); }
+  .vp .compare-col--old { background: rgba(239,68,68,0.03); border: 1px solid rgba(239,68,68,0.15); }
+  .vp .compare-col--new { background: rgba(139,92,246,0.04); border: 1px solid rgba(139,92,246,0.25); box-shadow: 0 0 60px rgba(139,92,246,0.08), inset 0 1px 0 rgba(139,92,246,0.1); }
+  .vp .compare-col__header {
+    font-size: 1.125rem; font-weight: 700; color: var(--text); margin-bottom: 1.5rem;
+    padding-bottom: 1rem; border-bottom: 1px solid var(--border);
+  }
+  .vp .compare-col ul { display: flex; flex-direction: column; gap: 0.875rem; }
+  .vp .compare-col li { display: flex; align-items: flex-start; gap: 0.625rem; font-size: 0.9375rem; color: var(--text-muted); line-height: 1.5; }
+  .vp .compare-x { color: #ef4444; font-weight: 700; font-size: 1rem; flex-shrink: 0; width: 18px; text-align: center; }
+  .vp .compare-check { color: #22c55e; font-weight: 700; font-size: 1rem; flex-shrink: 0; width: 18px; text-align: center; }
+
+  /* Hero visual / cards */
+  .vp .hero__visual { position: relative; height: 680px; overflow: hidden; }
+  .vp .hero__cards-inner {
+    display: flex; flex-direction: column; gap: 0;
+    transition: opacity 0.8s ease;
+  }
+  .vp .hero__cards-inner--exiting {
+    position: absolute; top: 0; left: 0; right: 0;
+    animation: heroSceneOut 0.8s ease both;
+    pointer-events: none;
+  }
+  .vp .hero__cards-inner--entering {
+    animation: heroSceneIn 0.8s ease 0.2s both;
+  }
+  .vp .hero__card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 0.875rem 1.25rem; opacity: 0; transform: translateY(12px);
+    transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1), transform 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                box-shadow 0.6s ease, border-color 0.6s ease;
+  }
+  .vp .hero__card--show { opacity: 1; transform: translateY(0); }
+
+  /* Card border glow */
+  .vp .hero__card--glow-yellow {
+    border-color: rgba(234, 179, 8, 0.4);
+    box-shadow: 0 0 20px rgba(234, 179, 8, 0.1), 0 0 40px rgba(234, 179, 8, 0.05),
+                inset 0 1px 0 rgba(234, 179, 8, 0.1);
+  }
+  .vp .hero__card--glow-purple {
+    border-color: rgba(139, 92, 246, 0.4);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.12), 0 0 40px rgba(139, 92, 246, 0.06),
+                inset 0 1px 0 rgba(139, 92, 246, 0.1);
+  }
+  .vp .hero__card--glow-blue {
+    border-color: rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 20px rgba(56, 189, 248, 0.1), 0 0 40px rgba(56, 189, 248, 0.05),
+                inset 0 1px 0 rgba(56, 189, 248, 0.1);
+  }
+  .vp .hero__card--glow-green {
+    border-color: rgba(34, 197, 94, 0.4);
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.1), 0 0 40px rgba(34, 197, 94, 0.05),
+                inset 0 1px 0 rgba(34, 197, 94, 0.1);
+  }
+
+  .vp .hero__card-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.25rem; display: flex; align-items: center; gap: 0.375rem; }
+  .vp .hero__card-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+  .vp .hero__card-dot--yellow { background: #eab308; }
+  .vp .hero__card-dot--purple { background: var(--accent); }
+  .vp .hero__card-dot--blue { background: #38bdf8; }
+  .vp .hero__card-dot--green { background: #22c55e; }
+  .vp .hero__card-title { font-size: 0.875rem; font-weight: 600; color: var(--text); margin-bottom: 0.375rem; }
+
+  /* Card body — starts hidden, streams in */
+  .vp .hero__card-body {
+    font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 0.375rem;
+    opacity: 0; transform: translateX(-8px);
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .vp .hero__card--sources-visible .hero__card-body { opacity: 1; transform: translateX(0); }
+
+  /* Source lines — start hidden, stream in one by one */
+  .vp .hero__card-sources { display: flex; flex-direction: column; gap: 0.125rem; margin-bottom: 0.375rem; }
+  .vp .hero__source {
+    display: flex; align-items: center; gap: 0.375rem; font-size: 0.75rem; color: var(--text-muted);
+    opacity: 0; transform: translateX(-8px);
+  }
+  .vp .hero__card--sources-visible .hero__source {
+    animation: heroSourceIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .vp .hero__card--sources-visible .hero__source:nth-child(1) { animation-delay: 0ms; }
+  .vp .hero__card--sources-visible .hero__source:nth-child(2) { animation-delay: 200ms; }
+  .vp .hero__card--sources-visible .hero__source:nth-child(3) { animation-delay: 400ms; }
+  .vp .hero__source-icon { flex-shrink: 0; color: var(--text-dim); }
+  .vp .hero__source-icon svg { width: 12px; height: 12px; }
+
+  /* Meta / badges — start hidden, pop in */
+  .vp .hero__card-meta { display: flex; align-items: center; gap: 0.5rem; }
+  .vp .hero__card-badge {
+    font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    padding: 0.125rem 0.375rem; border-radius: 4px;
+    opacity: 0; transform: scale(0.5);
+  }
+  .vp .hero__card--badges-visible .hero__card-badge {
+    animation: heroBadgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .vp .hero__card--badges-visible .hero__card-badge:nth-child(2) { animation-delay: 100ms; }
+  .vp .hero__card-badge--alert { background: rgba(234,179,8,0.15); color: #eab308; }
+  .vp .hero__card-badge--sources { background: rgba(139,92,246,0.15); color: var(--accent-light); }
+  .vp .hero__card-badge--approved { background: rgba(34,197,94,0.15); color: #22c55e; }
+  .vp .hero__card-amount {
+    font-family: var(--font-mono); font-size: 0.8125rem; font-weight: 600; color: var(--text); margin-left: auto;
+    opacity: 0; transform: scale(0.5);
+  }
+  .vp .hero__card--badges-visible .hero__card-amount {
+    animation: heroBadgePop 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.15s both;
+  }
+  /* LLM cost meta text */
+  .vp .hero__card-cost {
+    color: var(--text-dim); font-size: 0.6875rem; font-family: var(--font-mono);
+    opacity: 0; transition: opacity 0.3s ease;
+  }
+  .vp .hero__card--badges-visible .hero__card-cost { opacity: 1; }
+
+  /* Connectors between cards */
+  .vp .hero__connector {
+    position: relative; height: 20px; display: flex; align-items: center; justify-content: center;
+    margin: 0; z-index: 1;
+  }
+  .vp .hero__connector-line {
+    width: 2px; height: 100%; background: rgba(139, 92, 246, 0.06);
+    border-radius: 1px; position: absolute; left: 50%; transform: translateX(-50%);
+  }
+  .vp .hero__connector-pulse {
+    width: 2px; height: 0%; border-radius: 1px; position: absolute;
+    left: 50%; transform: translateX(-50%); top: 0;
+    background: linear-gradient(to bottom, transparent, var(--accent), transparent);
+    box-shadow: 0 0 8px var(--accent-glow-strong), 0 0 16px var(--accent-glow);
+    opacity: 0;
+  }
+  .vp .hero__connector--active .hero__connector-line { background: rgba(139, 92, 246, 0.12); }
+  .vp .hero__connector--active .hero__connector-pulse {
+    animation: connectorPulse 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Animations — hero */
+  @keyframes heroSourceIn {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes heroBadgePop {
+    0% { opacity: 0; transform: scale(0.5); }
+    70% { opacity: 1; transform: scale(1.1); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+  @keyframes connectorPulse {
+    0% { height: 0%; top: 0%; opacity: 0; }
+    20% { opacity: 1; }
+    100% { height: 50%; top: 70%; opacity: 0; }
+  }
+  @keyframes heroSceneOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  @keyframes heroSceneIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Animations — general */
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+  .vp .anim { animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .vp .anim-d1 { animation-delay: 0.15s; }
+  .vp .anim-d2 { animation-delay: 0.3s; }
+  .vp .anim-d3 { animation-delay: 0.45s; }
 
   /* Responsive */
   @media (max-width: 1023px) {
     .vp .highlights-grid { grid-template-columns: repeat(2, 1fr); }
     .vp .use-cases-grid { grid-template-columns: 1fr; }
+    .vp .capabilities-grid { grid-template-columns: repeat(2, 1fr); }
+    .vp .pricing-grid { grid-template-columns: 1fr 1fr; max-width: 700px; }
+    .vp .pricing-grid > :last-child { grid-column: 1 / -1; max-width: 340px; justify-self: center; }
+    .vp .hero__card { width: 320px; padding: 0.75rem 1rem; }
   }
   @media (max-width: 767px) {
-    .vp h1 { font-size: 2.25rem; }
-    .vp h2 { font-size: 1.75rem; }
+    .vp h1 { font-size: 2.5rem; }
+    .vp h2 { font-size: 2rem; }
     .vp .nav__tabs, .vp .nav__right .btn-secondary { display: none; }
     .vp .hero { padding: 8rem 0 3rem; }
-    .vp .hero > .container > p { font-size: 1.0625rem; }
-    .vp .hero__paths { grid-template-columns: 1fr; }
+    .vp .hero__split { grid-template-columns: 1fr; gap: 3rem; }
+    .vp .hero__text { text-align: center; }
+    .vp .hero__text > p { margin: 0 auto 2rem; }
+    .vp .hero__ctas { justify-content: center; }
+    .vp .hero__int-groups { flex-direction: column; gap: 1.25rem; align-items: center; }
+    .vp .hero__int-group { align-items: center; }
+    .vp .hero__int-group:not(:last-child)::after { display: none; }
+    .vp .hero__int-icons { justify-content: center; }
+    .vp .hero__text { padding-top: 0; }
+    .vp .hero__visual { height: auto; overflow: visible; min-height: 400px; }
+    .vp .hero__card { position: relative; top: auto; left: auto; width: 100%; max-width: 400px; margin: 0 auto; }
+    .vp .hero__connector { width: 100%; max-width: 400px; margin: 0 auto; }
     .vp .steps { grid-template-columns: 1fr; gap: 3rem; }
     .vp .steps::before { display: none; }
     .vp .pricing-grid { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
@@ -441,33 +688,77 @@ export const SHARED_STYLES = `
     .vp .footer-grid { grid-template-columns: 1fr 1fr; }
     .vp .footer-brand { grid-column: 1 / -1; }
     .vp .footer-bottom { flex-direction: column; gap: 0.5rem; }
-    .vp .section { padding: 4rem 0; }
+    .vp .section { padding: 5rem 0; }
+    .vp .capabilities-grid { gap: 1rem; }
+    .vp .hero__card { font-size: 0.8125rem; }
   }
   @media (max-width: 639px) {
     .vp .highlights-grid { grid-template-columns: 1fr; }
     .vp .threat-grid { grid-template-columns: 1fr; }
     .vp .trust-compare { grid-template-columns: 1fr; }
     .vp .footer-grid { grid-template-columns: 1fr; }
+    .vp .capabilities-grid { grid-template-columns: 1fr; }
+    .vp .compare-grid { grid-template-columns: 1fr; }
+    .vp .hero__int-icon svg { width: 16px; height: 16px; }
+    .vp .hero__int-icons { gap: 0.5rem; }
   }
   @media (prefers-reduced-motion: reduce) {
     .vp *, .vp *::before, .vp *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
 `;
 
+export function SkillsCopyButton({ className, children, tooltipDown }: { className?: string; children: ReactNode; tooltipDown?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(SKILLS_REPO_URL); } catch {}
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
+  return (
+    <button className={`skills-copy-btn ${className || ''}`} onClick={copy}>
+      {children}
+      {copied && <span className={`skills-copy-tooltip ${tooltipDown ? 'skills-copy-tooltip--down' : ''}`}>Copied! Send this repo to your agent.</span>}
+    </button>
+  );
+}
+
 function Nav({ active }: { active: 'home' | 'features' | 'security' | 'skills' }) {
   return (
     <header className="nav" role="banner">
       <div className="container">
-        <Link className="nav__logo" to="/"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></Link>
+        <Link className="nav__logo" to="/">
+          <img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" />
+        </Link>
         <nav className="nav__tabs" role="navigation" aria-label="Main navigation">
-          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">Home</Link>
-          <Link className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`} to="/features">Features</Link>
-          <Link className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`} to="/security">Security</Link>
-          <Link className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`} to="/skills">Skills</Link>
+          <Link className={`nav__tab ${active === 'home' ? 'nav__tab--active' : ''}`} to="/">
+            Home
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'features' ? 'nav__tab--active' : ''}`}
+            to="/features"
+          >
+            Features
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'security' ? 'nav__tab--active' : ''}`}
+            to="/security"
+          >
+            Security
+          </Link>
+          <Link
+            className={`nav__tab ${active === 'skills' ? 'nav__tab--active' : ''}`}
+            to="/skills"
+          >
+            Skills
+          </Link>
         </nav>
         <div className="nav__right">
-          <Link className="btn btn-secondary" to="/skills">Skills Only</Link>
-          <Link className="btn btn-primary" to="/login">Human Login</Link>
+          <Link className="btn btn-secondary" to="/skills">
+            Skills Only
+          </Link>
+          <Link className="btn btn-primary" to="/login">
+            Human Login
+          </Link>
         </div>
       </div>
     </header>
@@ -479,11 +770,15 @@ function Footer() {
     <>
       <section className="footer-cta">
         <div className="container">
-          <h2>Ready to deploy your agent?</h2>
-          <p>Start free. No credit card required.</p>
+          <h2>Ready to launch your operator?</h2>
+          <p>Start with a 7-day free trial.</p>
           <div className="cta-buttons">
-            <Link className="btn btn-primary btn-lg" to="/login">Deploy an Agent</Link>
-            <Link className="btn btn-secondary btn-lg" to="/skills">Skills Only</Link>
+            <Link className="btn btn-primary btn-lg" to="/login">
+              Deploy an Agent
+            </Link>
+            <Link className="btn btn-secondary btn-lg" to="/skills">
+              Skills Only
+            </Link>
           </div>
         </div>
       </section>
@@ -492,7 +787,7 @@ function Footer() {
           <div className="footer-grid">
             <div className="footer-brand">
               <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
-              <p>Self-improving AI agents, safe for money</p>
+              <p>Everything your agent needs to put money to work</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>
@@ -500,26 +795,30 @@ function Footer() {
                 <li><Link to="/features">Features</Link></li>
                 <li><Link to="/security">Security</Link></li>
                 <li><Link to="/#pricing">Pricing</Link></li>
-                <li><Link to="/#how-it-works">How It Works</Link></li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Resources</h4>
               <ul>
-                <li><Link to="/skills">Skills</Link></li>
-                <li><a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">Discord</a></li>
+                <li><a href={SKILLS_REPO_URL} target="_blank" rel="noreferrer">Skills Repo</a></li>
+                <li><a href="https://heyvincent.ai/docs" target="_blank" rel="noreferrer">Docs</a></li>
+                <li><a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">Discord</a></li>
                 <li><a href="mailto:support@litprotocol.com">Support</a></li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Company</h4>
               <ul>
-                <li><a href="https://litprotocol.com" target="_blank" rel="noreferrer">Lit Protocol</a></li>
+                <li>
+                  <a href="https://litprotocol.com" target="_blank" rel="noreferrer">
+                    Lit Protocol
+                  </a>
+                </li>
               </ul>
             </div>
           </div>
           <div className="footer-bottom">
-            <span>&copy; {new Date().getFullYear()} Vincent. All rights reserved.</span>
+            <span>&copy; {new Date().getFullYear()} Workgraph, Inc. All rights reserved.</span>
             <span><Link to="/terms">Terms of Service</Link></span>
           </div>
         </div>
@@ -528,12 +827,20 @@ function Footer() {
   );
 }
 
-export default function PageShell({ active, children }: { active: 'home' | 'features' | 'security' | 'skills'; children: ReactNode }) {
+export default function PageShell({
+  active,
+  children,
+}: {
+  active: 'home' | 'features' | 'security' | 'skills';
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   // Scroll to top on route change
   const location = useLocation();
-  useEffect(() => { window.scrollTo(0, 0); }, [location.pathname]);
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   return (
     <>

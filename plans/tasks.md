@@ -1,4 +1,4 @@
-# SafeSkills - Implementation Tasks
+# Vincent - Implementation Tasks
 
 ## Phase 1: Project Setup & Infrastructure
 
@@ -566,7 +566,7 @@
 - [ ] Backend rotates the ZeroDev smart account owner to the user's EOA
   - [ ] Use ZeroDev update wallet owner API: https://v3-docs.zerodev.app/use-wallets/advanced/update-wallet-owner
 - [ ] Update secret metadata to reflect new owner EOA
-- [ ] The original EOA (in DB) continues as a session signer so SafeSkills can still execute policy-gated actions
+- [ ] The original EOA (in DB) continues as a session signer so Vincent can still execute policy-gated actions
 
 ---
 
