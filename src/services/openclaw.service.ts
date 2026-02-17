@@ -622,71 +622,18 @@ export async function waitForHealth(
 // ============================================================
 
 /**
- * Atomically claim a VPS from the pool and assign it to a deployment.
- * Uses a transaction so the pool row is only removed if the deployment update succeeds.
- * Returns the OVH service name, or null if the pool is empty.
- *
- * If a pool entry conflicts with an existing deployment (P2002), removes the poisoned
- * entry and retries with the next entry in the pool.
+ * Claim the oldest VPS from the pool. Returns the OVH service name, or null if the pool is empty.
  */
-async function claimPoolVps(
-  deploymentId: string,
-  extraData: Record<string, unknown>
-): Promise<string | null> {
-  const MAX_RETRIES = 5;
-
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      return await prisma.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<Array<{ ovh_service_name: string }>>`
-          DELETE FROM "vps_pool"
-          WHERE "id" = (
-            SELECT "id" FROM "vps_pool"
-            ORDER BY "created_at" LIMIT 1
-            FOR UPDATE SKIP LOCKED
-          )
-          RETURNING "ovh_service_name"
-        `;
-        if (rows.length === 0) return null;
-
-        const serviceName = rows[0].ovh_service_name;
-        await tx.openClawDeployment.update({
-          where: { id: deploymentId },
-          data: {
-            ...extraData,
-            ovhServiceName: serviceName,
-            hostname: ovhService.getVpsHostname(serviceName),
-          },
-        });
-        return serviceName;
-      });
-    } catch (err: any) {
-      // P2002: unique constraint violation on ovhServiceName
-      // The pool entry conflicts with an existing deployment
-      if (
-        err.code === 'P2002' &&
-        (err.meta?.target?.includes('ovhServiceName') ||
-          err.meta?.target?.includes('ovh_service_name'))
-      ) {
-        // The transaction rolled back, so the poisoned row is still in the pool.
-        // Remove it in a separate transaction and retry with the next entry.
-        await prisma.$executeRaw`
-          DELETE FROM "vps_pool"
-          WHERE "id" = (
-            SELECT "id" FROM "vps_pool"
-            ORDER BY "created_at" LIMIT 1
-          )
-        `;
-        // Continue to next iteration to retry
-        continue;
-      }
-      // Unknown error, rethrow
-      throw err;
-    }
-  }
-
-  // Exhausted retries (likely the pool has multiple poisoned entries)
-  return null;
+async function claimPoolVps(): Promise<string | null> {
+  const rows = await prisma.$queryRaw<Array<{ ovh_service_name: string }>>`
+    DELETE FROM "vps_pool"
+    WHERE "id" = (
+      SELECT "id" FROM "vps_pool"
+      ORDER BY "created_at" LIMIT 1
+    )
+    RETURNING "ovh_service_name"
+  `;
+  return rows.length > 0 ? rows[0].ovh_service_name : null;
 }
 
 /**
@@ -1049,21 +996,15 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
 
         case 'plan_found': {
           // Try to claim a pre-provisioned VPS from the pool first.
-          let poolClaimed = false;
           addLog('Checking VPS pool...');
-          const poolVps = await claimPoolVps(deploymentId, {
-            provisionLog: log,
-            provisionStage: stage,
-          });
+          const poolVps = await claimPoolVps();
           if (poolVps) {
             ctx.serviceName = poolVps;
             ctx.hostname = ovhService.getVpsHostname(poolVps);
             addLog(`Claimed VPS from pool: ${poolVps}`);
-            poolClaimed = true;
-          } else {
-            addLog('VPS pool empty, proceeding with normal VPS ordering');
+            break;
           }
-          if (poolClaimed) break;
+          addLog('VPS pool empty, proceeding with normal VPS ordering');
 
           // Pool empty — fall through to normal plan finding
           const planCode = options.planCode;
