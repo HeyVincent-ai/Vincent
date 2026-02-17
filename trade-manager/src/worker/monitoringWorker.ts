@@ -111,7 +111,12 @@ export const createWorkerDependencies = (
   const eventLogger = new EventLoggerService();
   const ruleManager = new RuleManagerService(eventLogger);
   const positionMonitor = new PositionMonitorService(vincentClient);
-  const ruleExecutor = new RuleExecutorService(vincentClient, ruleManager, eventLogger);
+  const ruleExecutor = new RuleExecutorService(
+    vincentClient,
+    ruleManager,
+    eventLogger,
+    positionMonitor
+  );
 
   return new MonitoringWorker(
     intervalSeconds,

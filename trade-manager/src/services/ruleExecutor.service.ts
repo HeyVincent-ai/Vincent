@@ -1,6 +1,7 @@
 import { EventLoggerService } from './eventLogger.service.js';
 import { RuleManagerService } from './ruleManager.service.js';
 import { VincentClientService } from './vincentClient.service.js';
+import { PositionMonitorService } from './positionMonitor.service.js';
 
 export interface RuleLike {
   id: string;
@@ -15,7 +16,8 @@ export class RuleExecutorService {
   constructor(
     private readonly vincentClient: VincentClientService,
     private readonly ruleManager: RuleManagerService,
-    private readonly eventLogger: EventLoggerService
+    private readonly eventLogger: EventLoggerService,
+    private readonly positionMonitor: PositionMonitorService
   ) {}
 
   evaluateRule(rule: RuleLike, currentPrice: number): boolean {
@@ -29,12 +31,25 @@ export class RuleExecutorService {
       type: 'SELL_ALL' | 'SELL_PARTIAL';
       amount?: number;
     };
+
+    // Get the user's current position to find out how many shares they hold
+    const positions = await this.vincentClient.getPositions();
+    const position = positions.find(
+      (p) => p.tokenId === rule.tokenId && p.marketId === rule.marketId
+    );
+
+    if (!position || position.quantity <= 0) {
+      throw new Error(`No position found for tokenId ${rule.tokenId}`);
+    }
+
+    // Vincent Polymarket API expects:
+    // - side: "SELL"
+    // - amount: number of shares to sell
+    // - price: optional (omit for market order)
     const betPayload = {
-      marketId: rule.marketId,
       tokenId: rule.tokenId,
-      side: 'SELL',
-      orderType: 'MARKET',
-      quantity: action.type === 'SELL_PARTIAL' ? action.amount : 'ALL',
+      side: 'SELL' as const,
+      amount: action.type === 'SELL_PARTIAL' && action.amount ? action.amount : position.quantity,
     };
 
     try {
