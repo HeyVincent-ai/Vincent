@@ -72,17 +72,54 @@ export class VincentClientService {
 
   async getMarketPrice(marketId: string, tokenId: string): Promise<number> {
     try {
+      // Use orderbook endpoint to get price directly for the tokenId
+      // This is more reliable than trying to match tokenIds from market data
       const { data } = await this.withRetry(() =>
-        this.client.get('/api/skills/polymarket/markets', { params: { marketId, tokenId } })
+        this.client.get(`/api/skills/polymarket/orderbook/${tokenId}`)
       );
+
       // Handle nested Vincent response format
       const actualData = data.success ? data.data : data;
-      return Number(actualData?.price ?? actualData?.markets?.[0]?.price ?? 0);
+
+      // Get the mid price from best bid and best ask
+      const bids = actualData?.bids || [];
+      const asks = actualData?.asks || [];
+
+      if (bids.length === 0 && asks.length === 0) {
+        console.warn('[VincentClient] No orderbook data for tokenId', { tokenId });
+        return 0;
+      }
+
+      // Calculate mid price from best bid and best ask
+      const bestBid = bids[0]?.price ? Number(bids[0].price) : 0;
+      const bestAsk = asks[0]?.price ? Number(asks[0].price) : 0;
+
+      let price: number;
+      if (bestBid > 0 && bestAsk > 0) {
+        // Use mid price (average of bid and ask)
+        price = (bestBid + bestAsk) / 2;
+      } else if (bestBid > 0) {
+        // Only bid available
+        price = bestBid;
+      } else if (bestAsk > 0) {
+        // Only ask available
+        price = bestAsk;
+      } else {
+        console.warn('[VincentClient] No valid prices in orderbook', { tokenId, bids, asks });
+        return 0;
+      }
+
+      if (isNaN(price) || price <= 0 || price > 1) {
+        console.warn('[VincentClient] Invalid price calculated', { tokenId, price, bestBid, bestAsk });
+        return 0;
+      }
+
+      return price;
     } catch (error: any) {
-      console.error('[VincentClient] Failed to fetch market price:', {
-        marketId,
+      console.error('[VincentClient] Failed to fetch orderbook price:', {
         tokenId,
         message: error.message,
+        response: error.response?.data,
       });
       return 0;
     }
