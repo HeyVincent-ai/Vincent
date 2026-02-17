@@ -400,19 +400,7 @@ export interface HoldingsOutput {
 export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
   const wallet = await getWalletData(secretId);
 
-  // Try the Data API first (fastest when available)
-  let positions = await polymarket.getPositions(wallet.safeAddress, wallet.eoaAddress);
-
-  // Fallback: compute from trade history if Data API has no results
-  // (the Data API can lag behind; trades via CLOB are always up-to-date)
-  if (positions.length === 0) {
-    const clientConfig = {
-      privateKey: wallet.privateKey,
-      secretId,
-      safeAddress: wallet.safeAddress,
-    };
-    positions = await polymarket.computeHoldingsFromTrades(clientConfig);
-  }
+  const positions = await polymarket.getPositions(wallet.safeAddress);
 
   // Map to our holding format
   const holdings: Holding[] = positions.map((pos) => ({

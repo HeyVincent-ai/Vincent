@@ -942,7 +942,7 @@ describe('Polymarket E2E: Gasless bets via Safe wallet', () => {
   it('should show holdings with average entry price and P&L', async () => {
     // Wait a bit for the trade to settle and position to be reflected
     console.log('Waiting for position data to update...');
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 15000));
 
     const res = await request(app)
       .get('/api/skills/polymarket/holdings')
