@@ -172,7 +172,7 @@ function TokenIcon({ token }: { token: TokenBalance }) {
 
   return (
     <div className={`w-6 h-6 rounded-full ${colors[colorIdx]} flex items-center justify-center`}>
-      <span className="text-[10px] font-bold">{letter}</span>
+      <span className="text-[11px] font-bold">{letter}</span>
     </div>
   );
 }
@@ -313,7 +313,7 @@ function InlineSwapForm({ token, secretId, onDone }: SwapFormProps) {
             <button
               key={bps}
               onClick={() => setSlippageBps(bps)}
-              className={`px-2 py-1 text-[10px] rounded border ${slippageBps === bps ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+              className={`px-2 py-1 text-xs rounded border ${slippageBps === bps ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
             >
               {(bps / 100).toFixed(1)}%
             </button>
@@ -518,7 +518,7 @@ export default function BalancesDisplay({ secretId }: Props) {
       {/* Header */}
       <div className="flex items-baseline justify-between mb-3">
         <div>
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Total Balance</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Total Balance</p>
           {totalValue > 0 && (
             <p className="text-xl font-semibold text-foreground font-mono">
               $
@@ -531,7 +531,7 @@ export default function BalancesDisplay({ secretId }: Props) {
         </div>
         <button
           onClick={fetchBalances}
-          className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors"
+          className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
         >
           Refresh
         </button>
@@ -548,11 +548,11 @@ export default function BalancesDisplay({ secretId }: Props) {
           return (
             <div key={network} className="mb-4">
               <div className="flex items-center gap-2 mb-1.5">
-                <p className="text-[10px] text-muted-foreground/40 uppercase tracking-wider">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">
                   {NETWORK_LABELS[network] || network}
                 </p>
                 {isTestnet && (
-                  <span className="text-[9px] px-1.5 py-0.5 text-yellow-400/60 bg-yellow-500/5 rounded">
+                  <span className="text-[11px] px-2 py-0.5 text-yellow-400 bg-yellow-500/10 rounded">
                     testnet
                   </span>
                 )}
@@ -576,7 +576,7 @@ export default function BalancesDisplay({ secretId }: Props) {
                               {formatBalance(token.tokenBalance, token.decimals)}
                             </span>
                             {token.value != null && token.value > 0 && (
-                              <span className="text-xs text-muted-foreground/50 ml-2">
+                              <span className="text-xs text-muted-foreground ml-2">
                                 {formatUsd(token.value)}
                               </span>
                             )}
@@ -584,7 +584,7 @@ export default function BalancesDisplay({ secretId }: Props) {
                           {chainId && (
                             <button
                               onClick={() => setSwapKey(isSwapOpen ? null : tk)}
-                              className={`text-[10px] px-2 py-0.5 rounded transition-colors ${isSwapOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground/30 hover:text-foreground'}`}
+                              className={`text-xs px-2 py-1 rounded transition-colors ${isSwapOpen ? 'bg-primary text-primary-foreground' : 'text-muted-foreground/60 hover:text-foreground'}`}
                             >
                               Swap
                             </button>

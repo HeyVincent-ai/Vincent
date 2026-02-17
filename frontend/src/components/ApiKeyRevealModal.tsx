@@ -30,7 +30,7 @@ export default function ApiKeyRevealModal({ apiKey, onDone }: ApiKeyRevealModalP
           <h3 className="text-sm font-medium text-foreground">Account Created</h3>
         </div>
 
-        <p className="text-xs text-muted-foreground/50 mb-3">
+        <p className="text-xs text-muted-foreground mb-3">
           Save this API key now — it won't be shown again.
         </p>
 
@@ -42,7 +42,7 @@ export default function ApiKeyRevealModal({ apiKey, onDone }: ApiKeyRevealModalP
           <CopyButton text={apiKey} variant="button" label="Copy API Key" />
           <button
             onClick={onDone}
-            className="text-xs text-muted-foreground/40 hover:text-foreground transition-colors ml-auto"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-auto"
           >
             Done
           </button>

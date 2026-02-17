@@ -90,7 +90,7 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
     <div>
       {/* Filters */}
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Audit Logs</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Audit Logs</p>
         <div className="flex items-center gap-2">
           <select
             value={filterAction}
@@ -98,7 +98,7 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
               setFilterAction(e.target.value);
               setPage(1);
             }}
-            className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60"
+            className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground"
           >
             <option value="">All actions</option>
             {actions.map((a) => (
@@ -113,7 +113,7 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
               setFilterStatus(e.target.value);
               setPage(1);
             }}
-            className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60"
+            className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground"
           >
             <option value="">All statuses</option>
             <option value="SUCCESS">Success</option>
@@ -122,13 +122,13 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
           </select>
           <button
             onClick={() => handleExport('csv')}
-            className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
           >
             CSV
           </button>
           <button
             onClick={() => handleExport('json')}
-            className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors"
+            className="text-xs text-muted-foreground/60 hover:text-foreground transition-colors"
           >
             JSON
           </button>
@@ -145,7 +145,7 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
       ) : logs.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground mb-0.5">No audit logs yet</p>
-          <p className="text-xs text-muted-foreground/50">
+          <p className="text-xs text-muted-foreground">
             Activity will appear here as actions are performed.
           </p>
         </div>
@@ -162,12 +162,10 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
                     <div className={`w-1.5 h-1.5 rounded-full ${statusDot(log.status)}`} />
                     <span className="text-sm text-foreground font-mono">{log.action}</span>
                     {log.durationMs != null && (
-                      <span className="text-[10px] text-muted-foreground/30">
-                        {log.durationMs}ms
-                      </span>
+                      <span className="text-xs text-muted-foreground">{log.durationMs}ms</span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground/30">
+                  <span className="text-xs text-muted-foreground">
                     {new Date(log.createdAt).toLocaleString()}
                   </span>
                 </div>
@@ -179,24 +177,24 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
                 <div className="pl-4 pb-3 text-xs space-y-2">
                   {!!log.inputData && (
                     <div>
-                      <span className="text-[10px] text-muted-foreground/40">Input</span>
-                      <pre className="bg-muted/30 p-2 rounded mt-1 overflow-auto max-h-40 text-foreground text-[10px] font-mono">
+                      <span className="text-xs text-muted-foreground">Input</span>
+                      <pre className="bg-muted/30 p-2 rounded mt-1 overflow-auto max-h-40 text-foreground text-xs font-mono">
                         {JSON.stringify(log.inputData as Record<string, unknown>, null, 2)}
                       </pre>
                     </div>
                   )}
                   {!!log.outputData && (
                     <div>
-                      <span className="text-[10px] text-muted-foreground/40">Output</span>
-                      <pre className="bg-muted/30 p-2 rounded mt-1 overflow-auto max-h-40 text-foreground text-[10px] font-mono">
+                      <span className="text-xs text-muted-foreground">Output</span>
+                      <pre className="bg-muted/30 p-2 rounded mt-1 overflow-auto max-h-40 text-foreground text-xs font-mono">
                         {JSON.stringify(log.outputData as Record<string, unknown>, null, 2)}
                       </pre>
                     </div>
                   )}
                   {log.ipAddress && (
-                    <div className="text-[10px]">
-                      <span className="text-muted-foreground/40">IP: </span>
-                      <span className="text-muted-foreground/60 font-mono">{log.ipAddress}</span>
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">IP: </span>
+                      <span className="text-muted-foreground font-mono">{log.ipAddress}</span>
                     </div>
                   )}
                 </div>
@@ -209,22 +207,22 @@ export default function AuditLogViewer({ secretId }: { secretId: string }) {
       {/* Pagination */}
       {pagination && pagination.totalPages > 1 && (
         <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/50">
-          <span className="text-[10px] text-muted-foreground/30">{pagination.total} total</span>
+          <span className="text-xs text-muted-foreground">{pagination.total} total</span>
           <div className="flex gap-1">
             <button
               onClick={() => setPage(page - 1)}
               disabled={page <= 1}
-              className="px-2 py-0.5 rounded text-[10px] text-muted-foreground/40 hover:text-foreground disabled:opacity-30 transition-colors"
+              className="px-2 py-0.5 rounded text-xs text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
             >
               Prev
             </button>
-            <span className="px-2 py-0.5 text-[10px] text-muted-foreground/30">
+            <span className="px-2 py-0.5 text-xs text-muted-foreground">
               {page}/{pagination.totalPages}
             </span>
             <button
               onClick={() => setPage(page + 1)}
               disabled={page >= pagination.totalPages}
-              className="px-2 py-0.5 rounded text-[10px] text-muted-foreground/40 hover:text-foreground disabled:opacity-30 transition-colors"
+              className="px-2 py-0.5 rounded text-xs text-muted-foreground/60 hover:text-foreground disabled:opacity-30 transition-colors"
             >
               Next
             </button>

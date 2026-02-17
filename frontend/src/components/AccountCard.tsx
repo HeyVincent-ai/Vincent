@@ -47,7 +47,7 @@ export default function AccountCard({ account }: { account: Account }) {
           {account.memo || 'Unnamed account'}
         </span>
         {addr && (
-          <span className="text-xs text-muted-foreground/50 font-mono shrink-0 hidden sm:inline">
+          <span className="text-xs text-muted-foreground font-mono shrink-0 hidden sm:inline">
             {truncateAddress(addr)}
           </span>
         )}
@@ -58,7 +58,7 @@ export default function AccountCard({ account }: { account: Account }) {
             {formatBalance(account.totalBalance!)}
           </span>
         )}
-        <span className="text-muted-foreground/30 text-xs tabular-nums">
+        <span className="text-muted-foreground text-xs tabular-nums">
           {new Date(account.createdAt).toLocaleDateString()}
         </span>
       </div>

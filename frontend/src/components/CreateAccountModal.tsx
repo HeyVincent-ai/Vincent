@@ -86,12 +86,12 @@ export default function CreateAccountModal({ onClose, onCreated }: CreateAccount
               <h3 className="text-lg font-semibold text-foreground">New Account</h3>
               <button
                 onClick={onClose}
-                className="text-muted-foreground/40 hover:text-foreground transition-colors p-1"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
               >
                 <CloseIcon className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-xs text-muted-foreground/50 mb-4">
+            <p className="text-xs text-muted-foreground mb-4">
               Choose the type of account to create.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -105,10 +105,10 @@ export default function CreateAccountModal({ onClose, onCreated }: CreateAccount
                     className="text-left rounded-lg p-3 hover:bg-muted/50 transition-colors group"
                   >
                     <div className="flex items-center gap-2.5 mb-1">
-                      <Icon className="w-4 h-4 text-muted-foreground/60 group-hover:text-foreground transition-colors" />
+                      <Icon className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
                       <span className="text-sm font-medium text-foreground">{config.label}</span>
                     </div>
-                    <p className="text-[10px] text-muted-foreground/40 leading-relaxed pl-6.5">
+                    <p className="text-xs text-muted-foreground leading-relaxed pl-6.5">
                       {config.description}
                     </p>
                   </button>
@@ -122,13 +122,13 @@ export default function CreateAccountModal({ onClose, onCreated }: CreateAccount
               <button
                 onClick={handleBack}
                 disabled={creating}
-                className="text-muted-foreground/40 hover:text-foreground transition-colors p-1 disabled:opacity-50"
+                className="text-muted-foreground/60 hover:text-foreground transition-colors p-1 disabled:opacity-50"
               >
                 <ArrowLeftIcon className="w-4 h-4" />
               </button>
               {typeConfig && (
                 <div className="flex items-center gap-2">
-                  <typeConfig.icon className="w-4 h-4 text-muted-foreground/60" />
+                  <typeConfig.icon className="w-4 h-4 text-muted-foreground" />
                   <h3 className="text-sm font-medium text-foreground">New {typeConfig.label}</h3>
                 </div>
               )}
@@ -136,14 +136,14 @@ export default function CreateAccountModal({ onClose, onCreated }: CreateAccount
 
             <div className="mb-4">
               <label className="block text-xs font-medium text-foreground mb-1.5">
-                Name <span className="text-muted-foreground/40 font-normal">(optional)</span>
+                Name <span className="text-muted-foreground font-normal">(optional)</span>
               </label>
               <input
                 type="text"
                 value={memo}
                 onChange={(e) => setMemo(e.target.value)}
                 placeholder={typeConfig?.memoPlaceholder || 'e.g. My account'}
-                className="bg-background border border-border/50 rounded-lg px-3 py-2 text-sm w-full text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="bg-background border border-border/50 rounded-lg px-3 py-2 text-sm w-full text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !creating) handleCreate();
@@ -164,7 +164,7 @@ export default function CreateAccountModal({ onClose, onCreated }: CreateAccount
               <button
                 onClick={onClose}
                 disabled={creating}
-                className="text-muted-foreground/40 text-xs hover:text-foreground transition-colors disabled:opacity-50"
+                className="text-muted-foreground text-xs hover:text-foreground transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>

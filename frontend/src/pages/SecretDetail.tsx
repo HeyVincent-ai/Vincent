@@ -207,7 +207,7 @@ export default function SecretDetail() {
         >
           Accounts
         </Link>
-        <span className="text-muted-foreground/30">/</span>
+        <span className="text-muted-foreground/50">/</span>
         <span className="text-foreground font-medium truncate max-w-[200px]">{accountName}</span>
       </nav>
 
@@ -217,11 +217,11 @@ export default function SecretDetail() {
           {/* Identity */}
           <div>
             <div className="flex items-center gap-2.5 mb-1">
-              <Icon className="w-4 h-4 text-muted-foreground/60" />
+              <Icon className="w-4 h-4 text-muted-foreground" />
               <span className="text-xs text-muted-foreground">{typeConfig.label}</span>
             </div>
             <h1 className="text-lg font-semibold text-foreground">{accountName}</h1>
-            <p className="text-xs text-muted-foreground/50 mt-0.5">
+            <p className="text-xs text-muted-foreground mt-0.5">
               Created {new Date(secret.createdAt).toLocaleDateString()}
             </p>
           </div>
@@ -229,14 +229,14 @@ export default function SecretDetail() {
           {/* Addresses */}
           {addresses.length > 0 && (
             <div>
-              <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
                 Addresses
               </h3>
               <div className="space-y-1.5">
                 {addresses.map((a) => (
                   <div key={a.address} className="flex items-center justify-between gap-2 py-1">
                     <div className="min-w-0">
-                      <div className="text-[10px] text-muted-foreground/50">{a.label}</div>
+                      <div className="text-xs text-muted-foreground">{a.label}</div>
                       <code className="text-xs text-foreground/70 font-mono" title={a.address}>
                         {truncateAddress(a.address)}
                       </code>
@@ -250,7 +250,7 @@ export default function SecretDetail() {
 
           {/* Agent Access */}
           <div>
-            <h3 className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider mb-2">
+            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">
               Agent Access
             </h3>
             {relinkToken ? (
@@ -259,7 +259,7 @@ export default function SecretDetail() {
                   {relinkToken}
                 </code>
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-muted-foreground/40">Expires {relinkExpiry}</p>
+                  <p className="text-xs text-muted-foreground">Expires {relinkExpiry}</p>
                   <button
                     onClick={async () => {
                       try {
@@ -269,7 +269,7 @@ export default function SecretDetail() {
                         toast('Failed to copy', 'error');
                       }
                     }}
-                    className="text-[10px] text-primary hover:text-primary/80 font-medium transition-colors"
+                    className="text-xs text-primary hover:text-primary/80 font-medium transition-colors py-1"
                   >
                     Copy
                   </button>
@@ -284,7 +284,7 @@ export default function SecretDetail() {
                 {relinkLoading ? 'Generating...' : 'Generate re-link token'}
               </button>
             )}
-            <p className="text-[10px] text-muted-foreground/40 mt-1">
+            <p className="text-xs text-muted-foreground mt-1">
               One-time token for agent access. Expires in 10 min.
             </p>
           </div>
@@ -293,7 +293,7 @@ export default function SecretDetail() {
           <div className="pt-4 border-t border-border/50">
             <button
               onClick={handleDelete}
-              className="text-xs text-muted-foreground/40 hover:text-destructive transition-colors"
+              className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors py-1"
             >
               Delete account
             </button>
@@ -312,7 +312,7 @@ export default function SecretDetail() {
                   className={`px-3 pb-2 text-sm font-medium border-b-2 transition-colors ${
                     tab === t.id
                       ? 'border-primary text-foreground'
-                      : 'border-transparent text-muted-foreground/60 hover:text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   {t.label}
@@ -360,7 +360,7 @@ export default function SecretDetail() {
                       </Link>
                     )}
                   </div>
-                  <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+                  <p className="text-xs text-muted-foreground mt-1.5">
                     Testnets always free. Mainnet $10/mo after trial.
                   </p>
                 </div>

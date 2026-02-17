@@ -146,7 +146,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
       {/* Credit Balance */}
       <div>
         <div className="flex items-baseline justify-between mb-2">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Credits</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">Credits</p>
           <button
             onClick={handleAddCredits}
             disabled={creditLoading}
@@ -159,7 +159,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
           <span className="text-xl font-semibold text-foreground font-mono">
             ${balance.toFixed(2)}
           </span>
-          <span className="text-xs text-muted-foreground/40">remaining</span>
+          <span className="text-xs text-muted-foreground">remaining</span>
         </div>
         <div className="w-full bg-muted/30 rounded-full h-1.5">
           <div
@@ -169,7 +169,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
             }}
           />
         </div>
-        <p className="text-[10px] text-muted-foreground/40 mt-1.5">
+        <p className="text-xs text-muted-foreground mt-1.5">
           {totalMonthRequests} request{totalMonthRequests !== 1 ? 's' : ''} this month ($
           {totalMonthSpend.toFixed(2)})
         </p>
@@ -182,39 +182,37 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
 
       {/* Available Data Sources */}
       <div className="border-t border-border/50 pt-6">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
-          Data Sources
-        </p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Data Sources</p>
         <div className="divide-y divide-border/50">
           {dataSources.map((ds) => (
             <div key={ds.id} className="py-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm text-foreground">{ds.displayName}</p>
                 {ds.status === 'coming_soon' ? (
-                  <span className="text-[9px] px-1.5 py-0.5 text-muted-foreground/50 bg-muted/30 rounded">
+                  <span className="text-[11px] px-2 py-0.5 text-muted-foreground bg-muted/30 rounded">
                     soon
                   </span>
                 ) : (
-                  <span className="text-[9px] px-1.5 py-0.5 text-green-400/60 bg-green-500/5 rounded">
+                  <span className="text-[11px] px-2 py-0.5 text-green-400 bg-green-500/10 rounded">
                     active
                   </span>
                 )}
               </div>
-              <p className="text-[10px] text-muted-foreground/40 mt-0.5">{ds.description}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{ds.description}</p>
 
               {/* Endpoints & Pricing */}
               <div className="mt-2 space-y-0.5">
                 {Object.entries(ds.endpoints).map(([key, ep]) => (
-                  <div key={key} className="flex items-center justify-between text-[10px]">
-                    <span className="text-muted-foreground/50">{ep.description}</span>
-                    <span className="text-foreground/60 font-mono">${ep.costUsd.toFixed(3)}</span>
+                  <div key={key} className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">{ep.description}</span>
+                    <span className="text-foreground font-mono">${ep.costUsd.toFixed(3)}</span>
                   </div>
                 ))}
               </div>
 
               {/* This month stats */}
               {ds.currentMonthUsage.requestCount > 0 && (
-                <p className="text-[10px] text-muted-foreground/30 mt-1.5">
+                <p className="text-xs text-muted-foreground/70 mt-1.5">
                   {ds.currentMonthUsage.requestCount} requests ($
                   {ds.currentMonthUsage.totalCostUsd.toFixed(3)})
                 </p>
@@ -227,7 +225,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
       {/* Usage History */}
       {sortedMonths.length > 0 && (
         <div className="border-t border-border/50 pt-6">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
             Usage History
           </p>
           <div className="divide-y divide-border/50">
@@ -235,7 +233,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
               <div key={month} className="flex items-center justify-between py-2.5">
                 <span className="text-sm text-foreground">{month}</span>
                 <div className="flex items-center gap-4">
-                  <span className="text-xs text-muted-foreground/40 tabular-nums">
+                  <span className="text-xs text-muted-foreground tabular-nums">
                     {data.requests.toLocaleString()}
                   </span>
                   <span className="text-sm text-foreground font-mono tabular-nums w-14 text-right">
@@ -251,7 +249,7 @@ export default function DataSourcesView({ secretId }: { secretId: string }) {
       {/* Recent Purchases */}
       {purchases.length > 0 && (
         <div className="border-t border-border/50 pt-6">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-3">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
             Credit Purchases
           </p>
           <div className="divide-y divide-border/50">

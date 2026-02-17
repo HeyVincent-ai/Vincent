@@ -66,7 +66,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">API Keys</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">API Keys</p>
         <button
           onClick={() => {
             setShowForm(!showForm);
@@ -105,7 +105,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               placeholder="e.g. My Agent"
-              className="flex-1 bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="flex-1 bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
             />
             <button
               onClick={handleCreate}
@@ -120,7 +120,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
       {keys.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground mb-0.5">No API keys</p>
-          <p className="text-xs text-muted-foreground/50">
+          <p className="text-xs text-muted-foreground">
             Create one to give an agent access to this account.
           </p>
         </div>
@@ -130,11 +130,11 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
             <div key={k.id} className="flex items-center justify-between py-3">
               <div className="flex items-center gap-3">
                 <span className="text-sm text-foreground">{k.name}</span>
-                <span className="text-xs text-muted-foreground/30 tabular-nums">
+                <span className="text-xs text-muted-foreground tabular-nums">
                   {new Date(k.createdAt).toLocaleDateString()}
                 </span>
                 {k.revokedAt && (
-                  <span className="text-[9px] px-1.5 py-0.5 text-destructive/60 bg-destructive/5 rounded">
+                  <span className="text-[11px] px-2 py-0.5 text-destructive/80 bg-destructive/10 rounded">
                     revoked
                   </span>
                 )}
@@ -142,7 +142,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
               {!k.revokedAt && (
                 <button
                   onClick={() => handleRevoke(k.id)}
-                  className="text-xs text-muted-foreground/30 hover:text-destructive transition-colors"
+                  className="text-xs text-muted-foreground/60 hover:text-destructive transition-colors"
                 >
                   Revoke
                 </button>

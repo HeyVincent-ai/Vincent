@@ -69,7 +69,7 @@ function PositionCard({ position }: { position: PolymarketPosition }) {
           />
         ) : (
           <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
-            <span className="text-primary text-[9px] font-bold">P</span>
+            <span className="text-primary text-[11px] font-bold">P</span>
           </div>
         )}
 
@@ -87,7 +87,7 @@ function PositionCard({ position }: { position: PolymarketPosition }) {
           {/* Outcome badge + probability */}
           <div className="flex items-center gap-2 mt-1">
             <span
-              className={`text-[9px] font-semibold px-1.5 py-0.5 rounded ${
+              className={`text-[11px] font-semibold px-2 py-0.5 rounded ${
                 position.outcome === 'Yes'
                   ? 'bg-green-500/10 text-green-400'
                   : position.outcome === 'No'
@@ -97,39 +97,39 @@ function PositionCard({ position }: { position: PolymarketPosition }) {
             >
               {position.outcome}
             </span>
-            <span className="text-xs text-muted-foreground/50">{impliedProb}%</span>
+            <span className="text-xs text-muted-foreground">{impliedProb}%</span>
             {position.redeemable && (
-              <span className="text-[9px] px-1.5 py-0.5 rounded bg-yellow-500/5 text-yellow-400/60">
+              <span className="text-[11px] px-2 py-0.5 rounded bg-yellow-500/10 text-yellow-400">
                 redeemable
               </span>
             )}
           </div>
 
           {/* Stats row */}
-          <div className="grid grid-cols-4 gap-3 mt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
             <div>
-              <div className="text-[10px] text-muted-foreground/40">Shares</div>
+              <div className="text-xs text-muted-foreground">Shares</div>
               <div className="text-sm font-mono text-foreground">{formatShares(position.size)}</div>
             </div>
             <div>
-              <div className="text-[10px] text-muted-foreground/40">Avg Cost</div>
+              <div className="text-xs text-muted-foreground">Avg Cost</div>
               <div className="text-sm font-mono text-foreground">
                 {formatUsd(position.avgPrice)}
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-muted-foreground/40">Value</div>
+              <div className="text-xs text-muted-foreground">Value</div>
               <div className="text-sm font-mono text-foreground">
                 {formatUsd(position.currentValue)}
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-muted-foreground/40">P&L</div>
+              <div className="text-xs text-muted-foreground">P&L</div>
               <div
                 className={`text-sm font-mono ${pnlPositive ? 'text-green-400' : 'text-red-400'}`}
               >
                 {formatUsd(position.cashPnl)}
-                <span className="text-[10px] ml-0.5 opacity-60">
+                <span className="text-xs ml-0.5 opacity-60">
                   ({formatPercent(position.percentPnl)})
                 </span>
               </div>
@@ -155,24 +155,24 @@ function PortfolioSummary({
   const cols = usdcBalance !== undefined ? 'grid-cols-3' : 'grid-cols-2';
   return (
     <div>
-      <p className="text-xs text-muted-foreground/60 uppercase tracking-wider mb-2">Portfolio</p>
+      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Portfolio</p>
       <div className={`grid ${cols} gap-4`}>
         {usdcBalance !== undefined && (
           <div>
-            <div className="text-[10px] text-muted-foreground/40">USDC Balance</div>
+            <div className="text-xs text-muted-foreground">USDC Balance</div>
             <div className="text-xl font-semibold text-foreground font-mono">
               {formatUsd(usdcBalance)}
             </div>
           </div>
         )}
         <div>
-          <div className="text-[10px] text-muted-foreground/40">Position Value</div>
+          <div className="text-xs text-muted-foreground">Position Value</div>
           <div className="text-xl font-semibold text-foreground font-mono">
             {formatUsd(totalValue)}
           </div>
         </div>
         <div>
-          <div className="text-[10px] text-muted-foreground/40">Total P&L</div>
+          <div className="text-xs text-muted-foreground">Total P&L</div>
           <div
             className={`text-xl font-semibold font-mono ${totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}
           >
@@ -251,7 +251,7 @@ export default function PolymarketPositions({ walletAddress }: PolymarketPositio
     return (
       <div className="text-center py-8">
         <p className="text-sm text-destructive mb-2">Failed to load positions</p>
-        <p className="text-xs text-muted-foreground/50">{error}</p>
+        <p className="text-xs text-muted-foreground">{error}</p>
         <button
           onClick={() => setSortBy(sortBy)}
           className="text-xs text-primary hover:text-primary/80 mt-2"
@@ -266,7 +266,7 @@ export default function PolymarketPositions({ walletAddress }: PolymarketPositio
     return (
       <div className="text-center py-8">
         <p className="text-sm text-muted-foreground mb-1">No positions yet</p>
-        <p className="text-xs text-muted-foreground/50">
+        <p className="text-xs text-muted-foreground">
           Positions will appear here once your agent places trades on Polymarket.
         </p>
         <a
@@ -288,14 +288,14 @@ export default function PolymarketPositions({ walletAddress }: PolymarketPositio
       {/* Positions header */}
       <div className="border-t border-border/50 pt-6">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
             Open Positions ({positions.length})
           </p>
           <div className="flex items-center gap-2">
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'CURRENT' | 'CASHPNL' | 'TOKENS')}
-              className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60"
+              className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground"
             >
               <option value="CURRENT">Value</option>
               <option value="CASHPNL">P&L</option>
@@ -339,11 +339,11 @@ export function MockPolymarketPositions({
       {/* Positions header */}
       <div className="border-t border-border/50 pt-6">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider">
             Open Positions ({positions.length})
           </p>
           <div className="flex items-center gap-2">
-            <select className="bg-transparent border border-border/50 rounded px-2 py-1 text-[10px] text-muted-foreground/60">
+            <select className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground">
               <option>Value</option>
               <option>P&L</option>
               <option>Shares</option>

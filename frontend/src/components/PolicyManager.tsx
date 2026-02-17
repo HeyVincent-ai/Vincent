@@ -175,7 +175,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground/60 uppercase tracking-wider">Policies</p>
+        <p className="text-xs text-muted-foreground uppercase tracking-wider">Policies</p>
         <button
           onClick={() => setShowForm(!showForm)}
           className="text-xs text-primary hover:text-primary/80 transition-colors"
@@ -203,7 +203,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
                 </option>
               ))}
             </select>
-            <p className="text-[10px] text-muted-foreground/40 mt-1">{typeDef.description}</p>
+            <p className="text-xs text-muted-foreground mt-1">{typeDef.description}</p>
           </div>
 
           {typeDef.configFields[0].type !== 'boolean' && (
@@ -215,7 +215,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
                 value={configInput}
                 onChange={(e) => setConfigInput(e.target.value)}
                 placeholder={typeDef.configFields[0].placeholder || ''}
-                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-1 focus:ring-primary"
+                className="w-full bg-background border border-border/50 rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
           )}
@@ -231,7 +231,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
               />
               <label htmlFor="approvalOverride" className="text-xs">
                 <span className="font-medium text-foreground">Approval override</span>
-                <p className="text-[10px] text-muted-foreground/40">
+                <p className="text-xs text-muted-foreground">
                   Require human approval instead of blocking
                 </p>
               </label>
@@ -250,7 +250,7 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
       {visiblePolicies.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-sm text-muted-foreground mb-0.5">No policies configured</p>
-          <p className="text-xs text-muted-foreground/50">All actions are allowed by default.</p>
+          <p className="text-xs text-muted-foreground">All actions are allowed by default.</p>
         </div>
       ) : (
         <div className="divide-y divide-border/50">
@@ -266,18 +266,18 @@ export default function PolicyManager({ secretId }: { secretId: string }) {
                       {pTypeDef?.label || p.policyType}
                     </span>
                     {hasOverride && (
-                      <span className="text-[9px] px-1.5 py-0.5 text-yellow-400/70 bg-yellow-500/5 rounded">
+                      <span className="text-[11px] px-2 py-0.5 text-yellow-400 bg-yellow-500/10 rounded">
                         approval override
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground/40 font-mono mt-0.5">
+                  <p className="text-xs text-muted-foreground/70 font-mono mt-0.5">
                     {formatPolicyConfig(p.policyType, p.policyConfig)}
                   </p>
                 </div>
                 <button
                   onClick={() => handleDelete(p.id)}
-                  className="text-xs text-muted-foreground/30 hover:text-destructive ml-4 shrink-0 transition-colors"
+                  className="text-xs text-muted-foreground/60 hover:text-destructive ml-4 shrink-0 transition-colors"
                 >
                   Remove
                 </button>
