@@ -45,7 +45,7 @@ export default function AdminActiveAgents() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl">
+      <div className="w-full">
         <h1 className="text-2xl font-bold text-foreground mb-8">Active Agents</h1>
         <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
@@ -54,7 +54,7 @@ export default function AdminActiveAgents() {
 
   if (error) {
     return (
-      <div className="max-w-5xl">
+      <div className="w-full">
         <h1 className="text-2xl font-bold text-foreground mb-8">Active Agents</h1>
         <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4 text-destructive text-sm">
           {error}
@@ -64,7 +64,7 @@ export default function AdminActiveAgents() {
   }
 
   return (
-    <div className="max-w-5xl">
+    <div className="w-full">
       <h1 className="text-2xl font-bold text-foreground mb-8">Active Agents</h1>
 
       <div className="bg-card rounded-lg border border-border overflow-hidden">
@@ -78,9 +78,9 @@ export default function AdminActiveAgents() {
                 <th className="px-4 py-3 font-medium">Email</th>
                 <th className="px-4 py-3 font-medium">Deployment ID</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Status Message</th>
                 <th className="px-4 py-3 font-medium">Hostname</th>
                 <th className="px-4 py-3 font-medium">IP</th>
-                <th className="px-4 py-3 font-medium">Status Message</th>
                 <th className="px-4 py-3 font-medium">Credits</th>
                 <th className="px-4 py-3 font-medium">Period End</th>
                 <th className="px-4 py-3 font-medium">Created</th>
