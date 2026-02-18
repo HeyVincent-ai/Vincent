@@ -69,14 +69,17 @@ x402 is not a separate onboarding flow. It's a capability that's already there f
 
 ```
 User opens wallet detail page
+  └── Overview tab shows USDC balance on Base (via existing BalancesDisplay)
   └── Sees "x402 Services" tab alongside Overview, Policies, API Keys, Audit Logs
-      └── Service catalog is right there — browse services, see prices
-      └── If wallet has USDC on Base: spending stats + recent calls shown
-      └── If wallet has no USDC on Base: funding prompt inline
+      └── x402 spending stats at top (today/week/all-time spend + call counts)
+      └── Service catalog — browse services, see prices
+      └── Recent x402 activity at bottom
       └── Agent already has the ssk_ key — no new setup
 ```
 
 There is no separate "enable x402" step. Every EVM wallet is x402-capable. The x402 Services tab appears for all `EVM_WALLET` secrets. The agent can call `POST /api/skills/x402/fetch` the moment the wallet has USDC on Base.
+
+Wallet balances (including USDC on Base) are shown in the **wallet Overview tab** via the existing `BalancesDisplay` component — not in the x402 tab. The x402 tab only shows x402-specific data: how much the agent has spent on x402 services, the service catalog, and recent calls.
 
 ---
 
@@ -203,9 +206,9 @@ Browse available x402 services from the Bazaar discovery API. No auth required �
 }
 ```
 
-### `GET /api/skills/x402/balance`
+### `GET /api/skills/x402/spending`
 
-Check the wallet's USDC balance on the x402 payment network (Base) and x402 spending summary.
+Get x402 spending summary for this wallet. Does NOT return wallet balance — use the existing `/api/skills/evm-wallet/balances?chainIds=8453` for USDC balance on Base.
 
 **Auth:** `Authorization: Bearer ssk_xxx`
 
@@ -214,9 +217,6 @@ Check the wallet's USDC balance on the x402 payment network (Base) and x402 spen
 {
   "success": true,
   "data": {
-    "usdcBalance": "12.45",
-    "network": "base",
-    "smartAccountAddress": "0x...",
     "spending": {
       "today": "0.34",
       "thisWeek": "2.10",
@@ -366,14 +366,16 @@ The `usdValue` field on `TransactionLog` captures the USDC cost of each x402 cal
 
 x402 is not a separate product or a separate skill install. It's a built-in capability of every EVM wallet. The UI treats it like transfers and swaps — something you can do from your wallet, not something you set up separately.
 
-The primary home is a **new "x402 Services" tab** on the wallet detail page. This is where users browse services, see spending, and configure policies — all in context of the specific wallet that's paying.
+The primary home is a **new "x402 Services" tab** on the wallet detail page. This is where users browse services, see x402 spending stats, and view recent calls — all in context of the specific wallet that's paying.
+
+Wallet balances (including USDC on Base) stay in the **Overview tab** where `BalancesDisplay` already shows them. The x402 tab does NOT duplicate balance or funding information.
 
 ```
 Authenticated pages (Layout w/ sidebar)
 ┌────────────────────────────────────────────────────────────┐
 │  /secrets/:id  (wallet detail)                             │
-│   ├─ Overview tab          (existing — no changes)         │
-│   ├─ x402 Services tab     (NEW — catalog + stats + fund)  │
+│   ├─ Overview tab          (existing — balances live here)  │
+│   ├─ x402 Services tab     (NEW — spending + catalog + activity) │
 │   ├─ Policies tab          (existing — add x402 types)     │
 │   ├─ API Keys tab          (existing — no changes)         │
 │   └─ Audit Logs tab        (existing — x402 entries auto)  │
@@ -389,14 +391,14 @@ Add **"x402 Services"** as a new tab for `EVM_WALLET` secrets in `getTabsForType
 
 This is the single place where the user experiences x402. It has three sections stacked vertically:
 
-#### Section A: Status Bar (always visible at top)
+#### Section A: x402 Spending Stats (always visible at top)
 
-Shows USDC balance on Base and spending summary. If no USDC, shows a funding prompt.
+Shows x402-specific spending summary and call counts. This is NOT the wallet balance — balances (including USDC on Base) are shown in the wallet's Overview tab via the existing `BalancesDisplay` component.
 
-**Funded state:**
+**Active state** (wallet has made x402 calls):
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  $12.45 USDC on Base                                        │
+│  x402 Spending                                              │
 │                                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
 │  │  Today   │  │ This Week│  │ All Time │                  │
@@ -406,20 +408,18 @@ Shows USDC balance on Base and spending summary. If no USDC, shows a funding pro
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Not funded state:**
+**No activity state** (wallet has never made x402 calls):
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  Fund with USDC to start using x402 services                │
+│  No x402 calls yet                                          │
 │                                                             │
-│  Send USDC on the Base network to:                          │
-│  0x1234...5678                          [Copy] [QR Code]    │
-│                                                             │
-│  Your agent pays per-call — most services cost $0.001.      │
-│  $10 USDC ≈ 10,000 API calls.                              │
+│  Browse the catalog below to see available services.        │
+│  Your agent can call any x402 service using its ssk_ key.   │
+│  Make sure the wallet has USDC on Base (check Overview tab). │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Data source: `GET /api/skills/x402/balance` (uses the wallet's secret ID).
+Data source: `GET /api/skills/x402/spending` (spending stats only, no balance).
 
 #### Section B: Service Catalog (main content)
 
@@ -544,18 +544,21 @@ No new skill tab. No install command. No service catalog on the public page.
 
 ### Funding UX
 
-The funding prompt is inline in the x402 Services tab status bar (described in Section A above). To make this as clear as possible:
+Funding lives in the **wallet Overview tab**, not the x402 tab. The wallet's `BalancesDisplay` component already shows token balances including USDC on Base. What we add:
 
-1. **Show the Base network explicitly** — users often have USDC on Ethereum mainnet but need it on Base. The UI should say "Send USDC on the **Base** network" with emphasis.
-2. **QR code** — for scanning from mobile wallets or exchange apps.
-3. **Copy address button** — one-click copy of the smart account address.
-4. **Balance refresh** — after funding, the user can refresh to see the updated balance immediately.
-5. **Link to bridge** — if the user has USDC on another chain, link to a bridge (e.g., Coinbase Bridge, Across Protocol) to move it to Base.
+1. **No-balance hint in x402 tab** — when there's no x402 activity yet, the "No activity" state (Section A) tells the user to check the Overview tab to ensure the wallet has USDC on Base.
+2. **Insufficient funds error** — when an x402 call fails due to insufficient USDC, the API returns a clear error with the wallet address and network, so the agent or user knows exactly what to fund.
+
+The existing wallet Overview tab already provides:
+- Wallet address (copy button)
+- Token balances per chain
+- The infrastructure for users to see their Base USDC balance
 
 We do NOT need:
 - An in-app fiat on-ramp (too complex for MVP, users can buy USDC on Coinbase/other exchanges)
 - Automatic funding from another chain (Phase 2 potential feature)
 - A minimum balance requirement (the agent will get clear error messages if funds run out)
+- A funding prompt in the x402 tab (redundant with wallet Overview)
 
 ---
 
@@ -571,7 +574,7 @@ We do NOT need:
 | `src/e2e/x402.e2e.test.ts` | End-to-end tests |
 | `skill-ci/src/tests/x402.test.ts` | Skill CI agent test |
 | `prisma/migrations/xxx_add_x402_policy_types/migration.sql` | DB migration |
-| `frontend/src/components/X402ServicesTab.tsx` | Full x402 tab: status bar + service catalog + recent activity |
+| `frontend/src/components/X402ServicesTab.tsx` | Full x402 tab: spending stats + service catalog + recent activity |
 | `frontend/src/components/X402ServiceCatalog.tsx` | Service catalog grid (used inside the tab) |
 
 ### Modified Files
@@ -584,7 +587,7 @@ We do NOT need:
 | `src/policies/checker.ts` | Add x402 policy evaluation branches |
 | `src/services/policy.service.ts` | Add x402 policy config types and validation |
 | `src/utils/env.ts` | Add optional x402 env vars |
-| `frontend/src/api.ts` | Add `getX402Balance()`, `getX402History()`, `getX402Services()` API functions |
+| `frontend/src/api.ts` | Add `getX402Spending()`, `getX402History()`, `getX402Services()` API functions |
 | `frontend/src/components/PolicyManager.tsx` | Add `X402_SERVICE_ALLOWLIST` and `X402_SPENDING_LIMIT` to `POLICY_TYPES` array, add custom form for spending limit |
 | `frontend/src/pages/SecretDetail.tsx` | Add "x402 Services" tab to `getTabsForType()` for EVM_WALLET, render `<X402ServicesTab>` |
 | `frontend/src/pages/Skills.tsx` | Add "x402 Payments" pill to EVM Wallet Features, add connector pill to Connectors |
@@ -807,14 +810,9 @@ export async function discoverServices(params: {
   };
 }
 
-export async function getBalance(secretId: string) {
-  const wallet = await getWalletData(secretId);
-
-  // Get USDC balance on Base (chain ID 8453)
-  // Reuse existing balance infrastructure
-  const balances = await getUsdcBalanceOnBase(wallet.smartAccountAddress);
-
+export async function getSpending(secretId: string) {
   // Aggregate x402 spending from transaction logs
+  // Wallet balance is NOT returned here — use the existing evm-wallet balances endpoint
   const now = new Date();
   const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -830,9 +828,6 @@ export async function getBalance(secretId: string) {
     ]);
 
   return {
-    usdcBalance: balances.toString(),
-    network: 'base',
-    smartAccountAddress: wallet.smartAccountAddress,
     spending: { today: todaySpend, thisWeek: weekSpend, allTime: allTimeSpend },
     callCount: { today: todayCount, thisWeek: weekCount, allTime: allTimeCount },
   };
@@ -931,10 +926,10 @@ router.get('/discover', asyncHandler(async (req: AuthenticatedRequest, res: Resp
   sendSuccess(res, result);
 }));
 
-// GET /api/skills/x402/balance
-router.get('/balance', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+// GET /api/skills/x402/spending
+router.get('/spending', asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   if (!req.secret) { errors.unauthorized(res, 'No secret associated with API key'); return; }
-  const result = await x402Service.getBalance(req.secret.id);
+  const result = await x402Service.getSpending(req.secret.id);
   sendSuccess(res, result);
 }));
 
@@ -961,7 +956,7 @@ The agent-facing documentation (`skills/x402/SKILL.md`) will cover:
 1. What x402 is and why the agent should use it
 2. How to discover available services via `/api/skills/x402/discover`
 3. How to call a paid service via `/api/skills/x402/fetch`
-4. How to check remaining budget via `/api/skills/x402/balance`
+4. How to check spending via `/api/skills/x402/spending` (balance via existing wallet endpoint)
 5. Example workflows: "get crypto prices", "search the web", "parse a document"
 6. What happens when a policy blocks a call
 7. How to tell the user to fund the wallet with USDC on Base
@@ -975,7 +970,7 @@ x402 payments happen on **Base** (Coinbase's L2) in **USDC**. The agent's EVM wa
 
 - The wallet can already receive USDC transfers (it has a smart account address)
 - The user can send USDC to the wallet address from any exchange or wallet
-- The agent can check its Base USDC balance via the existing `/api/skills/evm-wallet/balances?chainIds=8453` endpoint, or via the new `/api/skills/x402/balance` endpoint
+- The agent can check its Base USDC balance via the existing `/api/skills/evm-wallet/balances?chainIds=8453` endpoint
 
 No new funding infrastructure is needed — just documentation and UI prompts guiding users to fund the wallet with USDC on Base.
 
@@ -994,7 +989,7 @@ No new funding infrastructure is needed — just documentation and UI prompts gu
 **Backend:**
 - `POST /api/skills/x402/fetch` — call any x402 endpoint
 - `GET /api/skills/x402/discover` — browse the Bazaar
-- `GET /api/skills/x402/balance` — check USDC + spending
+- `GET /api/skills/x402/spending` — x402 spending stats
 - `GET /api/skills/x402/history` — past purchases
 - `X402_SERVICE_ALLOWLIST` policy type
 - `X402_SPENDING_LIMIT` policy type
@@ -1002,7 +997,7 @@ No new funding infrastructure is needed — just documentation and UI prompts gu
 - E2E tests (against Base Sepolia testnet x402 services)
 
 **Frontend:**
-- Wallet detail: "x402 Services" tab with status bar, service catalog, and recent activity
+- Wallet detail: "x402 Services" tab with spending stats, service catalog, and recent activity
 - Wallet detail Policies: x402 Service Allowlist + Spending Limit form
 - Skills page: "x402 Payments" pill in wallet features + connector pill
 - API client functions in `api.ts`

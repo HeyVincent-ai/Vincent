@@ -17,7 +17,7 @@
 - [ ] Implement `createX402Fetch()` helper (wraps `@x402/fetch` with wallet signer via `privateKeyToAccount`)
 - [ ] Implement `executeFetch()` — policy check → tx log → x402 fetch → extract cost → log result
 - [ ] Implement `discoverServices()` — query Bazaar discovery API with filtering
-- [ ] Implement `getBalance()` — check USDC balance on Base + spending summary from TransactionLog
+- [ ] Implement `getSpending()` — x402 spending summary from TransactionLog (no wallet balance — that's in the existing evm-wallet endpoint)
 - [ ] Implement `getHistory()` — paginated query of x402 TransactionLog entries
 - [ ] Implement `extractCostFromResponse()` — parse PAYMENT-RESPONSE header for settlement cost
 - [ ] Handle error cases: insufficient USDC, service unreachable, invalid URL, non-x402 endpoint
@@ -26,7 +26,7 @@
 - [ ] Create router with `apiKeyAuthMiddleware`
 - [ ] `POST /fetch` — Zod schema + handler calling `executeFetch()` + audit log
 - [ ] `GET /discover` — query params + handler calling `discoverServices()`
-- [ ] `GET /balance` — handler calling `getBalance()`
+- [ ] `GET /spending` — handler calling `getSpending()`
 - [ ] `GET /history` — query params + handler calling `getHistory()`
 
 ### Route Registration
@@ -57,9 +57,8 @@
 ### Frontend — Wallet Detail: x402 Services Tab
 - [ ] Add "x402 Services" to `getTabsForType()` in `SecretDetail.tsx` for `EVM_WALLET` secrets
 - [ ] Create `X402ServicesTab.tsx` — the full tab component with three sections
-- [ ] Section A: Status bar — USDC balance on Base + spending stats (today/week/all-time)
-- [ ] Section A (not funded): inline funding prompt with address, copy button, QR code
-- [ ] Section A: emphasize "Base network" to avoid wrong-chain deposits
+- [ ] Section A: x402 Spending Stats — today/week/all-time spend + call counts (NOT wallet balance — that's in Overview tab)
+- [ ] Section A (no activity): hint to browse catalog and ensure wallet has USDC on Base via Overview tab
 - [ ] Section B: Service catalog grid — fetch from `GET /api/skills/x402/discover`, cache client-side
 - [ ] Create `X402ServiceCatalog.tsx` — service cards grouped by category
 - [ ] Each card: name, category badge, description, endpoint count, price, docs link
@@ -79,7 +78,7 @@
 - [ ] Add "x402 HTTP Payments ● live" pill to Connectors section with tooltip
 
 ### Frontend — API Client (`api.ts`)
-- [ ] Add `getX402Balance(secretId)` function
+- [ ] Add `getX402Spending(secretId)` function
 - [ ] Add `getX402History(secretId, params)` function
 - [ ] Add `getX402Services(params)` function
 
@@ -90,8 +89,8 @@
 - [ ] E2E test: create wallet → discover services → fetch x402 endpoint (Base Sepolia)
 - [ ] E2E test: policy denial (allowlist blocks unlisted domain)
 - [ ] E2E test: spending limit enforcement (exceed per-call max)
-- [ ] E2E test: balance and history endpoints return correct data
-- [ ] Skill CI test: agent reads SKILL.md, discovers services, checks balance, makes x402 call
+- [ ] E2E test: spending and history endpoints return correct data
+- [ ] Skill CI test: agent reads SKILL.md, discovers services, checks spending, makes x402 call
 
 ### Documentation
 - [ ] Update README.md with x402 skill section
