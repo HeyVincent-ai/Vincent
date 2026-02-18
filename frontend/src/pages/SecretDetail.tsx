@@ -51,9 +51,18 @@ function DetailSkeleton() {
       </div>
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <div className="grid grid-cols-2 gap-4">
-          <div><div className="skeleton h-3 w-12 mb-1" /><div className="skeleton h-4 w-24" /></div>
-          <div><div className="skeleton h-3 w-16 mb-1" /><div className="skeleton h-4 w-32" /></div>
-          <div className="col-span-2"><div className="skeleton h-3 w-24 mb-1" /><div className="skeleton h-4 w-full" /></div>
+          <div>
+            <div className="skeleton h-3 w-12 mb-1" />
+            <div className="skeleton h-4 w-24" />
+          </div>
+          <div>
+            <div className="skeleton h-3 w-16 mb-1" />
+            <div className="skeleton h-4 w-32" />
+          </div>
+          <div className="col-span-2">
+            <div className="skeleton h-3 w-24 mb-1" />
+            <div className="skeleton h-4 w-full" />
+          </div>
         </div>
       </div>
       <div className="flex gap-4 border-b border-border mb-6 pb-0">
@@ -124,7 +133,10 @@ export default function SecretDetail() {
     <div>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm mb-4" aria-label="Breadcrumb">
-        <Link to="/dashboard" className="text-muted-foreground hover:text-foreground transition-colors">
+        <Link
+          to="/dashboard"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           Accounts
         </Link>
         <span className="text-muted-foreground/50">/</span>
@@ -149,12 +161,29 @@ export default function SecretDetail() {
           </div>
           <div>
             <dt className="text-muted-foreground">Created</dt>
-            <dd className="font-medium text-foreground">{new Date(secret.createdAt).toLocaleString()}</dd>
+            <dd className="font-medium text-foreground">
+              {new Date(secret.createdAt).toLocaleString()}
+            </dd>
           </div>
           {secret.walletAddress && (
             <div className="col-span-2">
               <dt className="text-muted-foreground">Wallet Address</dt>
               <dd className="font-mono text-sm text-foreground">{secret.walletAddress}</dd>
+            </div>
+          )}
+          {secret.type === 'POLYMARKET_WALLET' && secret.walletAddress && (
+            <div className="col-span-2">
+              <dt className="text-muted-foreground">Polymarket Profile</dt>
+              <dd className="text-sm">
+                <a
+                  href={`https://polymarket.com/profile/${secret.walletAddress}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  polymarket.com/profile/{secret.walletAddress}
+                </a>
+              </dd>
             </div>
           )}
           {secret.ethAddress && (
@@ -292,7 +321,9 @@ export default function SecretDetail() {
                 Copy
               </button>
             </div>
-            <p className="text-xs text-muted-foreground">Expires at {relinkExpiry}. One-time use.</p>
+            <p className="text-xs text-muted-foreground">
+              Expires at {relinkExpiry}. One-time use.
+            </p>
           </div>
         ) : (
           <button

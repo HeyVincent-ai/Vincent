@@ -54,6 +54,8 @@ echo "Copied to frontend/public/agentwallet/SKILL.md"
 # Publish to clawhub
 echo "Publishing wallet to clawhub..."
 clawhub publish skills/wallet --slug agentwallet --name "Vincent - Wallet" --version "$NEW_VERSION"
+echo "Sleeping 10s to avoid rate limiting..."
+sleep 10
 
 # --- Polymarket skill ---
 POLYMARKET_SOURCE="$PROJECT_ROOT/skills/polymarket/SKILL.md"
@@ -73,6 +75,8 @@ echo "Copied to frontend/public/vincentpolymarket/SKILL.md"
 # Publish to clawhub
 echo "Publishing polymarket to clawhub..."
 clawhub publish skills/polymarket --slug vincentpolymarket --name "Vincent - Polymarket" --version "$NEW_VERSION"
+echo "Sleeping 10s to avoid rate limiting..."
+sleep 10
 
 # --- Twitter data source skill ---
 TWITTER_SOURCE="$PROJECT_ROOT/skills/twitter/SKILL.md"
@@ -92,6 +96,8 @@ echo "Copied to frontend/public/vincent-twitter/SKILL.md"
 # Publish to clawhub
 echo "Publishing twitter to clawhub..."
 clawhub publish skills/twitter --slug vincent-twitter --name "Vincent - Twitter" --version "$NEW_VERSION"
+echo "Sleeping 10s to avoid rate limiting..."
+sleep 10
 
 # --- Brave Search data source skill ---
 BRAVE_SOURCE="$PROJECT_ROOT/skills/brave-search/SKILL.md"
