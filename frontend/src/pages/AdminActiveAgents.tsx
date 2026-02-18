@@ -75,6 +75,7 @@ export default function AdminActiveAgents() {
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Deployment ID</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Hostname</th>
                 <th className="px-4 py-3 font-medium">IP</th>
@@ -86,7 +87,7 @@ export default function AdminActiveAgents() {
             <tbody>
               {agents.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No active agent deployments
                   </td>
                 </tr>
@@ -94,6 +95,7 @@ export default function AdminActiveAgents() {
                 agents.map((a) => (
                   <tr key={a.id} className="border-b border-border last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3 text-foreground">{a.email}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{a.id}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`px-2 py-0.5 rounded text-xs font-medium ${statusColor(a.status)}`}
