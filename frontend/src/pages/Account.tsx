@@ -276,6 +276,23 @@ export default function Account() {
         </div>
       </section>
 
+      {/* Connect Section */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Connect to Agents</h2>
+        <div className="bg-card rounded-lg border border-border p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Add Vincent skills to the agent runtime you already use. Connect via MCP and use the
+            API key from the account you want to expose.
+          </p>
+          <Link
+            to="/agents/connect"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Connect an Agent
+          </Link>
+        </div>
+      </section>
+
       {/* Refer a Friend Section */}
       {referralLink && (
         <section className="mb-8">

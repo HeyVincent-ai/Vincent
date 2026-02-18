@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Globe, Wallet, Rocket, Shield, Sparkles, ArrowRight } from 'lucide-react';
+import ConnectAgents from './ConnectAgents';
 
 interface WelcomeOnboardingProps {
   onDeploy: () => void;
@@ -163,6 +164,13 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Connect existing agents */}
+      <div className="mb-10">
+        <div className="bg-card border border-border rounded-2xl p-6 md:p-8">
+          <ConnectAgents compact />
         </div>
       </div>
 

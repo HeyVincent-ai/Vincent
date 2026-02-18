@@ -125,13 +125,21 @@ export default function OpenClawSection() {
     <div className="mt-10" id="openclaw">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Agents</h2>
-        <button
-          onClick={handleDeploy}
-          disabled={deploying}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
-        >
-          {deploying ? 'Redirecting...' : deployments.length === 0 ? 'Deploy Agent \u2014 7-day free trial' : 'Deploy Agent \u2014 $25/mo'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/agents/connect"
+            className="px-3 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+          >
+            Connect Agent
+          </Link>
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {deploying ? 'Redirecting...' : deployments.length === 0 ? 'Deploy Agent \u2014 7-day free trial' : 'Deploy Agent \u2014 $25/mo'}
+          </button>
+        </div>
       </div>
 
       {error && (
