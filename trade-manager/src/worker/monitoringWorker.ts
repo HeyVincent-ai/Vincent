@@ -3,7 +3,10 @@ import { PositionMonitorService } from '../services/positionMonitor.service.js';
 import { RuleExecutorService } from '../services/ruleExecutor.service.js';
 import { RuleManagerService } from '../services/ruleManager.service.js';
 import { VincentClientService } from '../services/vincentClient.service.js';
-import { PolymarketWebSocketService, PriceUpdate } from '../services/polymarketWebSocket.service.js';
+import {
+  PolymarketWebSocketService,
+  PriceUpdate,
+} from '../services/polymarketWebSocket.service.js';
 import { logger } from '../utils/logger.js';
 
 export interface WorkerStatus {
@@ -94,19 +97,34 @@ export class MonitoringWorker {
       // Evaluate all rules with current prices
       // Use cached prices from WebSocket if available, otherwise fetch via HTTP
       for (const rule of activeRules) {
-        const key = `${rule.marketId}:${rule.tokenId}`;
-        let currentPrice = this.priceCache.get(rule.tokenId);
+        try {
+          let currentPrice = this.priceCache.get(rule.tokenId);
 
-        // Fallback to HTTP if no WebSocket price available
-        if (currentPrice === undefined) {
-          currentPrice = await this.positionMonitor.getCurrentPrice(rule.marketId, rule.tokenId);
-          this.priceCache.set(rule.tokenId, currentPrice);
-        }
+          // Fallback to HTTP if no WebSocket price available
+          if (currentPrice === undefined) {
+            currentPrice = await this.positionMonitor.getCurrentPrice(rule.marketId, rule.tokenId);
+            this.priceCache.set(rule.tokenId, currentPrice);
+          }
 
-        const shouldTrigger = this.ruleExecutor.evaluateRule(rule, currentPrice);
-        await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', { currentPrice, shouldTrigger });
-        if (shouldTrigger) {
-          await this.trigger(rule);
+          const shouldTrigger = this.ruleExecutor.evaluateRule(rule, currentPrice);
+          await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
+            currentPrice,
+            shouldTrigger,
+          });
+          if (shouldTrigger) {
+            await this.trigger(rule);
+          }
+        } catch (error) {
+          // Log the error for this specific rule, but continue processing other rules
+          logger.error(
+            {
+              ruleId: rule.id,
+              ruleType: rule.ruleType,
+              error: error instanceof Error ? error.message : String(error),
+            },
+            'Failed to evaluate or execute rule'
+          );
+          // Don't throw - continue with other rules
         }
       }
       this.status.lastSyncTime = new Date().toISOString();
@@ -176,25 +194,29 @@ export class MonitoringWorker {
         });
 
         if (shouldTrigger) {
-          logger.info({
-            ruleId: rule.id,
-            tokenId,
-            price,
-          }, '[MonitoringWorker] Rule triggered by WebSocket price update');
+          logger.info(
+            {
+              ruleId: rule.id,
+              tokenId,
+              price,
+            },
+            '[MonitoringWorker] Rule triggered by WebSocket price update'
+          );
           await this.trigger(rule);
         }
       }
     } catch (error) {
-      logger.error({
-        tokenId,
-        error,
-      }, '[MonitoringWorker] Failed to evaluate rules for token');
+      logger.error(
+        {
+          tokenId,
+          error,
+        },
+        '[MonitoringWorker] Failed to evaluate rules for token'
+      );
     }
   }
 
-  private async syncWebSocketSubscriptions(
-    activeRules: Array<{ tokenId: string }>
-  ): Promise<void> {
+  private async syncWebSocketSubscriptions(activeRules: Array<{ tokenId: string }>): Promise<void> {
     if (!this.webSocketService) return;
 
     // Get unique token IDs from active rules
@@ -206,18 +228,24 @@ export class MonitoringWorker {
     const toUnsubscribe = [...currentTokenIds].filter((id) => !requiredTokenIds.has(id));
 
     if (toSubscribe.length > 0) {
-      logger.info({
-        count: toSubscribe.length,
-        tokens: toSubscribe,
-      }, '[MonitoringWorker] Subscribing to new tokens');
+      logger.info(
+        {
+          count: toSubscribe.length,
+          tokens: toSubscribe,
+        },
+        '[MonitoringWorker] Subscribing to new tokens'
+      );
       this.webSocketService.subscribeToTokens(toSubscribe);
     }
 
     if (toUnsubscribe.length > 0) {
-      logger.info({
-        count: toUnsubscribe.length,
-        tokens: toUnsubscribe,
-      }, '[MonitoringWorker] Unsubscribing from tokens');
+      logger.info(
+        {
+          count: toUnsubscribe.length,
+          tokens: toUnsubscribe,
+        },
+        '[MonitoringWorker] Unsubscribing from tokens'
+      );
       this.webSocketService.unsubscribeFromTokens(toUnsubscribe);
     }
 
@@ -248,14 +276,13 @@ export const createWorkerDependencies = (
   );
 
   // Create WebSocket service if enabled
-  const webSocketService =
-    webSocketConfig?.enabled
-      ? new PolymarketWebSocketService({
-          url: webSocketConfig.url,
-          reconnectInitialDelay: webSocketConfig.reconnectInitialDelay,
-          reconnectMaxDelay: webSocketConfig.reconnectMaxDelay,
-        })
-      : undefined;
+  const webSocketService = webSocketConfig?.enabled
+    ? new PolymarketWebSocketService({
+        url: webSocketConfig.url,
+        reconnectInitialDelay: webSocketConfig.reconnectInitialDelay,
+        reconnectMaxDelay: webSocketConfig.reconnectMaxDelay,
+      })
+    : undefined;
 
   return new MonitoringWorker(
     intervalSeconds,

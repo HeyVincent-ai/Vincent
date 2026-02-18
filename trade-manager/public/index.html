@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trade Manager Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f1419;
+            color: #e4e6eb;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #2c3e50;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #58a6ff;
+            margin-bottom: 10px;
+        }
+
+        .status-bar {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            background: #1c2938;
+            padding: 10px 16px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+        }
+
+        .status-label {
+            font-size: 0.75rem;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+
+        .status-value.online {
+            color: #3fb950;
+        }
+
+        .status-value.offline {
+            color: #f85149;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+
+        .refresh-btn {
+            background: transparent;
+            border: 1px solid #30363d;
+            color: #8b949e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: #21262d;
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+
+        .rules-list, .events-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .rule-item, .event-item {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .rule-item:hover, .event-item:hover {
+            border-color: #58a6ff;
+        }
+
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .rule-type {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .rule-type.stop-loss {
+            background: #f851491a;
+            color: #f85149;
+        }
+
+        .rule-type.take-profit {
+            background: #3fb9501a;
+            color: #3fb950;
+        }
+
+        .rule-type.trailing-stop {
+            background: #58a6ff1a;
+            color: #58a6ff;
+        }
+
+        .rule-status {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .rule-status.active {
+            background: #3fb9501a;
+            color: #3fb950;
+        }
+
+        .rule-status.triggered {
+            background: #ffa6571a;
+            color: #ffa657;
+        }
+
+        .rule-status.cancelled {
+            background: #8b949e1a;
+            color: #8b949e;
+        }
+
+        .rule-status.failed {
+            background: #f851491a;
+            color: #f85149;
+        }
+
+        .rule-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #8b949e;
+        }
+
+        .rule-detail {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .rule-detail-label {
+            font-size: 0.75rem;
+            color: #6e7681;
+        }
+
+        .rule-detail-value {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .event-type {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .event-type.rule-triggered {
+            background: #ffa6571a;
+            color: #ffa657;
+        }
+
+        .event-type.rule-evaluated {
+            background: #58a6ff1a;
+            color: #58a6ff;
+        }
+
+        .event-timestamp {
+            font-size: 0.75rem;
+            color: #6e7681;
+        }
+
+        .event-data {
+            font-size: 0.875rem;
+            color: #8b949e;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6e7681;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            opacity: 0.3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #58a6ff;
+        }
+
+        .error {
+            background: #f851491a;
+            border: 1px solid #f85149;
+            color: #f85149;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .market-link {
+            color: #58a6ff;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: color 0.2s;
+        }
+
+        .market-link:hover {
+            color: #79c0ff;
+            text-decoration: underline;
+        }
+
+        .market-link::after {
+            content: '↗';
+            font-size: 0.75rem;
+        }
+
+        .trade-item {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .trade-item:hover {
+            border-color: #3fb950;
+        }
+
+        .trade-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .trade-type {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            background: #3fb9501a;
+            color: #3fb950;
+        }
+
+        .trade-timestamp {
+            font-size: 0.75rem;
+            color: #6e7681;
+        }
+
+        .trade-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            font-size: 0.875rem;
+            color: #8b949e;
+            margin-top: 8px;
+        }
+
+        .trade-detail {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .trade-detail-label {
+            font-size: 0.75rem;
+            color: #6e7681;
+        }
+
+        .trade-detail-value {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        .toggle-btn {
+            background: transparent;
+            border: 1px solid #30363d;
+            color: #8b949e;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            margin-left: 8px;
+        }
+
+        .toggle-btn:hover {
+            background: #21262d;
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+
+        .toggle-btn.active {
+            background: #58a6ff1a;
+            border-color: #58a6ff;
+            color: #58a6ff;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .tx-hash {
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.75rem;
+            color: #58a6ff;
+            word-break: break-all;
+        }
+
+        .position-item {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .position-item:hover {
+            border-color: #58a6ff;
+        }
+
+        .position-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .position-side {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .position-side.buy {
+            background: #3fb9501a;
+            color: #3fb950;
+        }
+
+        .position-side.sell {
+            background: #f851491a;
+            color: #f85149;
+        }
+
+        .position-quantity {
+            font-weight: 600;
+            color: #c9d1d9;
+        }
+
+        .position-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 8px;
+            font-size: 0.875rem;
+            margin-top: 8px;
+        }
+
+        .position-detail {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .position-detail-label {
+            font-size: 0.75rem;
+            color: #6e7681;
+        }
+
+        .position-detail-value {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+
+        .position-pnl {
+            font-weight: 600;
+        }
+
+        .position-pnl.positive {
+            color: #3fb950;
+        }
+
+        .position-pnl.negative {
+            color: #f85149;
+        }
+
+        .positions-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Trade Manager Dashboard</h1>
+            <div class="status-bar">
+                <div class="status-item">
+                    <div class="status-label">Worker</div>
+                    <div class="status-value" id="worker-status">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">WebSocket</div>
+                    <div class="status-value" id="websocket-status">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Active Rules</div>
+                    <div class="status-value" id="active-rules-count">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Subscriptions</div>
+                    <div class="status-value" id="subscriptions-count">—</div>
+                </div>
+                <div class="status-item">
+                    <div class="status-label">Last Sync</div>
+                    <div class="status-value" id="last-sync">—</div>
+                </div>
+            </div>
+        </header>
+
+        <div id="error-container"></div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Active Rules</h2>
+                    <button class="refresh-btn" onclick="loadRules()">↻ Refresh</button>
+                </div>
+                <div id="rules-container" class="rules-list">
+                    <div class="loading">Loading rules...</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Trading Log</h2>
+                    <div>
+                        <button class="toggle-btn" id="toggle-events-btn" onclick="toggleEventLog()">Show Events</button>
+                        <button class="refresh-btn" onclick="loadTrades()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div id="trades-container" class="rules-list">
+                    <div class="loading">Loading trades...</div>
+                </div>
+                <div id="events-container" class="events-list hidden">
+                    <div class="loading">Loading events...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Active Holdings</h2>
+                <button class="refresh-btn" onclick="loadPositions()">↻ Refresh</button>
+            </div>
+            <div id="positions-container" class="positions-list">
+                <div class="loading">Loading positions...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function fetchAPI(endpoint) {
+            const response = await fetch(`${API_BASE}${endpoint}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            return response.json();
+        }
+
+        function getPolymarketUrl(slug) {
+            return `https://polymarket.com/event/${slug}`;
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `<div class="error">⚠️ ${message}</div>`;
+            setTimeout(() => {
+                errorContainer.innerHTML = '';
+            }, 5000);
+        }
+
+        async function loadWorkerStatus() {
+            try {
+                const status = await fetchAPI('/health/worker');
+
+                const workerStatus = document.getElementById('worker-status');
+                workerStatus.textContent = status.running ? 'Running' : 'Stopped';
+                workerStatus.className = `status-value ${status.running ? 'online' : 'offline'}`;
+
+                const wsStatus = document.getElementById('websocket-status');
+                wsStatus.textContent = status.webSocketConnected ? 'Connected' : 'Disconnected';
+                wsStatus.className = `status-value ${status.webSocketConnected ? 'online' : 'offline'}`;
+
+                document.getElementById('active-rules-count').textContent = status.activeRulesCount || 0;
+                document.getElementById('subscriptions-count').textContent = status.webSocketSubscriptions || 0;
+
+                if (status.lastSyncTime) {
+                    const lastSync = new Date(status.lastSyncTime);
+                    const now = new Date();
+                    const diffSeconds = Math.floor((now - lastSync) / 1000);
+                    document.getElementById('last-sync').textContent =
+                        diffSeconds < 60 ? `${diffSeconds}s ago` :
+                        diffSeconds < 3600 ? `${Math.floor(diffSeconds / 60)}m ago` :
+                        `${Math.floor(diffSeconds / 3600)}h ago`;
+                } else {
+                    document.getElementById('last-sync').textContent = 'Never';
+                }
+            } catch (error) {
+                console.error('Failed to load worker status:', error);
+            }
+        }
+
+        async function loadRules() {
+            const container = document.getElementById('rules-container');
+            container.innerHTML = '<div class="loading">Loading rules...</div>';
+
+            try {
+                const rules = await fetchAPI('/api/rules');
+
+                if (rules.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div>No rules configured</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = rules.map(rule => {
+                    // Use the marketSlug from the database
+                    const marketLink = rule.marketSlug
+                        ? `<a href="${getPolymarketUrl(rule.marketSlug)}" target="_blank" class="market-link">${rule.marketId.substring(0, 12)}...</a>`
+                        : `<span class="rule-detail-value">${rule.marketId.substring(0, 12)}...</span>`;
+
+                    return `
+                        <div class="rule-item">
+                            <div class="rule-header">
+                                <span class="rule-type ${rule.ruleType.toLowerCase().replace('_', '-')}">${rule.ruleType}</span>
+                                <span class="rule-status ${rule.status.toLowerCase()}">${rule.status}</span>
+                            </div>
+                            ${rule.errorMessage ? `
+                            <div style="margin: 8px 0; padding: 8px; background: #f851491a; border-left: 2px solid #f85149; color: #f85149; font-size: 0.875rem;">
+                                ⚠️ ${rule.errorMessage}
+                            </div>
+                            ` : ''}
+                            <div class="rule-details">
+                                <div class="rule-detail">
+                                    <span class="rule-detail-label">Market</span>
+                                    ${marketLink}
+                                </div>
+                                <div class="rule-detail">
+                                    <span class="rule-detail-label">Token ID</span>
+                                    <span class="rule-detail-value">${rule.tokenId.substring(0, 12)}...</span>
+                                </div>
+                                <div class="rule-detail">
+                                    <span class="rule-detail-label">Trigger Price</span>
+                                    <span class="rule-detail-value">${rule.triggerPrice.toFixed(3)}</span>
+                                </div>
+                                <div class="rule-detail">
+                                    <span class="rule-detail-label">Action</span>
+                                    <span class="rule-detail-value">${rule.action}</span>
+                                </div>
+                                <div class="rule-detail">
+                                    <span class="rule-detail-label">Created</span>
+                                    <span class="rule-detail-value">${new Date(rule.createdAt).toLocaleDateString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load rules:', error);
+                showError('Failed to load rules: ' + error.message);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div>Failed to load rules</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadTrades() {
+            const container = document.getElementById('trades-container');
+            container.innerHTML = '<div class="loading">Loading trades...</div>';
+
+            try {
+                const trades = await fetchAPI('/api/trades');
+
+                if (trades.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💰</div>
+                            <div>No trades executed yet</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = trades.map(trade => {
+                    const marketLink = trade.marketSlug
+                        ? `<a href="${getPolymarketUrl(trade.marketSlug)}" target="_blank" class="market-link">${trade.marketId.substring(0, 12)}...</a>`
+                        : `<span class="trade-detail-value">${trade.marketId.substring(0, 12)}...</span>`;
+
+                    return `
+                        <div class="trade-item">
+                            <div class="trade-header">
+                                <span class="trade-type">EXECUTED</span>
+                                <span class="trade-timestamp">${new Date(trade.timestamp).toLocaleString()}</span>
+                            </div>
+                            <div class="trade-details">
+                                <div class="trade-detail">
+                                    <span class="trade-detail-label">Rule Type</span>
+                                    <span class="trade-detail-value">${trade.ruleType}</span>
+                                </div>
+                                <div class="trade-detail">
+                                    <span class="trade-detail-label">Market</span>
+                                    ${marketLink}
+                                </div>
+                                <div class="trade-detail">
+                                    <span class="trade-detail-label">Side</span>
+                                    <span class="trade-detail-value">${trade.side}</span>
+                                </div>
+                                <div class="trade-detail">
+                                    <span class="trade-detail-label">Trigger Price</span>
+                                    <span class="trade-detail-value">${trade.triggerPrice.toFixed(3)}</span>
+                                </div>
+                                ${trade.txHash ? `
+                                <div class="trade-detail" style="grid-column: 1 / -1;">
+                                    <span class="trade-detail-label">Transaction Hash</span>
+                                    <span class="tx-hash">${trade.txHash}</span>
+                                </div>
+                                ` : ''}
+                                ${trade.orderId ? `
+                                <div class="trade-detail" style="grid-column: 1 / -1;">
+                                    <span class="trade-detail-label">Order ID</span>
+                                    <span class="tx-hash">${trade.orderId}</span>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load trades:', error);
+                showError('Failed to load trades: ' + error.message);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div>Failed to load trades</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadEvents() {
+            const container = document.getElementById('events-container');
+            container.innerHTML = '<div class="loading">Loading events...</div>';
+
+            try {
+                const events = await fetchAPI('/api/events');
+
+                if (events.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <div>No events logged yet</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Show most recent 50 events
+                const recentEvents = events.slice(0, 50);
+
+                container.innerHTML = recentEvents.map(event => {
+                    const eventData = typeof event.eventData === 'string'
+                        ? event.eventData
+                        : JSON.stringify(event.eventData, null, 2);
+
+                    return `
+                        <div class="event-item">
+                            <div class="event-header">
+                                <span class="event-type ${event.eventType.toLowerCase().replace('_', '-')}">${event.eventType}</span>
+                                <span class="event-timestamp">${new Date(event.timestamp).toLocaleString()}</span>
+                            </div>
+                            <div class="event-data">${eventData}</div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load events:', error);
+                showError('Failed to load events: ' + error.message);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div>Failed to load events</div>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadPositions() {
+            const container = document.getElementById('positions-container');
+            container.innerHTML = '<div class="loading">Loading positions...</div>';
+
+            try {
+                const positions = await fetchAPI('/api/positions');
+
+                if (positions.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📊</div>
+                            <div>No active positions</div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = positions.map(position => {
+                    const pnl = position.avgEntryPrice
+                        ? ((position.currentPrice - position.avgEntryPrice) / position.avgEntryPrice * 100)
+                        : 0;
+                    const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+                    const pnlSign = pnl >= 0 ? '+' : '';
+                    const value = position.quantity * position.currentPrice;
+
+                    return `
+                        <div class="position-item">
+                            <div class="position-header">
+                                <span class="position-side ${position.side.toLowerCase()}">${position.side}</span>
+                                <span class="position-quantity">${position.quantity.toFixed(2)} shares</span>
+                            </div>
+                            ${position.marketTitle ? `
+                            <div style="margin: 8px 0; color: #c9d1d9;">
+                                <strong>${position.marketTitle}</strong>
+                                ${position.outcome ? ` - ${position.outcome}` : ''}
+                            </div>
+                            ` : ''}
+                            <div class="position-details">
+                                <div class="position-detail">
+                                    <span class="position-detail-label">Token ID</span>
+                                    <span class="position-detail-value">${position.tokenId.substring(0, 12)}...</span>
+                                </div>
+                                <div class="position-detail">
+                                    <span class="position-detail-label">Entry Price</span>
+                                    <span class="position-detail-value">${position.avgEntryPrice ? position.avgEntryPrice.toFixed(3) : 'N/A'}</span>
+                                </div>
+                                <div class="position-detail">
+                                    <span class="position-detail-label">Current Price</span>
+                                    <span class="position-detail-value">${position.currentPrice.toFixed(3)}</span>
+                                </div>
+                                <div class="position-detail">
+                                    <span class="position-detail-label">P&L</span>
+                                    <span class="position-detail-value position-pnl ${pnlClass}">${pnlSign}${pnl.toFixed(2)}%</span>
+                                </div>
+                                <div class="position-detail">
+                                    <span class="position-detail-label">Value</span>
+                                    <span class="position-detail-value">$${value.toFixed(2)}</span>
+                                </div>
+                                <div class="position-detail">
+                                    <span class="position-detail-label">Last Updated</span>
+                                    <span class="position-detail-value">${new Date(position.lastUpdatedAt).toLocaleString()}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load positions:', error);
+                showError('Failed to load positions: ' + error.message);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div>Failed to load positions</div>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleEventLog() {
+            const tradesContainer = document.getElementById('trades-container');
+            const eventsContainer = document.getElementById('events-container');
+            const toggleBtn = document.getElementById('toggle-events-btn');
+
+            if (eventsContainer.classList.contains('hidden')) {
+                // Show events, hide trades
+                tradesContainer.classList.add('hidden');
+                eventsContainer.classList.remove('hidden');
+                toggleBtn.textContent = 'Show Trades';
+                toggleBtn.classList.add('active');
+            } else {
+                // Show trades, hide events
+                tradesContainer.classList.remove('hidden');
+                eventsContainer.classList.add('hidden');
+                toggleBtn.textContent = 'Show Events';
+                toggleBtn.classList.remove('active');
+            }
+        }
+
+        // Initial load
+        loadWorkerStatus();
+        loadRules();
+        loadTrades();
+        loadEvents();
+        loadPositions();
+
+        // Auto-refresh every 5 seconds
+        setInterval(() => {
+            loadWorkerStatus();
+            loadRules();
+            loadTrades();
+            loadPositions();
+            // Only refresh events if they're visible
+            if (!document.getElementById('events-container').classList.contains('hidden')) {
+                loadEvents();
+            }
+        }, 5000);
+    </script>
+</body>
+</html>

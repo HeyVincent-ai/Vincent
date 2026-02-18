@@ -1,76 +1,32 @@
-# OpenClaw Trade Manager
+# Trade Manager
 
-Standalone service for automated stop-loss and take-profit rules against Polymarket positions.
+Automated rule-based trading system for Polymarket with real-time WebSocket price updates.
 
-## Installation
+## Features
 
-### Production (from npm)
+- 🚀 **Real-time price updates** via WebSocket (sub-second latency)
+- 📊 **Web dashboard** for monitoring rules and events  
+- 🔄 **Rule types**: Stop Loss, Take Profit, Trailing Stop
+- 🔌 **Auto-reconnection** with exponential backoff
+- 📝 **Event logging** for audit trail
+- 🛡️ **Circuit breaker** pattern for error handling
+- 💾 **SQLite** database with auto-migrations
+
+## Quick Start
 
 ```bash
 npm install -g @openclaw/trade-manager
-trade-manager version
+trade-manager start
 ```
 
-See [PUBLISHING.md](./PUBLISHING.md) for publishing instructions.
+**Web Dashboard**: Open http://localhost:19000 in your browser
 
-### Development (from source)
+## Documentation
 
-```bash
-cd trade-manager
-npm install
-cp .env.example .env # optional
-npm run db:generate
-npm run db:deploy
-npm run build
-npm start
-```
+- [WebSocket Integration](./WEBSOCKET.md) - Real-time price updates
+- [Testing Guide](./TESTING.md) - Local testing and development
+- [Changelog](./CHANGELOG.md) - Version history
 
-## Configuration
+## License
 
-The app loads config from `~/.openclaw/trade-manager.json` first, then environment variables.
-
-Required fields:
-
-- `vincentApiUrl`
-- `vincentApiKey`
-
-Example:
-
-```json
-{
-  "port": 19000,
-  "pollIntervalSeconds": 15,
-  "vincentApiUrl": "https://heyvincent.ai",
-  "vincentApiKey": "<key>",
-  "databaseUrl": "file:/root/.openclaw/trade-manager.db"
-}
-```
-
-## API
-
-- `GET /health`
-- `GET /status`
-- `POST /api/rules`
-- `GET /api/rules`
-- `GET /api/rules/:id`
-- `PATCH /api/rules/:id`
-- `DELETE /api/rules/:id`
-- `GET /api/positions`
-- `GET /api/events`
-
-## Development
-
-```bash
-npm run dev
-npm test
-```
-
-## Systemd
-
-Install user service:
-
-```bash
-./scripts/install-systemd.sh
-systemctl --user status openclaw-trade-manager
-journalctl --user -u openclaw-trade-manager -f
-```
+MIT

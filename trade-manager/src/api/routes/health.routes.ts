@@ -12,5 +12,9 @@ export const createHealthRoutes = (worker: MonitoringWorker): Router => {
     res.json(worker.getStatus());
   });
 
+  router.get('/health/worker', (_req, res) => {
+    res.json(worker.getStatus());
+  });
+
   return router;
 };

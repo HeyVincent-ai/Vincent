@@ -456,17 +456,59 @@ function mapGammaMarket(m: any) {
 }
 
 /**
+ * Extract slug from a Polymarket URL.
+ * Handles URLs like:
+ * - https://polymarket.com/event/btc-updown-5m-1771380900
+ * - polymarket.com/event/btc-updown-5m-1771380900
+ * Returns the slug or null if not a valid URL pattern.
+ */
+function extractSlugFromUrl(url: string): string | null {
+  const urlPattern = /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/event\/([a-z0-9-]+)/i;
+  const match = url.match(urlPattern);
+  return match ? match[1] : null;
+}
+
+/**
  * Search markets via Gamma API.
- * Uses /public-search for text queries, /markets for browsing.
+ * Uses /public-search for text queries, /markets?slug= for slug lookups, /markets for browsing.
  */
 export async function searchMarketsGamma(params: {
   query?: string;
+  slug?: string;
   active?: boolean;
   limit?: number;
   offset?: number;
 }): Promise<GammaSearchResult> {
-  const { query, active = true, limit = 50, offset = 0 } = params;
+  const { query, slug, active = true, limit = 50, offset = 0 } = params;
 
+  // If slug is provided, search by slug directly
+  if (slug) {
+    // Extract slug from URL if it's a full Polymarket URL
+    const cleanSlug = extractSlugFromUrl(slug) || slug;
+
+    const url = new URL('https://gamma-api.polymarket.com/markets');
+    url.searchParams.set('slug', cleanSlug);
+    if (active) {
+      url.searchParams.set('active', 'true');
+      url.searchParams.set('closed', 'false');
+    }
+    url.searchParams.set('limit', String(limit));
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as GammaMarket[];
+    const markets = data.filter((m) => !active || m.acceptingOrders).map(mapGammaMarket);
+
+    return {
+      markets,
+      hasMore: false,
+    };
+  }
+
+  // If query is provided, do text search
   if (query) {
     // Text search via /public-search endpoint
     const url = new URL('https://gamma-api.polymarket.com/public-search');
@@ -616,15 +658,27 @@ function validateOrderResponse(result: any): void {
   }
 
   if (result.error) {
-    const errMsg =
-      typeof result.error === 'string'
-        ? result.error.slice(0, 200)
-        : JSON.stringify(result.error).slice(0, 200);
+    let errMsg: string;
+    if (typeof result.error === 'string') {
+      errMsg = result.error.slice(0, 200);
+    } else {
+      try {
+        errMsg = JSON.stringify(result.error).slice(0, 200);
+      } catch {
+        errMsg = String(result.error).slice(0, 200);
+      }
+    }
     throw new Error(`CLOB order failed: ${errMsg}`);
   }
 
   if (!result.orderID && !result.success) {
-    throw new Error(`CLOB order response missing orderID: ${JSON.stringify(result).slice(0, 200)}`);
+    let resultStr: string;
+    try {
+      resultStr = JSON.stringify(result).slice(0, 200);
+    } catch {
+      resultStr = '[Complex object with circular references]';
+    }
+    throw new Error(`CLOB order response missing orderID: ${resultStr}`);
   }
 }
 

@@ -9,7 +9,8 @@
   },
   "files": [
     "dist",
-    "prisma"
+    "prisma",
+    "public"
   ],
   "publishConfig": {
     "access": "public"

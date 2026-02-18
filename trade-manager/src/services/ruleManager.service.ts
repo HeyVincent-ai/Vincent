@@ -1,8 +1,31 @@
 import { z } from 'zod';
 import { HttpError } from '../utils/httpError.js';
 import { EventLoggerService } from './eventLogger.service.js';
+import { logger } from '../utils/logger.js';
 
 const getPrisma = async () => (await import('../db/client.js')).prisma;
+
+// Fetch market slug from Gamma API using condition ID
+async function fetchMarketSlug(conditionId: string): Promise<string | null> {
+  try {
+    const response = await fetch(
+      `https://gamma-api.polymarket.com/markets?condition_ids=${conditionId}&limit=1`
+    );
+    if (!response.ok) {
+      logger.warn({ conditionId, status: response.status }, 'Failed to fetch market slug');
+      return null;
+    }
+    const markets = await response.json();
+    if (!Array.isArray(markets) || markets.length === 0) {
+      logger.warn({ conditionId }, 'No market found for condition ID');
+      return null;
+    }
+    return markets[0].slug || null;
+  } catch (error) {
+    logger.error({ conditionId, error }, 'Error fetching market slug');
+    return null;
+  }
+}
 
 const actionSchema = z.union([
   z.object({ type: z.literal('SELL_ALL') }),
@@ -26,9 +49,17 @@ export class RuleManagerService {
 
   async createRule(input: z.infer<typeof createRuleSchema>): Promise<any> {
     const payload = createRuleSchema.parse(input);
+
+    // Fetch market slug from Gamma API (marketId is actually the condition ID)
+    const marketSlug = await fetchMarketSlug(payload.marketId);
+
     const prisma = await getPrisma();
     const rule = await prisma.tradeRule.create({
-      data: { ...payload, action: JSON.stringify(payload.action) },
+      data: {
+        ...payload,
+        marketSlug,
+        action: JSON.stringify(payload.action),
+      },
     });
     await this.eventLogger.logEvent(rule.id, 'RULE_CREATED', { payload });
     return rule;
@@ -75,6 +106,16 @@ export class RuleManagerService {
       where: { id, status: 'ACTIVE' },
       data: { status: 'TRIGGERED', triggeredAt: new Date(), triggerTxHash: txHash },
     });
+    return result.count === 1;
+  }
+
+  async markRuleFailed(id: string, errorMessage: string): Promise<boolean> {
+    const prisma = await getPrisma();
+    const result = await prisma.tradeRule.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { status: 'FAILED', errorMessage, triggeredAt: new Date() },
+    });
+    await this.eventLogger.logEvent(id, 'RULE_FAILED', { errorMessage });
     return result.count === 1;
   }
 

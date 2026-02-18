@@ -25,7 +25,7 @@ If any of these fail, ask the user for help setting up the environment.
 
 ## Skill Documentation
 
-Read these skill files to understand how to use both services:
+Read these skill files to understand how to use both services. We are testing locally when talking to the Vincent API do not use the https://heyvincent.ai URL and use our local dev url http://localhost:3000 instead.
 
 ### 1. Polymarket Skill
 

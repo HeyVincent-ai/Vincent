@@ -309,15 +309,16 @@ export async function getMarketInfo(conditionId: string): Promise<MarketInfoOutp
 
 export async function searchMarkets(params: {
   query?: string;
+  slug?: string;
   active?: boolean;
   limit?: number;
   nextCursor?: string;
 }) {
-  const { query, active = true, limit = 50 } = params;
+  const { query, slug, active = true, limit = 50 } = params;
 
   // Use Gamma API for both search and browsing — it supports text search
   // via /public-search and filtered browsing via /markets with proper params
-  return polymarket.searchMarketsGamma({ query, active, limit });
+  return polymarket.searchMarketsGamma({ query, slug, active, limit });
 }
 
 export async function getOrderBook(tokenId: string) {

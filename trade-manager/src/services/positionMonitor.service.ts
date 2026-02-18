@@ -7,24 +7,36 @@ export class PositionMonitorService {
 
   async updatePositions(): Promise<any[]> {
     const prisma = await getPrisma();
-    const positions = await this.vincentClient.getPositions();
+    const holdings = await this.vincentClient.getHoldings();
     const now = new Date();
 
     await Promise.all(
-      positions.map((position) =>
+      holdings.map((holding) =>
         prisma.monitoredPosition.upsert({
           where: {
             marketId_tokenId_side: {
-              marketId: position.marketId,
-              tokenId: position.tokenId,
-              side: position.side,
+              marketId: holding.tokenId, // Use tokenId as marketId for holdings
+              tokenId: holding.tokenId,
+              side: 'BUY', // Holdings are always BUY side (shares you own)
             },
           },
-          create: { ...position, lastUpdatedAt: now },
+          create: {
+            marketId: holding.tokenId,
+            tokenId: holding.tokenId,
+            side: 'BUY',
+            quantity: holding.shares,
+            avgEntryPrice: holding.averageEntryPrice,
+            currentPrice: holding.currentPrice,
+            marketTitle: holding.marketTitle,
+            outcome: holding.outcome,
+            lastUpdatedAt: now,
+          },
           update: {
-            quantity: position.quantity,
-            avgEntryPrice: position.avgEntryPrice,
-            currentPrice: position.currentPrice,
+            quantity: holding.shares,
+            avgEntryPrice: holding.averageEntryPrice,
+            currentPrice: holding.currentPrice,
+            marketTitle: holding.marketTitle,
+            outcome: holding.outcome,
             lastUpdatedAt: now,
           },
         })

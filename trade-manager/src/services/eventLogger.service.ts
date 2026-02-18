@@ -8,6 +8,7 @@ export class EventLoggerService {
       | 'RULE_EVALUATED'
       | 'RULE_TRIGGERED'
       | 'RULE_CANCELED'
+      | 'RULE_FAILED'
       | 'ACTION_EXECUTED'
       | 'ACTION_FAILED',
     eventData: unknown

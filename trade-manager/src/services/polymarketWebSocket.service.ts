@@ -18,7 +18,14 @@ export interface OrderBookUpdate {
 }
 
 export interface WebSocketMessage {
-  event_type: 'book' | 'price_change' | 'last_trade_price' | 'best_bid_ask' | 'tick_size_change' | 'new_market' | 'market_resolved';
+  event_type:
+    | 'book'
+    | 'price_change'
+    | 'last_trade_price'
+    | 'best_bid_ask'
+    | 'tick_size_change'
+    | 'new_market'
+    | 'market_resolved';
   asset_id: string;
   market?: string;
   timestamp: number;
@@ -85,11 +92,37 @@ export class PolymarketWebSocketService extends EventEmitter {
     });
 
     this.ws.on('message', (data: WebSocket.Data) => {
+      const rawData = data.toString();
+
+      // Check if it's a plain text message (not JSON)
+      if (!rawData.startsWith('{') && !rawData.startsWith('[')) {
+        logger.warn(
+          {
+            message: rawData,
+            subscribedTokens: Array.from(this.subscribedTokenIds),
+          },
+          '[PolymarketWS] Received non-JSON message from server'
+        );
+
+        // If it's an error message, emit it
+        if (rawData.includes('INVALID') || rawData.includes('ERROR')) {
+          this.emit('error', new Error(`WebSocket server error: ${rawData}`));
+        }
+        return;
+      }
+
       try {
-        const message = JSON.parse(data.toString()) as WebSocketMessage;
+        const message = JSON.parse(rawData) as WebSocketMessage;
         this.handleMessage(message);
       } catch (error) {
-        logger.error({ error, data: data.toString() }, '[PolymarketWS] Failed to parse message');
+        logger.error(
+          {
+            error: error instanceof Error ? error.message : String(error),
+            data: rawData.substring(0, 500), // Truncate to first 500 chars
+            dataLength: rawData.length,
+          },
+          '[PolymarketWS] Failed to parse JSON message'
+        );
       }
     });
 
@@ -173,15 +206,26 @@ export class PolymarketWebSocketService extends EventEmitter {
       return;
     }
 
+    // Polymarket requires explicit operation field for both subscribe and unsubscribe
     const message = {
       auth: {},
       type: 'market',
       assets_ids: tokenIds,
-      ...(operation === 'unsubscribe' ? { operation: 'unsubscribe' } : {}),
+      operation: operation, // Must be 'subscribe' or 'unsubscribe'
     };
 
-    this.ws.send(JSON.stringify(message));
-    logger.info({ tokenCount: tokenIds.length }, `[PolymarketWS] Sent ${operation} request`);
+    const messageStr = JSON.stringify(message);
+    logger.info(
+      {
+        operation,
+        tokenCount: tokenIds.length,
+        tokenIds: tokenIds.map((id) => id.substring(0, 20) + '...'), // Show first 20 chars of each ID
+        message: messageStr.substring(0, 500), // Truncate long messages
+      },
+      `[PolymarketWS] Sending ${operation} request`
+    );
+
+    this.ws.send(messageStr);
   }
 
   private handleMessage(message: WebSocketMessage): void {
@@ -208,12 +252,20 @@ export class PolymarketWebSocketService extends EventEmitter {
   }
 
   private handleBookUpdate(message: WebSocketMessage): void {
-    if (!message.buys || !message.sells) {
-      logger.warn({ asset_id: message.asset_id }, '[PolymarketWS] Book update missing buys or sells');
+    // Use empty arrays if buys or sells are missing - we can still calculate price from one side
+    const buys = message.buys || [];
+    const sells = message.sells || [];
+
+    // Log a debug message if one side is missing (not a warning, as this is normal)
+    if (buys.length === 0 && sells.length === 0) {
+      logger.warn(
+        { asset_id: message.asset_id },
+        '[PolymarketWS] Book update has no buys or sells'
+      );
       return;
     }
 
-    const price = this.calculateMidPrice(message.buys, message.sells);
+    const price = this.calculateMidPrice(buys, sells);
     if (price > 0) {
       this.emitPriceUpdate(message.asset_id, price, message.timestamp);
     }
@@ -224,8 +276,8 @@ export class PolymarketWebSocketService extends EventEmitter {
       market: message.market,
       timestamp: message.timestamp,
       hash: message.hash,
-      buys: message.buys,
-      sells: message.sells,
+      buys,
+      sells,
     } as OrderBookUpdate);
   }
 
@@ -287,14 +339,18 @@ export class PolymarketWebSocketService extends EventEmitter {
     }
 
     const delay = Math.min(
-      this.reconnectInitialDelay * Math.pow(this.reconnectBackoffMultiplier, this.reconnectAttempts),
+      this.reconnectInitialDelay *
+        Math.pow(this.reconnectBackoffMultiplier, this.reconnectAttempts),
       this.reconnectMaxDelay
     );
 
-    logger.info({
-      attempt: this.reconnectAttempts + 1,
-      delayMs: delay,
-    }, '[PolymarketWS] Scheduling reconnection');
+    logger.info(
+      {
+        attempt: this.reconnectAttempts + 1,
+        delayMs: delay,
+      },
+      '[PolymarketWS] Scheduling reconnection'
+    );
 
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = undefined;
