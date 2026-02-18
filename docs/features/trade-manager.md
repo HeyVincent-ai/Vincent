@@ -16,7 +16,7 @@ User (Telegram) → OpenClaw Agent → Trade Manager (localhost:19000) → Vince
 - **Separate process** from OpenClaw, supervised by systemd
 - **Local HTTP API** on `localhost:19000`
 - **SQLite database** for state (rules, positions, events)
-- **Background worker** polls positions/prices every 15 seconds
+- **Background worker** monitors prices via Polymarket websockets (with 15-second polling as fallback)
 - Communicates with Vincent backend as a REST client using the Polymarket wallet API key
 
 ## Core Concepts
@@ -46,15 +46,21 @@ Append-only audit log of rule evaluations and actions.
 
 Runs continuously in the same process as the HTTP API.
 
-**Main loop (every 15 seconds):**
+### Price Monitoring
+
+**Primary: Polymarket websockets** — subscribes to real-time price updates for all markets with active rules. Price changes trigger immediate rule evaluation.
+
+**Fallback: Polling (every 15 seconds)** — if the websocket disconnects or as a safety net, the worker falls back to polling positions and prices from the Vincent Polymarket API on a 15-second interval.
+
+### Evaluation Loop
+
+On each price update (websocket or poll):
 1. Fetch all active rules from SQLite
-2. Fetch current positions from Vincent Polymarket API
-3. Fetch current prices for relevant markets
-4. Update monitored positions cache
-5. For each active rule: evaluate trigger condition
-6. If triggered: execute trade via Vincent Polymarket API
-7. Mark rule as triggered atomically
-8. Log events
+2. Update monitored positions cache
+3. For each active rule: evaluate trigger condition against current price
+4. If triggered: execute trade via Vincent Polymarket API
+5. Mark rule as triggered atomically
+6. Log events
 
 **Guardrails:**
 - Idempotent: rules marked triggered in DB transaction
