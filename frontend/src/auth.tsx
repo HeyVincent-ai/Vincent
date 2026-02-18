@@ -13,7 +13,7 @@ interface User {
 interface AuthCtx {
   user: User | null;
   loading: boolean;
-  setSession: (token: string, user: User) => void;
+  setSession: (token: string, user: Omit<User, 'isAdmin'> & { isAdmin?: boolean }) => void;
   clearSession: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -49,9 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const setSession = (token: string, u: User) => {
+  const setSession = (token: string, u: Omit<User, 'isAdmin'> & { isAdmin?: boolean }) => {
     localStorage.setItem('sessionToken', token);
-    setUser(u);
+    setUser({ ...u, isAdmin: u.isAdmin ?? false });
   };
 
   const clearSession = () => {

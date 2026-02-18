@@ -6,7 +6,7 @@ import { syncSession } from '../api';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
-  const { setSession } = useAuth();
+  const { setSession, refreshUser } = useAuth();
   const stytch = useStytch();
   const [error, setError] = useState('');
   const didRun = useRef(false);
@@ -48,20 +48,23 @@ export default function AuthCallback() {
           setSession(sessionToken, user);
           localStorage.removeItem('referralCode');
 
-          const pending = localStorage.getItem('pendingClaim');
-          if (pending) {
-            try {
-              const { url, expiresAt } = JSON.parse(pending);
-              localStorage.removeItem('pendingClaim');
-              if (Date.now() < expiresAt) {
-                navigate(url);
-                return;
+          // Refresh the full profile so isAdmin (from Stytch roles) is populated
+          return refreshUser().then(() => {
+            const pending = localStorage.getItem('pendingClaim');
+            if (pending) {
+              try {
+                const { url, expiresAt } = JSON.parse(pending);
+                localStorage.removeItem('pendingClaim');
+                if (Date.now() < expiresAt) {
+                  navigate(url);
+                  return;
+                }
+              } catch {
+                localStorage.removeItem('pendingClaim');
               }
-            } catch {
-              localStorage.removeItem('pendingClaim');
             }
-          }
-          navigate('/dashboard');
+            navigate('/dashboard');
+          });
         });
       })
       .catch((err) => {
