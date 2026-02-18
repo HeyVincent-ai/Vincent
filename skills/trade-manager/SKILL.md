@@ -1,6 +1,6 @@
-# Trade Manager - Automated Stop-Loss & Take-Profit
+# Trade Manager - Automated Stop-Loss, Take-Profit, and Trailing Stops
 
-Use this skill to create automated trading rules (stop-loss, take-profit) for your Polymarket positions. The Trade Manager runs locally on your OpenClaw VPS and automatically executes trades when price conditions are met.
+Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs locally on your OpenClaw VPS and automatically executes trades when price conditions are met.
 
 ## How It Works
 
@@ -90,7 +90,32 @@ curl -X POST http://localhost:19000/api/rules \
 
 **Pro tip:** Create both a stop-loss AND take-profit on the same position to bracket your trade.
 
-### 4. List Active Rules
+### 4. Create a Trailing Stop Rule
+
+A trailing stop starts with a stop price, then automatically moves that stop price up as price rises.
+
+```bash
+curl -X POST http://localhost:19000/api/rules \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <POLYMARKET_API_KEY>" \
+  -d '{
+    "marketId": "0x123...",
+    "tokenId": "456789",
+    "ruleType": "TRAILING_STOP",
+    "triggerPrice": 0.45,
+    "trailingPercent": 5,
+    "action": {"type": "SELL_ALL"}
+  }'
+```
+
+**Trailing stop behavior:**
+- `trailingPercent` is percent points (for example `5` means 5%)
+- Trade Manager computes `candidateStop = currentPrice * (1 - trailingPercent/100)`
+- If `candidateStop` is above the current `triggerPrice`, it updates `triggerPrice`
+- `triggerPrice` never moves down
+- Rule triggers when `currentPrice <= triggerPrice`
+
+### 5. List Active Rules
 
 ```bash
 # All rules
@@ -106,7 +131,7 @@ curl 'http://localhost:19000/api/rules?status=TRIGGERED' \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 ```
 
-### 5. Update a Rule's Trigger Price
+### 6. Update a Rule's Trigger Price
 
 ```bash
 curl -X PATCH http://localhost:19000/api/rules/<rule-id> \
@@ -117,7 +142,7 @@ curl -X PATCH http://localhost:19000/api/rules/<rule-id> \
   }'
 ```
 
-### 6. Cancel a Rule
+### 7. Cancel a Rule
 
 ```bash
 curl -X DELETE http://localhost:19000/api/rules/<rule-id> \
@@ -126,7 +151,7 @@ curl -X DELETE http://localhost:19000/api/rules/<rule-id> \
 
 The rule status changes to "CANCELED" and won't trigger anymore.
 
-### 7. View Monitored Positions
+### 8. View Monitored Positions
 
 See what positions the Trade Manager is currently tracking:
 
@@ -137,7 +162,7 @@ curl http://localhost:19000/api/positions \
 
 Returns cached position data with current prices. This cache updates every 15 seconds.
 
-### 8. View Event Log (Audit Trail)
+### 9. View Event Log (Audit Trail)
 
 See detailed history of rule evaluations and executions:
 
@@ -153,6 +178,7 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>' \
 
 **Event types:**
 - `RULE_CREATED` - Rule was created
+- `RULE_TRAILING_UPDATED` - Trailing stop moved triggerPrice upward
 - `RULE_EVALUATED` - Worker checked the rule (happens every poll)
 - `RULE_TRIGGERED` - Trigger condition was met
 - `ACTION_EXECUTED` - Trade executed successfully
@@ -310,7 +336,6 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>'
 ## Limitations (MVP)
 
 - Only supports `SELL_ALL` action (no partial sells yet)
-- No trailing stops (coming in v2)
 - No time-based triggers (coming in v2)
 - No Telegram notifications yet (manual event log checking)
 - Polling interval is 15 seconds (not real-time)
@@ -320,6 +345,7 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>'
 When a user says:
 - **"Set a stop-loss at 40¢ for my Bitcoin Yes position"** → Create STOP_LOSS rule
 - **"Take profit at 85¢"** → Create TAKE_PROFIT rule
+- **"Set a 5% trailing stop on my Bitcoin Yes position"** → Create TRAILING_STOP rule
 - **"What are my active stop-losses?"** → List rules with `status=ACTIVE`
 - **"Cancel my stop-loss for market XYZ"** → Delete the rule
 - **"Did my stop-loss trigger?"** → Check rule status and event log
@@ -335,8 +361,9 @@ Create a new trading rule.
 {
   "marketId": "string",
   "tokenId": "string",
-  "ruleType": "STOP_LOSS" | "TAKE_PROFIT",
+  "ruleType": "STOP_LOSS" | "TAKE_PROFIT" | "TRAILING_STOP",
   "triggerPrice": number,  // 0 to 1
+  "trailingPercent": number,  // required for TRAILING_STOP (0 < x < 100)
   "action": {"type": "SELL_ALL"}
 }
 ```

@@ -22,31 +22,36 @@ export const createTradesRoutes = (_eventLogger: EventLoggerService): Router => 
       });
 
       // Format the response with enriched trade data
-      const trades = events.map((event) => {
-        let eventData: any = {};
-        try {
-          eventData = JSON.parse(event.eventData);
-        } catch {
-          // ignore parse errors
-        }
+      // Keep only confirmed executions that include a concrete result payload.
+      const trades = events
+        .map((event) => {
+          let eventData: any = {};
+          try {
+            eventData = JSON.parse(event.eventData);
+          } catch {
+            // ignore parse errors
+          }
 
-        return {
-          id: event.id,
-          timestamp: event.createdAt,
-          ruleId: event.ruleId,
-          ruleType: event.rule.ruleType,
-          marketId: event.rule.marketId,
-          marketSlug: event.rule.marketSlug,
-          tokenId: event.rule.tokenId,
-          side: event.rule.side,
-          triggerPrice: event.rule.triggerPrice,
-          txHash: eventData.result?.txHash,
-          orderId: eventData.result?.orderId,
-          amount: eventData.result?.amount,
-          price: eventData.result?.price,
-          status: eventData.result?.status || 'EXECUTED',
-        };
-      });
+          if (!eventData.result) return null;
+
+          return {
+            id: event.id,
+            timestamp: event.createdAt,
+            ruleId: event.ruleId,
+            ruleType: event.rule.ruleType,
+            marketId: event.rule.marketId,
+            marketSlug: event.rule.marketSlug,
+            tokenId: event.rule.tokenId,
+            side: event.rule.side,
+            triggerPrice: event.rule.triggerPrice,
+            txHash: eventData.result?.txHash,
+            orderId: eventData.result?.orderId,
+            amount: eventData.result?.amount,
+            price: eventData.result?.price,
+            status: eventData.result?.status || 'EXECUTED',
+          };
+        })
+        .filter((trade): trade is NonNullable<typeof trade> => trade !== null);
 
       res.json(trades);
     } catch (error) {

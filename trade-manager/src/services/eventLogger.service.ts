@@ -6,9 +6,11 @@ export class EventLoggerService {
     eventType:
       | 'RULE_CREATED'
       | 'RULE_EVALUATED'
+      | 'RULE_TRAILING_UPDATED'
       | 'RULE_TRIGGERED'
       | 'RULE_CANCELED'
       | 'RULE_FAILED'
+      | 'ACTION_ATTEMPT'
       | 'ACTION_EXECUTED'
       | 'ACTION_FAILED',
     eventData: unknown

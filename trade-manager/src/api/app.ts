@@ -38,6 +38,17 @@ export const createApp = (
   // Serve static files from public directory
   const publicPath = path.join(__dirname, '../../public');
   app.use(express.static(publicPath));
+  app.get('*', (req, res, next) => {
+    if (
+      req.path.startsWith('/api/') ||
+      req.path.startsWith('/health') ||
+      req.path.startsWith('/status')
+    ) {
+      next();
+      return;
+    }
+    res.sendFile(path.join(publicPath, 'index.html'));
+  });
 
   app.use((_req, res) => {
     res.status(404).json({ error: 'Not found' });

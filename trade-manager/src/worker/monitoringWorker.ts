@@ -21,6 +21,7 @@ export interface WorkerStatus {
 
 export class MonitoringWorker {
   private timer?: NodeJS.Timeout;
+  private readonly executingRuleIds = new Set<string>();
   private readonly status: WorkerStatus = {
     running: false,
     activeRulesCount: 0,
@@ -106,9 +107,12 @@ export class MonitoringWorker {
             this.priceCache.set(rule.tokenId, currentPrice);
           }
 
+          await this.maybeAdjustTrailingTrigger(rule, currentPrice);
+
           const shouldTrigger = this.ruleExecutor.evaluateRule(rule, currentPrice);
           await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
             currentPrice,
+            triggerPrice: rule.triggerPrice,
             shouldTrigger,
           });
           if (shouldTrigger) {
@@ -149,8 +153,21 @@ export class MonitoringWorker {
     ruleType: string;
     triggerPrice: number;
   }): Promise<void> {
-    const result = await this.ruleExecutor.executeRule(rule);
-    await this.eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
+    if (this.executingRuleIds.has(rule.id)) {
+      logger.warn(
+        { ruleId: rule.id },
+        '[MonitoringWorker] Skipping duplicate trigger while executing'
+      );
+      return;
+    }
+
+    this.executingRuleIds.add(rule.id);
+    try {
+      const result = await this.ruleExecutor.executeRule(rule);
+      await this.eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
+    } finally {
+      this.executingRuleIds.delete(rule.id);
+    }
   }
 
   private setupWebSocketHandlers(): void {
@@ -186,9 +203,12 @@ export class MonitoringWorker {
       const matchingRules = activeRules.filter((rule) => rule.tokenId === tokenId);
 
       for (const rule of matchingRules) {
+        await this.maybeAdjustTrailingTrigger(rule, price);
+
         const shouldTrigger = this.ruleExecutor.evaluateRule(rule, price);
         await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
           currentPrice: price,
+          triggerPrice: rule.triggerPrice,
           shouldTrigger,
           source: 'websocket',
         });
@@ -250,6 +270,42 @@ export class MonitoringWorker {
     }
 
     this.status.webSocketSubscriptions = requiredTokenIds.size;
+  }
+
+  private async maybeAdjustTrailingTrigger(
+    rule: {
+      id: string;
+      ruleType: string;
+      triggerPrice: number;
+      trailingPercent?: number;
+    },
+    currentPrice: number
+  ): Promise<void> {
+    if (rule.ruleType !== 'TRAILING_STOP') return;
+    if (typeof rule.trailingPercent !== 'number' || rule.trailingPercent <= 0) return;
+
+    const nextTrigger = Math.min(0.99, currentPrice * (1 - rule.trailingPercent / 100));
+    if (nextTrigger <= rule.triggerPrice) return;
+
+    const previousTriggerPrice = rule.triggerPrice;
+    const updated = await this.ruleManager.updateTrailingTrigger(rule.id, nextTrigger, {
+      currentPrice,
+      trailingPercent: rule.trailingPercent,
+    });
+
+    if (updated) {
+      rule.triggerPrice = nextTrigger;
+      logger.info(
+        {
+          ruleId: rule.id,
+          oldTriggerPrice: previousTriggerPrice,
+          newTriggerPrice: nextTrigger,
+          currentPrice,
+          trailingPercent: rule.trailingPercent,
+        },
+        '[MonitoringWorker] Trailing stop trigger updated'
+      );
+    }
   }
 }
 

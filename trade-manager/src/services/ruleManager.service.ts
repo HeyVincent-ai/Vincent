@@ -32,15 +32,33 @@ const actionSchema = z.union([
   z.object({ type: z.literal('SELL_PARTIAL'), amount: z.number().positive() }),
 ]);
 
-export const createRuleSchema = z.object({
-  ruleType: z.enum(['STOP_LOSS', 'TAKE_PROFIT']),
-  marketId: z.string().min(1),
-  tokenId: z.string().min(1),
-  side: z.enum(['BUY', 'SELL']).default('BUY'),
-  triggerPrice: z.number().gt(0).lt(1),
-  trailingPercent: z.number().positive().optional(),
-  action: actionSchema,
-});
+export const createRuleSchema = z
+  .object({
+    ruleType: z.enum(['STOP_LOSS', 'TAKE_PROFIT', 'TRAILING_STOP']),
+    marketId: z.string().min(1),
+    tokenId: z.string().min(1),
+    side: z.enum(['BUY', 'SELL']).default('BUY'),
+    triggerPrice: z.number().gt(0).lt(1),
+    trailingPercent: z.number().gt(0).lt(100).optional(),
+    action: actionSchema,
+  })
+  .superRefine((data, ctx) => {
+    if (data.ruleType === 'TRAILING_STOP' && data.trailingPercent === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['trailingPercent'],
+        message: 'trailingPercent is required for TRAILING_STOP rules',
+      });
+    }
+
+    if (data.ruleType !== 'TRAILING_STOP' && data.trailingPercent !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['trailingPercent'],
+        message: 'trailingPercent is only supported for TRAILING_STOP rules',
+      });
+    }
+  });
 
 export const updateRuleSchema = z.object({ triggerPrice: z.number().gt(0).lt(1) });
 
@@ -117,6 +135,33 @@ export class RuleManagerService {
     });
     await this.eventLogger.logEvent(id, 'RULE_FAILED', { errorMessage });
     return result.count === 1;
+  }
+
+  async updateTrailingTrigger(
+    id: string,
+    triggerPrice: number,
+    context?: { currentPrice: number; trailingPercent: number }
+  ): Promise<boolean> {
+    const prisma = await getPrisma();
+    const result = await prisma.tradeRule.updateMany({
+      where: {
+        id,
+        status: 'ACTIVE',
+        ruleType: 'TRAILING_STOP',
+        triggerPrice: { lt: triggerPrice },
+      },
+      data: { triggerPrice },
+    });
+
+    if (result.count === 1) {
+      await this.eventLogger.logEvent(id, 'RULE_TRAILING_UPDATED', {
+        triggerPrice,
+        ...(context ?? {}),
+      });
+      return true;
+    }
+
+    return false;
   }
 
   async getRuleEvents(ruleId?: string): Promise<unknown[]> {

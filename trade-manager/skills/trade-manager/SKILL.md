@@ -1,6 +1,6 @@
 # Trade Manager Skill
 
-Use this skill when users ask to create, update, or inspect local stop-loss/take-profit automation.
+Use this skill when users ask to create, update, or inspect local stop-loss/take-profit/trailing-stop automation.
 
 ## Architecture
 

@@ -21,7 +21,9 @@ export class RuleExecutorService {
   ) {}
 
   evaluateRule(rule: RuleLike, currentPrice: number): boolean {
-    if (rule.ruleType === 'STOP_LOSS') return currentPrice <= rule.triggerPrice;
+    if (rule.ruleType === 'STOP_LOSS' || rule.ruleType === 'TRAILING_STOP') {
+      return currentPrice <= rule.triggerPrice;
+    }
     if (rule.ruleType === 'TAKE_PROFIT') return currentPrice >= rule.triggerPrice;
     return false;
   }
@@ -159,7 +161,8 @@ export class RuleExecutorService {
     // Calculate limit price based on rule type
     // For STOP_LOSS: use current price with -2% slippage to ensure execution
     // For TAKE_PROFIT: use current price with -1% slippage
-    const slippage = rule.ruleType === 'STOP_LOSS' ? 0.02 : 0.01;
+    const slippage =
+      rule.ruleType === 'STOP_LOSS' || rule.ruleType === 'TRAILING_STOP' ? 0.02 : 0.01;
     // Polymarket requires prices between 0.01 and 0.99
     const limitPrice = Math.max(0.01, Math.min(0.99, currentPrice * (1 - slippage)));
 
@@ -173,7 +176,7 @@ export class RuleExecutorService {
 
     // ATTEMPT 1: Try with limit order at calculated price
     try {
-      await this.eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', {
+      await this.eventLogger.logEvent(rule.id, 'ACTION_ATTEMPT', {
         attempt: 1,
         type: 'limit_order',
         price: limitPrice,
@@ -210,7 +213,7 @@ export class RuleExecutorService {
 
       // ATTEMPT 2: Retry with market order (no price limit)
       console.log('[RuleExecutor] Retrying with market order (no price limit)');
-      await this.eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', {
+      await this.eventLogger.logEvent(rule.id, 'ACTION_ATTEMPT', {
         attempt: 2,
         type: 'market_order',
         previousError: errorMessage,
