@@ -1,20 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { KeyRound, Bot, LogOut, Menu, X, Server, Wallet, Activity, Users } from 'lucide-react';
+import { KeyRound, Bot, LogOut, Menu, X } from 'lucide-react';
 import { useState } from 'react';
 import { useStytch } from '@stytch/react';
 import { useAuth } from '../auth';
 import { cn } from '../lib/utils';
+import { ADMIN_NAV_ITEMS } from '../admin/nav';
 
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Accounts', icon: KeyRound },
   { to: '/agents', label: 'Agents', icon: Bot },
-];
-
-const ADMIN_NAV_ITEMS = [
-  { to: '/admin/vps-pool', label: 'VPS Pool', icon: Server },
-  { to: '/admin/wallets', label: 'Wallets', icon: Wallet },
-  { to: '/admin/active-agents', label: 'Active Agents', icon: Activity },
-  { to: '/admin/referrals', label: 'Referrals', icon: Users },
 ];
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
