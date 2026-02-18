@@ -30,7 +30,7 @@ export default function ApiKeyManager({ secretId }: { secretId: string }) {
     if (!newKeyName.trim()) return;
     try {
       const res = await createApiKey(secretId, newKeyName.trim());
-      setCreatedKey(res.data.data.plainKey);
+      setCreatedKey(res.data.data.key);
       setNewKeyName('');
       toast('API key created');
       load();

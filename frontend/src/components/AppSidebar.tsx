@@ -1,8 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { KeyRound, Bot, LogOut, Menu, X } from 'lucide-react';
+import { KeyRound, Bot, LogOut, Menu, X, Server, Wallet, Activity, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useStytch } from '@stytch/react';
 import { useAuth } from '../auth';
-import { logout } from '../api';
 import { cn } from '../lib/utils';
 
 const NAV_ITEMS = [
@@ -10,16 +10,27 @@ const NAV_ITEMS = [
   { to: '/agents', label: 'Agents', icon: Bot },
 ];
 
+const ADMIN_NAV_ITEMS = [
+  { to: '/admin/vps-pool', label: 'VPS Pool', icon: Server },
+  { to: '/admin/wallets', label: 'Wallets', icon: Wallet },
+  { to: '/admin/active-agents', label: 'Active Agents', icon: Activity },
+  { to: '/admin/referrals', label: 'Referrals', icon: Users },
+];
+
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, clearSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const stytch = useStytch();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // stytch.session.revoke() calls the Stytch API to revoke the session AND
+      // clears the SDK's cached session state, preventing "unauthorized_credentials"
+      // errors on the next login attempt.
+      await stytch.session.revoke();
     } catch {
-      // ignore
+      // ignore — clear local state regardless
     }
     clearSession();
     navigate('/login');
@@ -44,7 +55,8 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       {/* Nav items */}
       <nav className="flex-1 px-3 mt-2">
         {NAV_ITEMS.map((item) => {
-          const isActive = location.pathname === item.to || location.pathname.startsWith(item.to + '/');
+          const isActive =
+            location.pathname === item.to || location.pathname.startsWith(item.to + '/');
           const Icon = item.icon;
           return (
             <Link
@@ -66,6 +78,42 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             </Link>
           );
         })}
+
+        {user?.isAdmin && (
+          <>
+            <div className="mt-4 mb-1 px-3">
+              <Link
+                to="/admin"
+                className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wider hover:text-muted-foreground transition-colors"
+              >
+                Admin
+              </Link>
+            </div>
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const isActive = location.pathname === item.to;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  onClick={onNavigate}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors relative',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  {isActive && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 bg-primary rounded-r" />
+                  )}
+                  <Icon className="w-5 h-5 shrink-0" />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </>
+        )}
       </nav>
 
       {/* User section */}
