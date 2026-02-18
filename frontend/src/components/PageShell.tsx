@@ -707,17 +707,33 @@ export const SHARED_STYLES = `
   }
 `;
 
-export function SkillsCopyButton({ className, children, tooltipDown }: { className?: string; children: ReactNode; tooltipDown?: boolean }) {
+export function SkillsCopyButton({
+  className,
+  children,
+  tooltipDown,
+}: {
+  className?: string;
+  children: ReactNode;
+  tooltipDown?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
-    try { await navigator.clipboard.writeText(SKILLS_REPO_URL); } catch {}
+    try {
+      await navigator.clipboard.writeText(SKILLS_REPO_URL);
+    } catch (e) {
+      console.error(`error copying to clipboard: ${e}`);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
   return (
     <button className={`skills-copy-btn ${className || ''}`} onClick={copy}>
       {children}
-      {copied && <span className={`skills-copy-tooltip ${tooltipDown ? 'skills-copy-tooltip--down' : ''}`}>Copied! Send this repo to your agent.</span>}
+      {copied && (
+        <span className={`skills-copy-tooltip ${tooltipDown ? 'skills-copy-tooltip--down' : ''}`}>
+          Copied! Send this repo to your agent.
+        </span>
+      )}
     </button>
   );
 }
@@ -786,24 +802,46 @@ function Footer() {
         <div className="container">
           <div className="footer-grid">
             <div className="footer-brand">
-              <div className="nav__logo"><img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" /></div>
+              <div className="nav__logo">
+                <img src="/vincent-logo.svg" alt="Vincent" className="nav__logo-img" />
+              </div>
               <p>Everything your agent needs to put money to work</p>
             </div>
             <div className="footer-col">
               <h4>Product</h4>
               <ul>
-                <li><Link to="/features">Features</Link></li>
-                <li><Link to="/security">Security</Link></li>
-                <li><Link to="/#pricing">Pricing</Link></li>
+                <li>
+                  <Link to="/features">Features</Link>
+                </li>
+                <li>
+                  <Link to="/security">Security</Link>
+                </li>
+                <li>
+                  <Link to="/#pricing">Pricing</Link>
+                </li>
               </ul>
             </div>
             <div className="footer-col">
               <h4>Resources</h4>
               <ul>
-                <li><a href={SKILLS_REPO_URL} target="_blank" rel="noreferrer">Skills Repo</a></li>
-                <li><a href="https://heyvincent.ai/docs" target="_blank" rel="noreferrer">Docs</a></li>
-                <li><a href="https://discord.gg/FPkF6cZf" target="_blank" rel="noreferrer">Discord</a></li>
-                <li><a href="mailto:support@litprotocol.com">Support</a></li>
+                <li>
+                  <a href={SKILLS_REPO_URL} target="_blank" rel="noreferrer">
+                    Skills Repo
+                  </a>
+                </li>
+                <li>
+                  <a href="https://heyvincent.ai/docs" target="_blank" rel="noreferrer">
+                    Docs
+                  </a>
+                </li>
+                <li>
+                  <a href="https://discord.gg/WVcQRJsNdv" target="_blank" rel="noreferrer">
+                    Discord
+                  </a>
+                </li>
+                <li>
+                  <a href="mailto:support@litprotocol.com">Support</a>
+                </li>
               </ul>
             </div>
             <div className="footer-col">
@@ -819,7 +857,9 @@ function Footer() {
           </div>
           <div className="footer-bottom">
             <span>&copy; {new Date().getFullYear()} Workgraph, Inc. All rights reserved.</span>
-            <span><Link to="/terms">Terms of Service</Link></span>
+            <span>
+              <Link to="/terms">Terms of Service</Link>
+            </span>
           </div>
         </div>
       </footer>

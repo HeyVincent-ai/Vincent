@@ -659,6 +659,22 @@ export async function waitForHealth(
 // ============================================================
 
 /**
+ * Claim the oldest VPS from the pool. Returns the OVH service name, or null if the pool is empty.
+ */
+async function claimPoolVps(): Promise<string | null> {
+  const rows = await prisma.$queryRaw<Array<{ ovh_service_name: string }>>`
+    DELETE FROM "vps_pool"
+    WHERE "id" = (
+      SELECT "id" FROM "vps_pool"
+      ORDER BY "created_at" LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING "ovh_service_name"
+  `;
+  return rows.length > 0 ? rows[0].ovh_service_name : null;
+}
+
+/**
  * Find the first available VPS plan + datacenter from the priority list.
  * Falls back to the first plan with cart datacenters if nothing is in-stock.
  */
@@ -1017,6 +1033,28 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         }
 
         case 'plan_found': {
+          // Try to claim a pre-provisioned VPS from the pool first.
+          if (!ctx.serviceName) {
+            addLog('Checking VPS pool...');
+            const poolVps = await claimPoolVps();
+            if (poolVps) {
+              ctx.serviceName = poolVps;
+              ctx.hostname = ovhService.getVpsHostname(poolVps);
+              addLog(`Claimed VPS from pool: ${poolVps}`);
+              await updateDeployment(deploymentId, {
+                ovhServiceName: ctx.serviceName,
+                hostname: ctx.hostname,
+                provisionLog: log,
+                provisionStage: stage,
+              });
+              break;
+            }
+            addLog('VPS pool empty, proceeding with normal VPS ordering');
+          } else {
+            addLog(`VPS already claimed for this deployment: ${ctx.serviceName}`);
+          }
+
+          // Pool empty — proceed with normal plan finding
           const planCode = options.planCode;
           const datacenter = options.datacenter;
           if (!planCode || !datacenter) {
@@ -1037,6 +1075,18 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         }
 
         case 'vps_ordered': {
+          // Pool-sourced VPS: skip ordering entirely
+          if (ctx.serviceName) {
+            addLog(`VPS from pool (${ctx.serviceName}), skipping order`);
+            await updateDeployment(deploymentId, {
+              ovhServiceName: ctx.serviceName,
+              hostname: ctx.hostname,
+              provisionLog: log,
+              provisionStage: stage,
+            });
+            break;
+          }
+
           // Reload from DB in case we're resuming and order already placed
           const current = await prisma.openClawDeployment.findUnique({
             where: { id: deploymentId },
