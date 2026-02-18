@@ -23,9 +23,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:polymarket": "vitest run src/e2e/polymarket.e2e.test.ts",
-    "test:evm-wallet": "vitest run src/e2e/evmWallet.e2e.test.ts",
-    "test:raw-signer": "vitest run src/e2e/rawSigner.e2e.test.ts",
+    "test:polymarket": "vitest run -c vitest.e2e.config.ts src/e2e/polymarket.e2e.test.ts",
+    "test:evm-wallet": "vitest run -c vitest.e2e.config.ts src/e2e/evmWallet.e2e.test.ts",
+    "test:raw-signer": "vitest run -c vitest.e2e.config.ts src/e2e/rawSigner.e2e.test.ts",
     "sentry:triage": "tsx scripts/sentry-triage.ts",
     "prepare": "husky"
   },
