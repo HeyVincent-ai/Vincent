@@ -526,11 +526,43 @@ The x402 Service Allowlist uses the same comma-separated input pattern as the ex
 
 ### 3. Audit Logs Tab — x402 Entries
 
-No component changes needed. x402 actions will appear automatically via the existing `AuditLogViewer`:
-- Action name: `skill.x402.fetch`, `skill.x402.discover`, `skill.x402.balance`
-- The action dropdown filter will auto-populate these values from `getAuditLogActions()`
-- Input data: shows the target URL, method
-- Output data: shows cost, service response status
+x402 actions appear in the existing `AuditLogViewer` via `auditService.log()`. The action filter dropdown auto-populates `skill.x402.fetch` from `getAuditLogActions()`.
+
+However, the current `AuditLogViewer` displays all entries generically — action name as monospace text, input/output as raw JSON. For x402 entries, this isn't great. A `skill.x402.fetch` entry would show `{"url": "https://x402.coingecko.com/...", "cost": "0.001"}` as raw JSON, with no at-a-glance readability.
+
+**Enhance `AuditLogViewer` to show x402-specific inline details:**
+
+For entries where `action.startsWith('skill.x402.')`, render a richer inline row instead of just the action name:
+
+```
+Current (generic):
+● skill.x402.fetch                                        2 min ago
+  [expand to see raw JSON input/output]
+
+Enhanced (x402-aware):
+● x402 · CoinGecko  /simple/price  GET        $0.001     2 min ago
+  [expand still available for full details]
+
+✕ x402 · OpenRouter  /chat/completions  POST   denied    15 min ago
+  Policy: URL not in x402 service allowlist
+```
+
+Implementation in `AuditLogViewer.tsx`:
+- Check if `log.action === 'skill.x402.fetch'`
+- Extract from `log.inputData`: `url` (parse hostname for service name, pathname for endpoint), `method`
+- Extract from `log.outputData`: `cost`, `status`
+- Render inline: status dot + "x402" label + service domain + endpoint path + method + cost or denial reason + timestamp
+- The expand/collapse for raw JSON still works the same way
+
+This is a small enhancement to the existing component (a conditional render branch for x402 entries), not a new component.
+
+**"View all in Audit Logs" link from x402 tab:**
+
+The "View all in Audit Logs" link in Section C of the x402 Services tab should switch to the Audit Logs tab with the action filter pre-set to `skill.x402.fetch`. This can be done by passing a query param or using tab state:
+
+```
+/secrets/:id?tab=auditlogs&action=skill.x402.fetch
+```
 
 ### 4. Skills Page (`/skills`) — Minimal Changes
 

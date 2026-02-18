@@ -65,7 +65,15 @@
 - [ ] Search input + max price filter for catalog
 - [ ] Section C: Recent activity — last 10 x402 calls from `GET /api/skills/x402/history?limit=10`
 - [ ] Each row: status dot, service name, endpoint path, cost, relative time
-- [ ] "View all in Audit Logs" link
+- [ ] "View all in Audit Logs" link (switches to Audit Logs tab with action filter pre-set to `skill.x402.fetch`)
+
+### Frontend — Audit Logs: x402 Display Enhancement
+- [ ] Add x402-aware inline rendering in `AuditLogViewer.tsx` for `skill.x402.fetch` entries
+- [ ] Parse `inputData` to extract service domain, endpoint path, HTTP method from URL
+- [ ] Parse `outputData` to extract cost and status
+- [ ] Render rich inline row: status dot + "x402" label + service name + endpoint + method + cost/denial + timestamp
+- [ ] Keep expand/collapse for full JSON details unchanged
+- [ ] Support `?action=skill.x402.fetch` query param to pre-filter audit logs when linked from x402 tab
 
 ### Frontend — Policy Manager
 - [ ] Add `X402_SERVICE_ALLOWLIST` to `POLICY_TYPES` array with `isArray: true`, `configKey: 'domains'`
