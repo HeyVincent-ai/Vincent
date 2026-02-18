@@ -1,8 +1,8 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { KeyRound, Bot, LogOut, Menu, X, Server, Wallet, Activity, Users } from 'lucide-react';
 import { useState } from 'react';
+import { useStytch } from '@stytch/react';
 import { useAuth } from '../auth';
-import { logout } from '../api';
 import { cn } from '../lib/utils';
 
 const NAV_ITEMS = [
@@ -21,12 +21,16 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, clearSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const stytch = useStytch();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      // stytch.session.revoke() calls the Stytch API to revoke the session AND
+      // clears the SDK's cached session state, preventing "unauthorized_credentials"
+      // errors on the next login attempt.
+      await stytch.session.revoke();
     } catch {
-      // ignore
+      // ignore — clear local state regardless
     }
     clearSession();
     navigate('/login');
