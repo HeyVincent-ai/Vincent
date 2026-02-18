@@ -39,19 +39,31 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
   const traceId = getTraceId(req);
 
   // Log error with trace ID for debugging
-  console.error(
-    '[ERROR]',
-    JSON.stringify({
+  // Use safe stringify to avoid circular reference errors
+  const errorLog = {
+    traceId,
+    name: err.name,
+    message: err.message,
+    code: err instanceof AppError ? err.code : undefined,
+    details: err instanceof AppError ? err.details : undefined,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    path: req.path,
+    method: req.method,
+  };
+
+  try {
+    console.error('[ERROR]', JSON.stringify(errorLog));
+  } catch {
+    // If stringify fails due to circular references, log simpler version
+    console.error('[ERROR]', {
       traceId,
       name: err.name,
       message: err.message,
-      code: err instanceof AppError ? err.code : undefined,
-      details: err instanceof AppError ? err.details : undefined,
-      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
       path: req.path,
       method: req.method,
-    })
-  );
+      note: 'Full error details omitted due to circular references',
+    });
+  }
 
   // Handle Zod validation errors (don't report to Sentry - client error)
   if (err instanceof ZodError) {

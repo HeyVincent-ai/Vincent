@@ -121,7 +121,7 @@ router.get(
 
 // ============================================================
 // GET /api/skills/polymarket/markets
-// Supports: ?query=text&active=true&limit=50&next_cursor=xyz
+// Supports: ?query=text&slug=market-slug&active=true&limit=50&next_cursor=xyz
 // ============================================================
 
 router.get(
@@ -133,6 +133,7 @@ router.get(
     }
 
     const query = typeof req.query.query === 'string' ? req.query.query : undefined;
+    const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
     const activeParam = req.query.active;
     const active = activeParam === 'false' ? false : true; // Default to true
     const limitParam =
@@ -141,7 +142,7 @@ router.get(
     const nextCursor =
       typeof req.query.next_cursor === 'string' ? req.query.next_cursor : undefined;
 
-    const result = await polymarketSkill.searchMarkets({ query, active, limit, nextCursor });
+    const result = await polymarketSkill.searchMarkets({ query, slug, active, limit, nextCursor });
     sendSuccess(res, result);
   })
 );
@@ -195,6 +196,43 @@ router.get(
     }
 
     const result = await polymarketSkill.getBalance(req.secret.id);
+    sendSuccess(res, result);
+  })
+);
+
+// ============================================================
+// POST /api/skills/polymarket/redeem
+// ============================================================
+
+const redeemSchema = z.object({
+  conditionIds: z.array(z.string().min(1)).optional(),
+});
+
+router.post(
+  '/redeem',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const body = redeemSchema.parse(req.body);
+
+    const start = Date.now();
+    const result = await polymarketSkill.redeemPositions(req.secret.id, body.conditionIds);
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.polymarket_redeem',
+      inputData: body,
+      outputData: result,
+      status: result.redeemed.length > 0 ? 'SUCCESS' : 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
     sendSuccess(res, result);
   })
 );

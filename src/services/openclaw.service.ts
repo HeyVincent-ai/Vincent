@@ -399,6 +399,44 @@ echo "Vincent credentials written"
 `
     : '# No Vincent API keys provided — skills will self-provision'
 }
+# UNCOMMENT-TO-DO-TRADE-MANAGER-AUTOINSTALL — trade manager not yet ready for production
+# echo "=== [6/9] Installing Trade Manager ==="
+# npm install -g @openclaw/trade-manager || true
+#
+# mkdir -p /root/.openclaw
+# cat > /root/.openclaw/trade-manager.json << TRADEMANAGEREOF
+# {
+#   "port": 19000,
+#   "pollIntervalSeconds": 15,
+#   "vincentApiUrl": "https://heyvincent.ai",
+#   "vincentApiKey": "${vincentApiKeys?.polymarketKey ?? ''}",
+#   "databaseUrl": "file:/root/.openclaw/trade-manager.db"
+# }
+# TRADEMANAGEREOF
+#
+# cat > /etc/systemd/system/openclaw-trade-manager.service << TRADEMANAGERUNIT
+# [Unit]
+# Description=OpenClaw Trade Manager
+# After=network.target
+#
+# [Service]
+# Type=simple
+# ExecStart=/usr/bin/env trade-manager start
+# Restart=always
+# RestartSec=5
+# Environment=NODE_ENV=production
+# WorkingDirectory=/root
+#
+# [Install]
+# WantedBy=multi-user.target
+# TRADEMANAGERUNIT
+#
+# systemctl daemon-reload
+# systemctl enable openclaw-trade-manager || true
+# systemctl stop openclaw-trade-manager 2>/dev/null || true
+# systemctl start openclaw-trade-manager || true
+# systemctl is-active --quiet openclaw-trade-manager || echo "Trade Manager failed to start"
+
 echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
