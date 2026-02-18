@@ -7,24 +7,52 @@ export class PositionMonitorService {
 
   async updatePositions(): Promise<any[]> {
     const prisma = await getPrisma();
-    const positions = await this.vincentClient.getPositions();
+    const holdings = await this.vincentClient.getHoldings();
     const now = new Date();
 
+    // Filter out resolved/closed markets (redeemable or past endDate)
+    const activeHoldings = holdings.filter((holding) => {
+      if (holding.redeemable) return false;
+      if (holding.endDate) {
+        const endDate = new Date(holding.endDate);
+        if (endDate < now) return false;
+      }
+      return true;
+    });
+
     await Promise.all(
-      positions.map((position) =>
+      activeHoldings.map((holding) =>
         prisma.monitoredPosition.upsert({
           where: {
             marketId_tokenId_side: {
-              marketId: position.marketId,
-              tokenId: position.tokenId,
-              side: position.side,
+              marketId: holding.tokenId, // Use tokenId as marketId for holdings
+              tokenId: holding.tokenId,
+              side: 'BUY', // Holdings are always BUY side (shares you own)
             },
           },
-          create: { ...position, lastUpdatedAt: now },
+          create: {
+            marketId: holding.tokenId,
+            marketSlug: holding.marketSlug,
+            tokenId: holding.tokenId,
+            side: 'BUY',
+            quantity: holding.shares,
+            avgEntryPrice: holding.averageEntryPrice,
+            currentPrice: holding.currentPrice,
+            marketTitle: holding.marketTitle,
+            outcome: holding.outcome,
+            endDate: holding.endDate,
+            redeemable: holding.redeemable || false,
+            lastUpdatedAt: now,
+          },
           update: {
-            quantity: position.quantity,
-            avgEntryPrice: position.avgEntryPrice,
-            currentPrice: position.currentPrice,
+            quantity: holding.shares,
+            avgEntryPrice: holding.averageEntryPrice,
+            currentPrice: holding.currentPrice,
+            marketTitle: holding.marketTitle,
+            marketSlug: holding.marketSlug,
+            outcome: holding.outcome,
+            endDate: holding.endDate,
+            redeemable: holding.redeemable || false,
             lastUpdatedAt: now,
           },
         })

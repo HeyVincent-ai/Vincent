@@ -10,6 +10,7 @@ import type {
   UserMarketOrder,
   Side,
 } from '@polymarket/clob-client';
+import axios from 'axios';
 import prisma from '../db/client.js';
 import { env } from '../utils/env.js';
 import { initializePolymarketProxy } from '../utils/proxy.js';
@@ -455,17 +456,59 @@ function mapGammaMarket(m: any) {
 }
 
 /**
+ * Extract slug from a Polymarket URL.
+ * Handles URLs like:
+ * - https://polymarket.com/event/btc-updown-5m-1771380900
+ * - polymarket.com/event/btc-updown-5m-1771380900
+ * Returns the slug or null if not a valid URL pattern.
+ */
+function extractSlugFromUrl(url: string): string | null {
+  const urlPattern = /(?:https?:\/\/)?(?:www\.)?polymarket\.com\/event\/([a-z0-9-]+)/i;
+  const match = url.match(urlPattern);
+  return match ? match[1] : null;
+}
+
+/**
  * Search markets via Gamma API.
- * Uses /public-search for text queries, /markets for browsing.
+ * Uses /public-search for text queries, /markets?slug= for slug lookups, /markets for browsing.
  */
 export async function searchMarketsGamma(params: {
   query?: string;
+  slug?: string;
   active?: boolean;
   limit?: number;
   offset?: number;
 }): Promise<GammaSearchResult> {
-  const { query, active = true, limit = 50, offset = 0 } = params;
+  const { query, slug, active = true, limit = 50, offset = 0 } = params;
 
+  // If slug is provided, search by slug directly
+  if (slug) {
+    // Extract slug from URL if it's a full Polymarket URL
+    const cleanSlug = extractSlugFromUrl(slug) || slug;
+
+    const url = new URL('https://gamma-api.polymarket.com/markets');
+    url.searchParams.set('slug', cleanSlug);
+    if (active) {
+      url.searchParams.set('active', 'true');
+      url.searchParams.set('closed', 'false');
+    }
+    url.searchParams.set('limit', String(limit));
+
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`Gamma API error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as GammaMarket[];
+    const markets = data.filter((m) => !active || m.acceptingOrders).map(mapGammaMarket);
+
+    return {
+      markets,
+      hasMore: false,
+    };
+  }
+
+  // If query is provided, do text search
   if (query) {
     // Text search via /public-search endpoint
     const url = new URL('https://gamma-api.polymarket.com/public-search');
@@ -615,15 +658,27 @@ function validateOrderResponse(result: any): void {
   }
 
   if (result.error) {
-    const errMsg =
-      typeof result.error === 'string'
-        ? result.error.slice(0, 200)
-        : JSON.stringify(result.error).slice(0, 200);
+    let errMsg: string;
+    if (typeof result.error === 'string') {
+      errMsg = result.error.slice(0, 200);
+    } else {
+      try {
+        errMsg = JSON.stringify(result.error).slice(0, 200);
+      } catch {
+        errMsg = String(result.error).slice(0, 200);
+      }
+    }
     throw new Error(`CLOB order failed: ${errMsg}`);
   }
 
   if (!result.orderID && !result.success) {
-    throw new Error(`CLOB order response missing orderID: ${JSON.stringify(result).slice(0, 200)}`);
+    let resultStr: string;
+    try {
+      resultStr = JSON.stringify(result).slice(0, 200);
+    } catch {
+      resultStr = '[Complex object with circular references]';
+    }
+    throw new Error(`CLOB order response missing orderID: ${resultStr}`);
   }
 }
 
@@ -708,4 +763,44 @@ export async function updateCollateralAllowance(config: PolymarketClientConfig):
   await client.updateBalanceAllowance({
     asset_type: 'COLLATERAL' as AssetType,
   });
+}
+
+// ============================================================
+// Positions (from Data API)
+// ============================================================
+
+export interface PolymarketPosition {
+  proxyWallet: string;
+  asset: string; // token ID
+  conditionId: string;
+  size: string; // shares owned
+  avgPrice: string; // average entry price
+  curPrice: string;
+  initialValue: string;
+  currentValue: string;
+  cashPnl: string;
+  percentPnl: string;
+  realizedPnl: string;
+  percentRealizedPnl: string;
+  title: string;
+  slug: string;
+  outcome: string;
+  outcomeIndex: number;
+  endDate: string;
+  redeemable: boolean;
+  mergeable: boolean;
+  negativeRisk: boolean;
+}
+
+/**
+ * Get all positions for a wallet address from Polymarket Data API.
+ * Returns positions with avg entry price, current price, and P&L.
+ */
+export async function getPositions(walletAddress: string): Promise<PolymarketPosition[]> {
+  // Initialize proxy for geo-restricted regions (uses axios, not fetch)
+  await initializePolymarketProxy();
+
+  const url = `https://data-api.polymarket.com/positions?user=${encodeURIComponent(walletAddress.toLowerCase())}`;
+  const response = await axios.get<PolymarketPosition[]>(url);
+  return response.data;
 }

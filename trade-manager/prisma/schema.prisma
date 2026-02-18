@@ -11,6 +11,7 @@ model TradeRule {
   id              String   @id @default(cuid())
   ruleType        String
   marketId        String
+  marketSlug      String?
   tokenId         String
   side            String
   triggerPrice    Float
@@ -32,11 +33,16 @@ model TradeRule {
 model MonitoredPosition {
   id            String   @id @default(cuid())
   marketId      String
+  marketSlug    String?
   tokenId       String
   side          String
   quantity      Float
   avgEntryPrice Float?
   currentPrice  Float
+  marketTitle   String?
+  outcome       String?
+  endDate       String?
+  redeemable    Boolean  @default(false)
   lastUpdatedAt DateTime
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

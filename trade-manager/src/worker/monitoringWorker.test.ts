@@ -11,6 +11,7 @@ describe('monitoring worker', () => {
       getRules: vi.fn(async () => [
         { id: 'r1', ruleType: 'STOP_LOSS', triggerPrice: 0.5, marketId: 'm', tokenId: 't' },
       ]),
+      updateTrailingTrigger: vi.fn(async () => false),
     };
     const ruleExecutor = {
       evaluateRule: vi.fn(() => true),

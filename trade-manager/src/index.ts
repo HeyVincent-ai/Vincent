@@ -21,7 +21,13 @@ const run = async (): Promise<void> => {
     vincentClient,
     config.pollIntervalSeconds,
     config.circuitBreakerThreshold,
-    config.circuitBreakerCooldownSeconds
+    config.circuitBreakerCooldownSeconds,
+    {
+      enabled: config.enableWebSocket,
+      url: config.webSocketUrl,
+      reconnectInitialDelay: config.webSocketReconnectInitialDelay,
+      reconnectMaxDelay: config.webSocketReconnectMaxDelay,
+    }
   );
 
   const eventLogger = new EventLoggerService();

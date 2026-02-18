@@ -11,6 +11,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 - Standalone Node.js app (separate from Vincent)
 - Runs on each OpenClaw VPS (localhost API)
 - Prisma ORM with SQLite for local state (consistent with Vincent)
+- Durable alert intake + queue to route alerts into execution or agent wakeups
 - Calls Vincent Polymarket API to execute trades
 - Agent interacts via local HTTP API
 
@@ -328,9 +329,55 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ---
 
-## Phase 7: End-to-End Testing
+## Phase 7: Harness (Alerts + Wakeups)
 
-### 7.1 Integration Tests
+### 7.1 Data Model
+
+- [ ] Add `AlertEvent`, `HarnessJob`, and `ExecutionAttempt` models + migrations
+- [ ] Add unique constraint for alert idempotency (`source`, `idempotencyKey`)
+- [ ] Add DB helpers for leasing jobs and recording attempts
+- [ ] Extend config schema for alert ingress + wake dispatch (shared secret, wake URL/token, job poll interval, max attempts)
+
+### 7.2 Alert Ingress API
+
+- [ ] Create `src/api/routes/alerts.routes.ts`:
+  - `POST /api/alerts` (ingest with idempotency)
+  - `GET /api/alerts` (list)
+  - `GET /api/alerts/:id` (detail)
+- [ ] Enforce auth via shared secret header (or token)
+- [ ] Return existing alert on duplicate idempotency key
+- [ ] Update `skills/trade-manager/SKILL.md` with alert/job endpoints and headers
+
+### 7.3 Queue + Workers
+
+- [ ] Create `src/services/harnessQueue.service.ts` for enqueue/dequeue with leasing
+- [ ] Create `src/services/alertRouter.service.ts` to map alerts to EXECUTE_TXN or WAKE_AGENT
+- [ ] Create `src/worker/harnessWorker.ts` to process jobs with retry/backoff and max attempts
+
+### 7.4 Execution + Wake Integration
+
+- [ ] Implement `src/services/executionRecorder.service.ts` and record request/response/txHash
+- [ ] Implement `src/services/wakeDispatcher.service.ts` to call local OpenClaw gateway/CLI
+- [ ] Add correlation IDs in wake payloads and logs
+
+### 7.5 Status & Observability
+
+- [ ] Expose job stats via `GET /status` or `GET /api/jobs`
+- [ ] Add structured log fields for `alertId`, `jobId`, `correlationId`
+
+### 7.6 Tests
+
+- [ ] Unit tests for idempotency + routing
+- [ ] Worker tests for retry/backoff and failure modes
+- [ ] Integration test: ingest alert -> job -> execution/wake -> status update
+
+**Milestone**: Alerts are durable and idempotent, and reliably result in a transaction or agent wake.
+
+---
+
+## Phase 8: End-to-End Testing
+
+### 8.1 Integration Tests
 
 - [ ] Create `tests/integration/` directory
 - [ ] Test full flow:
@@ -347,7 +394,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
   - Wait for price change or manually trigger
   - Verify position closes
 
-### 7.2 Edge Case Testing
+### 8.2 Edge Case Testing
 
 - [ ] Test rule for non-existent position
 - [ ] Test multiple rules on same position
@@ -357,7 +404,7 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 - [ ] Test updating trigger price while rule is active
 - [ ] Test worker restart (rules should resume monitoring)
 
-### 7.3 Performance Testing
+### 8.3 Performance Testing
 
 - [ ] Test with 10+ active rules
 - [ ] Verify polling interval is respected
@@ -368,9 +415,9 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ---
 
-## Phase 8: Documentation & Launch
+## Phase 9: Documentation & Launch
 
-### 8.1 User Documentation
+### 9.1 User Documentation
 
 - [ ] Write user guide:
   - How to check if trade manager is running
@@ -381,14 +428,14 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 - [ ] Add FAQ section
 - [ ] Add examples for common scenarios (stop-loss, take-profit)
 
-### 8.2 Developer Documentation
+### 9.2 Developer Documentation
 
 - [ ] Document code architecture
 - [ ] Add inline code comments for complex logic
 - [ ] Document environment variables and config options
 - [ ] Add contributing guide (if open source)
 
-### 8.3 Rollout
+### 9.3 Rollout
 
 - [ ] Deploy to staging VPS for internal testing
 - [ ] Test with real users (beta)
@@ -400,40 +447,40 @@ This task list builds a **standalone Node.js app** that runs on each OpenClaw VP
 
 ---
 
-## Phase 9: Post-MVP Enhancements (Future)
+## Phase 10: Post-MVP Enhancements (Future)
 
-These are **not** part of the MVP and should be tackled after Phase 8:
+These are **not** part of the MVP and should be tackled after Phase 9:
 
-### 9.1 Trailing Stops
+### 10.1 Trailing Stops
 
 - [ ] Add TRAILING_STOP rule type
 - [ ] Implement logic to adjust trigger price as market moves
 - [ ] Test trailing stop behavior
 
-### 9.2 AI-Suggested Levels
+### 10.2 AI-Suggested Levels
 
 - [ ] Add endpoint to suggest SL/TP levels
 - [ ] Analyze market volatility and history
 - [ ] Return suggested levels with reasoning
 
-### 9.3 Paper Trading Mode
+### 10.3 Paper Trading Mode
 
 - [ ] Add paperTrading flag to rules
 - [ ] Simulate trades without executing real orders
 - [ ] Log simulated results
 
-### 9.4 Advanced Triggers
+### 10.4 Advanced Triggers
 
 - [ ] Time-based triggers
 - [ ] Volume-based triggers
 - [ ] News/sentiment triggers (integrate with data sources)
 
-### 9.5 Notifications
+### 10.5 Notifications
 
 - [ ] Add Telegram notifications when rules trigger
 - [ ] Integrate with OpenClaw agent's Telegram bot
 
-### 9.6 Web UI
+### 10.6 Web UI
 
 - [ ] Build local web interface (optional)
 - [ ] Deploy on same port as API
@@ -443,7 +490,7 @@ These are **not** part of the MVP and should be tackled after Phase 8:
 
 ## Summary
 
-**MVP Timeline** (Phases 1-8):
+**MVP Timeline** (Phases 1-9):
 
 - Phase 1 (Project Setup): ~3 hours
 - Phase 2 (Core Services): ~6 hours
@@ -451,9 +498,10 @@ These are **not** part of the MVP and should be tackled after Phase 8:
 - Phase 4 (Background Worker): ~6 hours
 - Phase 5 (CLI & Entry Point): ~2 hours
 - Phase 6 (Deployment): ~4 hours
-- Phase 7 (Testing): ~4 hours
-- Phase 8 (Documentation): ~3 hours
+- Phase 7 (Harness): ~4 hours
+- Phase 8 (Testing): ~4 hours
+- Phase 9 (Documentation): ~3 hours
 
-**Total MVP Effort**: ~32 hours of focused development
+**Total MVP Effort**: ~36 hours of focused development
 
-**Post-MVP** (Phase 9): Incremental features based on user feedback.
+**Post-MVP** (Phase 10): Incremental features based on user feedback.

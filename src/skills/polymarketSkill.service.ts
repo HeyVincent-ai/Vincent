@@ -99,6 +99,7 @@ async function getWalletData(secretId: string) {
     privateKey: secret.value as Hex,
     walletAddress: meta.safeAddress,
     safeAddress: meta.safeAddress,
+    eoaAddress: meta.eoaAddress,
     userId: secret.userId,
   };
 }
@@ -308,15 +309,16 @@ export async function getMarketInfo(conditionId: string): Promise<MarketInfoOutp
 
 export async function searchMarkets(params: {
   query?: string;
+  slug?: string;
   active?: boolean;
   limit?: number;
   nextCursor?: string;
 }) {
-  const { query, active = true, limit = 50 } = params;
+  const { query, slug, active = true, limit = 50 } = params;
 
   // Use Gamma API for both search and browsing — it supports text search
   // via /public-search and filtered browsing via /markets with proper params
-  return polymarket.searchMarketsGamma({ query, active, limit });
+  return polymarket.searchMarketsGamma({ query, slug, active, limit });
 }
 
 export async function getOrderBook(tokenId: string) {
@@ -374,4 +376,53 @@ export async function getTrades(secretId: string, market?: string): Promise<poly
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.getTrades(clientConfig, { market });
+}
+
+// ============================================================
+// Holdings
+// ============================================================
+
+export interface Holding {
+  tokenId: string;
+  shares: number;
+  averageEntryPrice: number;
+  currentPrice: number;
+  pnl: number;
+  pnlPercent: number;
+  marketTitle: string;
+  marketSlug: string;
+  outcome: string;
+  endDate?: string;
+  redeemable?: boolean;
+}
+
+export interface HoldingsOutput {
+  walletAddress: string;
+  holdings: Holding[];
+}
+
+export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
+  const wallet = await getWalletData(secretId);
+
+  const positions = await polymarket.getPositions(wallet.safeAddress);
+
+  // Map to our holding format
+  const holdings: Holding[] = positions.map((pos) => ({
+    tokenId: pos.asset,
+    shares: parseFloat(pos.size),
+    averageEntryPrice: parseFloat(pos.avgPrice),
+    currentPrice: parseFloat(pos.curPrice),
+    pnl: parseFloat(pos.cashPnl),
+    pnlPercent: parseFloat(pos.percentPnl),
+    marketTitle: pos.title,
+    marketSlug: pos.slug,
+    outcome: pos.outcome,
+    endDate: pos.endDate,
+    redeemable: pos.redeemable,
+  }));
+
+  return {
+    walletAddress: wallet.walletAddress,
+    holdings,
+  };
 }

@@ -107,6 +107,14 @@ Before placing bets, the user must send USDC.e to the Safe address:
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?query=bitcoin&limit=20" \
   -H "Authorization: Bearer <API_KEY>"
 
+# Search by Polymarket URL or slug (for specific markets)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?slug=btc-updown-5m-1771380900&limit=5" \
+  -H "Authorization: Bearer <API_KEY>"
+
+# Or use a full Polymarket URL as the slug parameter
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?slug=https://polymarket.com/event/btc-updown-5m-1771380900" \
+  -H "Authorization: Bearer <API_KEY>"
+
 # Get all active markets (paginated)
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/markets?active=true&limit=50" \
   -H "Authorization: Bearer <API_KEY>"
@@ -158,7 +166,7 @@ Parameters:
 - `tokenId`: The outcome token ID (from market data or order book)
 - `side`: `"BUY"` or `"SELL"`
 - `amount`: For BUY orders, USD amount to spend. For SELL orders, number of shares to sell.
-- `price`: Limit price (0.01 to 0.99). Optional -- omit for market order.
+- `price`: Optional limit price (0.01 to 0.99). Omit for market order. ALWAYS use a market order unless the user specifies a limit price.
 
 **BUY orders:**
 
@@ -176,9 +184,13 @@ Parameters:
 
 If a trade violates a policy, the server returns an error explaining which policy was triggered. If a trade requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
 
-### 7. View Positions & Orders
+### 7. View Holdings, Positions & Orders
 
 ```bash
+# Get current holdings with P&L (recommended)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/holdings" \
+  -H "Authorization: Bearer <API_KEY>"
+
 # Get open orders
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/positions" \
   -H "Authorization: Bearer <API_KEY>"
@@ -187,6 +199,40 @@ curl -X GET "https://heyvincent.ai/api/skills/polymarket/positions" \
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/trades" \
   -H "Authorization: Bearer <API_KEY>"
 ```
+
+**Holdings endpoint** returns all positions with shares owned, average entry price, current price, and unrealized P&L:
+
+```json
+{
+  "success": true,
+  "data": {
+    "walletAddress": "0x...",
+    "holdings": [
+      {
+        "tokenId": "123456...",
+        "shares": 42.5,
+        "averageEntryPrice": 0.55,
+        "currentPrice": 0.62,
+        "pnl": 2.97,
+        "pnlPercent": 12.73,
+        "marketTitle": "Will Bitcoin hit $100k by end of 2025?",
+        "outcome": "Yes"
+      }
+    ]
+  }
+}
+```
+
+This is the best endpoint for:
+
+- Checking current positions before placing sell orders
+- Setting up stop-loss or take-profit rules
+- Calculating total portfolio value and performance
+- Showing the user their active bets
+
+**Positions endpoint** returns open limit orders (unfilled orders waiting in the order book).
+
+**Trades endpoint** returns historical trade activity.
 
 ### 8. Cancel Orders
 
@@ -264,6 +310,9 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
    ```bash
    # Search by keyword - returns only active, tradeable markets
    GET /api/skills/polymarket/markets?query=bitcoin&active=true
+
+   # Or search by slug from a Polymarket URL
+   GET /api/skills/polymarket/markets?slug=btc-updown-5m-1771380900
    ```
 
    Response example:

@@ -15,6 +15,9 @@ Build a standalone **Trade Manager** app that runs on each user's OpenClaw VPS a
   - Local HTTP API on `localhost:PORT` for agent communication
   - Local SQLite database for state (rules, positions, events)
   - Reuses Vincent Polymarket wallet credentials (API key stored on VPS)
+- **Harness Layer (Alerts + Wakeups)**: Local alert intake + durable queue to route alerts into either
+  - direct transaction execution (via Vincent wallet skills), or
+  - agent wakeups for reasoning/approval
 - **OpenClaw Agent**: Calls local trade manager API when user requests via Telegram
 - **Deployment**: Auto-installed on every OpenClaw VPS provisioning
 - **Credentials**: Uses existing Polymarket wallet secret (API key) from Vincent
@@ -40,6 +43,17 @@ Build a standalone **Trade Manager** app that runs on each user's OpenClaw VPS a
 4. Trade manager stores rule and starts monitoring
 5. When price hits $0.40, trade manager executes market sell via Vincent Polymarket API
 6. Rule is marked as triggered, agent notifies user
+
+---
+
+## Alert + Wake Flow (Harness)
+
+1. An alert source (skills, webhook, cron) calls `POST /api/alerts` with an idempotency key.
+2. Trade manager stores an `AlertEvent`, evaluates routing, and enqueues a durable `HarnessJob`.
+3. The harness worker processes the job:
+   - **EXECUTE_TXN**: call Vincent wallet/venue skill and record `ExecutionAttempt` + response.
+   - **WAKE_AGENT**: call the local OpenClaw gateway/CLI with a correlation ID.
+4. Results are logged and surfaced via `GET /api/alerts` and `GET /api/jobs`.
 
 ---
 
@@ -89,6 +103,44 @@ Append-only log of rule evaluations and actions.
 
 ---
 
+### AlertEvent (ingress)
+
+Inbound alert payloads that can trigger transactions or wake the agent.
+
+- `id` (cuid)
+- `source`: String (e.g. `strategy-engine`, `webhook`, `cron`)
+- `alertType`: String (free-form)
+- `mode`: `EXECUTE_TXN` | `WAKE_AGENT` | `IGNORE`
+- `idempotencyKey`: String (unique per source + alert)
+- `payload`: JSON
+- `status`: `RECEIVED` | `QUEUED` | `PROCESSED` | `FAILED` | `IGNORED`
+- `createdAt`, `updatedAt`
+
+### HarnessJob (durable queue)
+
+Queue item that drives execution or wake dispatch.
+
+- `id` (cuid)
+- `alertId`: FK -> AlertEvent
+- `jobType`: `EXECUTE_TXN` | `WAKE_AGENT`
+- `status`: `PENDING` | `RUNNING` | `SUCCEEDED` | `FAILED`
+- `attempts`, `maxAttempts`
+- `lastError`, `lastAttemptAt`
+- `createdAt`, `updatedAt`
+
+### ExecutionAttempt (transaction audit)
+
+- `id` (cuid)
+- `alertId`: FK -> AlertEvent (nullable for rule-triggered actions)
+- `ruleId`: FK -> TradeRule (nullable for alert-triggered actions)
+- `status`: `SUBMITTED` | `CONFIRMED` | `FAILED`
+- `request`: JSON (order payload)
+- `response`: JSON (venue response)
+- `txHash` / `orderId`: String (nullable)
+- `createdAt`
+
+---
+
 ## Local API Endpoints (MVP)
 
 All endpoints listen on `localhost:19000` (or configurable port).
@@ -120,6 +172,23 @@ All endpoints listen on `localhost:19000` (or configurable port).
 - `GET /api/positions` — List monitored positions with current prices
 - `GET /api/events?ruleId=...` — Get event log for a rule (or all events if no filter)
 
+### Alerts & Harness
+
+- `POST /api/alerts` — Ingest an alert (idempotent via `Idempotency-Key` header or body field)
+  ```json
+  {
+    "source": "strategy-engine",
+    "alertType": "STOP_TRIGGERED",
+    "mode": "EXECUTE_TXN",
+    "idempotencyKey": "alert-123",
+    "payload": { "marketId": "...", "tokenId": "...", "action": "SELL_ALL" }
+  }
+  ```
+- `GET /api/alerts` — List alerts (filter by `?status=QUEUED|PROCESSED|FAILED`)
+- `GET /api/alerts/:id` — Alert details + routing result
+- `GET /api/jobs` — List harness jobs (filter by `?status=PENDING|FAILED`)
+- `GET /api/executions` — List execution attempts (filter by `?alertId=...` or `?ruleId=...`)
+
 ---
 
 ## Background Worker (Main Loop)
@@ -145,6 +214,21 @@ Runs continuously in the same process as the HTTP API.
 - Idempotency: mark rules as triggered atomically (use DB transaction)
 - Error handling: log failures but don't crash; retry with exponential backoff
 - Circuit breaker: pause polling if Vincent API is down (5+ consecutive failures)
+
+### Harness Workers (Alerts + Wakeups)
+
+Runs alongside the rule monitor loop.
+
+1. Fetch `AlertEvent` items in `RECEIVED` state and enqueue `HarnessJob` records.
+2. Process `HarnessJob` queue with a lease/lock:
+   - **EXECUTE_TXN**: call the appropriate Vincent skill endpoint and record `ExecutionAttempt`.
+   - **WAKE_AGENT**: call local OpenClaw gateway/CLI with a correlation ID for the alert.
+3. Update `AlertEvent` + `HarnessJob` status and record errors/attempt counts.
+
+**Harness Guardrails**:
+- Idempotency via unique `idempotencyKey`
+- Retry with backoff and max attempts per job
+- Concurrency cap (single worker by default to avoid double execution)
 
 ---
 
@@ -220,6 +304,61 @@ model RuleEvent {
   @@map("rule_events")
 }
 
+model AlertEvent {
+  id              String   @id @default(cuid())
+  source          String
+  alertType       String
+  mode            String   // EXECUTE_TXN, WAKE_AGENT, IGNORE
+  idempotencyKey  String
+  payload         String   // JSON
+  status          String   @default("RECEIVED") // RECEIVED, QUEUED, PROCESSED, FAILED, IGNORED
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  jobs            HarnessJob[]
+  executions      ExecutionAttempt[]
+
+  @@unique([source, idempotencyKey])
+  @@index([status, createdAt])
+  @@map("alert_events")
+}
+
+model HarnessJob {
+  id            String   @id @default(cuid())
+  alertId       String
+  jobType       String   // EXECUTE_TXN, WAKE_AGENT
+  status        String   @default("PENDING") // PENDING, RUNNING, SUCCEEDED, FAILED
+  attempts      Int      @default(0)
+  maxAttempts   Int      @default(5)
+  lastError     String?
+  lastAttemptAt DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  alert         AlertEvent @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([status, updatedAt])
+  @@map("harness_jobs")
+}
+
+model ExecutionAttempt {
+  id         String   @id @default(cuid())
+  alertId    String?
+  ruleId     String?
+  status     String   // SUBMITTED, CONFIRMED, FAILED
+  request    String   // JSON
+  response   String?  // JSON
+  txHash     String?
+  createdAt  DateTime @default(now())
+
+  alert      AlertEvent? @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  rule       TradeRule?  @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+
+  @@index([alertId, createdAt])
+  @@index([ruleId, createdAt])
+  @@map("execution_attempts")
+}
+
 model Config {
   key   String @id
   value String
@@ -244,12 +383,18 @@ Migrations are managed via `npx prisma migrate dev` during development and `npx 
   "vincentApiUrl": "https://heyvincent.ai",
   "vincentApiKey": "ssk_...", // Polymarket wallet API key
   "pollIntervalSeconds": 15,
+  "jobPollIntervalSeconds": 2,
+  "maxJobAttempts": 5,
+  "alertsSharedSecret": "oc_alerts_...",
+  "agentWakeUrl": "http://localhost:18000/api/wake",
+  "agentWakeToken": "oc_wake_...",
   "logLevel": "info",
-  "dbPath": "~/.openclaw/trade-manager.db"
+  "databaseUrl": "file:~/.openclaw/trade-manager.db"
 }
 ```
 
 The Vincent API key is auto-configured during OpenClaw provisioning (read from `~/.openclaw/credentials/agentwallet/`).
+`alertsSharedSecret` secures alert ingestion, and `agentWakeUrl`/`agentWakeToken` are used by the harness worker to wake the local agent.
 
 ---
 
@@ -307,6 +452,9 @@ trade-manager/
 │   │   │   ├── rules.routes.ts      # Rule CRUD endpoints
 │   │   │   ├── positions.routes.ts  # Position endpoints
 │   │   │   ├── events.routes.ts     # Event log endpoints
+│   │   │   ├── alerts.routes.ts     # Alert ingestion endpoints
+│   │   │   ├── jobs.routes.ts       # Harness job status endpoints
+│   │   │   ├── executions.routes.ts # Execution attempt endpoints
 │   │   │   └── health.routes.ts     # Health/status endpoints
 │   │   └── middleware/
 │   │       └── errorHandler.ts
@@ -315,9 +463,14 @@ trade-manager/
 │   │   ├── positionMonitor.service.ts  # Fetch/cache positions & prices
 │   │   ├── ruleExecutor.service.ts     # Execute trades when rules trigger
 │   │   ├── eventLogger.service.ts      # Log events to Prisma
+│   │   ├── alertRouter.service.ts      # Route alerts to exec or wake
+│   │   ├── harnessQueue.service.ts     # Durable queue helpers
+│   │   ├── wakeDispatcher.service.ts   # Wake OpenClaw agent
+│   │   ├── executionRecorder.service.ts# Transaction audit records
 │   │   └── vincentClient.service.ts    # Vincent API client (Polymarket calls)
 │   ├── worker/
 │   │   └── monitoringWorker.ts      # Background loop
+│   │   └── harnessWorker.ts         # Alerts + wakeups worker
 │   ├── db/
 │   │   └── client.ts                # Prisma client singleton
 │   ├── config/
@@ -340,6 +493,7 @@ The trade manager doesn't need changes to Vincent backend. It uses Vincent's exi
 2. **Trade execution**: Calls `POST https://heyvincent.ai/api/skills/polymarket/bet`
 3. **Position fetching**: Calls `GET https://heyvincent.ai/api/skills/polymarket/positions`
 4. **Price fetching**: Calls `GET https://heyvincent.ai/api/skills/polymarket/markets?marketId=...`
+5. **Alert-driven execution**: Uses Vincent wallet/venue skills to place transactions when alerts are routed to `EXECUTE_TXN`
 
 All existing Vincent policies (spending limits, approvals) are still enforced server-side.
 
@@ -378,6 +532,8 @@ GET http://localhost:19000/api/rules?status=ACTIVE
 DELETE http://localhost:19000/api/rules/:id
 ```
 
+Extend the skill doc to include `POST /api/alerts` (with idempotency + auth header) and `GET /api/jobs` for harness status.
+
 ---
 
 
@@ -392,6 +548,7 @@ DELETE http://localhost:19000/api/rules/:id
 - Implemented monitoring worker loop with evaluation logic for STOP_LOSS and TAKE_PROFIT, trigger execution, event logging, and circuit breaker state.
 - Added entrypoint + CLI, basic unit route/worker tests, and deployment assets (systemd unit + installer script + README + skill doc).
 - Integrated OpenClaw provisioning script to install/start trade manager and seed trade-manager config on VPS setup.
+- Harness layer (alerts + wakeups + durable queue) is planned in Phase 7 and not implemented yet.
 
 ### Learnings / Changes from original draft
 
@@ -412,6 +569,7 @@ Explicitly deferred to later phases:
 - ❌ AI-suggested SL/TP levels
 - ❌ Frontend UI (agent chat is sufficient)
 - ❌ Multi-user support (one instance per VPS)
+- ❌ Additional host-side risk gating beyond SL/TP and account-level kill switch (handled elsewhere)
 
 ---
 
@@ -430,6 +588,12 @@ Explicitly deferred to later phases:
 - ✅ Worker gracefully handles Vincent API failures and retries with backoff
 - ✅ Trade manager auto-starts on VPS boot
 - ✅ Logs are accessible via `journalctl --user -u openclaw-trade-manager`
+- ✅ Alerts can be ingested via `POST /api/alerts` with idempotency protection
+- ✅ Alert routing creates durable `HarnessJob` records for execution or wakeups
+- ✅ Alert-driven transactions record `ExecutionAttempt` with request/response
+- ✅ Agent wakeups are dispatched with retry/backoff and visible job status
+- ✅ Alert/job/execution status is queryable via API endpoints
+- ✅ Alert ingestion is secured with a shared secret/token
 
 ---
 
