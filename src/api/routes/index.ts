@@ -13,6 +13,7 @@ import openclawRouter from './openclaw.routes.js';
 import ownershipRouter from './ownership.routes.js';
 import dataSourceManagementRouter from './dataSourceManagement.routes.js';
 import dataSourceProxyRouter from '../../dataSources/router.js';
+import adminRouter from './admin.routes.js';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ router.use('/skills/polymarket', polymarketRouter); // Polymarket skill endpoint
 router.use('/skills/raw-signer', rawSignerRouter); // Raw signer skill endpoints
 router.use('/billing', billingRouter); // Billing & subscription endpoints
 router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
+router.use('/admin', adminRouter); // Admin dashboard endpoints
 router.use('/secrets/:secretId/data-sources', dataSourceManagementRouter); // Data source management (session auth)
 router.use('/data-sources', dataSourceProxyRouter); // Data source proxy endpoints (API key auth)
 

@@ -3,6 +3,7 @@ import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
 import { User } from '@prisma/client';
 import { AppError } from '../api/middleware/errorHandler.js';
+import * as referralService from './referral.service.js';
 
 // Initialize Stytch client
 let stytchClient: stytch.Client | null = null;
@@ -28,7 +29,10 @@ function getStytchClient(): stytch.Client {
  * Validate a Stytch session token and find/create the user in our DB.
  * Called after the Stytch frontend SDK authenticates the user.
  */
-export async function syncSession(sessionToken: string): Promise<User | null> {
+export async function syncSession(
+  sessionToken: string,
+  referralCode?: string
+): Promise<{ user: User; roles: string[] } | null> {
   const client = getStytchClient();
 
   try {
@@ -38,12 +42,14 @@ export async function syncSession(sessionToken: string): Promise<User | null> {
 
     const stytchUserId = response.user.user_id;
     const email = response.user.emails[0]?.email;
+    const roles: string[] = response.user.roles ?? [];
 
     if (!email) {
       throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
     }
 
-    return await findOrCreateUser({ email, stytchUserId });
+    const user = await findOrCreateUser({ email, stytchUserId, referralCode });
+    return { user, roles };
   } catch (err: unknown) {
     const stytchErr = err as { status_code?: number; error_type?: string; error_message?: string };
     console.error('syncSession failed:', {
@@ -57,9 +63,11 @@ export async function syncSession(sessionToken: string): Promise<User | null> {
 }
 
 /**
- * Validate a session token and return the user
+ * Validate a session token and return the user along with their Stytch RBAC roles.
  */
-export async function validateSession(sessionToken: string): Promise<User | null> {
+export async function validateSessionWithRoles(
+  sessionToken: string
+): Promise<{ user: User | null; roles: string[] }> {
   const client = getStytchClient();
 
   try {
@@ -68,15 +76,43 @@ export async function validateSession(sessionToken: string): Promise<User | null
     });
 
     const stytchUserId = response.user.user_id;
+    const roles: string[] = response.user.roles ?? [];
+
+    if (env.NODE_ENV !== 'production') {
+      console.log('[auth] user roles:', roles);
+    }
 
     const user = await prisma.user.findUnique({
       where: { stytchUserId },
     });
 
-    return user;
-  } catch {
-    return null;
+    return { user, roles };
+  } catch (error: any) {
+    // Log a sanitized subset of the error for debugging (similar to syncSession)
+    const status =
+      error && typeof error === 'object' && ('status_code' in error || 'status' in error)
+        ? (error.status_code ?? error.status)
+        : undefined;
+    const type =
+      error && typeof error === 'object' && ('error_type' in error || 'code' in error)
+        ? (error.error_type ?? error.code)
+        : undefined;
+
+    console.error('[auth] validateSessionWithRoles error', {
+      status,
+      type,
+      message: error && typeof error === 'object' ? error.message : String(error),
+    });
+    return { user: null, roles: [] };
   }
+}
+
+/**
+ * Validate a session token and return the user
+ */
+export async function validateSession(sessionToken: string): Promise<User | null> {
+  const { user } = await validateSessionWithRoles(sessionToken);
+  return user;
 }
 
 /**
@@ -93,8 +129,12 @@ export async function revokeSession(sessionToken: string): Promise<void> {
 /**
  * Find or create a user in our database based on Stytch identity
  */
-async function findOrCreateUser(params: { email: string; stytchUserId: string }): Promise<User> {
-  const { email, stytchUserId } = params;
+async function findOrCreateUser(params: {
+  email: string;
+  stytchUserId: string;
+  referralCode?: string;
+}): Promise<User> {
+  const { email, stytchUserId, referralCode } = params;
 
   // Try to find by stytchUserId first
   let user = await prisma.user.findUnique({
@@ -117,10 +157,21 @@ async function findOrCreateUser(params: { email: string; stytchUserId: string })
   }
 
   // Create new user
-  return prisma.user.create({
+  const newUser = await prisma.user.create({
     data: {
       email,
       stytchUserId,
     },
   });
+
+  // Record referral if a code was provided
+  if (referralCode) {
+    try {
+      await referralService.recordReferral(referralCode, newUser.id);
+    } catch (err: any) {
+      console.error('[auth] Failed to record referral:', err.message);
+    }
+  }
+
+  return newUser;
 }

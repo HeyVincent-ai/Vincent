@@ -124,7 +124,7 @@ const SKILLS_STYLES = `
   }
   .skills-page .tooltip-wrapper:hover .tooltip-text { visibility: visible; opacity: 1; }
   .skills-page .pill.hoverable { cursor: help; transition: border-color .18s ease, background .18s ease; }
-  .skills-page .pill.hoverable:hover { border-color: rgba(249,115,22,.45); background: rgba(249,115,22,.08); }
+  .skills-page .pill.hoverable:hover { border-color: rgba(139,92,246,.45); background: rgba(139,92,246,.08); }
 `;
 
 export default function Skills() {
@@ -388,7 +388,7 @@ export default function Skills() {
                   <li>Full API access</li>
                 </ul>
               </div>
-              <div className="sp-panel" style={{ padding: 18, borderColor: 'rgba(249,115,22,.4)' }}>
+              <div className="sp-panel" style={{ padding: 18, borderColor: 'rgba(139,92,246,.4)' }}>
                 <div style={{ fontWeight: 850, marginBottom: 4, color: 'var(--text)' }}>Pro</div>
                 <div
                   style={{ fontSize: 24, fontWeight: 900, marginBottom: 8, color: 'var(--text)' }}
