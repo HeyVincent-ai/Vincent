@@ -1029,7 +1029,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   it('should reject transfer-between-secrets to a different user', async () => {
     // Create second user
     const user2 = await prisma.user.create({
-      data: { email: 'e2e-evmwallet-other@test.local' },
+      data: { email: 'e2e-evmwallet-other2@test.local' },
     });
     testUser2Id = user2.id;
 
