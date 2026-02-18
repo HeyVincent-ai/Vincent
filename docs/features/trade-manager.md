@@ -141,7 +141,7 @@ Vincent API key auto-read from `~/.openclaw/credentials/agentwallet/`.
 The trade manager is a **client** of Vincent's existing Polymarket API:
 
 - `POST /api/skills/polymarket/bet` — execute trades
-- `GET /api/skills/polymarket/positions` — fetch positions
+- `GET /api/skills/polymarket/open-orders` — fetch open orders
 - `GET /api/skills/polymarket/markets` — fetch prices
 
 All Vincent policies (spending limits, approvals) are still enforced server-side. The trade manager does not bypass any security controls.

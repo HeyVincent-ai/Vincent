@@ -67,9 +67,24 @@ router.post(
 );
 
 // ============================================================
-// GET /api/skills/polymarket/positions
+// GET /api/skills/polymarket/open-orders
 // ============================================================
 
+router.get(
+  '/open-orders',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const market = typeof req.query.market === 'string' ? req.query.market : undefined;
+    const result = await polymarketSkill.getOpenOrders(req.secret.id, market);
+    sendSuccess(res, result);
+  })
+);
+
+// Backward-compatible alias — existing clients using /positions still work
 router.get(
   '/positions',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
@@ -79,7 +94,7 @@ router.get(
     }
 
     const market = typeof req.query.market === 'string' ? req.query.market : undefined;
-    const result = await polymarketSkill.getPositions(req.secret.id, market);
+    const result = await polymarketSkill.getOpenOrders(req.secret.id, market);
     sendSuccess(res, result);
   })
 );
