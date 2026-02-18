@@ -347,6 +347,7 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
               to: funderAddress,
               tokenAddress: USDC_E_POLYGON as Address,
               tokenAmount: parseUnits(returnAmount, USDC_DECIMALS),
+              smartAccountAddress: toSmartAccountAddressEvm2,
             });
             evidence.returnUsdcETxHashEvm2 = result.txHash;
             console.log(`Test 12 USDC.e refund tx: ${result.txHash}`);
