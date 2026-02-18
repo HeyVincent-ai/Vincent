@@ -10,8 +10,18 @@ export class PositionMonitorService {
     const holdings = await this.vincentClient.getHoldings();
     const now = new Date();
 
+    // Filter out resolved/closed markets (redeemable or past endDate)
+    const activeHoldings = holdings.filter((holding) => {
+      if (holding.redeemable) return false;
+      if (holding.endDate) {
+        const endDate = new Date(holding.endDate);
+        if (endDate < now) return false;
+      }
+      return true;
+    });
+
     await Promise.all(
-      holdings.map((holding) =>
+      activeHoldings.map((holding) =>
         prisma.monitoredPosition.upsert({
           where: {
             marketId_tokenId_side: {
@@ -22,6 +32,7 @@ export class PositionMonitorService {
           },
           create: {
             marketId: holding.tokenId,
+            marketSlug: holding.marketSlug,
             tokenId: holding.tokenId,
             side: 'BUY',
             quantity: holding.shares,
@@ -29,6 +40,8 @@ export class PositionMonitorService {
             currentPrice: holding.currentPrice,
             marketTitle: holding.marketTitle,
             outcome: holding.outcome,
+            endDate: holding.endDate,
+            redeemable: holding.redeemable || false,
             lastUpdatedAt: now,
           },
           update: {
@@ -36,7 +49,10 @@ export class PositionMonitorService {
             avgEntryPrice: holding.averageEntryPrice,
             currentPrice: holding.currentPrice,
             marketTitle: holding.marketTitle,
+            marketSlug: holding.marketSlug,
             outcome: holding.outcome,
+            endDate: holding.endDate,
+            redeemable: holding.redeemable || false,
             lastUpdatedAt: now,
           },
         })

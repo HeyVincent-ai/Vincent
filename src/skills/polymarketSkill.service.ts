@@ -390,7 +390,10 @@ export interface Holding {
   pnl: number;
   pnlPercent: number;
   marketTitle: string;
+  marketSlug: string;
   outcome: string;
+  endDate?: string;
+  redeemable?: boolean;
 }
 
 export interface HoldingsOutput {
@@ -412,7 +415,10 @@ export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
     pnl: parseFloat(pos.cashPnl),
     pnlPercent: parseFloat(pos.percentPnl),
     marketTitle: pos.title,
+    marketSlug: pos.slug,
     outcome: pos.outcome,
+    endDate: pos.endDate,
+    redeemable: pos.redeemable,
   }));
 
   return {

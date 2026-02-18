@@ -512,17 +512,17 @@
 
         <div id="error-container"></div>
 
-        <div class="grid">
-            <div class="card">
-                <div class="card-header">
-                    <h2 class="card-title">Active Rules</h2>
-                    <button class="refresh-btn" onclick="loadRules()">↻ Refresh</button>
-                </div>
-                <div id="rules-container" class="rules-list">
-                    <div class="loading">Loading rules...</div>
-                </div>
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Active Holdings</h2>
+                <button class="refresh-btn" onclick="loadPositions()">↻ Refresh</button>
             </div>
+            <div id="positions-container" class="positions-list">
+                <div class="loading">Loading positions...</div>
+            </div>
+        </div>
 
+        <div class="grid">
             <div class="card">
                 <div class="card-header">
                     <h2 class="card-title">Trading Log</h2>
@@ -538,15 +538,15 @@
                     <div class="loading">Loading events...</div>
                 </div>
             </div>
-        </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Active Holdings</h2>
-                <button class="refresh-btn" onclick="loadPositions()">↻ Refresh</button>
-            </div>
-            <div id="positions-container" class="positions-list">
-                <div class="loading">Loading positions...</div>
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Active Rules</h2>
+                    <button class="refresh-btn" onclick="loadRules()">↻ Refresh</button>
+                </div>
+                <div id="rules-container" class="rules-list">
+                    <div class="loading">Loading rules...</div>
+                </div>
             </div>
         </div>
     </div>
@@ -575,6 +575,7 @@
         }
 
         async function loadWorkerStatus() {
+            const scrollY = window.scrollY;
             try {
                 const status = await fetchAPI('/health/worker');
 
@@ -600,13 +601,16 @@
                 } else {
                     document.getElementById('last-sync').textContent = 'Never';
                 }
+                window.scrollTo(0, scrollY);
             } catch (error) {
                 console.error('Failed to load worker status:', error);
+                window.scrollTo(0, scrollY);
             }
         }
 
         async function loadRules() {
             const container = document.getElementById('rules-container');
+            const scrollY = window.scrollY;
             container.innerHTML = '<div class="loading">Loading rules...</div>';
 
             try {
@@ -664,6 +668,7 @@
                         </div>
                     `;
                 }).join('');
+                window.scrollTo(0, scrollY);
             } catch (error) {
                 console.error('Failed to load rules:', error);
                 showError('Failed to load rules: ' + error.message);
@@ -672,11 +677,13 @@
                         <div>Failed to load rules</div>
                     </div>
                 `;
+                window.scrollTo(0, scrollY);
             }
         }
 
         async function loadTrades() {
             const container = document.getElementById('trades-container');
+            const scrollY = window.scrollY;
             container.innerHTML = '<div class="loading">Loading trades...</div>';
 
             try {
@@ -736,6 +743,7 @@
                         </div>
                     `;
                 }).join('');
+                window.scrollTo(0, scrollY);
             } catch (error) {
                 console.error('Failed to load trades:', error);
                 showError('Failed to load trades: ' + error.message);
@@ -744,11 +752,13 @@
                         <div>Failed to load trades</div>
                     </div>
                 `;
+                window.scrollTo(0, scrollY);
             }
         }
 
         async function loadEvents() {
             const container = document.getElementById('events-container');
+            const scrollY = window.scrollY;
             container.innerHTML = '<div class="loading">Loading events...</div>';
 
             try {
@@ -782,6 +792,7 @@
                         </div>
                     `;
                 }).join('');
+                window.scrollTo(0, scrollY);
             } catch (error) {
                 console.error('Failed to load events:', error);
                 showError('Failed to load events: ' + error.message);
@@ -790,15 +801,22 @@
                         <div>Failed to load events</div>
                     </div>
                 `;
+                window.scrollTo(0, scrollY);
             }
         }
 
+        let cachedRules = [];
+
         async function loadPositions() {
             const container = document.getElementById('positions-container');
+            const scrollY = window.scrollY;
             container.innerHTML = '<div class="loading">Loading positions...</div>';
 
             try {
-                const positions = await fetchAPI('/api/positions');
+                const [positions, rules] = await Promise.all([
+                    fetchAPI('/api/positions'),
+                    fetchAPI('/api/rules')
+                ]);
 
                 if (positions.length === 0) {
                     container.innerHTML = `
@@ -818,15 +836,27 @@
                     const pnlSign = pnl >= 0 ? '+' : '';
                     const value = position.quantity * position.currentPrice;
 
+                    // Find active rules for this position
+                    const activeRules = rules.filter(rule =>
+                        rule.tokenId === position.tokenId &&
+                        rule.status === 'ACTIVE'
+                    );
+
+                    const marketTitleLink = position.marketSlug && position.marketTitle
+                        ? `<a href="${getPolymarketUrl(position.marketSlug)}" target="_blank" class="market-link" style="font-size: 1rem; font-weight: 700;">${position.marketTitle}</a>`
+                        : position.marketTitle
+                        ? `<strong>${position.marketTitle}</strong>`
+                        : '';
+
                     return `
                         <div class="position-item">
                             <div class="position-header">
                                 <span class="position-side ${position.side.toLowerCase()}">${position.side}</span>
                                 <span class="position-quantity">${position.quantity.toFixed(2)} shares</span>
                             </div>
-                            ${position.marketTitle ? `
+                            ${marketTitleLink ? `
                             <div style="margin: 8px 0; color: #c9d1d9;">
-                                <strong>${position.marketTitle}</strong>
+                                ${marketTitleLink}
                                 ${position.outcome ? ` - ${position.outcome}` : ''}
                             </div>
                             ` : ''}
@@ -856,9 +886,25 @@
                                     <span class="position-detail-value">${new Date(position.lastUpdatedAt).toLocaleString()}</span>
                                 </div>
                             </div>
+                            ${activeRules.length > 0 ? `
+                            <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #30363d;">
+                                <div style="font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">
+                                    Active Rules (${activeRules.length})
+                                </div>
+                                ${activeRules.map(rule => `
+                                    <div style="margin-bottom: 6px; padding: 6px 10px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                                            <span class="rule-type ${rule.ruleType.toLowerCase().replace('_', '-')}" style="font-size: 0.7rem; padding: 3px 6px;">${rule.ruleType}</span>
+                                            <span style="font-size: 0.75rem; color: #c9d1d9;">${rule.action} @ ${rule.triggerPrice.toFixed(3)}</span>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ` : ''}
                         </div>
                     `;
                 }).join('');
+                window.scrollTo(0, scrollY);
             } catch (error) {
                 console.error('Failed to load positions:', error);
                 showError('Failed to load positions: ' + error.message);
@@ -867,6 +913,7 @@
                         <div>Failed to load positions</div>
                     </div>
                 `;
+                window.scrollTo(0, scrollY);
             }
         }
 

@@ -33,6 +33,7 @@ model TradeRule {
 model MonitoredPosition {
   id            String   @id @default(cuid())
   marketId      String
+  marketSlug    String?
   tokenId       String
   side          String
   quantity      Float
@@ -40,6 +41,8 @@ model MonitoredPosition {
   currentPrice  Float
   marketTitle   String?
   outcome       String?
+  endDate       String?
+  redeemable    Boolean  @default(false)
   lastUpdatedAt DateTime
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

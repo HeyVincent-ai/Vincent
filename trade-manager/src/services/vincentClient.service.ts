@@ -18,7 +18,10 @@ export interface VincentHolding {
   pnl: number;
   pnlPercent: number;
   marketTitle?: string;
+  marketSlug?: string;
   outcome?: string;
+  endDate?: string;
+  redeemable?: boolean;
 }
 
 export class VincentClientService {
@@ -140,8 +143,10 @@ export class VincentClientService {
       // Calculate mid price from best bid and best ask
       // Polymarket returns bids sorted ascending (lowest first), so take last element for highest bid
       // Polymarket returns asks sorted descending (highest first), so take last element for lowest ask
-      const bestBid = bids.length > 0 && bids[bids.length - 1]?.price ? Number(bids[bids.length - 1].price) : 0;
-      const bestAsk = asks.length > 0 && asks[asks.length - 1]?.price ? Number(asks[asks.length - 1].price) : 0;
+      const bestBid =
+        bids.length > 0 && bids[bids.length - 1]?.price ? Number(bids[bids.length - 1].price) : 0;
+      const bestAsk =
+        asks.length > 0 && asks[asks.length - 1]?.price ? Number(asks[asks.length - 1].price) : 0;
 
       let price: number;
       if (bestBid > 0 && bestAsk > 0) {
@@ -159,7 +164,12 @@ export class VincentClientService {
       }
 
       if (isNaN(price) || price <= 0 || price > 1) {
-        console.warn('[VincentClient] Invalid price calculated', { tokenId, price, bestBid, bestAsk });
+        console.warn('[VincentClient] Invalid price calculated', {
+          tokenId,
+          price,
+          bestBid,
+          bestAsk,
+        });
         return 0;
       }
 
@@ -192,7 +202,9 @@ export class VincentClientService {
 
   async getBalance(): Promise<Record<string, unknown>> {
     try {
-      const { data } = await this.withRetry(() => this.client.get('/api/skills/polymarket/balance'));
+      const { data } = await this.withRetry(() =>
+        this.client.get('/api/skills/polymarket/balance')
+      );
       // Handle nested Vincent response format
       return data.success ? data.data : data;
     } catch (error: any) {

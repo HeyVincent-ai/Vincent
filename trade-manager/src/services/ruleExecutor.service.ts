@@ -33,6 +33,28 @@ export class RuleExecutorService {
     };
 
     try {
+      // Check if market is closed before attempting execution
+      const position = await this.positionMonitor.getPosition(rule.marketId, rule.tokenId);
+      if (position) {
+        // Check if market is redeemable (resolved)
+        if (position.redeemable) {
+          const errorMessage = `Market is resolved and redeemable - cannot execute trades for tokenId ${rule.tokenId}`;
+          await this.ruleManager.markRuleFailed(rule.id, errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        // Check if market end date has passed
+        if (position.endDate) {
+          const endDate = new Date(position.endDate);
+          const now = new Date();
+          if (endDate < now) {
+            const errorMessage = `Market has ended (${endDate.toISOString()}) - cannot execute trades for tokenId ${rule.tokenId}`;
+            await this.ruleManager.markRuleFailed(rule.id, errorMessage);
+            throw new Error(errorMessage);
+          }
+        }
+      }
+
       let amount: number;
 
       // Determine the amount to sell
@@ -55,7 +77,14 @@ export class RuleExecutorService {
 
         if (!holding || holding.shares <= 0) {
           // Mark rule as failed - no shares to sell
-          const errorMessage = `Cannot execute SELL_ALL: No shares found for tokenId ${rule.tokenId}. The position may have already been sold.`;
+          const errorMessage = `Cannot execute SELL_ALL: No shares found for tokenId ${rule.tokenId}. The position may have already been sold or the market is closed.`;
+          await this.ruleManager.markRuleFailed(rule.id, errorMessage);
+          throw new Error(errorMessage);
+        }
+
+        // Additional check: if holding has redeemable flag set, market is closed
+        if (holding.redeemable) {
+          const errorMessage = `Market is resolved - cannot sell shares for tokenId ${rule.tokenId}`;
           await this.ruleManager.markRuleFailed(rule.id, errorMessage);
           throw new Error(errorMessage);
         }
@@ -113,24 +142,18 @@ export class RuleExecutorService {
     // Get current market price to use for limit order
     const currentPrice = await this.positionMonitor.getCurrentPrice(rule.marketId, rule.tokenId);
 
-    // If we can't get a current price, try market order only (no limit price)
+    // If we can't get a current price (returns 0), the market is likely closed
+    // Don't attempt to execute - this is a permanent failure
     if (currentPrice === 0) {
-      console.log('[RuleExecutor] No current price available, using market order only');
-      await this.eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', {
-        attempt: 1,
-        type: 'market_order',
-        reason: 'no_price_data',
+      const errorMessage = `Market appears to be closed - no orderbook data available for tokenId ${rule.tokenId}`;
+      console.log('[RuleExecutor]', errorMessage);
+      await this.eventLogger.logEvent(rule.id, 'ACTION_FAILED', {
+        reason: 'market_closed_no_orderbook',
       });
 
-      const result = await this.vincentClient.placeBet({
-        tokenId: rule.tokenId,
-        side: 'SELL',
-        amount,
-        // No price = market order
-      });
-
-      console.log('[RuleExecutor] Market order succeeded:', result);
-      return result;
+      // Mark rule as failed immediately
+      await this.ruleManager.markRuleFailed(rule.id, errorMessage);
+      throw new Error(errorMessage);
     }
 
     // Calculate limit price based on rule type
@@ -226,7 +249,10 @@ export class RuleExecutorService {
       'invalid price', // Price out of valid range
       'market closed', // Market is no longer active
       'market resolved', // Market has already resolved
+      'market appears to be closed', // No orderbook data
+      'no orderbook data', // Market has no active orderbook
       'position not found', // Position doesn't exist
+      'cannot execute', // Generic execution failure
     ];
 
     const lowerMessage = message.toLowerCase();
@@ -248,6 +274,16 @@ export class RuleExecutorService {
       // 403 = Forbidden (not allowed)
       // 404 = Not Found (invalid market/token)
       if ([400, 403, 404].includes(status)) {
+        return true;
+      }
+
+      // 500 errors can be permanent if they persist
+      // Specifically for closed markets, Polymarket may return 500
+      // We'll mark as permanent if it's a 500 with no orderbook data
+      if (
+        status === 500 &&
+        (lowerMessage.includes('orderbook') || lowerMessage.includes('no match'))
+      ) {
         return true;
       }
     }
