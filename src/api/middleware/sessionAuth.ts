@@ -1,6 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../../types/index.js';
-import { validateSession } from '../../services/auth.service.js';
+import { validateSessionWithRoles } from '../../services/auth.service.js';
 import { verifySecretOwnership } from '../../services/secret.service.js';
 import { errors } from '../../utils/response.js';
 
@@ -46,7 +46,7 @@ export async function sessionAuthMiddleware(
   }
 
   try {
-    const user = await validateSession(sessionToken);
+    const { user, roles } = await validateSessionWithRoles(sessionToken);
 
     if (!user) {
       errors.unauthorized(res, 'Invalid or expired session');
@@ -54,6 +54,7 @@ export async function sessionAuthMiddleware(
     }
 
     req.user = user;
+    req.stytchRoles = roles;
     next();
   } catch (error) {
     console.error('Session auth error:', error);
@@ -77,9 +78,10 @@ export async function optionalSessionAuthMiddleware(
   }
 
   try {
-    const user = await validateSession(sessionToken);
+    const { user, roles } = await validateSessionWithRoles(sessionToken);
     if (user) {
       req.user = user;
+      req.stytchRoles = roles;
     }
     next();
   } catch {

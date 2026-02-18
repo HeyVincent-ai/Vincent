@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
+import * as referralService from '../services/referral.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -250,6 +251,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const amountPaidUsd = Number(invoice.amount_paid ?? 0) / 100;
+  if (amountPaidUsd <= 0) {
+    console.log('[stripe] Skipping referral fulfillment for non-paid invoice');
+  }
+
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
@@ -262,6 +268,28 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       where: { id: sub.id },
       data: { status: 'ACTIVE' },
     });
+
+    if (amountPaidUsd > 0) {
+      try {
+        await referralService.fulfillReferralReward(sub.userId);
+      } catch (err: any) {
+        console.error('[stripe] Failed to fulfill referral reward:', err.message);
+      }
+    }
+    return;
+  }
+
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    select: { userId: true },
+  });
+
+  if (openclawDeployment && amountPaidUsd > 0) {
+    try {
+      await referralService.fulfillReferralReward(openclawDeployment.userId);
+    } catch (err: any) {
+      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    }
   }
 }
 
