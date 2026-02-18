@@ -64,86 +64,28 @@ Follow this workflow to test both skills working together:
 ### Phase 2: Test Polymarket Skill
 
 1. Check your Polymarket wallet balance
-2. Search for active markets
-3. (Optional) Place a small test bet if you have funds
+2. Search for the active "Bitcoin Up or Down - 5 min" market
+3. Place a $2 test bet on UP outcome. You should have enough funds - let me know if you need more.
 
 ### Phase 3: Test Trade Manager Skill
 
-1. Create a stop-loss rule on a position (or test position)
-2. Create a take-profit rule on the same position
-3. List your active rules
-4. Update a rule's trigger price
-5. Check the event log
-6. Cancel a rule
-
-### Phase 4: Verify Integration
-
-1. Confirm Trade Manager worker is monitoring your positions
-2. Check that events are being logged every 15 seconds
-3. Verify circuit breaker state is healthy
-
-## What to Test
-
-Based on the skills you read, test these scenarios:
-
-**From Polymarket Skill:**
-
-- Can you search markets?
-- Can you get wallet balance?
-- Can you understand market structure (outcomes, prices, tokenIds)?
-
-**From Trade Manager Skill:**
-
-- Can you create rules with correct parameters?
-- Can you list rules with status filters?
-- Can you update trigger prices?
-- Can you cancel rules?
-- Can you view event logs?
-
-**Integration:**
-
-- Do the rules use the same API key as Polymarket?
-- Do the marketId and tokenId from Polymarket work in Trade Manager?
-- Does the worker fetch positions correctly?
+1. Create a trailing stop-loss rule on the position you just bought (just make one up that makes sense, since we're just testing)
+2. List your active rules to confirm it was created
+3. Sleep until the market expires (should be 5 mins max, but if you can tell when it will expire, use that as the sleep time) and check the event log to see if the rule triggered and the trade was executed
 
 ## Success Criteria
 
-After testing, you should be able to:
-
-✅ Explain how both skills work together
-✅ Create stop-loss and take-profit rules successfully
-✅ Monitor rule status and events
-✅ Understand when rules will trigger
-✅ Troubleshoot common errors
+After testing, you should be able to show that the trade manager rules work and that betting in general works as expected.
 
 ## Report Your Findings
 
-After testing, provide a report including:
-
-1. **What worked:**
-   - Which endpoints succeeded
-   - Which workflows completed end-to-end
-
-2. **What needs clarification:**
-   - Confusing documentation
-   - Missing information
-   - Ambiguous instructions
-
-3. **Integration observations:**
-   - Did the skills work well together?
-   - Was it clear how to get the right IDs from Polymarket to use in Trade Manager?
-   - Were there any gaps in the documentation?
-
-4. **Suggestions for improvement:**
-   - What would make the skills easier to use?
-   - What examples would be helpful?
-   - What common errors should be documented?
+After testing, provide a report including any discrepancies or issues you encounter, so that we can fix them. You can view the logs for the Vincent Backend in the `trade-manager/testRunLogs/<dateTimeStamp>/vincentBackend.log` file to see what happened during the test. You can view the logs for the Trade Manager in the `trade-manager/testRunLogs/<dateTimeStamp>/tradeManager.log` file. You can review the logs as needed to try to figure out what happened and what went right or wrong. Also document any suggestions for improvement that you have. You have the whole vincent monorepo available with the trade-manager and vincent Backend so if you want to investigate the code to try and guess what went wrong and how to fix it, you should do that.
 
 ## Important Notes
 
 - **You are testing the skill documentation** - not just the API endpoints
 - **A real agent will only have the SKILL.md files** - they won't have this LOCAL_TESTING_PROMPT.md
-- **Your goal** is to verify that the skill files contain enough information for an agent to use the features successfully
+- **Your goal** is to verify that the skill files contain enough information for an agent to use the features successfully, and that everything works as expected.
 - **If you can't figure something out from the skill files** - that's valuable feedback! Report what was unclear.
 
 ## Getting Help
