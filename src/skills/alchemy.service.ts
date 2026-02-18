@@ -86,6 +86,29 @@ function formatTokenBalance(raw: string, decimals: number): string {
   return `${whole}.${frac.slice(0, 8)}`;
 }
 
+function parseNumberish(value: unknown): number | null {
+  if (value == null) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  if (typeof value === 'object') {
+    const nested = (value as { value?: unknown }).value;
+    return parseNumberish(nested);
+  }
+  return null;
+}
+
+function extractTokenPrice(raw: AlchemyRawToken): number | null {
+  const direct = parseNumberish(raw.tokenPrice);
+  if (direct != null) return direct;
+  const priceEntry = raw.tokenPrices?.find(
+    (price) => (price.currency || '').toLowerCase() === 'usd'
+  );
+  return parseNumberish(priceEntry?.value);
+}
+
 /**
  * Fetch token metadata using Alchemy's alchemy_getTokenMetadata RPC.
  * Returns proper decimals, logo, symbol, and name.
@@ -144,8 +167,10 @@ interface AlchemyRawToken {
   name?: string;
   decimals?: number;
   logo?: string;
-  tokenPrice?: number | null;
-  value?: number | null;
+  tokenPrice?: number | string | { value?: number | string } | null;
+  value?: number | string | null;
+  tokenMetadata?: Partial<TokenMetadata> | null;
+  tokenPrices?: Array<{ currency?: string; value?: string | number | null }>;
 }
 
 /**
@@ -165,12 +190,13 @@ export async function getTokenBalances(
     networks && networks.length > 0 ? networks : Object.values(CHAIN_ID_TO_NETWORK);
 
   const allRawTokens: AlchemyRawToken[] = [];
+  const maxNetworksPerRequest = 5; // Alchemy tokens/by-address limit
 
-  for (let i = 0; i < targetNetworks.length; i += 20) {
-    const networkChunk = targetNetworks.slice(i, i + 20);
+  for (let i = 0; i < targetNetworks.length; i += maxNetworksPerRequest) {
+    const networkChunk = targetNetworks.slice(i, i + maxNetworksPerRequest);
 
     const response = await fetch(
-      `https://api.g.alchemy.com/data/v1/${apiKey}/assets/tokens/balances/by-address`,
+      `https://api.g.alchemy.com/data/v1/${apiKey}/assets/tokens/by-address`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -178,6 +204,8 @@ export async function getTokenBalances(
           addresses: [{ address, networks: networkChunk }],
           includeNativeTokens: true,
           includeErc20Tokens: true,
+          withMetadata: true,
+          withPrices: true,
         }),
       }
     );
@@ -198,7 +226,7 @@ export async function getTokenBalances(
       const normalizedBalance = normalizeBalance(raw.tokenBalance);
       if (normalizedBalance === '0') return null;
 
-      const decimals = raw.decimals ?? 18;
+      const decimals = raw.tokenMetadata?.decimals ?? raw.decimals ?? 18;
       const formatted = formatTokenBalance(normalizedBalance, decimals);
       if (formatted === '0') return null;
 
@@ -213,31 +241,34 @@ export async function getTokenBalances(
   // Fetch metadata for all ERC20 tokens (in parallel) to get correct decimals & logos
   const metadataResults = await Promise.all(
     prelimTokens.map(async (raw) => {
-      if (raw.tokenAddress) {
+      if (raw.tokenAddress && (!raw.tokenMetadata || raw.tokenMetadata.decimals == null)) {
         return fetchTokenMetadata(raw.tokenAddress, raw.network);
       }
-      return null; // native tokens don't need metadata lookup
+      return raw.tokenMetadata ?? null; // native tokens don't need metadata lookup
     })
   );
 
   const tokens: TokenBalance[] = prelimTokens.map((raw, i) => {
     const metadata = metadataResults[i];
     // Use metadata values when available (more reliable than portfolio API)
-    const decimals = metadata?.decimals ?? raw.prelimDecimals;
-    const symbol = metadata?.symbol || raw.symbol || (raw.tokenAddress ? 'ERC20' : 'ETH');
-    const name = metadata?.name || raw.name || (raw.tokenAddress ? 'Unknown Token' : 'Ether');
-    const logo = metadata?.logo || raw.logo || null;
+    const decimals = metadata?.decimals ?? raw.tokenMetadata?.decimals ?? raw.prelimDecimals;
+    const symbol =
+      metadata?.symbol ||
+      raw.tokenMetadata?.symbol ||
+      raw.symbol ||
+      (raw.tokenAddress ? 'ERC20' : 'ETH');
+    const name =
+      metadata?.name ||
+      raw.tokenMetadata?.name ||
+      raw.name ||
+      (raw.tokenAddress ? 'Unknown Token' : 'Ether');
+    const logo = metadata?.logo ?? raw.tokenMetadata?.logo ?? raw.logo ?? null;
 
-    // Recompute value if decimals changed from portfolio API's assumption
-    let { value } = raw;
-    if (metadata && metadata.decimals !== raw.prelimDecimals && raw.normalizedBalance !== '0') {
-      // Decimals changed - recalculate value from price if available
-      const tokenPrice = raw.tokenPrice ?? null;
-      if (tokenPrice) {
-        const humanBalance = parseFloat(formatTokenBalance(raw.normalizedBalance, decimals));
-        value = humanBalance * tokenPrice;
-      }
-    }
+    const tokenPrice = extractTokenPrice(raw);
+    const humanBalance = parseFloat(formatTokenBalance(raw.normalizedBalance, decimals));
+    const computedValue =
+      tokenPrice != null && Number.isFinite(humanBalance) ? humanBalance * tokenPrice : null;
+    const value = computedValue ?? parseNumberish(raw.value);
 
     return {
       network: raw.network,
@@ -248,7 +279,7 @@ export async function getTokenBalances(
       name,
       decimals,
       logo,
-      tokenPrice: raw.tokenPrice ?? null,
+      tokenPrice,
       value: value ?? null,
     };
   });
