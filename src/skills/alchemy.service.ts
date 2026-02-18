@@ -190,7 +190,7 @@ export async function getTokenBalances(
     networks && networks.length > 0 ? networks : Object.values(CHAIN_ID_TO_NETWORK);
 
   const allRawTokens: AlchemyRawToken[] = [];
-  const maxNetworksPerRequest = 5;
+  const maxNetworksPerRequest = 5; // Alchemy tokens/by-address limit
 
   for (let i = 0; i < targetNetworks.length; i += maxNetworksPerRequest) {
     const networkChunk = targetNetworks.slice(i, i + maxNetworksPerRequest);
