@@ -232,8 +232,6 @@ This is the best endpoint for:
 
 **Open Orders endpoint** returns unfilled limit orders waiting in the order book. Filter by market with `?market=<CONDITION_ID>`.
 
-**Note:** The legacy endpoint `/positions` still works as an alias for `/open-orders` for backward compatibility.
-
 **Trades endpoint** returns historical trade activity.
 
 ### 8. Cancel Orders
@@ -403,6 +401,7 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 7. **Wait for settlement** (a few seconds)
 
 8. **Sell position:**
+
    ```bash
    POST /api/skills/polymarket/bet
    {"tokenId": "123456...", "side": "SELL", "amount": 9.09, "price": 0.54}
