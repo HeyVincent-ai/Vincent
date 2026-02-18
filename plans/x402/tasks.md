@@ -25,7 +25,7 @@
 ### Routes (`src/api/routes/x402.routes.ts`)
 - [ ] Create router with `apiKeyAuthMiddleware`
 - [ ] `POST /fetch` — Zod schema + handler calling `executeFetch()` + audit log
-- [ ] `GET /discover` — query params + handler calling `discoverServices()` (public, no auth required)
+- [ ] `GET /discover` — query params + handler calling `discoverServices()`
 - [ ] `GET /balance` — handler calling `getBalance()`
 - [ ] `GET /history` — query params + handler calling `getHistory()`
 
@@ -54,38 +54,34 @@
 - [ ] Funding instructions (send USDC on Base to wallet address)
 - [ ] Re-link and API key usage (same as wallet skill)
 
-### Frontend — Skills Page (`/skills`)
-- [ ] Add `'x402'` to `SkillChoice` type union in `Skills.tsx`
-- [ ] Add x402 skill tab button alongside "agent wallet" and "polymarket"
-- [ ] Add install commands for x402: clawhub (`npx clawhub@latest install vincentx402`) and other (`npx skills add HeyVincent-ai/agent-skills/x402`)
-- [ ] Add x402-specific step text (persona-aware: human vs agent)
-- [ ] Create `X402ServiceCatalog.tsx` component — grid of service cards grouped by category
-- [ ] Fetch catalog from `GET /api/skills/x402/discover` when x402 tab is selected
-- [ ] Show service name, category badge, description, price, docs link per card
-- [ ] Add "x402 HTTP Payments ● live" pill to Connectors section with tooltip
-- [ ] Add "x402 Payments" pill to EVM Wallet Features section
-
-### Frontend — Wallet Detail (`/secrets/:id`)
-- [ ] Create `X402Section.tsx` component with three states: not funded / funded / active
-- [ ] State A (not funded): funding prompt with address, QR code, copy button, "Browse services" link
-- [ ] State B (funded, no activity): "Ready to go" message + policy setup tip
-- [ ] State C (active): spending stats (today/week/all-time) + recent calls list
-- [ ] Import and render `<X402Section>` in Overview tab of `SecretDetail.tsx` for `EVM_WALLET` secrets
-- [ ] Position between `<BalancesDisplay>` and Mainnet Access section
-- [ ] Fetch data from `GET /api/skills/x402/balance` and `GET /api/skills/x402/history?limit=5`
-- [ ] "View all x402 activity" link to Audit Logs tab filtered to x402 actions
+### Frontend — Wallet Detail: x402 Services Tab
+- [ ] Add "x402 Services" to `getTabsForType()` in `SecretDetail.tsx` for `EVM_WALLET` secrets
+- [ ] Create `X402ServicesTab.tsx` — the full tab component with three sections
+- [ ] Section A: Status bar — USDC balance on Base + spending stats (today/week/all-time)
+- [ ] Section A (not funded): inline funding prompt with address, copy button, QR code
+- [ ] Section A: emphasize "Base network" to avoid wrong-chain deposits
+- [ ] Section B: Service catalog grid — fetch from `GET /api/skills/x402/discover`, cache client-side
+- [ ] Create `X402ServiceCatalog.tsx` — service cards grouped by category
+- [ ] Each card: name, category badge, description, endpoint count, price, docs link
+- [ ] Search input + max price filter for catalog
+- [ ] Section C: Recent activity — last 10 x402 calls from `GET /api/skills/x402/history?limit=10`
+- [ ] Each row: status dot, service name, endpoint path, cost, relative time
+- [ ] "View all in Audit Logs" link
 
 ### Frontend — Policy Manager
 - [ ] Add `X402_SERVICE_ALLOWLIST` to `POLICY_TYPES` array with `isArray: true`, `configKey: 'domains'`
 - [ ] Add `X402_SPENDING_LIMIT` to `POLICY_TYPES` with custom form (three optional number fields)
 - [ ] Build custom form for x402 Spending Limit: max per call, max per day, max per week (all optional USD)
 - [ ] Add approval override checkbox for both x402 policy types
-- [ ] Show contextual hint when no x402 policies are configured
+
+### Frontend — Skills Page (minimal)
+- [ ] Add "x402 Payments" pill to EVM Wallet Features section
+- [ ] Add "x402 HTTP Payments ● live" pill to Connectors section with tooltip
 
 ### Frontend — API Client (`api.ts`)
 - [ ] Add `getX402Balance(secretId)` function
 - [ ] Add `getX402History(secretId, params)` function
-- [ ] Add `getX402Services(params)` function (public, no auth needed)
+- [ ] Add `getX402Services(params)` function
 
 ### Testing
 - [ ] Unit tests: domain extraction, cost parsing, Bazaar response formatting
@@ -103,25 +99,21 @@
 
 ## Phase 2: Enhanced Discovery & UX
 
-### Curated Catalog
-- [ ] Build curated service catalog (seed from Bazaar, add categories, descriptions, input/output schemas)
-- [ ] Create `/api/skills/x402/catalog` endpoint serving enriched catalog data
-- [ ] Individual service detail modals with docs, example requests, pricing breakdown
+### Catalog Enrichment
+- [ ] Curated service metadata (better descriptions, input/output schemas, categories)
+- [ ] Service card expansion on click — endpoint list, example requests, pricing breakdown
 
-### Dashboard Integration
-- [ ] Add x402 badge on wallet cards in `Dashboard.tsx` when USDC balance on Base > 0
-- [ ] Add x402 spending summary to dashboard Overview Card (today's spend)
-
-### Marketing Pages
-- [ ] Add x402 capability card to Landing page Capabilities grid
-- [ ] Add x402 scenario to Landing hero carousel (agent needs data → x402 payment → data received)
-- [ ] Add x402 FAQ entry to Landing page
-- [ ] Add x402 feature section to Features page with architecture diagram
-- [ ] Add x402 to "Why Vincent" comparison grid
+### Dashboard
+- [ ] x402 badge on wallet cards when USDC on Base > 0
+- [ ] x402 spending summary in dashboard Overview Card
 
 ### Notifications
 - [ ] Telegram notification for x402 spending milestones ($1, $5, $10/day)
 - [ ] Low balance warning when USDC on Base drops below $1
+
+### Marketing Pages
+- [ ] Landing page: capability card, hero carousel scenario, FAQ entry
+- [ ] Features page: x402 section with architecture diagram
 
 ## Phase 3: Smart Routing (Future)
 

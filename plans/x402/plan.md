@@ -63,68 +63,20 @@ The only thing we need to determine is **which wallet to use** when the agent ca
 
 ---
 
-## Getting Started: User Journey
+## User Journey
 
-This is the end-to-end flow a user follows to get their agent calling x402 services. It's designed to be as frictionless as possible — if the user already has a Vincent wallet, they just fund it and go.
-
-### For Users Who Already Have a Vincent Wallet
+x402 is not a separate onboarding flow. It's a capability that's already there for every EVM wallet — the user just needs USDC on Base. The experience is embedded in the existing wallet detail page.
 
 ```
-1. Fund wallet with USDC on Base
-   └── Send USDC to your wallet's smart account address from any exchange or wallet
-       (address visible on your wallet detail page)
-
-2. (Optional) Set x402 policies
-   └── Go to your wallet → Policies tab → add service allowlist and/or spending limit
-
-3. Agent calls x402 services
-   └── Agent uses the same ssk_ API key it already has
-       POST /api/skills/x402/fetch { url: "https://x402.coingecko.com/..." }
+User opens wallet detail page
+  └── Sees "x402 Services" tab alongside Overview, Policies, API Keys, Audit Logs
+      └── Service catalog is right there — browse services, see prices
+      └── If wallet has USDC on Base: spending stats + recent calls shown
+      └── If wallet has no USDC on Base: funding prompt inline
+      └── Agent already has the ssk_ key — no new setup
 ```
 
-That's it. No new account, no new API key, no new setup. The agent's existing wallet pays for x402 calls.
-
-### For New Users
-
-```
-1. Agent creates a wallet
-   └── POST /api/secrets { type: "EVM_WALLET", memo: "My agent" }
-       Returns: ssk_ API key + claim URL
-
-2. User claims the wallet
-   └── Opens claim URL → logs in → wallet appears on dashboard
-
-3. User funds wallet with USDC on Base
-   └── Dashboard shows wallet address + "Fund with USDC" prompt
-       (see "Funding UX" section below)
-
-4. (Optional) User sets x402 policies
-   └── Wallet detail → Policies tab → x402 Service Allowlist / Spending Limit
-
-5. Agent discovers and calls x402 services
-   └── GET  /api/skills/x402/discover  → browse available services
-       POST /api/skills/x402/fetch     → call a paid service
-       GET  /api/skills/x402/balance   → check remaining budget
-```
-
-### For Users Browsing the Catalog First
-
-The public `/skills` page and the authenticated wallet detail page both surface the x402 service catalog so users can explore what's available before funding.
-
-```
-1. Browse x402 services
-   └── heyvincent.ai/skills → x402 tab → see all available paid APIs with prices
-
-2. Create or select a wallet
-   └── Dashboard → New Account → Smart Wallet
-       (or pick an existing wallet)
-
-3. Fund with USDC on Base
-
-4. Set policies (optional but recommended for production agents)
-
-5. Give agent the ssk_ key (or agent already has it)
-```
+There is no separate "enable x402" step. Every EVM wallet is x402-capable. The x402 Services tab appears for all `EVM_WALLET` secrets. The agent can call `POST /api/skills/x402/fetch` the moment the wallet has USDC on Base.
 
 ---
 
@@ -410,173 +362,127 @@ The `usdValue` field on `TransactionLog` captures the USDC cost of each x402 cal
 
 ## Frontend / UI
 
-### Where Everything Lives
+### Design Principle
 
-x402 touches four areas of the UI. The goal is to make it feel like a natural extension of the existing wallet experience, not a separate product bolted on.
+x402 is not a separate product or a separate skill install. It's a built-in capability of every EVM wallet. The UI treats it like transfers and swaps — something you can do from your wallet, not something you set up separately.
 
-```
-Public pages (no auth)                    Authenticated pages (Layout w/ sidebar)
-┌──────────────────────┐                  ┌────────────────────────────────────┐
-│  /skills             │                  │  /dashboard                        │
-│   └─ x402 skill tab  │                  │   └─ wallet cards show x402 badge  │
-│      + service catalog│                  │                                    │
-│                      │                  │  /secrets/:id  (wallet detail)     │
-│  /                   │                  │   ├─ Overview tab: x402 section    │
-│   └─ landing hero    │                  │   ├─ Policies tab: x402 policies   │
-│      + capability card│                  │   └─ Audit Logs: x402 entries     │
-│                      │                  │                                    │
-│  /features           │                  │                                    │
-│   └─ x402 feature    │                  │                                    │
-│      section         │                  │                                    │
-└──────────────────────┘                  └────────────────────────────────────┘
-```
-
-### 1. Skills Page (`/skills`) — Service Catalog & Install
-
-**What changes:** Add `'x402'` as a third `SkillChoice` alongside `'wallet'` and `'polymarket'`.
-
-When the user selects the x402 tab, the install card shows:
+The primary home is a **new "x402 Services" tab** on the wallet detail page. This is where users browse services, see spending, and configure policies — all in context of the specific wallet that's paying.
 
 ```
-┌────────────────────────────────────────────────┐
-│                                                │
-│   [clawhub]  [other agents]     (method tabs)  │
-│                                                │
-│   [agent wallet]  [polymarket]  [x402]         │
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │ npx clawhub@latest install vincentx402   │  │
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  1. Run this command to install the x402 skill │
-│  2. Create a wallet or use your existing one   │
-│  3. Fund with USDC on Base — your agent pays   │
-│     per-call, starting at $0.001               │
-│                                                │
-└────────────────────────────────────────────────┘
+Authenticated pages (Layout w/ sidebar)
+┌────────────────────────────────────────────────────────────┐
+│  /secrets/:id  (wallet detail)                             │
+│   ├─ Overview tab          (existing — no changes)         │
+│   ├─ x402 Services tab     (NEW — catalog + stats + fund)  │
+│   ├─ Policies tab          (existing — add x402 types)     │
+│   ├─ API Keys tab          (existing — no changes)         │
+│   └─ Audit Logs tab        (existing — x402 entries auto)  │
+│                                                            │
+│  /skills  (public page)                                    │
+│   └─ mention x402 in connectors + wallet feature pills     │
+└────────────────────────────────────────────────────────────┘
 ```
 
-Below the install card, when x402 is selected, show the **Service Catalog** — a grid of available x402 services grouped by category:
+### 1. Wallet Detail Page (`/secrets/:id`) — x402 Services Tab
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  ⟩ Available Services                                           │
-│                                                                 │
-│  DATA                                                           │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │ CoinGecko       │  │ Auor            │  │ Gloria AI       │ │
-│  │ Crypto prices & │  │ Place search &  │  │ Real-time news  │ │
-│  │ market data     │  │ details         │  │ data            │ │
-│  │ from $0.001/call│  │ from $0.001/call│  │ from $0.001/call│ │
-│  │         [Docs →]│  │         [Docs →]│  │         [Docs →]│ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-│                                                                 │
-│  SEARCH                                                         │
-│  ┌─────────────────┐                                            │
-│  │ Exa             │                                            │
-│  │ AI-powered web  │                                            │
-│  │ search          │                                            │
-│  │ from $0.001/call│                                            │
-│  │         [Docs →]│                                            │
-│  └─────────────────┘                                            │
-│                                                                 │
-│  LLM           PROSPECT          PREDICT          IMAGE         │
-│  ...           ...               ...              ...           │
-│                                                                 │
-│  142 services available · Prices are per-call in USDC on Base   │
-└─────────────────────────────────────────────────────────────────┘
-```
+Add **"x402 Services"** as a new tab for `EVM_WALLET` secrets in `getTabsForType()`, alongside Overview, Policies, API Keys, and Audit Logs.
 
-The catalog data comes from `GET /api/skills/x402/discover` (public, no auth needed). It's fetched client-side when the x402 tab is selected.
+This is the single place where the user experiences x402. It has three sections stacked vertically:
 
-Also add to the **Connectors** section (alongside "EVM smart contract wallet", "Raw Ethereum & Solana signing", "Polymarket"):
+#### Section A: Status Bar (always visible at top)
 
-```
-x402 HTTP Payments ● live
-  └─ tooltip: "Pay for any x402-enabled API with USDC micropayments.
-     Your agent discovers services, calls them, and pays per-request —
-     no API keys or accounts needed. 140+ services available."
-```
+Shows USDC balance on Base and spending summary. If no USDC, shows a funding prompt.
 
-And add to the **EVM Wallet Features** pill list:
-
-```
-[Transfers]  [Swaps]  [Any Transaction]  [x402 Payments]
-```
-
-### 2. Wallet Detail Page (`/secrets/:id`) — Per-Wallet x402 Experience
-
-This is the primary place a user configures and monitors x402 for their wallet.
-
-#### Overview Tab — x402 Section
-
-Add an **x402 Payments** section to the Overview tab for `EVM_WALLET` secrets, placed between BalancesDisplay and Mainnet Access. This section has three states:
-
-**State A: Not funded (no USDC on Base)**
+**Funded state:**
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  ⚡ x402 Payments                                           │
-│                                                             │
-│  Your agent can pay for 140+ APIs using x402 micropayments. │
-│  Fund this wallet with USDC on Base to get started.         │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  Smart Account Address (Base)                       │    │
-│  │  0x1234...5678                    [Copy] [QR Code]  │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                             │
-│  Send USDC on the Base network to this address.             │
-│  Deposits are available immediately.                        │
-│                                                             │
-│  [Browse available services →]                              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**State B: Funded, no x402 activity yet**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ⚡ x402 Payments                              $12.45 USDC  │
-│                                                             │
-│  Ready to go. Your agent can call any x402 service.         │
-│                                                             │
-│  No x402 calls yet.                                         │
-│                                                             │
-│  Tip: Set an x402 Spending Limit policy to control how much │
-│  your agent can spend per day. [Go to Policies →]           │
-│                                                             │
-│  [Browse available services →]                              │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-**State C: Active — spending stats + recent calls**
-```
-┌─────────────────────────────────────────────────────────────┐
-│  ⚡ x402 Payments                              $12.45 USDC  │
+│  $12.45 USDC on Base                                        │
 │                                                             │
 │  ┌──────────┐  ┌──────────┐  ┌──────────┐                  │
 │  │  Today   │  │ This Week│  │ All Time │                  │
 │  │  $0.34   │  │  $2.10   │  │  $15.80  │                  │
 │  │  340 calls│  │ 2.1k calls│ │ 15.8k   │                  │
 │  └──────────┘  └──────────┘  └──────────┘                  │
-│                                                             │
-│  Recent calls                                               │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │ ● CoinGecko   simple/price      $0.001   2 min ago │    │
-│  │ ● Exa         search            $0.003   5 min ago │    │
-│  │ ● CoinGecko   coins/markets     $0.001  12 min ago │    │
-│  │ ✕ OpenRouter   chat/completions  denied  15 min ago │    │
-│  └─────────────────────────────────────────────────────┘    │
-│                                                             │
-│  [View all x402 activity →]  (links to Audit Logs tab       │
-│                               filtered to x402 actions)     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-Data source: `GET /api/skills/x402/balance` (server-side, scoped to the wallet's secret ID). The balance endpoint aggregates spending from `TransactionLog` where `actionType = 'x402_fetch'`. Recent calls come from `GET /api/skills/x402/history?limit=5`.
+**Not funded state:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Fund with USDC to start using x402 services                │
+│                                                             │
+│  Send USDC on the Base network to:                          │
+│  0x1234...5678                          [Copy] [QR Code]    │
+│                                                             │
+│  Your agent pays per-call — most services cost $0.001.      │
+│  $10 USDC ≈ 10,000 API calls.                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-#### Policies Tab — x402 Policy Types
+Data source: `GET /api/skills/x402/balance` (uses the wallet's secret ID).
+
+#### Section B: Service Catalog (main content)
+
+The full x402 service catalog, fetched from the Bazaar. Grouped by category with search and price filter.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  [Search services...]              [Max price: $_____]      │
+│                                                             │
+│  DATA                                                       │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌────────────┐  │
+│  │ CoinGecko       │  │ Auor            │  │ Gloria AI  │  │
+│  │ Crypto prices & │  │ Place search &  │  │ Real-time  │  │
+│  │ market data     │  │ details         │  │ news data  │  │
+│  │                 │  │                 │  │            │  │
+│  │ 5 endpoints     │  │ 2 endpoints     │  │ 3 endpoints│  │
+│  │ from $0.001     │  │ from $0.001     │  │ from $0.001│  │
+│  │         [Docs →]│  │         [Docs →]│  │    [Docs →]│  │
+│  └─────────────────┘  └─────────────────┘  └────────────┘  │
+│                                                             │
+│  SEARCH                                                     │
+│  ┌─────────────────┐                                        │
+│  │ Exa             │                                        │
+│  │ AI-powered web  │                                        │
+│  │ search &        │                                        │
+│  │ retrieval       │                                        │
+│  │ 7 endpoints     │                                        │
+│  │ from $0.001     │                                        │
+│  │         [Docs →]│                                        │
+│  └─────────────────┘                                        │
+│                                                             │
+│  LLM    PROSPECT    PREDICT    IMAGE    PARSE    ECOMMERCE  │
+│  ...    ...         ...        ...      ...      ...        │
+│                                                             │
+│  142 services · Prices per-call in USDC on Base             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Data source: `GET /api/skills/x402/discover` (fetched client-side when tab is selected, cached).
+
+Each service card links to the service's external docs. Clicking a card could expand to show individual endpoints with prices and example curl commands — but for MVP, the card + docs link is enough.
+
+#### Section C: Recent Activity (bottom)
+
+Last 10 x402 calls with cost, status, and timestamp.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Recent activity                                            │
+│                                                             │
+│  ● CoinGecko   /simple/price          $0.001     2 min ago │
+│  ● Exa         /search                $0.003     5 min ago │
+│  ● CoinGecko   /coins/markets         $0.001    12 min ago │
+│  ✕ OpenRouter   /chat/completions      denied   15 min ago │
+│  ● Reducto     /parse                 $0.005    22 min ago │
+│                                                             │
+│  [View all in Audit Logs →]                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Data source: `GET /api/skills/x402/history?limit=10`.
+
+### 2. Policies Tab — x402 Policy Types
 
 Add two new entries to the `POLICY_TYPES` array in `PolicyManager.tsx`:
 
@@ -618,14 +524,7 @@ The x402 Spending Limit needs a **custom form** (unlike the existing single-valu
 
 The x402 Service Allowlist uses the same comma-separated input pattern as the existing Address Allowlist, but with a helper label: "Enter domains of x402 services your agent can use."
 
-When no x402 policies are set, the Policies tab shows a contextual hint:
-
-```
-No x402 policies configured — your agent can call any x402 service with no spending limit.
-Recommended: add an x402 Spending Limit to control costs.
-```
-
-#### Audit Logs Tab — x402 Entries
+### 3. Audit Logs Tab — x402 Entries
 
 No component changes needed. x402 actions will appear automatically via the existing `AuditLogViewer`:
 - Action name: `skill.x402.fetch`, `skill.x402.discover`, `skill.x402.balance`
@@ -633,94 +532,19 @@ No component changes needed. x402 actions will appear automatically via the exis
 - Input data: shows the target URL, method
 - Output data: shows cost, service response status
 
-### 3. Dashboard (`/dashboard`) — x402 Status on Wallet Cards
+### 4. Skills Page (`/skills`) — Minimal Changes
 
-Each wallet card in the Accounts list currently shows the wallet name and balance. Add a subtle x402 indicator:
+x402 is **not** a separate skill tab on the public skills page. The skills page is about installation — x402 doesn't need installation, it's built into the wallet.
 
-```
-┌─────────────────────────────────────────────┐
-│  My Agent Wallet                   $1,234.56│
-│  Smart Wallet · Created Feb 18     ⚡ x402  │
-└─────────────────────────────────────────────┘
-```
+Changes limited to:
+- Add "x402 Payments" pill to the **EVM Wallet Features** section: `[Transfers] [Swaps] [Any Transaction] [x402 Payments]`
+- Add "x402 HTTP Payments ● live" pill to the **Connectors** section with tooltip: "Pay for any x402-enabled API with USDC micropayments from your wallet. 140+ services available."
 
-The `⚡ x402` badge appears only if the wallet has a non-zero USDC balance on Base (meaning it's capable of x402 payments). This is a lightweight indicator — no new API call needed, since `getSecretBalances()` already returns per-token balances.
-
-For the Overview Card at the top of the dashboard, optionally add x402 spending to the summary:
-
-```
-┌───────────────────────────────────────────────────────┐
-│  Total Assets          Total Accounts     x402 Today  │
-│  $12,345.67            4                  $0.34       │
-└───────────────────────────────────────────────────────┘
-```
-
-### 4. Landing Page (`/`) — Marketing
-
-Add to the **Capabilities** grid (6 → 7 cards or replace one):
-
-```
-┌─────────────────────────────────────┐
-│  x402 API Payments                  │
-│                                     │
-│  Your agent pays for any x402 API   │
-│  with USDC micropayments — no keys, │
-│  no accounts. 140+ services from    │
-│  $0.001/call.                       │
-└─────────────────────────────────────┘
-```
-
-Add to the **hero carousel** a fourth scenario card:
-
-```
-Phase 1: "Agent needs CoinGecko data"
-Phase 2: "x402 payment: $0.001 USDC → CoinGecko"
-Phase 3: "Data received: ETH $3,200.50"
-```
-
-Add to the **FAQ**:
-
-```
-Q: How does my agent pay for external APIs?
-A: Vincent supports x402, an open payment protocol. Your agent discovers paid APIs,
-   calls them, and pays per-request with USDC micropayments from its wallet.
-   No API keys or accounts needed — just fund your wallet with USDC on Base.
-   140+ services available including CoinGecko, Exa, OpenRouter, and more.
-```
-
-### 5. Features Page (`/features`) — Deep Dive Section
-
-Add a new feature section (after "Policy Engine", before "Works With Any Agent"):
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  x402 HTTP Payments                                             │
-│                                                                 │
-│  Your agent pays for APIs the way the web intended: per-request,│
-│  instantly, with no accounts or API keys. Vincent handles the   │
-│  x402 payment protocol automatically — the agent just calls the │
-│  API and gets the data.                                         │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────┐        │
-│  │  Agent → Vincent → x402 Service                     │        │
-│  │  ┌───────┐    ┌───────┐    ┌───────────────┐       │        │
-│  │  │Request│───▶│Policy │───▶│Pay + Fetch    │       │        │
-│  │  │       │    │Check  │    │($0.001 USDC)  │       │        │
-│  │  └───────┘    └───────┘    └───────┬───────┘       │        │
-│  │                                    │               │        │
-│  │                              ┌─────▼─────┐         │        │
-│  │                              │  Response  │         │        │
-│  │                              │  returned  │         │        │
-│  │                              └───────────┘         │        │
-│  └─────────────────────────────────────────────────────┘        │
-│                                                                 │
-│  140+ services · From $0.001/call · USDC on Base                │
-└─────────────────────────────────────────────────────────────────┘
-```
+No new skill tab. No install command. No service catalog on the public page.
 
 ### Funding UX
 
-The wallet detail Overview tab has a funding prompt (described in State A above). To make this as clear as possible:
+The funding prompt is inline in the x402 Services tab status bar (described in Section A above). To make this as clear as possible:
 
 1. **Show the Base network explicitly** — users often have USDC on Ethereum mainnet but need it on Base. The UI should say "Send USDC on the **Base** network" with emphasis.
 2. **QR code** — for scanning from mobile wallets or exchange apps.
@@ -747,8 +571,8 @@ We do NOT need:
 | `src/e2e/x402.e2e.test.ts` | End-to-end tests |
 | `skill-ci/src/tests/x402.test.ts` | Skill CI agent test |
 | `prisma/migrations/xxx_add_x402_policy_types/migration.sql` | DB migration |
-| `frontend/src/components/X402Section.tsx` | x402 overview section for wallet detail |
-| `frontend/src/components/X402ServiceCatalog.tsx` | Service catalog grid component |
+| `frontend/src/components/X402ServicesTab.tsx` | Full x402 tab: status bar + service catalog + recent activity |
+| `frontend/src/components/X402ServiceCatalog.tsx` | Service catalog grid (used inside the tab) |
 
 ### Modified Files
 
@@ -762,11 +586,8 @@ We do NOT need:
 | `src/utils/env.ts` | Add optional x402 env vars |
 | `frontend/src/api.ts` | Add `getX402Balance()`, `getX402History()`, `getX402Services()` API functions |
 | `frontend/src/components/PolicyManager.tsx` | Add `X402_SERVICE_ALLOWLIST` and `X402_SPENDING_LIMIT` to `POLICY_TYPES` array, add custom form for spending limit |
-| `frontend/src/pages/SecretDetail.tsx` | Import and render `<X402Section>` in Overview tab for EVM_WALLET |
-| `frontend/src/pages/Skills.tsx` | Add `'x402'` to `SkillChoice`, add service catalog, add connector pill, add wallet feature pill |
-| `frontend/src/pages/Dashboard.tsx` | Add x402 badge on wallet cards when USDC balance exists on Base |
-| `frontend/src/pages/Landing.tsx` | Add capability card, carousel scenario, FAQ entry |
-| `frontend/src/pages/Features.tsx` | Add x402 feature section |
+| `frontend/src/pages/SecretDetail.tsx` | Add "x402 Services" tab to `getTabsForType()` for EVM_WALLET, render `<X402ServicesTab>` |
+| `frontend/src/pages/Skills.tsx` | Add "x402 Payments" pill to EVM Wallet Features, add connector pill to Connectors |
 
 ### Dependencies
 
@@ -1181,21 +1002,18 @@ No new funding infrastructure is needed — just documentation and UI prompts gu
 - E2E tests (against Base Sepolia testnet x402 services)
 
 **Frontend:**
-- Skills page: x402 tab with install command + service catalog grid
-- Wallet detail Overview: x402 Payments section (funding prompt / stats / recent calls)
+- Wallet detail: "x402 Services" tab with status bar, service catalog, and recent activity
 - Wallet detail Policies: x402 Service Allowlist + Spending Limit form
-- Skills page Connectors: "x402 HTTP Payments" pill
+- Skills page: "x402 Payments" pill in wallet features + connector pill
 - API client functions in `api.ts`
 
 ### Phase 2: Enhanced Discovery & UX
 
-- Curated service catalog with categories, descriptions, and input/output schemas (seed from Bazaar, enrich with manually authored metadata)
-- Individual service detail pages/modals with docs, example requests, pricing
-- Dashboard x402 badge on wallet cards
-- Dashboard overview card with x402 spending stat
-- Landing page capability card + hero carousel scenario
-- Features page x402 section
+- Curated service catalog metadata (enriched descriptions, input/output schemas, categories)
+- Service detail expansion (click card → endpoint list, example requests, pricing breakdown)
+- Dashboard x402 badge on wallet cards when USDC on Base > 0
 - Telegram notifications for spending milestones (e.g., "Your agent has spent $5 on x402 today")
+- Landing page + Features page marketing content
 
 ### Phase 3: Smart Routing (Future)
 
