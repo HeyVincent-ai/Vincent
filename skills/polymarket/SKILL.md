@@ -359,7 +359,8 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
    ```bash
    # Search by keyword - returns only active, tradeable markets
-   GET /api/skills/polymarket/markets?query=bitcoin&active=true
+   # Tip: use short keyword phrases; stop-words like "or" can cause empty results
+   GET /api/skills/polymarket/markets?query=bitcoin+up+down&active=true
 
    # Or search by slug from a Polymarket URL
    GET /api/skills/polymarket/markets?slug=btc-updown-5m-1771380900

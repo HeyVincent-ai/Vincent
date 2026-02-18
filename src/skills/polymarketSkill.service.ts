@@ -347,7 +347,10 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
     walletAddress: wallet.walletAddress,
     collateral: {
       balance: toHuman(collateral.balance),
-      allowance: toHuman(collateral.allowance),
+      allowance:
+        collateral.allowance != null && collateral.allowance !== ''
+          ? toHuman(collateral.allowance)
+          : 'unknown',
     },
   };
 }

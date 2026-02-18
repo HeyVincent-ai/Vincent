@@ -284,7 +284,8 @@ export class MonitoringWorker {
     if (rule.ruleType !== 'TRAILING_STOP') return;
     if (typeof rule.trailingPercent !== 'number' || rule.trailingPercent <= 0) return;
 
-    const nextTrigger = Math.min(0.99, currentPrice * (1 - rule.trailingPercent / 100));
+    const nextTrigger =
+      Math.round(Math.min(0.99, currentPrice * (1 - rule.trailingPercent / 100)) * 10000) / 10000;
     if (nextTrigger <= rule.triggerPrice) return;
 
     const previousTriggerPrice = rule.triggerPrice;
