@@ -171,6 +171,7 @@ router.get(
         ipAddress: d.ipAddress,
         ovhServiceName: d.ovhServiceName,
         status: d.status,
+        statusMessage: d.statusMessage,
         provisionStage: d.provisionStage,
         readyAt: d.readyAt,
         creditBalanceUsd: Number(d.creditBalanceUsd),

@@ -8,6 +8,7 @@ interface Agent {
   ipAddress: string | null;
   ovhServiceName: string | null;
   status: string;
+  statusMessage: string | null;
   provisionStage: string | null;
   readyAt: string | null;
   creditBalanceUsd: number;
@@ -79,6 +80,7 @@ export default function AdminActiveAgents() {
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Hostname</th>
                 <th className="px-4 py-3 font-medium">IP</th>
+                <th className="px-4 py-3 font-medium">Status Message</th>
                 <th className="px-4 py-3 font-medium">Credits</th>
                 <th className="px-4 py-3 font-medium">Period End</th>
                 <th className="px-4 py-3 font-medium">Created</th>
@@ -87,7 +89,7 @@ export default function AdminActiveAgents() {
             <tbody>
               {agents.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     No active agent deployments
                   </td>
                 </tr>
@@ -103,6 +105,9 @@ export default function AdminActiveAgents() {
                         {a.status}
                         {a.provisionStage ? ` · ${a.provisionStage}` : ''}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
+                      {a.statusMessage ?? '—'}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-foreground">
                       {a.hostname ?? '—'}
