@@ -32,7 +32,7 @@ function getStytchClient(): stytch.Client {
 export async function syncSession(
   sessionToken: string,
   referralCode?: string
-): Promise<User | null> {
+): Promise<{ user: User; roles: string[] } | null> {
   const client = getStytchClient();
 
   try {
@@ -42,12 +42,14 @@ export async function syncSession(
 
     const stytchUserId = response.user.user_id;
     const email = response.user.emails[0]?.email;
+    const roles: string[] = response.user.roles ?? [];
 
     if (!email) {
       throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
     }
 
-    return await findOrCreateUser({ email, stytchUserId, referralCode });
+    const user = await findOrCreateUser({ email, stytchUserId, referralCode });
+    return { user, roles };
   } catch (err: unknown) {
     const stytchErr = err as { status_code?: number; error_type?: string; error_message?: string };
     console.error('syncSession failed:', {
