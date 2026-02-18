@@ -201,6 +201,43 @@ router.get(
 );
 
 // ============================================================
+// POST /api/skills/polymarket/redeem
+// ============================================================
+
+const redeemSchema = z.object({
+  conditionIds: z.array(z.string().min(1)).optional(),
+});
+
+router.post(
+  '/redeem',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const body = redeemSchema.parse(req.body);
+
+    const start = Date.now();
+    const result = await polymarketSkill.redeemPositions(req.secret.id, body.conditionIds);
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.polymarket_redeem',
+      inputData: body,
+      outputData: result,
+      status: result.redeemed.length > 0 ? 'SUCCESS' : 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    sendSuccess(res, result);
+  })
+);
+
+// ============================================================
 // DELETE /api/skills/polymarket/orders/:orderId
 // ============================================================
 

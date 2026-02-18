@@ -246,6 +246,56 @@ curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/orders" \
   -H "Authorization: Bearer <API_KEY>"
 ```
 
+### 9. Redeem Resolved Positions
+
+After a market resolves, winning positions can be redeemed to convert conditional tokens back into USDC.e. Use the holdings endpoint to check which positions have `redeemable: true`, then call the redeem endpoint.
+
+```bash
+# Redeem all redeemable positions
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/redeem" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+
+# Redeem specific markets by condition ID
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/redeem" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "conditionIds": ["0xabc123...", "0xdef456..."]
+  }'
+```
+
+Parameters:
+
+- `conditionIds`: Optional array of condition IDs to redeem. If omitted, redeems **all** redeemable positions.
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "walletAddress": "0x...",
+    "redeemed": [
+      {
+        "conditionId": "0xabc123...",
+        "marketTitle": "Will Bitcoin hit $100k by end of 2025?",
+        "outcome": "Yes",
+        "shares": 42.5
+      }
+    ],
+    "transactionHash": "0x..."
+  }
+}
+```
+
+If no positions are redeemable, `redeemed` will be an empty array and no transaction is submitted.
+
+**How it works:** Redemption is gasless (executed via Polymarket's relayer through the Safe). For standard markets, it calls `redeemPositions` on the CTF contract. For negative-risk markets, it calls `redeemPositions` on the NegRiskAdapter. Both types are handled automatically — you don't need to know which type a market is.
+
+**When to redeem:** Check the holdings endpoint periodically. After a market resolves, it may take some time before positions become redeemable. Look for `redeemable: true` in the holdings response.
+
 ## Policies (Server-Side Enforcement)
 
 The wallet owner controls what the agent can do by setting policies via the claim URL at `https://heyvincent.ai`. All policies are enforced server-side by the Vincent API — the agent cannot bypass or modify them. If a trade violates a policy, the API rejects it. If a trade triggers an approval threshold, the API holds it and sends the wallet owner a Telegram notification for out-of-band human approval.
@@ -353,6 +403,14 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
    ```bash
    POST /api/skills/polymarket/bet
    {"tokenId": "123456...", "side": "SELL", "amount": 9.09, "price": 0.54}
+   ```
+
+9. **Redeem after market resolves** (if holding through resolution):
+   ```bash
+   # Check holdings for redeemable positions
+   GET /api/skills/polymarket/holdings
+   # If redeemable: true, redeem to get USDC.e back
+   POST /api/skills/polymarket/redeem {}
    ```
 
 ## Important Notes

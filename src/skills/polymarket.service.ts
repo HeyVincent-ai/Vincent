@@ -804,3 +804,84 @@ export async function getPositions(walletAddress: string): Promise<PolymarketPos
   const response = await axios.get<PolymarketPosition[]>(url);
   return response.data;
 }
+
+// ============================================================
+// Redeem Positions (gasless via relayer)
+// ============================================================
+
+export interface RedeemablePosition {
+  conditionId: string;
+  negativeRisk: boolean;
+  /** For neg-risk markets: raw token amounts per outcome index [outcome0, outcome1] */
+  amounts?: string[];
+}
+
+/**
+ * Redeem resolved positions via the Polymarket relayer (gasless).
+ * For regular markets: calls CTF.redeemPositions with indexSets [1, 2].
+ * For neg-risk markets: calls NegRiskAdapter.redeemPositions with token amounts.
+ */
+export async function redeemPositions(
+  privateKey: string,
+  positions: RedeemablePosition[]
+): Promise<{ transactionHash: string }> {
+  if (positions.length === 0) {
+    throw new Error('No positions to redeem');
+  }
+
+  const relayClient = await getRelayClient(privateKey);
+
+  const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+  const CTF_CONTRACT = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
+  const NEG_RISK_ADAPTER = '0xd91E80cF2E7be2e162c6513ceD06f1dD0aA35296';
+  const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
+  const { Interface } = await import('@ethersproject/abi');
+  const ctfIface = new Interface([
+    'function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets)',
+  ]);
+  const nrAdapterIface = new Interface([
+    'function redeemPositions(bytes32 conditionId, uint256[] amounts)',
+  ]);
+
+  const txns = positions.map((pos) => {
+    if (pos.negativeRisk) {
+      if (!pos.amounts || pos.amounts.length === 0) {
+        throw new Error(`Neg-risk position ${pos.conditionId} requires amounts`);
+      }
+      return {
+        to: NEG_RISK_ADAPTER,
+        data: nrAdapterIface.encodeFunctionData('redeemPositions', [pos.conditionId, pos.amounts]),
+        value: '0',
+      };
+    } else {
+      return {
+        to: CTF_CONTRACT,
+        data: ctfIface.encodeFunctionData('redeemPositions', [
+          USDC_ADDRESS,
+          ZERO_BYTES32,
+          pos.conditionId,
+          [1, 2],
+        ]),
+        value: '0',
+      };
+    }
+  });
+
+  const response = await relayClient.execute(txns);
+
+  const tx = await relayClient.pollUntilState(
+    response.transactionID,
+    ['STATE_MINED', 'STATE_CONFIRMED'],
+    'STATE_FAILED',
+    60,
+    2000
+  );
+
+  if (!tx) {
+    throw new Error('Redeem transaction failed or timed out');
+  }
+
+  console.log(`Redeemed ${positions.length} position(s) (tx: ${tx.transactionHash})`);
+  return { transactionHash: tx.transactionHash };
+}
