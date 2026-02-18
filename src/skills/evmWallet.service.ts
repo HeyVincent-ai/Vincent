@@ -1340,6 +1340,8 @@ export async function executeTransferBetweenSecrets(
           chainId: input.fromChainId,
           to: destination.address,
           value: parseEther(input.tokenInAmount),
+          sessionKeyData: getSessionKeyForSigning(wallet),
+          smartAccountAddress: getSmartAccountAddressForExec(wallet),
         });
       } else {
         const decimals = await zerodev.getTokenDecimals(
@@ -1352,6 +1354,8 @@ export async function executeTransferBetweenSecrets(
           to: destination.address,
           tokenAddress: input.tokenIn as Address,
           tokenAmount: parseUnits(input.tokenInAmount, decimals),
+          sessionKeyData: getSessionKeyForSigning(wallet),
+          smartAccountAddress: getSmartAccountAddressForExec(wallet),
         });
       }
 
@@ -1406,11 +1410,15 @@ export async function executeTransferBetweenSecrets(
             to: calls[0].to,
             data: calls[0].data,
             value: calls[0].value,
+            sessionKeyData: getSessionKeyForSigning(wallet),
+            smartAccountAddress: getSmartAccountAddressForExec(wallet),
           })
         : await zerodev.executeBatchTransaction({
             privateKey: wallet.privateKey,
             chainId: input.fromChainId,
             calls,
+            sessionKeyData: getSessionKeyForSigning(wallet),
+            smartAccountAddress: getSmartAccountAddressForExec(wallet),
           });
 
     const relayRequestId = quote.steps.find((s) => s.requestId)?.requestId;
