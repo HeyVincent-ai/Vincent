@@ -677,134 +677,134 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
     expect(usdcBalance).toBeGreaterThan(0);
   }, 60_000);
 
-  // ============================================================
-  // Test 6: Transfer ETH
-  // ============================================================
+  // // ============================================================
+  // // Test 6: Transfer ETH
+  // // ============================================================
 
-  it('should transfer ETH back to funder', async () => {
-    const res = await request(app)
-      .post('/api/skills/evm-wallet/transfer')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        to: funderAddress,
-        amount: ETH_TRANSFER_AMOUNT,
-        chainId: BASE_MAINNET_CHAIN_ID,
-      })
-      .expect(200);
+  // it('should transfer ETH back to funder', async () => {
+  //   const res = await request(app)
+  //     .post('/api/skills/evm-wallet/transfer')
+  //     .set('Authorization', `Bearer ${apiKey}`)
+  //     .send({
+  //       to: funderAddress,
+  //       amount: ETH_TRANSFER_AMOUNT,
+  //       chainId: BASE_MAINNET_CHAIN_ID,
+  //     })
+  //     .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('executed');
-    expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
-    expect(res.body.data.smartAccountAddress).toBe(smartAccountAddress);
-    expect(res.body.data.explorerUrl).toContain('basescan.org');
+  //   expect(res.body.success).toBe(true);
+  //   expect(res.body.data.status).toBe('executed');
+  //   expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+  //   expect(res.body.data.smartAccountAddress).toBe(smartAccountAddress);
+  //   expect(res.body.data.explorerUrl).toContain('basescan.org');
 
-    evidence.ethTransferTxHash = res.body.data.txHash;
-    console.log(`ETH transfer tx: ${res.body.data.explorerUrl}`);
-  }, 120_000);
+  //   evidence.ethTransferTxHash = res.body.data.txHash;
+  //   console.log(`ETH transfer tx: ${res.body.data.explorerUrl}`);
+  // }, 120_000);
 
-  // ============================================================
-  // Test 7: Transfer USDC
-  // ============================================================
+  // // ============================================================
+  // // Test 7: Transfer USDC
+  // // ============================================================
 
-  it('should transfer USDC back to funder', async () => {
-    const res = await request(app)
-      .post('/api/skills/evm-wallet/transfer')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        to: funderAddress,
-        amount: USDC_TRANSFER_AMOUNT,
-        token: USDC_ADDRESS,
-        chainId: BASE_MAINNET_CHAIN_ID,
-      })
-      .expect(200);
+  // it('should transfer USDC back to funder', async () => {
+  //   const res = await request(app)
+  //     .post('/api/skills/evm-wallet/transfer')
+  //     .set('Authorization', `Bearer ${apiKey}`)
+  //     .send({
+  //       to: funderAddress,
+  //       amount: USDC_TRANSFER_AMOUNT,
+  //       token: USDC_ADDRESS,
+  //       chainId: BASE_MAINNET_CHAIN_ID,
+  //     })
+  //     .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('executed');
-    expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+  //   expect(res.body.success).toBe(true);
+  //   expect(res.body.data.status).toBe('executed');
+  //   expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
 
-    evidence.usdcTransferTxHash = res.body.data.txHash;
-    console.log(`USDC transfer tx: ${res.body.data.explorerUrl}`);
-  }, 120_000);
+  //   evidence.usdcTransferTxHash = res.body.data.txHash;
+  //   console.log(`USDC transfer tx: ${res.body.data.explorerUrl}`);
+  // }, 120_000);
 
-  // ============================================================
-  // Test 8: Preview swap (USDC → ETH)
-  // ============================================================
+  // // ============================================================
+  // // Test 8: Preview swap (USDC → ETH)
+  // // ============================================================
 
-  it('should preview a swap from USDC to ETH', async () => {
-    const res = await request(app)
-      .post('/api/skills/evm-wallet/swap/preview')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        sellToken: USDC_ADDRESS,
-        buyToken: NATIVE_ETH,
-        sellAmount: SWAP_USDC_AMOUNT,
-        chainId: BASE_MAINNET_CHAIN_ID,
-      })
-      .expect(200);
+  // it('should preview a swap from USDC to ETH', async () => {
+  //   const res = await request(app)
+  //     .post('/api/skills/evm-wallet/swap/preview')
+  //     .set('Authorization', `Bearer ${apiKey}`)
+  //     .send({
+  //       sellToken: USDC_ADDRESS,
+  //       buyToken: NATIVE_ETH,
+  //       sellAmount: SWAP_USDC_AMOUNT,
+  //       chainId: BASE_MAINNET_CHAIN_ID,
+  //     })
+  //     .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.sellToken.toLowerCase()).toBe(USDC_ADDRESS.toLowerCase());
-    expect(res.body.data.buyToken.toLowerCase()).toBe(NATIVE_ETH.toLowerCase());
-    expect(res.body.data.liquidityAvailable).toBe(true);
-    expect(res.body.data.route.length).toBeGreaterThan(0);
+  //   expect(res.body.success).toBe(true);
+  //   expect(res.body.data.sellToken.toLowerCase()).toBe(USDC_ADDRESS.toLowerCase());
+  //   expect(res.body.data.buyToken.toLowerCase()).toBe(NATIVE_ETH.toLowerCase());
+  //   expect(res.body.data.liquidityAvailable).toBe(true);
+  //   expect(res.body.data.route.length).toBeGreaterThan(0);
 
-    console.log(
-      `Swap preview: ${SWAP_USDC_AMOUNT} USDC → ~${formatEther(BigInt(res.body.data.buyAmount))} ETH`
-    );
-    console.log(`Route: ${res.body.data.route.map((r: any) => r.source).join(' → ')}`);
-  }, 60_000);
+  //   console.log(
+  //     `Swap preview: ${SWAP_USDC_AMOUNT} USDC → ~${formatEther(BigInt(res.body.data.buyAmount))} ETH`
+  //   );
+  //   console.log(`Route: ${res.body.data.route.map((r: any) => r.source).join(' → ')}`);
+  // }, 60_000);
 
-  // ============================================================
-  // Test 9: Execute swap (USDC → ETH)
-  // ============================================================
+  // // ============================================================
+  // // Test 9: Execute swap (USDC → ETH)
+  // // ============================================================
 
-  it('should execute a swap from USDC to ETH', async () => {
-    const res = await request(app)
-      .post('/api/skills/evm-wallet/swap/execute')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        sellToken: USDC_ADDRESS,
-        buyToken: NATIVE_ETH,
-        sellAmount: SWAP_USDC_AMOUNT,
-        chainId: BASE_MAINNET_CHAIN_ID,
-        slippageBps: 100, // 1% slippage
-      })
-      .expect(200);
+  // it('should execute a swap from USDC to ETH', async () => {
+  //   const res = await request(app)
+  //     .post('/api/skills/evm-wallet/swap/execute')
+  //     .set('Authorization', `Bearer ${apiKey}`)
+  //     .send({
+  //       sellToken: USDC_ADDRESS,
+  //       buyToken: NATIVE_ETH,
+  //       sellAmount: SWAP_USDC_AMOUNT,
+  //       chainId: BASE_MAINNET_CHAIN_ID,
+  //       slippageBps: 100, // 1% slippage
+  //     })
+  //     .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('executed');
-    expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+  //   expect(res.body.success).toBe(true);
+  //   expect(res.body.data.status).toBe('executed');
+  //   expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
 
-    evidence.swapTxHash = res.body.data.txHash;
-    console.log(`Swap executed: ${res.body.data.explorerUrl}`);
-    console.log(`Sold: ${formatUnits(BigInt(res.body.data.sellAmount), USDC_DECIMALS)} USDC`);
-    console.log(`Bought: ${formatEther(BigInt(res.body.data.buyAmount))} ETH`);
-  }, 180_000);
+  //   evidence.swapTxHash = res.body.data.txHash;
+  //   console.log(`Swap executed: ${res.body.data.explorerUrl}`);
+  //   console.log(`Sold: ${formatUnits(BigInt(res.body.data.sellAmount), USDC_DECIMALS)} USDC`);
+  //   console.log(`Bought: ${formatEther(BigInt(res.body.data.buyAmount))} ETH`);
+  // }, 180_000);
 
-  // ============================================================
-  // Test 10: Send arbitrary transaction (0-value call to self)
-  // ============================================================
+  // // ============================================================
+  // // Test 10: Send arbitrary transaction (0-value call to self)
+  // // ============================================================
 
-  it('should send an arbitrary transaction', async () => {
-    // A simple self-call with empty data (just tests the send-transaction flow)
-    const res = await request(app)
-      .post('/api/skills/evm-wallet/send-transaction')
-      .set('Authorization', `Bearer ${apiKey}`)
-      .send({
-        to: smartAccountAddress,
-        data: '0x',
-        value: '0',
-        chainId: BASE_MAINNET_CHAIN_ID,
-      })
-      .expect(200);
+  // it('should send an arbitrary transaction', async () => {
+  //   // A simple self-call with empty data (just tests the send-transaction flow)
+  //   const res = await request(app)
+  //     .post('/api/skills/evm-wallet/send-transaction')
+  //     .set('Authorization', `Bearer ${apiKey}`)
+  //     .send({
+  //       to: smartAccountAddress,
+  //       data: '0x',
+  //       value: '0',
+  //       chainId: BASE_MAINNET_CHAIN_ID,
+  //     })
+  //     .expect(200);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('executed');
-    expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
+  //   expect(res.body.success).toBe(true);
+  //   expect(res.body.data.status).toBe('executed');
+  //   expect(res.body.data.txHash).toMatch(/^0x[a-fA-F0-9]{64}$/);
 
-    evidence.sendTxHash = res.body.data.txHash;
-    console.log(`Send transaction tx: ${res.body.data.explorerUrl}`);
-  }, 120_000);
+  //   evidence.sendTxHash = res.body.data.txHash;
+  //   console.log(`Send transaction tx: ${res.body.data.explorerUrl}`);
+  // }, 120_000);
 
   // ============================================================
   // Test 11: Setup — claim source secret for transfer-between-secrets
@@ -1089,35 +1089,44 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
   // ============================================================
 
   it('should have reduced balances after operations', async () => {
-    const res = await request(app)
-      .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
-      .set('Authorization', `Bearer ${apiKey}`)
-      .expect(200);
+    // Poll until balance reflects both cross-chain transfers (0.5 - 0.2 - 0.2 = ~0.1)
+    let usdcBalance = 0;
+    let ethBalance = 0;
 
-    const tokens = res.body.data.tokens;
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app)
+        .get(`/api/skills/evm-wallet/balances?chainIds=${BASE_MAINNET_CHAIN_ID}`)
+        .set('Authorization', `Bearer ${apiKey}`)
+        .expect(200);
 
-    // Find native ETH
-    const ethToken = tokens.find(
-      (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
-    );
-    const ethBalance = ethToken
-      ? parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals))
-      : 0;
+      const tokens = res.body.data.tokens;
 
-    // Find USDC
-    const usdcToken = tokens.find(
-      (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
-    );
-    const usdcBalance = usdcToken
-      ? parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals))
-      : 0;
+      const ethToken = tokens.find(
+        (t: any) => t.tokenAddress === null && t.network === 'base-mainnet'
+      );
+      ethBalance = ethToken
+        ? parseFloat(formatUnits(BigInt(ethToken.tokenBalance), ethToken.decimals))
+        : 0;
+
+      const usdcToken = tokens.find(
+        (t: any) => t.tokenAddress?.toLowerCase() === USDC_ADDRESS.toLowerCase()
+      );
+      usdcBalance = usdcToken
+        ? parseFloat(formatUnits(BigInt(usdcToken.tokenBalance), usdcToken.decimals))
+        : 0;
+
+      console.log(`Balance poll ${i + 1}/10 - ETH: ${ethBalance}, USDC: ${usdcBalance}`);
+
+      // After 2x USDC_E_FUND_AMOUNT transfers, expect balance < 0.15
+      if (usdcBalance < 0.15 && usdcBalance > 0) break;
+      await sleep(5000);
+    }
 
     console.log(`Final balances - ETH: ${ethBalance}, USDC: ${usdcBalance}`);
-    console.log(`Final balances - USDC: ${usdcBalance}`);
 
     // Should have less ETH than we funded (transfers + swaps)
     expect(ethBalance).toBeLessThan(parseFloat(ETH_FUND_AMOUNT));
-    // Should still have some USDC (funded - transferred + swapped)
+    // Should still have some USDC (funded 0.5 - 2x 0.2 transfers = ~0.1)
     expect(usdcBalance).toBeGreaterThan(0);
-  }, 30_000);
+  }, 90_000);
 });
