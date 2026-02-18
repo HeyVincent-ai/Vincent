@@ -189,14 +189,12 @@ function PortfolioSummary({
 export default function PolymarketPositions({ walletAddress }: PolymarketPositionsProps) {
   const [positions, setPositions] = useState<PolymarketPosition[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'CURRENT' | 'CASHPNL' | 'TOKENS'>('CURRENT');
 
   useEffect(() => {
     if (!walletAddress) return;
 
     setLoading(true);
-    setError(null);
 
     fetch(
       `https://data-api.polymarket.com/positions?user=${walletAddress}&sizeThreshold=0&limit=100&sortBy=${sortBy}&sortDirection=DESC`
@@ -228,8 +226,9 @@ export default function PolymarketPositions({ walletAddress }: PolymarketPositio
           }))
         );
       })
-      .catch((err) => {
-        setError(err.message || 'Failed to load positions');
+      .catch(() => {
+        // If the API is unreachable (e.g. CORS, geo-block), treat as empty
+        setPositions([]);
       })
       .finally(() => setLoading(false));
   }, [walletAddress, sortBy]);
@@ -243,21 +242,6 @@ export default function PolymarketPositions({ walletAddress }: PolymarketPositio
         <div className="skeleton h-16 w-full rounded-lg" />
         <div className="skeleton h-20 w-full rounded-lg" />
         <div className="skeleton h-20 w-full rounded-lg" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="text-center py-8">
-        <p className="text-sm text-destructive mb-2">Failed to load positions</p>
-        <p className="text-xs text-muted-foreground">{error}</p>
-        <button
-          onClick={() => setSortBy(sortBy)}
-          className="text-xs text-primary hover:text-primary/80 mt-2"
-        >
-          Retry
-        </button>
       </div>
     );
   }
