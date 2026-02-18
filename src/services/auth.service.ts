@@ -32,7 +32,7 @@ function getStytchClient(): stytch.Client {
 export async function syncSession(
   sessionToken: string,
   referralCode?: string
-): Promise<User | null> {
+): Promise<{ user: User; roles: string[] } | null> {
   const client = getStytchClient();
 
   try {
@@ -42,12 +42,14 @@ export async function syncSession(
 
     const stytchUserId = response.user.user_id;
     const email = response.user.emails[0]?.email;
+    const roles: string[] = response.user.roles ?? [];
 
     if (!email) {
       throw new AppError('AUTH_ERROR', 'No email found for Stytch user', 400);
     }
 
-    return await findOrCreateUser({ email, stytchUserId, referralCode });
+    const user = await findOrCreateUser({ email, stytchUserId, referralCode });
+    return { user, roles };
   } catch (err: unknown) {
     const stytchErr = err as { status_code?: number; error_type?: string; error_message?: string };
     console.error('syncSession failed:', {
@@ -61,9 +63,11 @@ export async function syncSession(
 }
 
 /**
- * Validate a session token and return the user
+ * Validate a session token and return the user along with their Stytch RBAC roles.
  */
-export async function validateSession(sessionToken: string): Promise<User | null> {
+export async function validateSessionWithRoles(
+  sessionToken: string
+): Promise<{ user: User | null; roles: string[] }> {
   const client = getStytchClient();
 
   try {
@@ -72,15 +76,43 @@ export async function validateSession(sessionToken: string): Promise<User | null
     });
 
     const stytchUserId = response.user.user_id;
+    const roles: string[] = response.user.roles ?? [];
+
+    if (env.NODE_ENV !== 'production') {
+      console.log('[auth] user roles:', roles);
+    }
 
     const user = await prisma.user.findUnique({
       where: { stytchUserId },
     });
 
-    return user;
-  } catch {
-    return null;
+    return { user, roles };
+  } catch (error: any) {
+    // Log a sanitized subset of the error for debugging (similar to syncSession)
+    const status =
+      error && typeof error === 'object' && ('status_code' in error || 'status' in error)
+        ? (error.status_code ?? error.status)
+        : undefined;
+    const type =
+      error && typeof error === 'object' && ('error_type' in error || 'code' in error)
+        ? (error.error_type ?? error.code)
+        : undefined;
+
+    console.error('[auth] validateSessionWithRoles error', {
+      status,
+      type,
+      message: error && typeof error === 'object' ? error.message : String(error),
+    });
+    return { user: null, roles: [] };
   }
+}
+
+/**
+ * Validate a session token and return the user
+ */
+export async function validateSession(sessionToken: string): Promise<User | null> {
+  const { user } = await validateSessionWithRoles(sessionToken);
+  return user;
 }
 
 /**
