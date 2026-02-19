@@ -50,6 +50,7 @@ export function createApp(): Express {
             'https://*.zendesk.com',
             'https://*.zdassets.com',
             'wss://*.zendesk.com',
+            'https://*.polymarket.com',
           ],
           scriptSrc: ["'self'", "'unsafe-inline'", 'https://static.zdassets.com'],
           styleSrc: ["'self'", "'unsafe-inline'"],
