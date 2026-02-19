@@ -1371,6 +1371,9 @@ export async function executeTransferBetweenSecrets(
         },
       });
 
+      // Track chain usage for ownership transfer
+      await trackChainUsage(input.fromSecretId, input.fromChainId);
+
       return {
         txHash: result.txHash,
         status: 'executed',
@@ -1435,6 +1438,9 @@ export async function executeTransferBetweenSecrets(
         },
       },
     });
+
+    // Track chain usage for ownership transfer
+    await trackChainUsage(input.fromSecretId, input.fromChainId);
 
     return {
       txHash: result.txHash,
