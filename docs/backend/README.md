@@ -58,7 +58,7 @@ Business logic separated from route handlers.
 | Service | File | Responsibility |
 |---|---|---|
 | Secret | `secret.service.ts` | CRUD, wallet creation (ZeroDev), claim flow, relink tokens |
-| API Key | `apiKey.service.ts` | Generation, bcrypt hashing, validation, revocation |
+| API Key | `apiKey.service.ts` | Generation, SHA-256 hashing, validation, revocation |
 | Auth | `auth.service.ts` | Stytch session validation, find-or-create user |
 | Policy | `policy.service.ts` | Policy CRUD, Zod config validation per type |
 | Price | `price.service.ts` | CoinGecko ETH/token → USD with 5-min cache |
