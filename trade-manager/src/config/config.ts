@@ -18,6 +18,10 @@ const configSchema = z.object({
   webSocketUrl: z.string().url().default('wss://ws-subscriptions-clob.polymarket.com/ws/market'),
   webSocketReconnectInitialDelay: z.number().int().positive().default(1000),
   webSocketReconnectMaxDelay: z.number().int().positive().default(60000),
+  // HTTPS via Caddy
+  httpsEnabled: z.boolean().default(true),
+  httpsPort: z.number().int().positive().default(19443),
+  caddyfilePath: z.string().default('/etc/caddy/Caddyfile'),
 });
 
 export type TradeManagerConfig = z.infer<typeof configSchema>;
@@ -107,6 +111,9 @@ export const loadConfig = (): TradeManagerConfig => {
     databaseUrl: process.env.DATABASE_URL ?? fileConfig.databaseUrl,
     enableWebSocket: process.env.ENABLE_WEBSOCKET === 'false' ? false : fileConfig.enableWebSocket,
     webSocketUrl: process.env.WEBSOCKET_URL ?? fileConfig.webSocketUrl,
+    httpsEnabled: process.env.HTTPS_ENABLED === 'false' ? false : fileConfig.httpsEnabled,
+    httpsPort: process.env.HTTPS_PORT ? Number(process.env.HTTPS_PORT) : fileConfig.httpsPort,
+    caddyfilePath: process.env.CADDYFILE_PATH ?? fileConfig.caddyfilePath,
   });
 
   process.env.DATABASE_URL = parsed.databaseUrl;
@@ -125,4 +132,7 @@ export const defaultConfigTemplate = {
   webSocketUrl: 'wss://ws-subscriptions-clob.polymarket.com/ws/market',
   webSocketReconnectInitialDelay: 1000,
   webSocketReconnectMaxDelay: 60000,
+  httpsEnabled: true,
+  httpsPort: 19443,
+  caddyfilePath: '/etc/caddy/Caddyfile',
 };
