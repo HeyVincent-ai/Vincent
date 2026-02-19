@@ -22,7 +22,8 @@ CLOB API credentials (apiKey, secret, passphrase) are derived lazily on first Po
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/skills/polymarket/bet` | POST | Place limit (GTC) or market (FOK) order |
-| `/api/skills/polymarket/positions` | GET | Get open orders (optional market filter) |
+| `/api/skills/polymarket/open-orders` | GET | Get open orders (optional market filter) |
+| `/api/skills/polymarket/positions` | GET | Backward-compatible alias for \`/open-orders\` |
 | `/api/skills/polymarket/trades` | GET | Trade history |
 | `/api/skills/polymarket/markets` | GET | Browse markets (paginated) |
 | `/api/skills/polymarket/market/:conditionId` | GET | Specific market info |
