@@ -10,6 +10,11 @@ export const PACKAGE_ROOT = path.resolve(__dirname, '../..');
 
 export const PRISMA_SCHEMA_PATH = path.join(PACKAGE_ROOT, 'prisma', 'schema.prisma');
 
+// Ensures we use the prisma CLI bundled with this package rather than whatever
+// version `npx` or a global install might resolve to (e.g. Prisma 7 which has
+// breaking schema changes).
+export const LOCAL_BIN_DIR = path.join(PACKAGE_ROOT, 'node_modules', '.bin');
+
 const pkgPath = path.join(PACKAGE_ROOT, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { version: string };
 export const PACKAGE_VERSION: string = pkg.version;
