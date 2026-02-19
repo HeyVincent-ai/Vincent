@@ -101,14 +101,50 @@ async function getRelayClient(privateKey: string) {
 // ============================================================
 
 /**
+ * Wrap a relayer error with a clear source identifier so logs/alerts
+ * can distinguish Polymarket-relayer rate limits from OpenRouter/OVH/etc.
+ */
+function wrapRelayerError(err: unknown, operation: string): Error {
+  const relayerUrl = env.POLYMARKET_RELAYER_HOST || 'https://relayer-v2.polymarket.com/';
+  const raw = err instanceof Error ? err.message : String(err);
+
+  let parsed: { status?: number; statusText?: string; data?: { error?: string } } | undefined;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // not JSON — use raw message
+  }
+
+  if (parsed?.status) {
+    const quotaInfo = parsed.data?.error || '';
+    console.error(
+      `[polymarket-relayer] ${operation} failed: HTTP ${parsed.status} ${parsed.statusText} ` +
+        `from ${relayerUrl} — ${quotaInfo}`
+    );
+    const msg =
+      `Polymarket relayer error during ${operation}: ` +
+      `HTTP ${parsed.status} (${parsed.statusText}) from ${relayerUrl}` +
+      (quotaInfo ? ` — ${quotaInfo}` : '');
+    return new Error(msg);
+  }
+
+  console.error(`[polymarket-relayer] ${operation} failed: ${raw}`);
+  return new Error(`Polymarket relayer error during ${operation}: ${raw}`);
+}
+
+/**
  * Deploy a Gnosis Safe via the Polymarket relayer (gasless).
  * Returns the Safe address.
  */
 export async function deploySafe(privateKey: string): Promise<string> {
   const relayClient = await getRelayClient(privateKey);
 
-  // SDK's deploy() computes the Safe address via local CREATE2 and logs it
-  const response = await relayClient.deploy();
+  let response;
+  try {
+    response = await relayClient.deploy();
+  } catch (err) {
+    throw wrapRelayerError(err, 'Safe deploy');
+  }
 
   // Poll until mined
   const tx = await relayClient.pollUntilState(
@@ -193,7 +229,12 @@ export async function approveCollateral(privateKey: string): Promise<void> {
     },
   ];
 
-  const response = await relayClient.execute(txns);
+  let response;
+  try {
+    response = await relayClient.execute(txns);
+  } catch (err) {
+    throw wrapRelayerError(err, 'collateral approval');
+  }
 
   const tx = await relayClient.pollUntilState(
     response.transactionID,
@@ -864,7 +905,12 @@ export async function redeemPositions(
     }
   });
 
-  const response = await relayClient.execute(txns);
+  let response;
+  try {
+    response = await relayClient.execute(txns);
+  } catch (err) {
+    throw wrapRelayerError(err, 'redeem positions');
+  }
 
   const tx = await relayClient.pollUntilState(
     response.transactionID,
