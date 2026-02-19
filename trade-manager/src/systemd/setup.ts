@@ -30,14 +30,6 @@ function run(cmd: string, opts?: { sudo?: boolean }): boolean {
   }
 }
 
-function runOutput(cmd: string): string | null {
-  try {
-    return execSync(cmd, { stdio: 'pipe', timeout: 10_000 }).toString().trim();
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Try to enable lingering so user services survive logout.
  * Requires loginctl + (root or passwordless sudo).
@@ -55,7 +47,6 @@ function tryEnableLinger(user: string): void {
 
 interface ServiceOptions {
   system: boolean;
-  runAsUser: string;
   homeDir: string;
   cliPath: string;
 }
@@ -68,27 +59,18 @@ function generateServiceUnit(opts: ServiceOptions): string {
     '',
     '[Service]',
     'Type=simple',
-  ];
-
-  if (opts.system) {
-    lines.push(`User=${opts.runAsUser}`);
-    lines.push(`Group=${opts.runAsUser}`);
-  }
-
-  lines.push(
     `ExecStart=/usr/bin/env node ${opts.cliPath} start`,
     'Restart=always',
     'RestartSec=5',
     'Environment=NODE_ENV=production',
-    `Environment=HOME=${opts.homeDir}`,
     `WorkingDirectory=${opts.homeDir}`,
     'StandardOutput=journal',
     'StandardError=journal',
     '',
     '[Install]',
     opts.system ? 'WantedBy=multi-user.target' : 'WantedBy=default.target',
-    ''
-  );
+    '',
+  ];
 
   return lines.join('\n');
 }
@@ -97,11 +79,10 @@ function generateServiceUnit(opts: ServiceOptions): string {
 // System-level service (running as root / sudo)
 // ---------------------------------------------------------------------------
 
-function installSystemService(user: string, homeDir: string): boolean {
+function installSystemService(homeDir: string): boolean {
   const servicePath = `/etc/systemd/system/${SERVICE_NAME}.service`;
   const content = generateServiceUnit({
     system: true,
-    runAsUser: user,
     homeDir,
     cliPath: CLI_PATH,
   });
@@ -126,7 +107,6 @@ function installSystemService(user: string, homeDir: string): boolean {
   run('systemctl daemon-reload', s);
   run(`systemctl enable ${SERVICE_NAME}`, s);
   run(`systemctl restart ${SERVICE_NAME}`, s);
-  tryEnableLinger(user);
   return true;
 }
 
@@ -149,7 +129,6 @@ function installUserService(homeDir: string): boolean {
   const servicePath = path.join(serviceDir, `${SERVICE_NAME}.service`);
   const content = generateServiceUnit({
     system: false,
-    runAsUser: os.userInfo().username,
     homeDir,
     cliPath: CLI_PATH,
   });
@@ -198,7 +177,7 @@ export interface SetupResult {
  * Strategy:
  *  - If systemctl is not present → skip.
  *  - If running as root (e.g. `sudo npm i -g`), install a **system** service
- *    that runs as `$SUDO_USER` (or the owner of $HOME).
+ *    that runs as root (matching other OpenClaw services).
  *  - Otherwise install a **user** service in ~/.config/systemd/user/.
  *  - If `systemctl --user` doesn't work AND `sudo -n` is unavailable → skip.
  */
@@ -218,14 +197,8 @@ export function setupService(): SetupResult {
   const isRoot = process.getuid?.() === 0;
 
   if (isRoot) {
-    // Determine the real user (the one who ran sudo)
-    const sudoUser = process.env.SUDO_USER;
-    const homeDir = sudoUser
-      ? ((runOutput(`getent passwd ${sudoUser}`) ?? '').split(':')[5] ?? `/home/${sudoUser}`)
-      : os.homedir();
-    const user = sudoUser ?? os.userInfo().username;
-
-    if (installSystemService(user, homeDir)) {
+    // Run as root to match other OpenClaw services and access /root/.openclaw
+    if (installSystemService('/root')) {
       return { installed: true, mode: 'system' };
     }
     return { installed: false, reason: 'Failed to install system service' };
@@ -251,8 +224,7 @@ export function setupService(): SetupResult {
   // Try system service with sudo as a fallback
   const hasSudo = run('sudo -n true');
   if (hasSudo) {
-    const user = os.userInfo().username;
-    if (installSystemService(user, os.homedir())) {
+    if (installSystemService('/root')) {
       return { installed: true, mode: 'system' };
     }
   }
