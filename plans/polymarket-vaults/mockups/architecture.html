@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Invision — System Architecture</title>
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --border: #2a2a3a;
+      --text: #e4e4ed;
+      --text-dim: #8888a0;
+      --accent: #7c5cff;
+      --accent-glow: rgba(124, 92, 255, 0.25);
+      --green: #34d399;
+      --amber: #fbbf24;
+      --red: #f87171;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── Nav ────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(10, 10, 15, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      max-width: 100%;
+    }
+
+    .nav-brand {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent), #a78bfa);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      font-weight: 800;
+      color: #fff;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .nav-links a {
+      color: var(--text-dim);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .nav-links a:hover {
+      color: var(--text);
+      background: rgba(124, 92, 255, 0.08);
+      border-color: var(--border);
+    }
+
+    .nav-links a.active {
+      color: var(--accent);
+      background: rgba(124, 92, 255, 0.12);
+      border-color: rgba(124, 92, 255, 0.3);
+    }
+
+    /* ── Main Layout ───────────────────────────────────── */
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    /* ── Header ────────────────────────────────────────── */
+    .page-header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    .page-header h1 {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -1px;
+      margin-bottom: 12px;
+      background: linear-gradient(135deg, var(--text), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .page-header .subtitle {
+      font-size: 17px;
+      color: var(--text-dim);
+      max-width: 640px;
+      margin: 0 auto;
+      line-height: 1.7;
+    }
+
+    /* ── Diagram Card ──────────────────────────────────── */
+    .diagram-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 32px;
+      box-shadow: 0 4px 48px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(124, 92, 255, 0.05);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .diagram-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.5;
+    }
+
+    .diagram-card .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    .diagram-card .mermaid svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* ── Legend ─────────────────────────────────────────── */
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 40px;
+    }
+
+    .legend-item {
+      background: rgba(18, 18, 26, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+
+    .legend-item:hover {
+      border-color: rgba(124, 92, 255, 0.3);
+    }
+
+    .legend-item h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .legend-item p {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+
+    .dot-signals { background: #60a5fa; }
+    .dot-pipeline { background: var(--accent); }
+    .dot-execution { background: var(--green); }
+    .dot-vaults { background: var(--amber); }
+    .dot-infra { background: var(--red); }
+
+    /* ── Footer Note ───────────────────────────────────── */
+    .footer-note {
+      text-align: center;
+      margin-top: 40px;
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .footer-note a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer-note a:hover {
+      text-decoration: underline;
+    }
+
+    /* ── Responsive ────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .page-header h1 {
+        font-size: 26px;
+      }
+      .diagram-card {
+        padding: 20px 12px;
+      }
+      .nav-links a span.link-label {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Navigation ──────────────────────────────────── -->
+  <nav>
+    <a class="nav-brand" href="vaults.html">
+      <div class="nav-brand-icon">IV</div>
+      Invision
+    </a>
+    <div class="nav-links">
+      <a class="active" href="architecture.html">Architecture</a>
+      <a href="vaults.html"><span class="link-label">All </span>Vaults</a>
+      <a href="vault-elon.html">Elon</a>
+      <a href="vault-shams.html">Shams</a>
+      <a href="vault-nate.html">Nate</a>
+      <a href="vault-narrative.html">Narrative</a>
+      <a href="vault-contrarian.html">Contrarian</a>
+    </div>
+  </nav>
+
+  <!-- ── Page Content ────────────────────────────────── -->
+  <main>
+    <div class="page-header">
+      <h1>Invision &mdash; System Architecture</h1>
+      <p class="subtitle">
+        How Twitter personalities drive Polymarket bets through AI-powered vaults.
+        Signals are ingested in real time, enriched by Claude, matched to prediction markets,
+        and executed autonomously through per-personality vault structures.
+      </p>
+    </div>
+
+    <div class="diagram-card">
+      <pre class="mermaid">
+%%{init: {
+  'theme': 'dark',
+  'themeVariables': {
+    'primaryColor': '#7c5cff',
+    'primaryTextColor': '#e4e4ed',
+    'primaryBorderColor': '#7c5cff',
+    'lineColor': '#5a5a7a',
+    'secondaryColor': '#1e1e2e',
+    'tertiaryColor': '#12121a',
+    'background': '#0a0a0f',
+    'mainBkg': '#1a1a2e',
+    'nodeBorder': '#7c5cff',
+    'clusterBkg': '#12121a',
+    'clusterBorder': '#2a2a3a',
+    'titleColor': '#e4e4ed',
+    'edgeLabelBackground': '#12121a',
+    'nodeTextColor': '#e4e4ed'
+  }
+}}%%
+
+graph LR
+
+  %% ── Signal Sources ─────────────────────────────
+  subgraph SIGNALS["<br/>Signal Sources"]
+    direction TB
+    ELON["<br/>Elon Musk<br/>@elonmusk<br/><i>Tech / Crypto</i><br/>&nbsp;"]
+    SHAMS["<br/>Shams Charania<br/>@ShamsCharania<br/><i>Sports / NBA</i><br/>&nbsp;"]
+    NATE["<br/>Nate Silver<br/>@NateSilver538<br/><i>Politics</i><br/>&nbsp;"]
+  end
+
+  %% ── Ingestion Pipeline ─────────────────────────
+  subgraph PIPELINE["<br/>Ingestion Pipeline"]
+    direction TB
+    MONITOR["Tweet Monitoring<br/><i>Real-time stream via API</i>"]
+    LLM["LLM Enrichment<br/><i>Claude analyzes intent<br/>& extracts claims</i>"]
+    MATCH["Market Matching<br/><i>Maps claims to<br/>Polymarket questions</i>"]
+    RISK["Risk Assessment<br/><i>Position sizing &<br/>confidence scoring</i>"]
+    EXEC["Trade Execution<br/><i>Order construction<br/>& submission</i>"]
+
+    MONITOR --> LLM
+    LLM --> MATCH
+    MATCH --> RISK
+    RISK --> EXEC
+  end
+
+  %% ── Execution Venue ────────────────────────────
+  subgraph VENUE["<br/>Execution Venue"]
+    direction TB
+    POLY["Polymarket<br/><i>CLOB / AMM<br/>Execution</i>"]
+    OUTCOMES["Market Outcomes<br/><i>Resolution &<br/>Settlement</i>"]
+    POLY --> OUTCOMES
+  end
+
+  %% ── Vault Structure ────────────────────────────
+  subgraph VAULTS["<br/>Vault Structure"]
+    direction LR
+    subgraph V1["Elon Vault"]
+      EV_BAL["USDC Balance"]
+    end
+    subgraph V2["Shams Vault"]
+      SV_BAL["USDC Balance"]
+    end
+    subgraph V3["Nate Vault"]
+      NV_BAL["USDC Balance"]
+    end
+  end
+
+  %% ── User Layer ─────────────────────────────────
+  subgraph USERS["<br/>Users"]
+    direction TB
+    USER_DEP["User Deposits<br/><i>USDC in</i>"]
+    USER_PNL["P&amp;L Distribution<br/><i>Returns out</i>"]
+  end
+
+  %% ── Vincent Infrastructure ─────────────────────
+  subgraph VINCENT["<br/>Vincent Infrastructure"]
+    direction TB
+    AUTH["Auth &amp; Key<br/>Management"]
+    CHAIN["On-chain<br/>Settlement"]
+    WALLET["User Wallet<br/>Abstraction"]
+  end
+
+  %% ── Connections ────────────────────────────────
+
+  %% Signals to Pipeline
+  ELON --> MONITOR
+  SHAMS --> MONITOR
+  NATE --> MONITOR
+
+  %% Pipeline to Venue
+  EXEC --> POLY
+
+  %% Venue back to Vaults
+  OUTCOMES --> EV_BAL
+  OUTCOMES --> SV_BAL
+  OUTCOMES --> NV_BAL
+
+  %% Users to/from Vaults
+  USER_DEP --> EV_BAL
+  USER_DEP --> SV_BAL
+  USER_DEP --> NV_BAL
+  EV_BAL --> USER_PNL
+  SV_BAL --> USER_PNL
+  NV_BAL --> USER_PNL
+
+  %% Vincent infra connections
+  AUTH -.-> EXEC
+  CHAIN -.-> POLY
+  WALLET -.-> USER_DEP
+  WALLET -.-> USER_PNL
+  AUTH -.-> EV_BAL
+  AUTH -.-> SV_BAL
+  AUTH -.-> NV_BAL
+
+  %% ── Styles ─────────────────────────────────────
+
+  %% Signal source nodes — blue
+  style ELON fill:#1e3a5f,stroke:#60a5fa,stroke-width:2px,color:#e4e4ed
+  style SHAMS fill:#1e3a5f,stroke:#60a5fa,stroke-width:2px,color:#e4e4ed
+  style NATE fill:#1e3a5f,stroke:#60a5fa,stroke-width:2px,color:#e4e4ed
+
+  %% Pipeline nodes — purple accent
+  style MONITOR fill:#2a1f4e,stroke:#7c5cff,stroke-width:2px,color:#e4e4ed
+  style LLM fill:#2a1f4e,stroke:#7c5cff,stroke-width:2px,color:#e4e4ed
+  style MATCH fill:#2a1f4e,stroke:#7c5cff,stroke-width:2px,color:#e4e4ed
+  style RISK fill:#2a1f4e,stroke:#7c5cff,stroke-width:2px,color:#e4e4ed
+  style EXEC fill:#2a1f4e,stroke:#7c5cff,stroke-width:2px,color:#e4e4ed
+
+  %% Execution venue — green
+  style POLY fill:#1a3a2a,stroke:#34d399,stroke-width:2px,color:#e4e4ed
+  style OUTCOMES fill:#1a3a2a,stroke:#34d399,stroke-width:2px,color:#e4e4ed
+
+  %% Vault nodes — amber
+  style EV_BAL fill:#3a2f1a,stroke:#fbbf24,stroke-width:2px,color:#e4e4ed
+  style SV_BAL fill:#3a2f1a,stroke:#fbbf24,stroke-width:2px,color:#e4e4ed
+  style NV_BAL fill:#3a2f1a,stroke:#fbbf24,stroke-width:2px,color:#e4e4ed
+
+  %% User nodes — white/light
+  style USER_DEP fill:#1e1e2e,stroke:#e4e4ed,stroke-width:2px,color:#e4e4ed
+  style USER_PNL fill:#1e1e2e,stroke:#e4e4ed,stroke-width:2px,color:#e4e4ed
+
+  %% Vincent infra nodes — red/coral
+  style AUTH fill:#3a1a1a,stroke:#f87171,stroke-width:2px,color:#e4e4ed
+  style CHAIN fill:#3a1a1a,stroke:#f87171,stroke-width:2px,color:#e4e4ed
+  style WALLET fill:#3a1a1a,stroke:#f87171,stroke-width:2px,color:#e4e4ed
+
+  %% Subgraph styles
+  style SIGNALS fill:#0d1520,stroke:#60a5fa,stroke-width:1px,color:#60a5fa
+  style PIPELINE fill:#110d20,stroke:#7c5cff,stroke-width:1px,color:#7c5cff
+  style VENUE fill:#0d1a14,stroke:#34d399,stroke-width:1px,color:#34d399
+  style VAULTS fill:#1a150d,stroke:#fbbf24,stroke-width:1px,color:#fbbf24
+  style V1 fill:#12121a,stroke:#fbbf24,stroke-width:1px,color:#fbbf24
+  style V2 fill:#12121a,stroke:#fbbf24,stroke-width:1px,color:#fbbf24
+  style V3 fill:#12121a,stroke:#fbbf24,stroke-width:1px,color:#fbbf24
+  style USERS fill:#12121a,stroke:#e4e4ed,stroke-width:1px,color:#e4e4ed
+  style VINCENT fill:#1a1215,stroke:#f87171,stroke-width:1px,color:#f87171
+      </pre>
+    </div>
+
+    <!-- ── Legend ───────────────────────────────────── -->
+    <div class="legend">
+      <div class="legend-item">
+        <h3><span class="legend-dot dot-signals"></span> Signal Sources</h3>
+        <p>Twitter/X personalities whose posts are monitored in real time. Each personality maps to a dedicated vault with its own risk profile and market domain.</p>
+      </div>
+      <div class="legend-item">
+        <h3><span class="legend-dot dot-pipeline"></span> Ingestion Pipeline</h3>
+        <p>Tweets are streamed, analyzed by Claude for intent and claims, matched to live Polymarket questions, risk-scored, then executed as trades.</p>
+      </div>
+      <div class="legend-item">
+        <h3><span class="legend-dot dot-execution"></span> Execution Venue</h3>
+        <p>Polymarket's Central Limit Order Book (CLOB) and AMM provide the execution layer. Markets resolve on-chain with deterministic outcomes.</p>
+      </div>
+      <div class="legend-item">
+        <h3><span class="legend-dot dot-vaults"></span> Vault Structure</h3>
+        <p>Each personality has an isolated vault holding USDC. Users deposit into specific vaults and receive proportional P&amp;L distributions on resolution.</p>
+      </div>
+      <div class="legend-item">
+        <h3><span class="legend-dot dot-infra"></span> Vincent Infrastructure</h3>
+        <p>Handles auth, key management, wallet abstraction, and on-chain settlement. Shown as dashed lines &mdash; it wraps the entire system as the orchestration layer.</p>
+      </div>
+    </div>
+
+    <p class="footer-note">
+      Built on <a href="https://vincent.com" target="_blank">Vincent</a> &mdash;
+      the AI agent infrastructure layer for autonomous on-chain execution.
+    </p>
+  </main>
+
+  <!-- ── Mermaid.js ──────────────────────────────── -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark',
+      themeVariables: {
+        primaryColor: '#7c5cff',
+        primaryTextColor: '#e4e4ed',
+        primaryBorderColor: '#7c5cff',
+        lineColor: '#5a5a7a',
+        secondaryColor: '#1e1e2e',
+        tertiaryColor: '#12121a',
+        background: '#0a0a0f',
+        mainBkg: '#1a1a2e',
+        nodeBorder: '#7c5cff',
+        clusterBkg: '#12121a',
+        clusterBorder: '#2a2a3a',
+        titleColor: '#e4e4ed',
+        edgeLabelBackground: '#12121a',
+        nodeTextColor: '#e4e4ed'
+      },
+      flowchart: {
+        useMaxWidth: true,
+        htmlLabels: true,
+        curve: 'basis',
+        rankSpacing: 60,
+        nodeSpacing: 40,
+        padding: 20
+      },
+      securityLevel: 'loose'
+    });
+  </script>
+</body>
+</html>

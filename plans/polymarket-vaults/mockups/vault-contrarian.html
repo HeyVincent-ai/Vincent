@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Contrarian Vault — Invision</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface-2: #1a1a26;
+    --border: #2a2a3a;
+    --text: #e4e4ed;
+    --text-dim: #8888a0;
+    --accent: #7c5cff;
+    --accent-dim: #5a3fd6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --font: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  }
+
+  html { font-size: 15px; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ── Nav ───────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex; align-items: center; gap: 28px;
+  }
+  .nav-brand {
+    font-weight: 700; font-size: 1.15rem; color: var(--accent);
+    letter-spacing: -.02em; text-decoration: none;
+  }
+  .nav-links { display: flex; gap: 6px; margin-left: auto; }
+  .nav-links a {
+    color: var(--text-dim); text-decoration: none; font-size: .82rem;
+    padding: 6px 12px; border-radius: 6px; transition: all .15s;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--surface-2); }
+  .nav-links a.active { color: var(--accent); background: rgba(124,92,255,.1); }
+  .back-link {
+    color: var(--text-dim); text-decoration: none; font-size: .82rem;
+    display: flex; align-items: center; gap: 4px; transition: color .15s;
+  }
+  .back-link:hover { color: var(--text); }
+
+  /* ── Layout ────────────────────────────────────── */
+  .page-wrap {
+    max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 28px;
+    align-items: start;
+  }
+  .main-col { min-width: 0; }
+
+  /* ── Cards ─────────────────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .card-title {
+    font-size: .78rem; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--text-dim); margin-bottom: 18px;
+  }
+
+  /* ── Vault Header ──────────────────────────────── */
+  .vault-header { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+  .avatar {
+    width: 80px; height: 80px; border-radius: 50%; flex-shrink: 0;
+    background: linear-gradient(135deg, #ef4444, #f97316);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.65rem; font-weight: 700; color: #fff;
+    box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px #dc2626;
+  }
+  .vault-meta { flex: 1; min-width: 240px; }
+  .vault-name { font-size: 1.55rem; font-weight: 700; letter-spacing: -.02em; }
+  .vault-handle { color: var(--text-dim); font-size: .88rem; margin-top: 2px; }
+  .badge {
+    display: inline-block; font-size: .7rem; font-weight: 600;
+    padding: 3px 10px; border-radius: 999px; margin-top: 8px;
+    background: rgba(239,68,68,.15); color: #f87171;
+    border: 1px solid rgba(239,68,68,.25);
+    letter-spacing: .03em;
+  }
+  .vault-desc { color: var(--text-dim); font-size: .88rem; margin-top: 12px; line-height: 1.6; max-width: 640px; }
+
+  /* Key stats row */
+  .key-stats {
+    display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px;
+  }
+  .key-stat {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 18px; min-width: 130px; flex: 1;
+  }
+  .key-stat-label { font-size: .7rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+  .key-stat-value { font-size: 1.15rem; font-weight: 700; }
+  .key-stat-value.green { color: var(--green); }
+
+  /* ── Chart ──────────────────────────────────────── */
+  .chart-wrap { overflow-x: auto; }
+  .chart-wrap svg { width: 100%; height: auto; display: block; }
+
+  /* ── Stats Grid ────────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .stat-cell {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .stat-cell-label { font-size: .72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
+  .stat-cell-value { font-size: 1.2rem; font-weight: 700; }
+  .stat-cell-sub { font-size: .75rem; color: var(--text-dim); margin-top: 2px; }
+
+  /* ── Tables ─────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; margin: 0 -24px; padding: 0 24px; }
+  table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  thead th {
+    text-align: left; font-weight: 600; color: var(--text-dim);
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+    padding: 10px 12px; border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 11px 12px; border-bottom: 1px solid rgba(42,42,58,.45);
+    vertical-align: middle; white-space: nowrap;
+  }
+  tbody tr:nth-child(even) td { background: rgba(26,26,38,.4); }
+  tbody tr:hover td { background: rgba(124,92,255,.04); }
+  .pill {
+    display: inline-block; font-size: .68rem; font-weight: 600;
+    padding: 2px 9px; border-radius: 999px;
+  }
+  .pill-won { background: rgba(34,197,94,.12); color: var(--green); }
+  .pill-lost { background: rgba(239,68,68,.12); color: var(--red); }
+  .pill-open { background: rgba(124,92,255,.12); color: var(--accent); }
+  .pnl-pos { color: var(--green); font-weight: 600; }
+  .pnl-neg { color: var(--red); font-weight: 600; }
+  .dir-yes { color: var(--green); }
+  .dir-no { color: var(--red); }
+
+  /* ── Signal Log ─────────────────────────────────── */
+  .signal-entry { padding: 18px 0; border-bottom: 1px solid var(--border); }
+  .signal-entry:last-child { border-bottom: none; padding-bottom: 0; }
+  .signal-entry:first-child { padding-top: 0; }
+  .signal-tweet {
+    font-size: .92rem; font-weight: 500; color: var(--text);
+    display: flex; align-items: flex-start; gap: 10px;
+  }
+  .signal-tweet-icon {
+    flex-shrink: 0; width: 20px; height: 20px; margin-top: 1px;
+    color: var(--text-dim);
+  }
+  .signal-date { color: var(--text-dim); font-size: .75rem; margin-left: 4px; }
+  .signal-action {
+    margin: 8px 0 0 30px; font-size: .82rem; color: var(--text-dim); line-height: 1.55;
+  }
+  .signal-action strong { color: var(--text); font-weight: 600; }
+  .signal-reasoning {
+    margin: 6px 0 0 30px; font-size: .78rem; color: var(--text-dim);
+    font-style: italic; line-height: 1.55; padding-left: 12px;
+    border-left: 2px solid var(--border);
+  }
+  .signal-badge {
+    display: inline-block; font-size: .65rem; font-weight: 700;
+    padding: 2px 8px; border-radius: 999px; margin-left: 30px; margin-top: 8px;
+    text-transform: uppercase; letter-spacing: .06em;
+  }
+  .signal-badge-traded { background: rgba(34,197,94,.12); color: var(--green); }
+  .signal-badge-skipped { background: rgba(136,136,160,.12); color: var(--text-dim); }
+
+  /* ── Deposit Widget (Sidebar) ───────────────────── */
+  .sidebar { position: sticky; top: 80px; }
+  .deposit-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+  }
+  .deposit-title { font-size: 1rem; font-weight: 700; margin-bottom: 20px; }
+  .input-group { position: relative; margin-bottom: 14px; }
+  .input-group input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 80px 14px 16px;
+    color: var(--text); font-size: 1.1rem; font-weight: 600;
+    font-family: var(--font); outline: none; transition: border-color .15s;
+  }
+  .input-group input::placeholder { color: var(--text-dim); font-weight: 400; }
+  .input-group input:focus { border-color: var(--accent); }
+  .input-suffix {
+    position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .usdc-label { font-size: .78rem; font-weight: 600; color: var(--text-dim); }
+  .max-btn {
+    font-size: .68rem; font-weight: 700; color: var(--accent);
+    background: rgba(124,92,255,.12); border: none; border-radius: 4px;
+    padding: 3px 8px; cursor: pointer; font-family: var(--font);
+    transition: background .15s;
+  }
+  .max-btn:hover { background: rgba(124,92,255,.22); }
+  .deposit-info { margin-bottom: 16px; }
+  .deposit-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; font-size: .82rem;
+  }
+  .deposit-row-label { color: var(--text-dim); }
+  .deposit-row-value { font-weight: 600; }
+  .deposit-row-value.green { color: var(--green); }
+  .deposit-warning {
+    font-size: .72rem; color: var(--text-dim); line-height: 1.5;
+    padding: 10px 12px; background: rgba(239,68,68,.06);
+    border: 1px solid rgba(239,68,68,.12); border-radius: 8px;
+    margin-bottom: 16px;
+  }
+  .deposit-btn {
+    width: 100%; padding: 14px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+    color: #fff; font-size: .95rem; font-weight: 700;
+    font-family: var(--font); cursor: pointer;
+    transition: opacity .15s, transform .1s;
+  }
+  .deposit-btn:hover { opacity: .9; }
+  .deposit-btn:active { transform: scale(.985); }
+  .deposit-footer {
+    text-align: center; font-size: .68rem; color: var(--text-dim);
+    margin-top: 14px; line-height: 1.5;
+  }
+
+  .vault-balance-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 0; margin-top: 4px; border-top: 1px solid var(--border);
+    font-size: .82rem;
+  }
+  .vault-balance-label { color: var(--text-dim); }
+  .vault-balance-value { font-weight: 700; font-size: .95rem; }
+
+  /* ── Responsive ─────────────────────────────────── */
+  @media (max-width: 960px) {
+    .page-wrap {
+      grid-template-columns: 1fr;
+    }
+    .sidebar { position: static; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    nav { padding: 0 14px; gap: 12px; }
+    .nav-links { display: none; }
+    .page-wrap { padding: 20px 14px 60px; }
+    .card { padding: 18px; }
+    .vault-header { gap: 16px; }
+    .avatar { width: 60px; height: 60px; font-size: 1.25rem; }
+    .vault-name { font-size: 1.25rem; }
+    .stats-grid { grid-template-columns: 1fr 1fr; }
+    .key-stats { gap: 8px; }
+    .key-stat { min-width: 100px; padding: 10px 12px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────── -->
+<nav>
+  <a class="nav-brand" href="#">Invision</a>
+  <a class="back-link" href="vaults.html">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12L6 8l4-4"/></svg>
+    Vaults
+  </a>
+  <div class="nav-links">
+    <a href="architecture.html">Architecture</a>
+    <a href="vaults.html">Vaults</a>
+    <a href="vault-elon.html">Elon</a>
+    <a href="vault-shams.html">Shams</a>
+    <a href="vault-nate.html">Nate</a>
+    <a href="vault-narrative.html">Narrative</a>
+    <a href="vault-contrarian.html" class="active">Contrarian</a>
+  </div>
+</nav>
+
+<div class="page-wrap">
+<!-- ════════════════════ MAIN COLUMN ════════════════════ -->
+<div class="main-col">
+
+  <!-- ── Vault Header ──────────────────────────────── -->
+  <div class="card">
+    <div class="vault-header">
+      <div class="avatar">TC</div>
+      <div class="vault-meta">
+        <div class="vault-name">The Contrarian</div>
+        <div class="vault-handle">Sentiment-based strategy</div>
+        <span class="badge">Counter-Consensus</span>
+        <p class="vault-desc">
+          Systematically fades extreme crowd sentiment. When Twitter consensus exceeds 80% in one direction, this vault takes the other side. Profits from mean reversion, overreaction, and the wisdom of going against the herd. Higher risk, higher reward.
+        </p>
+      </div>
+    </div>
+    <div class="key-stats">
+      <div class="key-stat">
+        <div class="key-stat-label">Total Return</div>
+        <div class="key-stat-value green">+31.5%</div>
+      </div>
+      <div class="key-stat">
+        <div class="key-stat-label">Win Rate</div>
+        <div class="key-stat-value">52%</div>
+      </div>
+      <div class="key-stat">
+        <div class="key-stat-label">TVL</div>
+        <div class="key-stat-value">$440K</div>
+      </div>
+      <div class="key-stat">
+        <div class="key-stat-label">Depositors</div>
+        <div class="key-stat-value">158</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Performance Chart ─────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Cumulative Performance</div>
+    <div class="chart-wrap">
+      <svg viewBox="0 0 800 320" xmlns="http://www.w3.org/2000/svg" style="max-width:800px;">
+        <defs>
+          <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#ef4444" stop-opacity=".22"/>
+            <stop offset="100%" stop-color="#f97316" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#ef4444"/>
+            <stop offset="100%" stop-color="#f97316"/>
+          </linearGradient>
+        </defs>
+
+        <!-- Grid lines -->
+        <g stroke="#2a2a3a" stroke-width=".6">
+          <line x1="55" y1="270" x2="775" y2="270"/><!-- 0% -->
+          <line x1="55" y1="230" x2="775" y2="230"/><!-- 8% -->
+          <line x1="55" y1="190" x2="775" y2="190"/><!-- 16% -->
+          <line x1="55" y1="150" x2="775" y2="150"/><!-- 24% -->
+          <line x1="55" y1="110" x2="775" y2="110"/><!-- 32% -->
+          <line x1="55" y1="70"  x2="775" y2="70"/><!-- 40% -->
+        </g>
+
+        <!-- Y-axis labels -->
+        <g fill="#8888a0" font-size="11" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif" text-anchor="end">
+          <text x="48" y="274">0%</text>
+          <text x="48" y="234">8%</text>
+          <text x="48" y="194">16%</text>
+          <text x="48" y="154">24%</text>
+          <text x="48" y="114">32%</text>
+          <text x="48" y="74">40%</text>
+        </g>
+
+        <!-- X-axis labels -->
+        <g fill="#8888a0" font-size="11" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif" text-anchor="middle">
+          <text x="55"  y="295">Nov</text>
+          <text x="295" y="295">Dec</text>
+          <text x="535" y="295">Jan</text>
+          <text x="775" y="295">Feb</text>
+        </g>
+
+        <!-- Area fill beneath line — sawtooth pattern with deep drawdowns and sharp recoveries -->
+        <path d="
+          M55,270
+          L75,266 L95,260 L115,252 L135,258 L155,268
+          L175,278 L195,264 L215,248 L235,232 L255,220
+          L275,236 L295,252 L315,240 L335,218
+          L355,196 L375,210 L395,230
+          L415,218 L435,194 L455,174 L475,158
+          L495,178 L515,196 L535,180
+          L555,160 L575,142 L595,170
+          L615,152 L635,136 L655,122
+          L675,144 L695,128 L715,118
+          L735,130 L755,116 L775,108
+          L775,270 Z
+        " fill="url(#fillGrad)"/>
+
+        <!-- Main line — volatile sawtooth with overall uptrend -->
+        <path d="
+          M55,270
+          L75,266 L95,260 L115,252 L135,258 L155,268
+          L175,278 L195,264 L215,248 L235,232 L255,220
+          L275,236 L295,252 L315,240 L335,218
+          L355,196 L375,210 L395,230
+          L415,218 L435,194 L455,174 L475,158
+          L495,178 L515,196 L535,180
+          L555,160 L575,142 L595,170
+          L615,152 L635,136 L655,122
+          L675,144 L695,128 L715,118
+          L735,130 L755,116 L775,108
+        " fill="none" stroke="url(#lineGrad)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- Annotation: Faded BTC euphoria +8.2% (around late Dec, sharp recovery at ~x=455) -->
+        <g>
+          <circle cx="475" cy="158" r="4" fill="#22c55e"/>
+          <line x1="475" y1="154" x2="475" y2="126" stroke="#22c55e" stroke-width=".8" stroke-dasharray="3,2"/>
+          <rect x="385" y="109" width="180" height="22" rx="4" fill="#1a1a26" stroke="#2a2a3a" stroke-width=".6"/>
+          <text x="475" y="124" fill="#22c55e" font-size="10" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif" font-weight="600">Faded BTC euphoria +8.2%</text>
+        </g>
+
+        <!-- Annotation: Caught TikTok panic +5.4% (around mid-Jan, ~x=575) -->
+        <g>
+          <circle cx="575" cy="142" r="4" fill="#22c55e"/>
+          <line x1="575" y1="138" x2="575" y2="60" stroke="#22c55e" stroke-width=".8" stroke-dasharray="3,2"/>
+          <rect x="488" y="43" width="174" height="22" rx="4" fill="#1a1a26" stroke="#2a2a3a" stroke-width=".6"/>
+          <text x="575" y="58" fill="#22c55e" font-size="10" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif" font-weight="600">Caught TikTok panic +5.4%</text>
+        </g>
+
+        <!-- Annotation: Wrong on AI hype -6.1% (drawdown around mid-Jan, ~x=515) -->
+        <g>
+          <circle cx="515" cy="196" r="4" fill="#ef4444"/>
+          <line x1="515" y1="200" x2="515" y2="226" stroke="#ef4444" stroke-width=".8" stroke-dasharray="3,2"/>
+          <rect x="440" y="228" width="150" height="22" rx="4" fill="#1a1a26" stroke="#2a2a3a" stroke-width=".6"/>
+          <text x="515" y="243" fill="#ef4444" font-size="10" text-anchor="middle" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif" font-weight="600">Wrong on AI hype -6.1%</text>
+        </g>
+
+        <!-- End dot -->
+        <circle cx="775" cy="108" r="5" fill="#ef4444" stroke="#0a0a0f" stroke-width="2"/>
+        <text x="762" y="100" fill="#22c55e" font-size="12" text-anchor="end" font-weight="700" font-family="-apple-system,BlinkMacSystemFont,'Inter',system-ui,sans-serif">+31.5%</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ── Stats Grid ────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Vault Statistics</div>
+    <div class="stats-grid">
+      <div class="stat-cell">
+        <div class="stat-cell-label">Total Return</div>
+        <div class="stat-cell-value" style="color:var(--green)">+31.5%</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-cell-label">Win Rate</div>
+        <div class="stat-cell-value">52%</div>
+        <div class="stat-cell-sub">13 of 25 trades</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-cell-label">Avg Trade Size</div>
+        <div class="stat-cell-value">$24,000</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-cell-label">Max Drawdown</div>
+        <div class="stat-cell-value" style="color:var(--red)">-12.4%</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-cell-label">Best Trade</div>
+        <div class="stat-cell-value" style="color:var(--green)">+$14,200</div>
+        <div class="stat-cell-sub">Faded Bitcoin euphoria</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-cell-label">Worst Trade</div>
+        <div class="stat-cell-value" style="color:var(--red)">-$8,600</div>
+        <div class="stat-cell-sub">Wrong on AI hype cycle</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Recent Trades ─────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Recent Trades</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Market</th>
+            <th>Dir</th>
+            <th>Entry</th>
+            <th>Exit</th>
+            <th>P&amp;L</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Feb 5, 2026</td>
+            <td>Will Bitcoin reach $150K by April 2026?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.68</td>
+            <td>$0.52</td>
+            <td class="pnl-pos">+$9,600</td>
+            <td><span class="pill pill-won">Won</span></td>
+          </tr>
+          <tr>
+            <td>Jan 30, 2026</td>
+            <td>Will OpenAI IPO in 2026?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.72</td>
+            <td>$0.81</td>
+            <td class="pnl-neg">-$5,400</td>
+            <td><span class="pill pill-lost">Lost</span></td>
+          </tr>
+          <tr>
+            <td>Jan 24, 2026</td>
+            <td>Will TikTok be banned in the US by March?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.74</td>
+            <td>$0.55</td>
+            <td class="pnl-pos">+$11,400</td>
+            <td><span class="pill pill-won">Won</span></td>
+          </tr>
+          <tr>
+            <td>Jan 18, 2026</td>
+            <td>Will Ethereum flip Bitcoin by market cap in 2026?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.42</td>
+            <td>$0.28</td>
+            <td class="pnl-pos">+$8,400</td>
+            <td><span class="pill pill-won">Won</span></td>
+          </tr>
+          <tr>
+            <td>Jan 12, 2026</td>
+            <td>Will AI replace 50% of coding jobs by 2028?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.65</td>
+            <td>$0.78</td>
+            <td class="pnl-neg">-$7,800</td>
+            <td><span class="pill pill-lost">Lost</span></td>
+          </tr>
+          <tr>
+            <td>Jan 6, 2026</td>
+            <td>Will US enter recession in 2026?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.58</td>
+            <td>$0.41</td>
+            <td class="pnl-pos">+$10,200</td>
+            <td><span class="pill pill-won">Won</span></td>
+          </tr>
+          <tr>
+            <td>Dec 30, 2025</td>
+            <td>Will Trump withdraw from NATO?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.48</td>
+            <td>$0.22</td>
+            <td class="pnl-pos">+$14,200</td>
+            <td><span class="pill pill-won">Won</span></td>
+          </tr>
+          <tr>
+            <td>Dec 22, 2025</td>
+            <td>Will AGI be achieved by 2027?</td>
+            <td class="dir-yes">YES</td>
+            <td>$0.12</td>
+            <td>$0.08</td>
+            <td class="pnl-neg">-$8,600</td>
+            <td><span class="pill pill-lost">Lost</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Active Positions ──────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Active Positions</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Market</th>
+            <th>Dir</th>
+            <th>Entry</th>
+            <th>Current</th>
+            <th>Unrealized P&amp;L</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Will the S&amp;P 500 reach 7000 by mid-2026?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.71</td>
+            <td>$0.65</td>
+            <td class="pnl-pos">+$3,600</td>
+            <td><span class="pill pill-open">Open</span></td>
+          </tr>
+          <tr>
+            <td>Will a major stablecoin depeg in 2026?</td>
+            <td class="dir-yes">YES</td>
+            <td>$0.08</td>
+            <td>$0.11</td>
+            <td class="pnl-pos">+$1,800</td>
+            <td><span class="pill pill-open">Open</span></td>
+          </tr>
+          <tr>
+            <td>Will Solana overtake Ethereum in daily active users?</td>
+            <td class="dir-no">NO</td>
+            <td>$0.55</td>
+            <td>$0.62</td>
+            <td class="pnl-neg">-$4,200</td>
+            <td><span class="pill pill-open">Open</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Signal Log ────────────────────────────────── -->
+  <div class="card">
+    <div class="card-title">Signal Log</div>
+
+    <!-- Signal 1 -->
+    <div class="signal-entry">
+      <div class="signal-tweet">
+        <svg class="signal-tweet-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>"Bitcoin $150K euphoria &mdash; Crypto Twitter sentiment at 94% bullish, 'number go up' narratives dominating, retail FOMO at peak levels. Fear &amp; Greed Index: 88 (Extreme Greed)" <span class="signal-date">Feb 5, 2026</span></span>
+      </div>
+      <div class="signal-action">
+        <strong>Triggered trade:</strong> NO on "Will Bitcoin reach $150K by April 2026?" &mdash; Fading extreme bullish consensus at $0.68.
+      </div>
+      <div class="signal-reasoning">
+        "Classic blow-off top signals. When CT consensus exceeds 90% bullish with retail FOMO dominating, mean reversion probability is historically 68%. Sentiment this extreme rarely sustains. Fading at $0.68."
+      </div>
+      <span class="signal-badge signal-badge-traded">Traded</span>
+    </div>
+
+    <!-- Signal 2 -->
+    <div class="signal-entry">
+      <div class="signal-tweet">
+        <svg class="signal-tweet-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>"TikTok ban panic &mdash; 87% of CT expects ban to happen, doom-scrolling engagement up 300%, Congressional vote seemed certain" <span class="signal-date">Jan 24, 2026</span></span>
+      </div>
+      <div class="signal-action">
+        <strong>Triggered trade:</strong> NO on "Will TikTok be banned in the US by March?" &mdash; Fading extreme panic sentiment at $0.74.
+      </div>
+      <div class="signal-reasoning">
+        "Extreme panic sentiment creates opportunity. Legal challenges, lobbying pressure, and historical precedent of delayed implementation all favor NO. When 87% of social media expects the worst, the worst is usually priced in."
+      </div>
+      <span class="signal-badge signal-badge-traded">Traded</span>
+    </div>
+
+    <!-- Signal 3 -->
+    <div class="signal-entry">
+      <div class="signal-tweet">
+        <svg class="signal-tweet-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>"AI job replacement fears &mdash; 82% consensus that AI will replace most coding jobs, doomsayer threads going viral, layoff narratives dominating" <span class="signal-date">Jan 12, 2026</span></span>
+      </div>
+      <div class="signal-action">
+        <strong>Triggered trade:</strong> NO on "Will AI replace 50% of coding jobs by 2028?" &mdash; Fading AI doom consensus at $0.65.
+      </div>
+      <div class="signal-reasoning">
+        "Technology displacement fears are consistently overestimated in short timeframes and underestimated in long ones. The 2028 timeline is too aggressive. However, the AI capability trajectory surprised to the upside. Loss accepted."
+      </div>
+      <span class="signal-badge signal-badge-traded">Traded</span>
+    </div>
+
+    <!-- Signal 4 -->
+    <div class="signal-entry">
+      <div class="signal-tweet">
+        <svg class="signal-tweet-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>"Recession fears spiking &mdash; 76% of financial CT expects US recession, bond yields inverting narrative trending, consumer sentiment dropping" <span class="signal-date">Jan 6, 2026</span></span>
+      </div>
+      <div class="signal-action">
+        <strong>Triggered trade:</strong> NO on "Will US enter recession in 2026?" &mdash; Fading recession panic at $0.58.
+      </div>
+      <div class="signal-reasoning">
+        "Recession consensus is a classic contrarian indicator. When 76% expect recession, the economy usually muddles through. Employment data, consumer spending, and corporate earnings tell a different story than sentiment."
+      </div>
+      <span class="signal-badge signal-badge-traded">Traded</span>
+    </div>
+
+    <!-- Signal 5 -->
+    <div class="signal-entry">
+      <div class="signal-tweet">
+        <svg class="signal-tweet-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        <span>"S&amp;P 7000 euphoria &mdash; Wall Street consensus price targets clustering around 7000+, retail options activity surging, leverage at multi-year highs" <span class="signal-date">Feb 10, 2026</span></span>
+      </div>
+      <div class="signal-action">
+        <strong>Triggered trade:</strong> NO on "Will the S&amp;P 500 reach 7000 by mid-2026?" &mdash; Fading Wall Street consensus at $0.71.
+      </div>
+      <div class="signal-reasoning">
+        "Consensus price targets are where crowded trades go to die. When sell-side analysts cluster their targets, it usually marks a local top. Leverage levels add to downside risk. Currently open position."
+      </div>
+      <span class="signal-badge signal-badge-traded">Traded</span>
+    </div>
+
+  </div>
+
+</div>
+<!-- ═══════════ END MAIN COLUMN ═══════════ -->
+
+<!-- ════════════════════ SIDEBAR ════════════════════ -->
+<div class="sidebar">
+  <div class="deposit-card">
+    <div class="deposit-title">Deposit into The Contrarian</div>
+
+    <div class="input-group">
+      <input type="text" id="depositAmount" placeholder="0.00" value="10,000">
+      <div class="input-suffix">
+        <span class="usdc-label">USDC</span>
+        <button class="max-btn" onclick="document.getElementById('depositAmount').value='48,230'">MAX</button>
+      </div>
+    </div>
+
+    <div class="deposit-info">
+      <div class="deposit-row">
+        <span class="deposit-row-label">Projected APY</span>
+        <span class="deposit-row-value green">~126%</span>
+      </div>
+      <div class="deposit-row">
+        <span class="deposit-row-label">Extrapolated from</span>
+        <span class="deposit-row-value">90-day backtest</span>
+      </div>
+      <div class="deposit-row">
+        <span class="deposit-row-label">Management fee</span>
+        <span class="deposit-row-value">2%</span>
+      </div>
+      <div class="deposit-row">
+        <span class="deposit-row-label">Performance fee</span>
+        <span class="deposit-row-value">20%</span>
+      </div>
+    </div>
+
+    <div class="deposit-warning">
+      High-risk contrarian strategy. Past performance does not guarantee future results. This vault experiences larger drawdowns than other vaults.
+    </div>
+
+    <button class="deposit-btn" onclick="handleDeposit()">Deposit</button>
+
+    <div class="vault-balance-row">
+      <span class="vault-balance-label">Your vault balance</span>
+      <span class="vault-balance-value">$0.00</span>
+    </div>
+
+    <div class="deposit-footer">
+      Powered by Vincent &mdash; non-custodial vault infrastructure
+    </div>
+  </div>
+</div>
+
+</div><!-- /page-wrap -->
+
+<script>
+  function handleDeposit() {
+    const btn = document.querySelector('.deposit-btn');
+    const balEl = document.querySelector('.vault-balance-value');
+    const input = document.getElementById('depositAmount');
+    const amt = input.value.replace(/,/g, '');
+
+    btn.textContent = 'Processing...';
+    btn.style.opacity = '.65';
+    btn.disabled = true;
+
+    setTimeout(() => {
+      btn.textContent = 'Deposited!';
+      btn.style.background = 'linear-gradient(135deg, #22c55e, #16a34a)';
+      balEl.textContent = '$' + Number(amt).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      setTimeout(() => {
+        btn.textContent = 'Deposit';
+        btn.style.background = '';
+        btn.style.opacity = '';
+        btn.disabled = false;
+      }, 2200);
+    }, 1400);
+  }
+
+  // Format input with commas
+  document.getElementById('depositAmount').addEventListener('input', function() {
+    let v = this.value.replace(/[^0-9.]/g, '');
+    const parts = v.split('.');
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    this.value = parts.join('.');
+  });
+</script>
+
+</body>
+</html>
