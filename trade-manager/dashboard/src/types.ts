@@ -14,6 +14,7 @@ export type Rule = {
   tokenId: string;
   side: string;
   triggerPrice: number;
+  trailingPercent?: number | null;
   action: string;
   status: string;
   errorMessage?: string | null;
@@ -41,7 +42,10 @@ export type Trade = {
   marketId: string;
   marketSlug?: string | null;
   side: string;
+  tradeSide: string;
   triggerPrice: number;
+  amount?: number | null;
+  price?: number | null;
   txHash?: string | null;
   orderId?: string | null;
   status?: string;
@@ -51,6 +55,6 @@ export type RuleEvent = {
   id: string;
   ruleId: string;
   eventType: string;
-  eventData: string;
+  data: Record<string, unknown>;
   createdAt: string;
 };

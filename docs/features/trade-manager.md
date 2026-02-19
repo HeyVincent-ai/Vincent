@@ -58,9 +58,11 @@ On each price update (websocket or poll):
 1. Fetch all active rules from SQLite
 2. Update monitored positions cache
 3. For each active rule: evaluate trigger condition against current price
-4. If triggered: execute trade via Vincent Polymarket API
+4. If triggered: execute market sell order via Vincent Polymarket API
 5. Mark rule as triggered atomically
 6. Log events
+
+**Trade execution:** Rules always execute as market orders (FOK) for immediate fill. Pre-execution checks verify the market is still open, not resolved/redeemable, and that the position has shares to sell.
 
 **Guardrails:**
 - Idempotent: rules marked triggered in DB transaction

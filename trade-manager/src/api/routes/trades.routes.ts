@@ -21,8 +21,6 @@ export const createTradesRoutes = (_eventLogger: EventLoggerService): Router => 
         take: 100,
       });
 
-      // Format the response with enriched trade data
-      // Keep only confirmed executions that include a concrete result payload.
       const trades = events
         .map((event) => {
           let eventData: any = {};
@@ -34,6 +32,22 @@ export const createTradesRoutes = (_eventLogger: EventLoggerService): Router => 
 
           if (!eventData.result) return null;
 
+          let actionObj: { type?: string } = {};
+          try {
+            actionObj =
+              typeof event.rule.action === 'string'
+                ? JSON.parse(event.rule.action)
+                : event.rule.action;
+          } catch {
+            // ignore
+          }
+          const actionType = actionObj?.type ?? '';
+          const tradeSide = actionType.startsWith('SELL')
+            ? 'SELL'
+            : actionType.startsWith('BUY')
+              ? 'BUY'
+              : event.rule.side;
+
           return {
             id: event.id,
             timestamp: event.createdAt,
@@ -43,6 +57,7 @@ export const createTradesRoutes = (_eventLogger: EventLoggerService): Router => 
             marketSlug: event.rule.marketSlug,
             tokenId: event.rule.tokenId,
             side: event.rule.side,
+            tradeSide,
             triggerPrice: event.rule.triggerPrice,
             txHash: eventData.result?.txHash,
             orderId: eventData.result?.orderId,
