@@ -4,7 +4,7 @@
 
 1. **Agents never see secrets.** Private keys, credentials, and raw secret values are never returned in API responses. The `toPublicData()` pattern consistently strips sensitive fields.
 
-2. **API keys are one-way.** Agent API keys (`ssk_` prefix) are bcrypt-hashed in the database and shown only once at creation. The middleware iterates non-revoked keys and bcrypt-compares to validate.
+2. **API keys are one-way.** Agent API keys (`ssk_` prefix) are SHA-256–hashed in the database and shown only once at creation. The middleware hashes the presented key with SHA-256 and performs a database lookup on the hash to validate non-revoked keys.
 
 3. **Policies gate all actions.** Every skill execution passes through the policy checker before reaching the blockchain/API. Default-open (no policies = allowed), but any restrictive policy must be satisfied.
 
