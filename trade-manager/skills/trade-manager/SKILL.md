@@ -19,7 +19,7 @@ Use this skill when users ask to create, update, or inspect local stop-loss/take
 - `PATCH /api/rules/:id`
 - `DELETE /api/rules/:id`
 - `GET /api/positions`
-- `GET /api/events?ruleId=<id>`
+- `GET /api/events?ruleId=<id>&limit=100&offset=0`
 
 ## Example prompts
 

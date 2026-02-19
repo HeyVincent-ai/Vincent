@@ -258,7 +258,7 @@ export class PolymarketWebSocketService extends EventEmitter {
 
     // Log a debug message if one side is missing (not a warning, as this is normal)
     if (buys.length === 0 && sells.length === 0) {
-      logger.warn(
+      logger.debug(
         { asset_id: message.asset_id },
         '[PolymarketWS] Book update has no buys or sells'
       );

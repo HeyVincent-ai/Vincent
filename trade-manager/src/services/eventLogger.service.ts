@@ -25,12 +25,24 @@ export class EventLoggerService {
     });
   }
 
-  async getEvents(ruleId?: string, limit = 100): Promise<unknown[]> {
+  async getEvents(ruleId?: string, limit = 100, offset = 0): Promise<Record<string, unknown>[]> {
     const prisma = await getPrisma();
-    return prisma.ruleEvent.findMany({
+    const rows = await prisma.ruleEvent.findMany({
       where: ruleId ? { ruleId } : undefined,
       orderBy: { createdAt: 'desc' },
       take: limit,
+      skip: offset,
+    });
+
+    return rows.map((row: Record<string, unknown>) => {
+      const { eventData, ...rest } = row;
+      let data: unknown = {};
+      try {
+        data = typeof eventData === 'string' ? JSON.parse(eventData) : eventData;
+      } catch {
+        data = eventData;
+      }
+      return { ...rest, data };
     });
   }
 }

@@ -203,15 +203,20 @@ export class MonitoringWorker {
       const matchingRules = activeRules.filter((rule) => rule.tokenId === tokenId);
 
       for (const rule of matchingRules) {
+        const prevTriggerPrice = rule.triggerPrice;
         await this.maybeAdjustTrailingTrigger(rule, price);
+        const trailingAdjusted = rule.triggerPrice !== prevTriggerPrice;
 
         const shouldTrigger = this.ruleExecutor.evaluateRule(rule, price);
-        await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
-          currentPrice: price,
-          triggerPrice: rule.triggerPrice,
-          shouldTrigger,
-          source: 'websocket',
-        });
+
+        if (shouldTrigger || trailingAdjusted) {
+          await this.eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
+            currentPrice: price,
+            triggerPrice: rule.triggerPrice,
+            shouldTrigger,
+            source: 'websocket',
+          });
+        }
 
         if (shouldTrigger) {
           logger.info(

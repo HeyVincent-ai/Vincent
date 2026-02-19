@@ -167,12 +167,16 @@ Returns cached position data with current prices. This cache updates in real-tim
 See detailed history of rule evaluations and executions:
 
 ```bash
-# All events
+# All events (most recent first, default limit=100)
 curl http://localhost:19000/api/events \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 
 # Events for specific rule
 curl 'http://localhost:19000/api/events?ruleId=<rule-id>' \
+  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+
+# Paginated results (limit 1-1000, offset for paging)
+curl 'http://localhost:19000/api/events?ruleId=<rule-id>&limit=50&offset=100' \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 ```
 
@@ -185,7 +189,7 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>' \
 - `ACTION_FAILED` - Trade execution failed
 - `RULE_CANCELED` - Rule was manually canceled
 
-**Event data fields:**
+Each event includes a `data` object (parsed JSON) with fields relevant to the event type:
 - `currentPrice` - Price at time of evaluation
 - `triggerPrice` - The rule's trigger threshold
 - `shouldTrigger` - Whether the condition was met
@@ -398,7 +402,7 @@ Cancel a rule. Changes status to "CANCELED".
 Get monitored positions (cached, updated every 15s).
 
 ### GET /api/events
-Get event log. Optional query param: `?ruleId=<id>`
+Get event log. Query params: `?ruleId=<id>&limit=100&offset=0` (limit: 1-1000, default 100)
 
 ### GET /health
 Health check. Returns `{"status":"ok","version":"0.1.0"}`
