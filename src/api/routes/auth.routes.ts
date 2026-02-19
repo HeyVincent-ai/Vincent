@@ -37,19 +37,23 @@ router.post(
   asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const body = sessionSchema.parse(req.body);
 
-    const user = await authService.syncSession(body.sessionToken, body.referralCode);
+    const result = await authService.syncSession(body.sessionToken, body.referralCode);
 
-    if (!user) {
+    if (!result) {
       errors.unauthorized(res, 'Invalid session');
       return;
     }
+
+    const { user, roles } = result;
 
     sendSuccess(res, {
       user: {
         id: user.id,
         email: user.email,
         telegramUsername: user.telegramUsername,
+        telegramLinked: !!user.telegramChatId,
         createdAt: user.createdAt,
+        isAdmin: roles.includes('admin'),
       },
     });
   })

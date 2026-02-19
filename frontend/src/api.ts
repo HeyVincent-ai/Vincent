@@ -160,7 +160,6 @@ export const getInvoices = () => api.get('/billing/invoices');
 
 // Referrals
 export const getReferral = () => api.get('/user/referral');
-export const getAdminReferrals = () => api.get('/admin/referrals');
 
 // Ownership
 export const requestOwnershipChallenge = (secretId: string, address: string) =>

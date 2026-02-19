@@ -9,5 +9,19 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <!-- Zendesk Widget -->
+    <script id="ze-snippet" src="https://static.zdassets.com/ekr/snippet.js?key=0f0d79fc-9fa4-4a27-846d-389524cad855"></script>
+    <script>
+      window.zESettings = {
+        webWidget: {
+          color: { theme: '#8b5cf6', launcher: '#8b5cf6', launcherText: '#ffffff' },
+          launcher: { chatLabel: { '*': 'Support' } }
+        },
+        contactForm: {
+          title: { '*': 'Vincent Support' },
+          tags: ['hey-vincent']  // This auto-tags all tickets from this app
+        }
+      };
+    </script>
   </body>
 </html>

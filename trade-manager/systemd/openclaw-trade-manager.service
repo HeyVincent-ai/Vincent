@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenClaw Trade Manager
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/env trade-manager start
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+WorkingDirectory=%h
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

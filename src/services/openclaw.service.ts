@@ -399,6 +399,44 @@ echo "Vincent credentials written"
 `
     : '# No Vincent API keys provided — skills will self-provision'
 }
+# UNCOMMENT-TO-DO-TRADE-MANAGER-AUTOINSTALL — trade manager not yet ready for production
+# echo "=== [6/9] Installing Trade Manager ==="
+# npm install -g @openclaw/trade-manager || true
+#
+# mkdir -p /root/.openclaw
+# cat > /root/.openclaw/trade-manager.json << TRADEMANAGEREOF
+# {
+#   "port": 19000,
+#   "pollIntervalSeconds": 15,
+#   "vincentApiUrl": "https://heyvincent.ai",
+#   "vincentApiKey": "${vincentApiKeys?.polymarketKey ?? ''}",
+#   "databaseUrl": "file:/root/.openclaw/trade-manager.db"
+# }
+# TRADEMANAGEREOF
+#
+# cat > /etc/systemd/system/openclaw-trade-manager.service << TRADEMANAGERUNIT
+# [Unit]
+# Description=OpenClaw Trade Manager
+# After=network.target
+#
+# [Service]
+# Type=simple
+# ExecStart=/usr/bin/env trade-manager start
+# Restart=always
+# RestartSec=5
+# Environment=NODE_ENV=production
+# WorkingDirectory=/root
+#
+# [Install]
+# WantedBy=multi-user.target
+# TRADEMANAGERUNIT
+#
+# systemctl daemon-reload
+# systemctl enable openclaw-trade-manager || true
+# systemctl stop openclaw-trade-manager 2>/dev/null || true
+# systemctl start openclaw-trade-manager || true
+# systemctl is-active --quiet openclaw-trade-manager || echo "Trade Manager failed to start"
+
 echo "=== [6/8] Configuring Caddy reverse proxy (HTTPS via ${hostname}) ==="
 cat > /etc/caddy/Caddyfile << CADDYEOF
 ${hostname} {
@@ -620,6 +658,22 @@ export async function waitForHealth(
 // ============================================================
 // Plan Discovery
 // ============================================================
+
+/**
+ * Claim the oldest VPS from the pool. Returns the OVH service name, or null if the pool is empty.
+ */
+async function claimPoolVps(): Promise<string | null> {
+  const rows = await prisma.$queryRaw<Array<{ ovh_service_name: string }>>`
+    DELETE FROM "vps_pool"
+    WHERE "id" = (
+      SELECT "id" FROM "vps_pool"
+      ORDER BY "created_at" LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    RETURNING "ovh_service_name"
+  `;
+  return rows.length > 0 ? rows[0].ovh_service_name : null;
+}
 
 /**
  * Find the first available VPS plan + datacenter from the priority list.
@@ -980,6 +1034,28 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         }
 
         case 'plan_found': {
+          // Try to claim a pre-provisioned VPS from the pool first.
+          if (!ctx.serviceName) {
+            addLog('Checking VPS pool...');
+            const poolVps = await claimPoolVps();
+            if (poolVps) {
+              ctx.serviceName = poolVps;
+              ctx.hostname = ovhService.getVpsHostname(poolVps);
+              addLog(`Claimed VPS from pool: ${poolVps}`);
+              await updateDeployment(deploymentId, {
+                ovhServiceName: ctx.serviceName,
+                hostname: ctx.hostname,
+                provisionLog: log,
+                provisionStage: stage,
+              });
+              break;
+            }
+            addLog('VPS pool empty, proceeding with normal VPS ordering');
+          } else {
+            addLog(`VPS already claimed for this deployment: ${ctx.serviceName}`);
+          }
+
+          // Pool empty — proceed with normal plan finding
           const planCode = options.planCode;
           const datacenter = options.datacenter;
           if (!planCode || !datacenter) {
@@ -1000,6 +1076,18 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         }
 
         case 'vps_ordered': {
+          // Pool-sourced VPS: skip ordering entirely
+          if (ctx.serviceName) {
+            addLog(`VPS from pool (${ctx.serviceName}), skipping order`);
+            await updateDeployment(deploymentId, {
+              ovhServiceName: ctx.serviceName,
+              hostname: ctx.hostname,
+              provisionLog: log,
+              provisionStage: stage,
+            });
+            break;
+          }
+
           // Reload from DB in case we're resuming and order already placed
           const current = await prisma.openClawDeployment.findUnique({
             where: { id: deploymentId },

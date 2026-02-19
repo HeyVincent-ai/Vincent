@@ -16,7 +16,8 @@ import Features from './pages/Features';
 import Security from './pages/Security';
 import Skills from './pages/Skills';
 import Terms from './pages/Terms';
-import AdminReferrals from './pages/AdminReferrals';
+import UIPreview from './pages/UIPreview';
+import { adminRoutes } from './admin/routes';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -52,6 +53,7 @@ function AppRoutes() {
       <Route path="/security" element={<Security />} />
       <Route path="/skills" element={<Skills />} />
       <Route path="/terms" element={<Terms />} />
+      <Route path="/preview" element={<UIPreview />} />
       <Route
         path="/login"
         element={
@@ -103,14 +105,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/admin/referrals"
-          element={
-            <ProtectedRoute>
-              <AdminReferrals />
-            </ProtectedRoute>
-          }
-        />
+        {adminRoutes()}
       </Route>
       {/* Redirects for old routes */}
       <Route path="/settings" element={<Navigate to="/account" replace />} />
