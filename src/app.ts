@@ -55,7 +55,12 @@ export function createApp(): Express {
           scriptSrc: ["'self'", "'unsafe-inline'", 'https://static.zdassets.com'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           workerSrc: ["'self'", 'blob:'],
-          frameSrc: ["'self'", 'https://*.vps.ovh.us'],
+          frameSrc: [
+            "'self'",
+            'https://*.vps.ovh.us',
+            'https://*.vps.ovh.ca',
+            'https://*.vps.ovh.net',
+          ],
         },
       },
     })
