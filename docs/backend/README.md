@@ -26,7 +26,7 @@ The backend is a single Express 5 + TypeScript server in `src/`. It handles auth
 ```
 Request with Authorization: Bearer ssk_...
   → apiKeyAuth middleware
-    → Validates API key (bcrypt compare against non-revoked keys)
+    → Validates API key (SHA-256 hash + DB lookup against non-revoked keys)
     → Loads secret metadata onto req.secret (excludes value!)
     → Loads req.apiKeyId
   → Route handler
