@@ -84,14 +84,9 @@ function DashboardPreview() {
   })).filter((g) => g.accounts.length > 0);
 
   // Calculate overview metrics
-  const totalAssets = MOCK_ACCOUNTS
-    .filter(
-      (a) =>
-        a.type === 'EVM_WALLET' ||
-        a.type === 'POLYMARKET_WALLET' ||
-        a.type === 'RAW_SIGNER'
-    )
-    .reduce((sum, a) => sum + (a.totalBalance || 0), 0);
+  const totalAssets = MOCK_ACCOUNTS.filter(
+    (a) => a.type === 'EVM_WALLET' || a.type === 'POLYMARKET_WALLET' || a.type === 'RAW_SIGNER'
+  ).reduce((sum, a) => sum + (a.totalBalance || 0), 0);
   const totalAccounts = MOCK_ACCOUNTS.length;
 
   return (
@@ -115,7 +110,11 @@ function DashboardPreview() {
             </p>
             <div className="flex items-baseline gap-2">
               <p className="text-xl font-semibold text-foreground font-mono">
-                ${totalAssets.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {totalAssets.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </p>
               <span className="text-xs text-green-400">+2.3%</span>
             </div>
@@ -267,8 +266,18 @@ function DetailPreview({ account }: { account: Account }) {
                         className="text-muted-foreground/60 hover:text-primary transition-colors p-1"
                         title="Show QR code"
                       >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        <svg
+                          className="w-3.5 h-3.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
+                          />
                         </svg>
                       </button>
                       <CopyButton text={a.address} />
@@ -286,8 +295,7 @@ function DetailPreview({ account }: { account: Account }) {
                 Ownership
               </h3>
               <div className="text-xs text-foreground/80">
-                Owner:{' '}
-                <code className="text-foreground/70 font-mono text-xs">0xAbCd…7890</code>
+                Owner: <code className="text-foreground/70 font-mono text-xs">0xAbCd…7890</code>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">Base Sepolia</p>
             </div>
@@ -346,11 +354,7 @@ function DetailPreview({ account }: { account: Account }) {
       </div>
 
       {showReceiveQr && qrAddress && (
-        <QrModal
-          address={qrAddress}
-          label={accountName}
-          onClose={() => setShowReceiveQr(false)}
-        />
+        <QrModal address={qrAddress} label={accountName} onClose={() => setShowReceiveQr(false)} />
       )}
     </div>
   );

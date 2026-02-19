@@ -367,6 +367,102 @@
         }
       }
     },
+    "/api/skills/evm-wallet/transfer-between-secrets/preview": {
+      "post": {
+        "operationId": "evmTransferBetweenSecretsPreview",
+        "tags": ["EVM Wallet"],
+        "summary": "Preview a transfer between secrets",
+        "description": "Returns a quote for transferring funds between two secrets you own, including expected output, fees, and balance check — without executing. Supports same-chain and cross-chain transfers with automatic token conversion.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["toSecretId", "fromChainId", "toChainId", "tokenIn", "tokenInAmount", "tokenOut"],
+                "properties": {
+                  "toSecretId": { "type": "string", "format": "uuid", "description": "ID of the destination secret (must be owned by the same user)" },
+                  "fromChainId": { "type": "integer", "minimum": 1, "description": "Source chain ID (e.g. 8453 = Base)" },
+                  "toChainId": { "type": "integer", "minimum": 1, "description": "Destination chain ID" },
+                  "tokenIn": { "type": "string", "description": "Source token address or `\"ETH\"` for native ETH" },
+                  "tokenInAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "Human-readable amount to send (e.g. `\"0.1\"`)" },
+                  "tokenOut": { "type": "string", "description": "Destination token address or `\"ETH\"` for native ETH" },
+                  "slippage": { "type": "integer", "minimum": 0, "maximum": 10000, "description": "Slippage tolerance in basis points (e.g. 100 = 1%)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer preview with quote",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/transfer-between-secrets/execute": {
+      "post": {
+        "operationId": "evmTransferBetweenSecretsExecute",
+        "tags": ["EVM Wallet"],
+        "summary": "Execute a transfer between secrets",
+        "description": "Transfers funds between two secrets you own. Same token + same chain executes as a direct transfer (gas sponsored). Different token or chain uses a relay service for atomic swap + bridge. Subject to policy checks.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["toSecretId", "fromChainId", "toChainId", "tokenIn", "tokenInAmount", "tokenOut"],
+                "properties": {
+                  "toSecretId": { "type": "string", "format": "uuid", "description": "ID of the destination secret (must be owned by the same user)" },
+                  "fromChainId": { "type": "integer", "minimum": 1, "description": "Source chain ID" },
+                  "toChainId": { "type": "integer", "minimum": 1, "description": "Destination chain ID" },
+                  "tokenIn": { "type": "string", "description": "Source token address or `\"ETH\"` for native ETH" },
+                  "tokenInAmount": { "type": "string", "pattern": "^\\d+(\\.\\d+)?$", "description": "Human-readable amount to send" },
+                  "tokenOut": { "type": "string", "description": "Destination token address or `\"ETH\"` for native ETH" },
+                  "slippage": { "type": "integer", "minimum": 0, "maximum": 10000, "description": "Slippage tolerance in basis points" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer executed (or cross-chain pending with `relayRequestId`)",
+            "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "202": { "description": "Pending owner approval", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+          "403": { "description": "Denied by policy", "content": { "application/json": { "schema": { "allOf": [{ "$ref": "#/components/schemas/SuccessResponse" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SkillExecutionResult" } } }] } } }
+          }
+        }
+      }
+    },
+    "/api/skills/evm-wallet/transfer-between-secrets/status/{requestId}": {
+      "get": {
+        "operationId": "evmTransferBetweenSecretsStatus",
+        "tags": ["EVM Wallet"],
+        "summary": "Check cross-chain transfer status",
+        "description": "Poll the status of a cross-chain transfer-between-secrets operation using the relay request ID returned by the execute endpoint.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "parameters": [
+          { "name": "requestId", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Relay request ID from the execute response" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transfer status",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } }
+          },
+          "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
     "/api/skills/evm-wallet/swap/preview": {
       "post": {
         "operationId": "evmSwapPreview",

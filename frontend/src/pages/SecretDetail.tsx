@@ -413,11 +413,7 @@ export default function SecretDetail() {
       </div>
 
       {showQr && qrAddress && (
-        <QrModal
-          address={qrAddress}
-          label={accountName}
-          onClose={() => setShowQr(false)}
-        />
+        <QrModal address={qrAddress} label={accountName} onClose={() => setShowQr(false)} />
       )}
     </div>
   );

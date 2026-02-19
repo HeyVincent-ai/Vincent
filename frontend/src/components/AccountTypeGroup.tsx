@@ -9,7 +9,12 @@ interface AccountTypeGroupProps {
   onReceive?: (account: Account) => void;
 }
 
-export default function AccountTypeGroup({ label, icon: Icon, accounts, onReceive }: AccountTypeGroupProps) {
+export default function AccountTypeGroup({
+  label,
+  icon: Icon,
+  accounts,
+  onReceive,
+}: AccountTypeGroupProps) {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
