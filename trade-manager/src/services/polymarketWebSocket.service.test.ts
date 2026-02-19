@@ -107,7 +107,7 @@ describe('PolymarketWebSocketService', () => {
       const sells: any[] = [];
 
       const midPrice = calculateMidPrice(buys, sells);
-      expect(midPrice).toBe(0.60);
+      expect(midPrice).toBe(0.6);
     });
 
     it('should use ask price if no bids available', () => {
@@ -117,7 +117,7 @@ describe('PolymarketWebSocketService', () => {
       const sells = [{ price: '0.70', size: '100' }];
 
       const midPrice = calculateMidPrice(buys, sells);
-      expect(midPrice).toBe(0.70);
+      expect(midPrice).toBe(0.7);
     });
 
     it('should return 0 if no liquidity', () => {

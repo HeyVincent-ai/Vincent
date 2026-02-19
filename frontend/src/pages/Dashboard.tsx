@@ -172,10 +172,7 @@ export default function Dashboard() {
   // Calculate overview metrics
   const totalAssets = accounts
     .filter(
-      (a) =>
-        a.type === 'EVM_WALLET' ||
-        a.type === 'POLYMARKET_WALLET' ||
-        a.type === 'RAW_SIGNER'
+      (a) => a.type === 'EVM_WALLET' || a.type === 'POLYMARKET_WALLET' || a.type === 'RAW_SIGNER'
     )
     .reduce((sum, a) => sum + (a.totalBalance || 0), 0);
   const totalAccounts = accounts.length;
@@ -202,7 +199,11 @@ export default function Dashboard() {
               </p>
               <div className="flex items-baseline gap-2">
                 <p className="text-xl font-semibold text-foreground font-mono">
-                  ${totalAssets.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  $
+                  {totalAssets.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </p>
                 {/* TODO: Wire up to real 24h change data */}
                 {/* <span className="text-xs text-green-400">+2.3%</span> */}

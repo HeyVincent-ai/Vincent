@@ -41,8 +41,9 @@ const readWalletApiKey = (): string | undefined => {
   }
 
   try {
-    const files = fs.readdirSync(walletDir)
-      .filter(f => f.endsWith('.json'))
+    const files = fs
+      .readdirSync(walletDir)
+      .filter((f) => f.endsWith('.json'))
       .sort((a, b) => {
         // Use the most recently modified file
         const statA = fs.statSync(path.join(walletDir, a));
@@ -59,7 +60,8 @@ const readWalletApiKey = (): string | undefined => {
     const keyData = JSON.parse(fs.readFileSync(keyFile, 'utf8'));
 
     // The API key might be stored as 'key' or 'apiKey' or just be the string itself
-    const apiKey = keyData.key || keyData.apiKey || (typeof keyData === 'string' ? keyData : undefined);
+    const apiKey =
+      keyData.key || keyData.apiKey || (typeof keyData === 'string' ? keyData : undefined);
 
     if (apiKey) {
       console.log(`[Config] Using Polymarket API key from ${files[0]}`);
