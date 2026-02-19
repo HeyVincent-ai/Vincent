@@ -1078,8 +1078,12 @@ describe('Base Mainnet E2E: Full Wallet Skill Test', () => {
       await prisma.transactionLog.deleteMany({ where: { secretId: otherSecretId } });
       await prisma.apiKey.deleteMany({ where: { secretId: otherSecretId } });
       await prisma.walletSecretMetadata.deleteMany({ where: { secretId: otherSecretId } });
-      await prisma.secret.delete({ where: { id: otherSecretId } }).catch(() => {});
-      await prisma.user.delete({ where: { id: testUser2Id } }).catch(() => {});
+      await prisma.secret.delete({ where: { id: otherSecretId } }).catch((err: Error) => {
+        console.error('Failed to delete secret:', err);
+      });
+      await prisma.user.delete({ where: { id: testUser2Id } }).catch((err: Error) => {
+        console.error('Failed to delete user:', err);
+      });
     } catch (err) {
       console.error('Other-user cleanup failed:', err);
     }
