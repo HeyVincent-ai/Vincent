@@ -791,6 +791,7 @@ export async function deploy(
     customer: customerId,
     mode: 'subscription',
     payment_method_types: ['card'],
+    allow_promotion_codes: true,
     line_items: [{ price: env.STRIPE_OPENCLAW_PRICE_ID, quantity: 1 }],
     subscription_data: isFirstDeployment ? { trial_period_days: 7 } : {},
     success_url: successUrl,
