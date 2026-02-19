@@ -14,21 +14,27 @@ echo ""
 
 PIDS=()
 
+kill_tree() {
+  local pid=$1
+  local sig=${2:-TERM}
+  local children
+  children=$(pgrep -P "$pid" 2>/dev/null || true)
+  for child in $children; do
+    kill_tree "$child" "$sig"
+  done
+  kill -"$sig" "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo ""
   echo "=== Cleaning up background processes ==="
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "Stopping PID $pid..."
-      kill "$pid" 2>/dev/null || true
-    fi
+    echo "Stopping process tree rooted at PID $pid..."
+    kill_tree "$pid" TERM
   done
   sleep 2
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "Force killing PID $pid..."
-      kill -9 "$pid" 2>/dev/null || true
-    fi
+    kill_tree "$pid" 9
   done
   echo "=== Cleanup complete ==="
 }
