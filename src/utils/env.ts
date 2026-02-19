@@ -95,7 +95,7 @@ const envSchema = z.object({
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 
   // OpenClaw Default Model
-  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/openrouter/auto'),
+  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/anthropic/claude-sonnet-4.6'),
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
