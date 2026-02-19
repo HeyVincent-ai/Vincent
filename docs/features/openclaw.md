@@ -93,7 +93,7 @@ During VPS setup, Vincent creates and pre-claims three secrets:
 
 API keys written to VPS credential files. Agent is ready to use all skills immediately.
 
-Secret IDs stored on `OpenClawDeployment.vincentSecretIds` for reference. On reprovision, new API keys are generated for existing secrets (since plain keys can't be recovered from bcrypt hashes).
+Secret IDs stored on `OpenClawDeployment.vincentSecretIds` for reference. On reprovision, new API keys are generated for existing secrets (since plain keys can't be recovered from the stored one-way hashes).
 
 ## Deployment States
 

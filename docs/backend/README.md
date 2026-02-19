@@ -26,7 +26,7 @@ The backend is a single Express 5 + TypeScript server in `src/`. It handles auth
 ```
 Request with Authorization: Bearer ssk_...
   → apiKeyAuth middleware
-    → Validates API key (bcrypt compare against non-revoked keys)
+    → Validates API key (SHA-256 hash + DB lookup against non-revoked keys)
     → Loads secret metadata onto req.secret (excludes value!)
     → Loads req.apiKeyId
   → Route handler
@@ -58,7 +58,7 @@ Business logic separated from route handlers.
 | Service | File | Responsibility |
 |---|---|---|
 | Secret | `secret.service.ts` | CRUD, wallet creation (ZeroDev), claim flow, relink tokens |
-| API Key | `apiKey.service.ts` | Generation, bcrypt hashing, validation, revocation |
+| API Key | `apiKey.service.ts` | Generation, SHA-256 hashing, validation, revocation |
 | Auth | `auth.service.ts` | Stytch session validation, find-or-create user |
 | Policy | `policy.service.ts` | Policy CRUD, Zod config validation per type |
 | Price | `price.service.ts` | CoinGecko ETH/token → USD with 5-min cache |

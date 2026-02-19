@@ -54,11 +54,11 @@ Agent authentication tokens, scoped to one secret.
 |---|---|---|
 | `id` | String (cuid) | Primary key |
 | `secretId` | String | FK to Secret |
-| `keyHash` | String | bcrypt hash of the key |
+| `keyHash` | String | SHA-256 hex digest of the key |
 | `name` | String? | Optional label |
 | `revokedAt` | DateTime? | Null = active |
 
-API key format: `ssk_<64 hex chars>`. Only shown once on creation. Validated by iterating all non-revoked keys and bcrypt-comparing.
+API key format: `ssk_<64 hex chars>`. Only shown once on creation. Validated by computing the SHA-256 digest of the presented key and looking up a matching non-revoked ApiKey by `keyHash`.
 
 ### Policy
 
