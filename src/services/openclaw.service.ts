@@ -315,10 +315,10 @@ else
 fi
 
 echo "=== [4/8] Installing Vincent skills ==="
-npx --yes clawhub@latest install agentwallet || true
-npx --yes clawhub@latest install vincentpolymarket || true
-npx --yes clawhub@latest install vincent-twitter || true
-npx --yes clawhub@latest install vincent-brave-search || true
+npx --yes clawhub@latest install --force agentwallet || true
+npx --yes clawhub@latest install --force vincentpolymarket || true
+npx --yes clawhub@latest install --force vincent-twitter || true
+npx --yes clawhub@latest install --force vincent-brave-search || true
 
 echo "=== [5/8] Configuring OpenClaw ==="
 # Always set the OpenRouter API key via env config — onboard may have been
