@@ -129,19 +129,16 @@ export const reprovisionOpenClawDeployment = (id: string) =>
 export const downloadOpenClawSshKey = (id: string) =>
   api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
 export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
-export const createOpenClawCreditsCheckout = (
-  id: string,
-  successUrl: string,
-  cancelUrl: string
-) => api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
+export const getOpenClawHealth = (id: string) => api.get(`/openclaw/deployments/${id}/health`);
+export const createOpenClawCreditsCheckout = (id: string, successUrl: string, cancelUrl: string) =>
+  api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
 export const setupOpenClawTelegram = (id: string, botToken: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/setup`, { botToken });
 export const pairOpenClawTelegram = (id: string, code: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
 
 // Data Sources
-export const getDataSourceInfo = (secretId: string) =>
-  api.get(`/secrets/${secretId}/data-sources`);
+export const getDataSourceInfo = (secretId: string) => api.get(`/secrets/${secretId}/data-sources`);
 export const getDataSourceCredits = (secretId: string) =>
   api.get(`/secrets/${secretId}/data-sources/credits`);
 export const createDataSourceCreditsCheckout = (

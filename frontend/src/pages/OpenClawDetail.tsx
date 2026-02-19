@@ -7,9 +7,10 @@ import {
   destroyOpenClawDeployment,
   restartOpenClawDeployment,
   retryOpenClawDeployment,
-
+  reprovisionOpenClawDeployment,
   downloadOpenClawSshKey,
   getOpenClawUsage,
+  getOpenClawHealth,
   createOpenClawCreditsCheckout,
   setupOpenClawTelegram,
   pairOpenClawTelegram,
@@ -43,6 +44,14 @@ interface UsageData {
   usageDailyUsd: number;
   usageMonthlyUsd: number;
   lastPolledAt: string | null;
+}
+
+interface HealthData {
+  healthy: boolean;
+  statusCode?: number;
+  via?: 'hostname' | 'ip';
+  errorMessage?: string;
+  checkedAt?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -81,6 +90,10 @@ export default function OpenClawDetail() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageData | null>(null);
+  const [iframeNonce, setIframeNonce] = useState(0);
+  const [health, setHealth] = useState<HealthData | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState<string | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
   const [showDevModal, setShowDevModal] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
@@ -102,6 +115,18 @@ export default function OpenClawDetail() {
       })
       .catch(() => setError('Failed to load deployment'))
       .finally(() => setLoading(false));
+  }, [id]);
+
+  const loadHealth = useCallback(() => {
+    if (!id) return;
+    setHealthLoading(true);
+    setHealthError(null);
+    getOpenClawHealth(id)
+      .then((res) => {
+        setHealth(res.data.data.health);
+      })
+      .catch(() => setHealthError('Failed to check connection'))
+      .finally(() => setHealthLoading(false));
   }, [id]);
 
   useEffect(() => {
@@ -131,6 +156,13 @@ export default function OpenClawDetail() {
       .then((res) => setUsage(res.data.data))
       .catch(() => {});
   }, [id, deployment?.status]);
+
+  // Fetch gateway health when deployment is active
+  useEffect(() => {
+    if (!id || !deployment) return;
+    if (!['READY', 'CANCELING'].includes(deployment.status)) return;
+    loadHealth();
+  }, [id, deployment?.status, loadHealth]);
 
   // Show toast if returning from Stripe Checkout
   useEffect(() => {
@@ -227,6 +259,19 @@ export default function OpenClawDetail() {
     }
   };
 
+  const handleReprovision = async () => {
+    if (!id) return;
+    setActionLoading('reprovision');
+    try {
+      await reprovisionOpenClawDeployment(id);
+      toast('Reprovisioning started');
+      load();
+    } catch {
+      toast('Failed to reprovision', 'error');
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleDownloadSshKey = async () => {
     if (!id) return;
@@ -323,14 +368,22 @@ export default function OpenClawDetail() {
   const isActive = deployment.status === 'READY' || deployment.status === 'CANCELING';
   const iframeUrl =
     deployment.accessToken && deployment.hostname
-      ? `https://${deployment.hostname}?token=${deployment.accessToken}`
+      ? `https://${deployment.hostname}?token=${encodeURIComponent(deployment.accessToken)}&t=${iframeNonce}`
       : null;
+  const showActiveStatusMessage =
+    deployment.statusMessage &&
+    (deployment.status !== 'READY' && deployment.status !== 'CANCELING'
+      ? false
+      : /not responding|health check pending/i.test(deployment.statusMessage));
 
   return (
     <div>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm mb-4" aria-label="Breadcrumb">
-        <Link to="/agents" className="text-muted-foreground hover:text-foreground transition-colors">
+        <Link
+          to="/agents"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           Agents
         </Link>
         <span className="text-muted-foreground/50">/</span>
@@ -452,6 +505,44 @@ export default function OpenClawDetail() {
         </div>
       )}
 
+      {isActive && showActiveStatusMessage && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 mb-4 text-sm text-yellow-400">
+          {deployment.statusMessage}
+        </div>
+      )}
+
+      {isActive && health && !health.healthy && (
+        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4 mb-4 text-sm text-yellow-400">
+          <p className="font-medium mb-1">Dashboard connection issue</p>
+          <p className="text-sm text-yellow-400/80">
+            The gateway did not respond over {health.via === 'ip' ? 'direct IP' : 'hostname'}. Try
+            restarting the gateway, or reprovision if the issue persists.
+          </p>
+          {(health.statusCode || health.errorMessage) && (
+            <div className="text-xs text-yellow-400/70 mt-2 space-y-1">
+              {health.statusCode && <div>Status: {health.statusCode}</div>}
+              {health.errorMessage && <div>Error: {health.errorMessage}</div>}
+            </div>
+          )}
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={handleRestart}
+              disabled={actionLoading === 'restart'}
+              className="text-xs border border-yellow-500/40 text-yellow-300 px-3 py-1.5 rounded hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
+            >
+              {actionLoading === 'restart' ? 'Restarting...' : 'Restart gateway'}
+            </button>
+            <button
+              onClick={handleReprovision}
+              disabled={actionLoading === 'reprovision'}
+              className="text-xs border border-yellow-500/40 text-yellow-300 px-3 py-1.5 rounded hover:bg-yellow-500/10 transition-colors disabled:opacity-50"
+            >
+              {actionLoading === 'reprovision' ? 'Reprovisioning...' : 'Reprovision'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Info bar */}
       <div className="bg-card rounded-lg border border-border p-3 mb-4 flex items-center gap-4 text-sm text-muted-foreground">
         {deployment.hostname && (
@@ -510,8 +601,18 @@ export default function OpenClawDetail() {
           </div>
           {deployment.telegramConfigured ? (
             <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 flex items-center gap-3">
-              <svg className="w-5 h-5 text-green-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              <svg
+                className="w-5 h-5 text-green-400 flex-shrink-0"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
               </svg>
               <p className="text-sm text-green-400">
                 Telegram is connected. Message your bot to chat with your agent.
@@ -592,7 +693,8 @@ export default function OpenClawDetail() {
             {telegramStep === 1 && (
               <>
                 <ol className="text-sm text-muted-foreground mb-3 list-decimal list-inside space-y-1">
-                  <li>Open Telegram and go to{' '}
+                  <li>
+                    Open Telegram and go to{' '}
                     <a
                       href="https://t.me/BotFather"
                       target="_blank"
@@ -600,12 +702,21 @@ export default function OpenClawDetail() {
                       className="text-primary hover:text-primary/80 underline"
                     >
                       @BotFather
-                    </a>.
+                    </a>
+                    .
                   </li>
-                  <li>Start a chat and type <code className="bg-muted px-1 rounded text-xs">/newbot</code>.</li>
+                  <li>
+                    Start a chat and type{' '}
+                    <code className="bg-muted px-1 rounded text-xs">/newbot</code>.
+                  </li>
                   <li>Follow the prompts to name your bot and choose a username.</li>
-                  <li>BotFather will send you a message with your bot token. Copy the entire token (it looks like a long string of numbers and letters).</li>
-                  <li>Paste the token below and click <strong>Configure Bot</strong>.</li>
+                  <li>
+                    BotFather will send you a message with your bot token. Copy the entire token (it
+                    looks like a long string of numbers and letters).
+                  </li>
+                  <li>
+                    Paste the token below and click <strong>Configure Bot</strong>.
+                  </li>
                 </ol>
                 <input
                   type="text"
@@ -618,8 +729,20 @@ export default function OpenClawDetail() {
                 {gatewayRestarting && (
                   <div className="flex items-center gap-2 text-sm text-primary mb-3">
                     <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                        fill="none"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
                     </svg>
                     Gateway restarting...
                   </div>
@@ -834,6 +957,40 @@ export default function OpenClawDetail() {
       )}
 
       {/* Iframe (when active) */}
+      {isActive && (
+        <div className="flex items-center justify-between mb-3 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2">
+            {healthLoading && <span>Checking connection...</span>}
+            {!healthLoading && health && (
+              <span className={health.healthy ? 'text-green-400' : 'text-yellow-400'}>
+                {health.healthy ? 'Connection healthy' : 'Connection issue'}
+              </span>
+            )}
+            {!healthLoading && !health && <span>Connection not checked</span>}
+            {health?.checkedAt && (
+              <span className="text-muted-foreground/70">
+                • Last checked {new Date(health.checkedAt).toLocaleTimeString()}
+              </span>
+            )}
+            {healthError && <span className="text-destructive">{healthError}</span>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadHealth}
+              disabled={healthLoading}
+              className="text-xs border border-border px-2.5 py-1 rounded hover:bg-muted transition-colors disabled:opacity-50 text-foreground"
+            >
+              {healthLoading ? 'Checking...' : 'Check connection'}
+            </button>
+            <button
+              onClick={() => setIframeNonce((prev) => prev + 1)}
+              className="text-xs border border-border px-2.5 py-1 rounded hover:bg-muted transition-colors text-foreground"
+            >
+              Reload dashboard
+            </button>
+          </div>
+        </div>
+      )}
       {isActive && iframeUrl && (
         <iframe
           src={iframeUrl}

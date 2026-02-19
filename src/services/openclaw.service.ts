@@ -405,7 +405,9 @@ ${hostname} {
     reverse_proxy localhost:${OPENCLAW_PORT} {
         header_down -Content-Security-Policy
         header_down -X-Frame-Options
+        header_down -Cross-Origin-Opener-Policy
     }
+    header Cross-Origin-Opener-Policy "same-origin-allow-popups"
     header Content-Security-Policy "frame-ancestors 'self' https://*.heyvincent.ai https://heyvincent.ai"
 }
 CADDYEOF
@@ -2336,6 +2338,54 @@ export async function checkStaleDeployments(): Promise<number> {
 // ============================================================
 // Health Monitoring
 // ============================================================
+
+type GatewayHealthResult = {
+  healthy: boolean;
+  statusCode?: number;
+  via?: 'hostname' | 'ip';
+  errorMessage?: string;
+};
+
+const HEALTHY_HTTP_STATUS = new Set([200, 401, 403]);
+
+/**
+ * Check gateway health once via hostname (HTTPS) then IP fallback (HTTP).
+ */
+export async function checkGatewayHealthOnce(
+  hostname?: string,
+  ipAddress?: string
+): Promise<GatewayHealthResult> {
+  const attempts: Array<{ via: 'hostname' | 'ip'; url: string; timeoutMs: number }> = [];
+
+  if (hostname) {
+    attempts.push({ via: 'hostname', url: `https://${hostname}`, timeoutMs: 10_000 });
+  }
+  if (ipAddress) {
+    attempts.push({ via: 'ip', url: `http://${ipAddress}:${OPENCLAW_PORT}`, timeoutMs: 5_000 });
+  }
+
+  let lastFailure: GatewayHealthResult | null = null;
+
+  for (const attempt of attempts) {
+    try {
+      const res = await fetch(attempt.url, {
+        signal: AbortSignal.timeout(attempt.timeoutMs),
+      });
+      if (HEALTHY_HTTP_STATUS.has(res.status)) {
+        return { healthy: true, statusCode: res.status, via: attempt.via };
+      }
+      lastFailure = { healthy: false, statusCode: res.status, via: attempt.via };
+    } catch (err: any) {
+      lastFailure = {
+        healthy: false,
+        via: attempt.via,
+        errorMessage: err?.message || 'Health check failed',
+      };
+    }
+  }
+
+  return lastFailure || { healthy: false, errorMessage: 'No hostname or IP available' };
+}
 
 // Track consecutive health check failures per deployment (in-memory)
 const healthFailureCounts = new Map<string, number>();

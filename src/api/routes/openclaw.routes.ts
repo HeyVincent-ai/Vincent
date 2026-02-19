@@ -108,6 +108,32 @@ router.get('/deployments/:id', async (req: AuthenticatedRequest, res: Response) 
 });
 
 /**
+ * GET /api/openclaw/deployments/:id/health
+ * Check gateway health for a deployment.
+ */
+router.get('/deployments/:id/health', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const deployment = await openclawService.getDeployment(req.params.id as string, req.user!.id);
+    if (!deployment) {
+      return errors.notFound(res, 'Deployment');
+    }
+    const health = await openclawService.checkGatewayHealthOnce(
+      deployment.hostname || undefined,
+      deployment.ipAddress || undefined
+    );
+    sendSuccess(res, {
+      health: {
+        ...health,
+        checkedAt: new Date().toISOString(),
+      },
+    });
+  } catch (error: any) {
+    console.error('OpenClaw health error:', error);
+    errors.internal(res);
+  }
+});
+
+/**
  * POST /api/openclaw/deployments/:id/cancel
  * Cancel subscription at period end. VPS stays running until expiry.
  */
