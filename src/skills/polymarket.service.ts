@@ -107,12 +107,7 @@ async function getRelayClient(privateKey: string) {
 export async function deploySafe(privateKey: string): Promise<string> {
   const relayClient = await getRelayClient(privateKey);
 
-  // First get the expected Safe address before deploying
-  const wallet = new Wallet(privateKey, getPolygonProvider());
-  const relayPayload = await relayClient.getRelayPayload(wallet.address, 'SAFE');
-  const expectedSafeAddress = relayPayload.address;
-  console.log(`Deploying safe ${expectedSafeAddress}...`);
-
+  // SDK's deploy() computes the Safe address via local CREATE2 and logs it
   const response = await relayClient.deploy();
 
   // Poll until mined
@@ -128,9 +123,10 @@ export async function deploySafe(privateKey: string): Promise<string> {
     throw new Error('Safe deployment transaction failed or timed out');
   }
 
-  // The deployed Safe address comes from the transaction's proxyAddress field
-  // or from the relay payload address
-  const safeAddress = tx.proxyAddress || expectedSafeAddress;
+  const safeAddress = tx.proxyAddress;
+  if (!safeAddress) {
+    throw new Error('No Safe address returned from deployment');
+  }
   console.log(`Safe deployed at ${safeAddress} (tx: ${tx.transactionHash})`);
   return safeAddress;
 }
