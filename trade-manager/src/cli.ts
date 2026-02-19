@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-import { loadConfig } from './config/config.js';
+import { PACKAGE_VERSION } from './utils/packageInfo.js';
 
 const command = process.argv[2] ?? 'version';
 
-if (command === 'version') {
-  console.log('0.1.0');
+if (command === 'version' || command === '--version' || command === '-v') {
+  console.log(PACKAGE_VERSION);
 } else if (command === 'config') {
+  const { loadConfig } = await import('./config/config.js');
   console.log(JSON.stringify(loadConfig(), null, 2));
 } else if (command === 'start') {
   await import('./index.js');
@@ -14,7 +15,7 @@ if (command === 'version') {
   const result = setupService();
   if (result.installed) {
     console.log(`[trade-manager] Systemd service installed (${result.mode})`);
-    console.log('[trade-manager] Run: journalctl --user -u openclaw-trade-manager -f');
+    console.log('[trade-manager] Run: journalctl -u openclaw-trade-manager -f');
   } else {
     console.log(`[trade-manager] ${result.reason}`);
   }
@@ -28,5 +29,6 @@ if (command === 'version') {
   }
 } else {
   console.error(`Unknown command: ${command}`);
+  console.error('Usage: trade-manager [version|start|config|setup-service|remove-service]');
   process.exit(1);
 }

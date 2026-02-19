@@ -1,6 +1,6 @@
 {
   "name": "@lit-protocol/trade-manager",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
@@ -22,7 +22,7 @@
     "dashboard:dev": "vite --config dashboard/vite.config.ts",
     "dashboard:build": "vite build --config dashboard/vite.config.ts",
     "build": "npm run dashboard:build && prisma generate && tsc -p tsconfig.json",
-    "postinstall": "prisma generate && (node dist/cli.js setup-service || true)",
+    "postinstall": "prisma generate --schema prisma/schema.prisma && (node dist/cli.js setup-service || true)",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
     "start": "node dist/index.js",

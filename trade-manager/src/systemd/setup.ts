@@ -2,13 +2,8 @@ import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { PACKAGE_ROOT } from '../utils/packageInfo.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Compiled layout: dist/systemd/setup.js → package root is two levels up
-const PACKAGE_ROOT = path.resolve(__dirname, '../..');
 const CLI_PATH = path.join(PACKAGE_ROOT, 'dist', 'cli.js');
 const SERVICE_NAME = 'openclaw-trade-manager';
 

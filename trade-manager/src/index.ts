@@ -9,12 +9,17 @@ import { RuleManagerService } from './services/ruleManager.service.js';
 import { VincentClientService } from './services/vincentClient.service.js';
 import { createWorkerDependencies } from './worker/monitoringWorker.js';
 import { logger } from './utils/logger.js';
+import { PACKAGE_VERSION, PRISMA_SCHEMA_PATH } from './utils/packageInfo.js';
 
 const run = async (): Promise<void> => {
+  logger.info({ version: PACKAGE_VERSION }, 'Trade Manager starting');
+
   const config = loadConfig();
 
   if (process.env.SKIP_MIGRATIONS !== 'true') {
-    execSync('npx prisma migrate deploy', { stdio: 'inherit' });
+    execSync(`npx prisma migrate deploy --schema "${PRISMA_SCHEMA_PATH}"`, {
+      stdio: 'inherit',
+    });
   }
 
   const vincentClient = new VincentClientService(config);
