@@ -72,6 +72,8 @@ model Secret {
   auditLogs         AuditLog[]
   gasUsages         GasUsage[]
   dataSourceUsage   DataSourceUsage[]
+  tradeRules             TradeRule[]
+  tradeMonitoredPositions TradeMonitoredPosition[]
 
   @@map("secrets")
 }
@@ -494,4 +496,98 @@ model Referral {
   @@index([referrerId])
   @@index([status])
   @@map("referrals")
+}
+
+// ============================================================
+// Trade Manager Models
+// ============================================================
+
+enum TradeRuleType {
+  STOP_LOSS
+  TAKE_PROFIT
+  TRAILING_STOP
+}
+
+enum TradeRuleStatus {
+  ACTIVE
+  TRIGGERED
+  CANCELED
+  EXPIRED
+  FAILED
+}
+
+enum TradeRuleEventType {
+  RULE_CREATED
+  RULE_EVALUATED
+  RULE_TRIGGERED
+  RULE_FAILED
+  RULE_CANCELED
+  RULE_TRAILING_UPDATED
+  ACTION_ATTEMPT
+  ACTION_EXECUTED
+  ACTION_FAILED
+}
+
+model TradeRule {
+  id              String          @id @default(cuid())
+  secretId        String          @map("secret_id")
+  ruleType        TradeRuleType   @map("rule_type")
+  marketId        String          @map("market_id")
+  marketSlug      String?         @map("market_slug")
+  tokenId         String          @map("token_id")
+  side            String          @default("BUY")
+  triggerPrice    Float           @map("trigger_price")
+  trailingPercent Float?          @map("trailing_percent")
+  action          String          // JSON: { type: "SELL_ALL" } or { type: "SELL_PARTIAL", amount: N }
+  status          TradeRuleStatus @default(ACTIVE)
+  triggeredAt     DateTime?       @map("triggered_at")
+  triggerTxHash   String?         @map("trigger_tx_hash")
+  errorMessage    String?         @map("error_message")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  secret Secret         @relation(fields: [secretId], references: [id], onDelete: Cascade)
+  events TradeRuleEvent[]
+
+  @@index([secretId, status])
+  @@index([status])
+  @@index([tokenId])
+  @@map("trade_rules")
+}
+
+model TradeMonitoredPosition {
+  id            String   @id @default(cuid())
+  secretId      String   @map("secret_id")
+  marketId      String   @map("market_id")
+  marketSlug    String?  @map("market_slug")
+  tokenId       String   @map("token_id")
+  side          String
+  quantity      Float
+  avgEntryPrice Float?   @map("avg_entry_price")
+  currentPrice  Float    @map("current_price")
+  marketTitle   String?  @map("market_title")
+  outcome       String?
+  endDate       String?  @map("end_date")
+  redeemable    Boolean  @default(false)
+  lastUpdatedAt DateTime @map("last_updated_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  secret Secret @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@unique([secretId, marketId, tokenId, side])
+  @@map("trade_monitored_positions")
+}
+
+model TradeRuleEvent {
+  id        String             @id @default(cuid())
+  ruleId    String             @map("rule_id")
+  eventType TradeRuleEventType @map("event_type")
+  eventData Json               @map("event_data")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  rule TradeRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, createdAt])
+  @@map("trade_rule_events")
 }
