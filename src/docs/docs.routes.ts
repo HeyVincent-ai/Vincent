@@ -25,6 +25,6 @@ router.use(
 );
 
 router.get('/openapi.json', (_req, res) => res.json(spec));
-router.use('/', apiReference({ content: spec }));
+router.use('/', apiReference({ content: spec, pageTitle: 'HeyVincent API Reference' }));
 
 export default router;
