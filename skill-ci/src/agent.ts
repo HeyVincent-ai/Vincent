@@ -3,7 +3,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { httpRequestTool } from './tools.js';
 import type { SkillTestResult, ToolCallRecord } from './types.js';
 
-const DEFAULT_MODEL = 'google/gemini-2.5-flash';
+const DEFAULT_MODEL = 'google/gemini-3-flash-preview';
 const DEFAULT_MAX_STEPS = 15;
 
 export async function runSkillAgent(opts: {

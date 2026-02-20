@@ -7,7 +7,7 @@ Use this skill to create automated trading rules (stop-loss, take-profit, traili
 **Trade Manager is a companion to the Polymarket skill:**
 1. Use the **Polymarket skill** to browse markets and place bets
 2. Use **Trade Manager** to set automated exit rules on those positions
-3. The Trade Manager monitors prices every 15 seconds and executes trades through Vincent's Polymarket API when triggers are met
+3. The Trade Manager monitors prices **in real-time via WebSocket** (with 15-second polling as fallback) and executes trades through Vincent's Polymarket API when triggers are met
 
 **Architecture:**
 - Local daemon running on your OpenClaw VPS
@@ -160,30 +160,40 @@ curl http://localhost:19000/api/positions \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 ```
 
-Returns cached position data with current prices. This cache updates every 15 seconds.
+Returns cached position data with current prices. This cache updates in real-time via WebSocket (with 15-second polling fallback).
 
 ### 9. View Event Log (Audit Trail)
 
 See detailed history of rule evaluations and executions:
 
 ```bash
-# All events
+# All events (most recent first, default limit=100)
 curl http://localhost:19000/api/events \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 
 # Events for specific rule
 curl 'http://localhost:19000/api/events?ruleId=<rule-id>' \
   -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+
+# Paginated results (limit 1-1000, offset for paging)
+curl 'http://localhost:19000/api/events?ruleId=<rule-id>&limit=50&offset=100' \
+  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
 ```
 
 **Event types:**
 - `RULE_CREATED` - Rule was created
 - `RULE_TRAILING_UPDATED` - Trailing stop moved triggerPrice upward
-- `RULE_EVALUATED` - Worker checked the rule (happens every poll)
+- `RULE_EVALUATED` - Worker checked the rule against current price
 - `RULE_TRIGGERED` - Trigger condition was met
 - `ACTION_EXECUTED` - Trade executed successfully
 - `ACTION_FAILED` - Trade execution failed
 - `RULE_CANCELED` - Rule was manually canceled
+
+Each event includes a `data` object (parsed JSON) with fields relevant to the event type:
+- `currentPrice` - Price at time of evaluation
+- `triggerPrice` - The rule's trigger threshold
+- `shouldTrigger` - Whether the condition was met
+- `source` - `"websocket"` for real-time WebSocket updates, absent for polling-based evaluations
 
 ## Complete Workflow: Polymarket + Trade Manager
 
@@ -255,7 +265,7 @@ curl http://localhost:19000/api/events \
 
 ### What Happens When a Rule Triggers
 
-1. **Worker detects trigger:** Every 15 seconds, the background worker checks all active rules against current prices
+1. **Worker detects trigger:** The background worker checks all active rules against current prices in real-time via WebSocket (with 15-second polling as fallback)
 2. **Rule marked as triggered:** Status changes from `ACTIVE` to `TRIGGERED` atomically (prevents double-execution)
 3. **Trade executes:** Calls Vincent Polymarket API to place a market sell order
 4. **Events logged:** Creates `RULE_TRIGGERED` and `ACTION_EXECUTED` events
@@ -274,10 +284,10 @@ curl http://localhost:19000/api/events \
 ## Background Worker
 
 The Trade Manager runs a background worker that:
-- Polls every 15 seconds (configurable)
+- Monitors prices in real-time via Polymarket WebSocket feed
+- Falls back to HTTP polling every 15 seconds if WebSocket is unavailable
 - Fetches current positions from Vincent Polymarket API
-- Fetches current prices for all markets with active rules
-- Evaluates each rule against current price
+- Evaluates each rule against current price on every update
 - Executes trades when conditions are met
 - Logs all evaluations and actions
 
@@ -338,7 +348,6 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>'
 - Only supports `SELL_ALL` action (no partial sells yet)
 - No time-based triggers (coming in v2)
 - No Telegram notifications yet (manual event log checking)
-- Polling interval is 15 seconds (not real-time)
 
 ## Example User Prompts
 
@@ -393,7 +402,7 @@ Cancel a rule. Changes status to "CANCELED".
 Get monitored positions (cached, updated every 15s).
 
 ### GET /api/events
-Get event log. Optional query param: `?ruleId=<id>`
+Get event log. Query params: `?ruleId=<id>&limit=100&offset=0` (limit: 1-1000, default 100)
 
 ### GET /health
 Health check. Returns `{"status":"ok","version":"0.1.0"}`

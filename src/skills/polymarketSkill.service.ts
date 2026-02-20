@@ -54,10 +54,13 @@ export interface BetOutput {
   orderDetails?: any;
 }
 
-export interface PositionsOutput {
+export interface OpenOrdersOutput {
   walletAddress: string;
   openOrders: polymarket.OpenOrder[];
 }
+
+/** @deprecated Use OpenOrdersOutput instead */
+export type PositionsOutput = OpenOrdersOutput;
 
 export interface MarketInfoOutput {
   market: any;
@@ -283,10 +286,10 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
 }
 
 // ============================================================
-// Positions
+// Open Orders
 // ============================================================
 
-export async function getPositions(secretId: string, market?: string): Promise<PositionsOutput> {
+export async function getOpenOrders(secretId: string, market?: string): Promise<OpenOrdersOutput> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
 
@@ -297,6 +300,9 @@ export async function getPositions(secretId: string, market?: string): Promise<P
     openOrders,
   };
 }
+
+/** @deprecated Use getOpenOrders instead */
+export const getPositions = getOpenOrders;
 
 // ============================================================
 // Market Info
@@ -347,7 +353,10 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
     walletAddress: wallet.walletAddress,
     collateral: {
       balance: toHuman(collateral.balance),
-      allowance: toHuman(collateral.allowance),
+      allowance:
+        collateral.allowance != null && collateral.allowance !== ''
+          ? toHuman(collateral.allowance)
+          : 'unknown',
     },
   };
 }

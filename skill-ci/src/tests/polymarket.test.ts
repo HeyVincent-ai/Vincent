@@ -14,10 +14,13 @@ describe('Skill: polymarket', () => {
     const result = await runSkillAgent({
       skillContent,
       baseUrl: BASE_URL,
-      task: `Follow the skill instructions to:
-1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test polymarket wallet")
-2. Use the returned API key to search for active markets about "bitcoin"
-Report the API key, wallet address, and the first market found (question and prices).`,
+      task: `Follow the skill instructions. You MUST make exactly these HTTP requests in order:
+
+Step 1: POST to /api/secrets with body {"type": "POLYMARKET_WALLET", "memo": "CI test polymarket wallet"} to create a wallet.
+
+Step 2: Parse the JSON response from Step 1 to extract the API key from data.apiKey.key. Then make a GET request to /api/skills/polymarket/markets?query=bitcoin&limit=5 with the header "Authorization: Bearer <API_KEY>" (replacing <API_KEY> with the actual key from Step 1).
+
+You MUST make both HTTP requests. Report the API key, wallet address, and the first market found.`,
     });
 
     expect(result.error).toBeUndefined();
@@ -56,10 +59,13 @@ Report the API key, wallet address, and the first market found (question and pri
     const result = await runSkillAgent({
       skillContent,
       baseUrl: BASE_URL,
-      task: `Follow the skill instructions to:
-1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test holdings check")
-2. Use the returned API key to check your holdings using GET /api/skills/polymarket/holdings
-Report the API key and the holdings response (it should be an empty array since the wallet has no positions yet).`,
+      task: `Follow the skill instructions. You MUST make exactly these HTTP requests in order:
+
+Step 1: POST to /api/secrets with body {"type": "POLYMARKET_WALLET", "memo": "CI test holdings check"} to create a wallet.
+
+Step 2: Parse the JSON response from Step 1 to extract the API key from data.apiKey.key. Then make a GET request to /api/skills/polymarket/holdings with the header "Authorization: Bearer <API_KEY>" (replacing <API_KEY> with the actual key from Step 1).
+
+You MUST make both HTTP requests. Report the API key and the holdings response.`,
     });
 
     expect(result.error).toBeUndefined();

@@ -21,6 +21,48 @@ const getPolymarketUrl = (slug: string): string => `https://polymarket.com/event
 
 const shortId = (value: string, keep = 10): string => `${value.slice(0, keep)}...`;
 
+const friendlyRuleType = (ruleType: string): string => {
+  switch (ruleType) {
+    case 'TRAILING_STOP':
+      return 'Trailing Stop';
+    case 'STOP_LOSS':
+      return 'Stop Loss';
+    case 'TAKE_PROFIT':
+      return 'Take Profit';
+    default:
+      return ruleType;
+  }
+};
+
+const friendlyAction = (actionJson: string): string => {
+  try {
+    const action = JSON.parse(actionJson);
+    switch (action?.type) {
+      case 'SELL_ALL':
+        return 'Sell All';
+      case 'BUY':
+        return `Buy${action.amount ? ` $${action.amount}` : ''}`;
+      default:
+        return action?.type ?? actionJson;
+    }
+  } catch {
+    return actionJson;
+  }
+};
+
+const triggerLabel = (ruleType: string): string => {
+  switch (ruleType) {
+    case 'TAKE_PROFIT':
+      return 'Target';
+    case 'TRAILING_STOP':
+      return 'Stop Price';
+    case 'STOP_LOSS':
+      return 'Stop Price';
+    default:
+      return 'Trigger';
+  }
+};
+
 const timeAgo = (value?: string | null): string => {
   if (!value) return 'Never';
   const diffSeconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -237,7 +279,11 @@ export function App(): JSX.Element {
                           <div className="flex flex-wrap gap-2">
                             {linkedRules.map((rule) => (
                               <Badge key={rule.id} variant="outline">
-                                {rule.ruleType} {rule.action} @ {rule.triggerPrice.toFixed(3)}
+                                {friendlyRuleType(rule.ruleType)}: {friendlyAction(rule.action)} @{' '}
+                                {rule.triggerPrice.toFixed(3)}
+                                {rule.ruleType === 'TRAILING_STOP' && rule.trailingPercent
+                                  ? ` (${rule.trailingPercent}% trail)`
+                                  : ''}
                               </Badge>
                             ))}
                           </div>
@@ -283,13 +329,20 @@ export function App(): JSX.Element {
                   trades.slice(0, 30).map((trade) => (
                     <div key={trade.id} className="rounded-md border p-3 text-sm">
                       <div className="flex items-center justify-between gap-2">
-                        <Badge variant="success">{trade.ruleType}</Badge>
+                        <Badge variant="success">{friendlyRuleType(trade.ruleType)}</Badge>
                         <span className="text-xs text-muted-foreground">
                           {new Date(trade.timestamp).toLocaleString()}
                         </span>
                       </div>
                       <div className="mt-2 text-xs text-muted-foreground">
-                        {trade.side} @ {trade.triggerPrice.toFixed(3)} • {shortId(trade.marketId)}
+                        <span className="font-medium text-foreground">
+                          {trade.tradeSide ?? trade.side}
+                        </span>{' '}
+                        @{' '}
+                        {trade.price != null
+                          ? trade.price.toFixed(3)
+                          : trade.triggerPrice.toFixed(3)}{' '}
+                        • {shortId(trade.marketId)}
                       </div>
                     </div>
                   ))
@@ -300,14 +353,12 @@ export function App(): JSX.Element {
                 events.slice(0, 30).map((event) => (
                   <div key={event.id} className="rounded-md border p-3 text-sm">
                     <div className="flex items-center justify-between gap-2">
-                      <Badge variant="outline">{event.eventType}</Badge>
+                      <Badge variant="outline">{event.eventType.replace(/_/g, ' ')}</Badge>
                       <span className="text-xs text-muted-foreground">
                         {new Date(event.createdAt).toLocaleString()}
                       </span>
                     </div>
-                    <pre className="mt-2 max-h-20 overflow-auto whitespace-pre-wrap break-all text-xs text-muted-foreground">
-                      {event.eventData}
-                    </pre>
+                    <EventDataSummary data={event.data} eventType={event.eventType} />
                   </div>
                 ))
               )}
@@ -334,7 +385,7 @@ export function App(): JSX.Element {
                         <Badge variant={rule.status === 'ACTIVE' ? 'success' : 'outline'}>
                           {rule.status}
                         </Badge>
-                        <span className="font-medium">{rule.ruleType}</span>
+                        <span className="font-medium">{friendlyRuleType(rule.ruleType)}</span>
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {new Date(rule.createdAt).toLocaleDateString()}
@@ -342,9 +393,15 @@ export function App(): JSX.Element {
                     </div>
                     <div className="mt-2 grid gap-2 text-xs text-muted-foreground sm:grid-cols-4">
                       <span>Market: {shortId(rule.marketId)}</span>
-                      <span>Token: {shortId(rule.tokenId)}</span>
-                      <span>Action: {rule.action}</span>
-                      <span>Trigger: {rule.triggerPrice.toFixed(3)}</span>
+                      <span>Action: {friendlyAction(rule.action)}</span>
+                      <span>
+                        {triggerLabel(rule.ruleType)}: {rule.triggerPrice.toFixed(3)}
+                      </span>
+                      {rule.ruleType === 'TRAILING_STOP' && rule.trailingPercent ? (
+                        <span>Trail: {rule.trailingPercent}%</span>
+                      ) : (
+                        <span>Token: {shortId(rule.tokenId)}</span>
+                      )}
                     </div>
                     {rule.errorMessage ? (
                       <div className="mt-2 rounded border border-red-500/30 bg-red-500/10 p-2 text-xs text-red-300">
@@ -425,4 +482,56 @@ function LabeledValue({
       <div className="text-sm">{value}</div>
     </div>
   );
+}
+
+function EventDataSummary({
+  data,
+  eventType,
+}: {
+  data: Record<string, unknown>;
+  eventType: string;
+}): JSX.Element | null {
+  if (!data || Object.keys(data).length === 0) return null;
+
+  const d = data as Record<string, any>;
+
+  if (eventType === 'RULE_EVALUATED' || eventType === 'RULE_TRAILING_UPDATED') {
+    const parts: string[] = [];
+    if (d.currentPrice != null) parts.push(`Price: ${Number(d.currentPrice).toFixed(4)}`);
+    if (d.triggerPrice != null) parts.push(`Stop: ${Number(d.triggerPrice).toFixed(4)}`);
+    if (d.oldTriggerPrice != null && d.newTriggerPrice != null)
+      parts.push(
+        `${Number(d.oldTriggerPrice).toFixed(4)} → ${Number(d.newTriggerPrice).toFixed(4)}`
+      );
+    if (d.trailingPercent != null) parts.push(`Trail: ${d.trailingPercent}%`);
+    if (d.triggered != null) parts.push(d.triggered ? 'Triggered ✓' : '');
+    return parts.length > 0 ? (
+      <div className="mt-2 text-xs text-muted-foreground">{parts.filter(Boolean).join(' • ')}</div>
+    ) : null;
+  }
+
+  if (eventType === 'ACTION_EXECUTED' || eventType === 'ACTION_ATTEMPT') {
+    const result = d.result ?? d;
+    const parts: string[] = [];
+    if (result.status) parts.push(result.status);
+    if (result.price != null) parts.push(`Price: ${Number(result.price).toFixed(4)}`);
+    if (result.amount != null) parts.push(`Amount: ${result.amount}`);
+    if (result.orderId) parts.push(`Order: ${shortId(String(result.orderId), 8)}`);
+    return parts.length > 0 ? (
+      <div className="mt-2 text-xs text-muted-foreground">{parts.join(' • ')}</div>
+    ) : null;
+  }
+
+  if (eventType === 'ACTION_FAILED' || eventType === 'RULE_FAILED') {
+    const msg = d.error ?? d.message ?? d.reason;
+    return msg ? <div className="mt-2 text-xs text-red-400">{String(msg)}</div> : null;
+  }
+
+  const simple = Object.entries(data)
+    .filter(([, v]) => v != null && typeof v !== 'object')
+    .map(([k, v]) => `${k}: ${v}`)
+    .slice(0, 4);
+  return simple.length > 0 ? (
+    <div className="mt-2 text-xs text-muted-foreground">{simple.join(' • ')}</div>
+  ) : null;
 }

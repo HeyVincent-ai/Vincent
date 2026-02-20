@@ -64,7 +64,7 @@ Follow this workflow to test both skills working together:
 ### Phase 2: Test Polymarket Skill
 
 1. Check your Polymarket wallet balance
-2. Search for the active "Bitcoin Up or Down - 5 min" market
+2. Search for the active "Bitcoin Up or Down - 5 min" market. Use the current active market so the test doesn't take forever to run, which would happen if you chose a 5 minute market in the future.
 3. Place a $2 test bet on UP outcome. You should have enough funds - let me know if you need more.
 
 ### Phase 3: Test Trade Manager Skill

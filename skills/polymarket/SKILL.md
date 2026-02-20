@@ -14,7 +14,7 @@ metadata:
 
 # Vincent - Polymarket for agents
 
-Use this skill to create a Polymarket wallet for your agent and trade on prediction markets. Browse markets, place bets, track positions, and manage orders — all without exposing private keys to the agent. Wallets use Gnosis Safe on Polygon with gasless trading through Polymarket's relayer.
+Use this skill to create a Polymarket wallet for your agent and trade on prediction markets. Browse markets, place bets, track holdings, and manage orders — all without exposing private keys to the agent. Wallets use Gnosis Safe on Polygon with gasless trading through Polymarket's relayer.
 
 **The agent never sees the private key.** All operations are executed server-side. The agent receives a scoped API key that can only perform actions permitted by the wallet owner's policies. The private key never leaves the Vincent server.
 
@@ -236,15 +236,15 @@ Parameters:
 
 If a trade violates a policy, the server returns an error explaining which policy was triggered. If a trade requires human approval (based on the approval threshold policy), the server returns `status: "pending_approval"` and the wallet owner receives a Telegram notification to approve or deny.
 
-### 8. View Holdings, Positions & Orders
+### 7. View Holdings, Open Orders & Trades
 
 ```bash
-# Get current holdings with P&L (recommended)
+# Get current holdings with P&L (recommended for viewing positions)
 curl -X GET "https://heyvincent.ai/api/skills/polymarket/holdings" \
   -H "Authorization: Bearer <API_KEY>"
 
-# Get open orders
-curl -X GET "https://heyvincent.ai/api/skills/polymarket/positions" \
+# Get open orders (unfilled limit orders in the order book)
+curl -X GET "https://heyvincent.ai/api/skills/polymarket/open-orders" \
   -H "Authorization: Bearer <API_KEY>"
 
 # Get trade history
@@ -282,7 +282,7 @@ This is the best endpoint for:
 - Calculating total portfolio value and performance
 - Showing the user their active bets
 
-**Positions endpoint** returns open limit orders (unfilled orders waiting in the order book).
+**Open Orders endpoint** returns unfilled limit orders waiting in the order book. Filter by market with `?market=<CONDITION_ID>`.
 
 **Trades endpoint** returns historical trade activity.
 
@@ -411,7 +411,8 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
    ```bash
    # Search by keyword - returns only active, tradeable markets
-   GET /api/skills/polymarket/markets?query=bitcoin&active=true
+   # Tip: use short keyword phrases; stop-words like "or" can cause empty results
+   GET /api/skills/polymarket/markets?query=bitcoin+up+down&active=true
 
    # Or search by slug from a Polymarket URL
    GET /api/skills/polymarket/markets?slug=btc-updown-5m-1771380900
