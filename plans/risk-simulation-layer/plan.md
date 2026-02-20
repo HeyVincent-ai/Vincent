@@ -6,11 +6,26 @@ Vincent is a secure secret management service for AI agents with trading capabil
 
 These two features transform Vincent from a per-transaction gatekeeper into a portfolio-aware risk engine with constrained autonomy — "the Stripe Radar for agentic trading."
 
+### Lessons from Stripe Radar
+
+Stripe Radar assesses 1,000+ characteristics per transaction in sub-100ms with a 0.1% false positive rate. Five architectural principles from Radar inform this design:
+
+1. **Single composite score, not a bag of metrics.** Radar produces one fraud score. We produce one `riskScore` (0-100) that collapses concentration, correlation, volatility, and behavioral signals into a single number. Escalation tiers map directly to score ranges. Individual signal contributions are preserved for explainability but the score is what drives decisions.
+
+2. **Explainability is a product feature, not a debugging tool.** Radar's "Risk Insights" shows users *which* signals drove a block — name-to-email mismatch, card-to-IP frequency, etc. Every simulation result includes a `signalContributions` array showing what raised or lowered the score (e.g. "concentration: +35, low volatility: -10, stablecoin position: -5"). Users see *why*, not just *what*.
+
+3. **Graduated response: block OR divert to additional checks.** Radar doesn't just allow/deny — it routes borderline transactions to 3D Secure. Our equivalent is the SOFT_BLOCK tier: the trade isn't denied, it's queued for human approval. The system says "I'm not sure" rather than pretending certainty.
+
+4. **Feedback loops make the system smarter.** When a user approves a SOFT_BLOCK, that's signal that thresholds may be too aggressive. When a user denies, that validates the system. We track override rates per secret and surface threshold tuning suggestions when false positive rates exceed 20%.
+
+5. **Network-level signals beat per-entity analysis.** Radar's biggest advantage is cross-merchant pattern detection. Our equivalent: cross-secret correlation within the same user. If a user has 3 wallets all buying the same token simultaneously, that's a concentration signal invisible to per-secret analysis.
+
 ### Design Decisions
 - **Always-on by default, server-side:** The simulation runs automatically on Vincent's backend before every trade. The agent-facing API is unchanged — agents send the same requests they always have. The risk layer is invisible infrastructure, not an agent-side concern.
 - **Opt-out available:** Users can disable the risk simulation for any secret via `PUT /api/secrets/:secretId/risk/settings` with `{ simulationEnabled: false }`. A per-secret `simulationEnabled` flag (default `true`) controls this. When disabled, trades go through the existing policy checker only — no portfolio snapshot, no simulation, no escalation. The opt-out is stored on a new `RiskSettings` model so it persists and is visible in the dashboard.
 - **Full portfolio from day one:** Both EVM (Alchemy) and Polymarket positions are included in the portfolio snapshot from Phase 1. No blind spots.
 - **Portfolio snapshot caching:** If a snapshot was fetched within the last 60 seconds, reuse it. This keeps latency at ~50ms for rapid sequential trades while guaranteeing coverage.
+- **Latency budget: <100ms p99 for cached snapshots.** The risk check runs in the hot path of every trade. Portfolio snapshot fetch is the expensive operation (~500ms); the cache ensures subsequent trades in a 60s window add <50ms. Simulation + scoring + signing are pure computation (~5ms). We instrument `simulationMs` on every report to track drift.
 
 ---
 
@@ -95,6 +110,11 @@ export interface PortfolioPosition {
 ```typescript
 // src/risk/metrics.service.ts
 export interface RiskMetrics {
+  // Composite score: 0-100, higher = more risky. Drives escalation tiers directly.
+  riskScore: number;
+  signalContributions: SignalContribution[];  // What raised/lowered the score
+
+  // Individual metrics (inputs to the score)
   largestPositionPct: number;
   largestPositionAsset: string;
   top3ConcentrationPct: number;
@@ -107,12 +127,36 @@ export interface RiskMetrics {
   liquidationDistance: number | null; // null until Hyperliquid integration
   leverageRatio: number | null;      // null until Hyperliquid integration
 }
+
+// Explainability: each signal's contribution to the composite riskScore
+export interface SignalContribution {
+  signal: string;    // e.g. "concentration", "volatility", "correlation", "trade_size"
+  value: number;     // The raw metric value
+  points: number;    // How many points this added (+) or subtracted (-) from riskScore
+  label: string;     // Human-readable explanation, e.g. "ETH is 42% of portfolio (+35)"
+}
 ```
+
+### Risk Score Computation
+
+The composite `riskScore` (0-100) is a weighted sum of individual signal scores, clamped to [0, 100]:
+
+| Signal | Weight | Logic |
+|--------|--------|-------|
+| Concentration | 35 | `min(35, largestPositionPct * 0.7)` — 50% position = 35 points |
+| Correlation | 15 | `correlationScore * 15` — fully correlated = 15 points |
+| Trade size | 20 | `min(20, tradeAsPercentOfPortfolio * 0.4)` — 50% of portfolio trade = 20 points |
+| Volatility | 20 | `min(20, (annualizedVol / 200) * 20)` — 200% vol = 20 points |
+| Leverage | 10 | `min(10, (leverageRatio ?? 1 - 1) * 5)` — 3x leverage = 10 points |
+
+Score ranges map to default escalation tiers: 0-25 INFO, 25-50 WARN, 50-70 SOFT_BLOCK, 70-90 HARD_BLOCK, 90+ SAFE_MODE.
+
+Weights are hardcoded in Phase 1. Future: user-configurable via `RiskSettings`.
 
 ### Implementation Notes
 
 - `buildPortfolioSnapshot()` reuses existing `alchemyService` for EVM balances and `polymarketSkill.getHoldings()` for Polymarket — no new external dependencies
-- `computeRiskMetrics()` is a pure function (easy to unit test)
+- `computeRiskMetrics()` is a pure function (easy to unit test). Returns both the score and the signal contributions that explain it.
 - Correlation score is simplified in Phase 1: crypto-crypto = 0.6, stables = 0, same-chain bonus = +0.1
 - Portfolio snapshot cache: in-memory `Map<secretId, { snapshot, fetchedAt }>` with TTL from `RiskSettings.snapshotCacheTtlSeconds` (default 60s)
 
@@ -172,6 +216,27 @@ export function signReport(reportHash: string): SignedReport              // HMA
 export function verifyReport(hash: string, sig: string, ts: string): boolean
 ```
 
+### SimulationResult Shape
+
+The simulation result is the core data object — it's what gets signed, stored, and surfaced to users:
+
+```typescript
+export interface SimulationResult {
+  secretId: string;
+  actionData: { asset: string; amountUsd: number; direction: 'buy' | 'sell'; actionType: string };
+  portfolioBefore: PortfolioSnapshot;
+  portfolioAfter: PortfolioSnapshot;
+  riskMetrics: RiskMetrics;          // Includes riskScore + signalContributions
+  verdict: 'pass' | 'warn' | 'block';
+  warnings: string[];
+  reportHash: string;
+  reportSignature?: string;
+  simulationMs: number;              // Latency tracking — alerts if >100ms
+}
+```
+
+The `signalContributions` inside `riskMetrics` are the explainability layer. When a user sees "Trade blocked (risk score: 78)", they can drill into: "concentration: ETH is 45% of portfolio (+32), trade size: $5,000 is 30% of portfolio (+12), volatility: ETH at 150% annualized (+15), correlation: 3 same-chain positions (+10), stablecoin buffer: USDC position (-5)".
+
 ### Signing Design
 - Canonical JSON (sorted keys) -> SHA-256 -> HMAC-SHA256 with `REPORT_SIGNING_KEY` env var
 - Signature covers `hash + "|" + timestamp` to prevent replay
@@ -181,6 +246,7 @@ export function verifyReport(hash: string, sig: string, ts: string): boolean
 - Unit test simulation with known portfolio + trade -> assert post-trade state is correct
 - Unit test signing roundtrip: sign -> verify = true, tamper -> verify = false
 - Integration test `POST /risk/simulate` returns signed report with expected shape
+- Verify `signalContributions` array is non-empty and contributions sum to `riskScore`
 
 ---
 
@@ -339,17 +405,19 @@ Add `safeMode SafeMode?` and `escalationEvents EscalationEvent[]` relations to `
 | `src/api/routes/escalation.routes.ts` | Escalation event listing + resolution |
 | `src/api/routes/safeMode.routes.ts` | Safe mode activate/deactivate/status |
 
-### Escalation Tiers (Default Thresholds)
+### Escalation Tiers (Driven by Risk Score)
 
-| Tier | Trigger | Action | Notification |
-|------|---------|--------|-------------|
-| INFO | All metrics within bounds | Log, trade proceeds | None |
-| WARN | Single position >20% or vol >80% annualized | Trade proceeds | Telegram info message |
-| SOFT_BLOCK | Position >35% or vol >120% or daily spend >80% of limit | Queue for human approval | Telegram Approve/Deny |
-| HARD_BLOCK | Position >50% or simulation verdict=block | Trade denied | Telegram alert |
-| SAFE_MODE | 3+ HARD_BLOCKs in 1hr, or manual trigger | All trades restricted | Telegram + SafeMode activated |
+Tiers map directly to the composite `riskScore` from the metrics engine:
 
-Thresholds are configurable via risk policies; these are fallback defaults.
+| Tier | Risk Score | Action | Notification |
+|------|-----------|--------|-------------|
+| INFO | 0-25 | Log, trade proceeds | None |
+| WARN | 25-50 | Trade proceeds | Telegram info message with signal breakdown |
+| SOFT_BLOCK | 50-70 | Queue for human approval | Telegram Approve/Deny with Risk Insights |
+| HARD_BLOCK | 70-90 | Trade denied | Telegram alert with full signal breakdown |
+| SAFE_MODE | 90+ or 3+ HARD_BLOCKs in 1hr | All trades restricted | Telegram + SafeMode activated |
+
+Score thresholds are configurable via `RiskSettings`. The signal contributions are included in every Telegram notification so users see *why*, not just *what* (following the Stripe Risk Insights pattern).
 
 ### Safe Mode Restrictions
 
@@ -365,10 +433,50 @@ export interface SafeModeRestrictions {
 - **Activation:** Automatic (3+ HARD_BLOCKs in 1hr) or manual (API/Telegram `/safemode`)
 - **Deactivation:** Manual only. Never auto-deactivates. Human must explicitly decide.
 
+### Feedback Loop: Learning from Overrides
+
+When a user approves a SOFT_BLOCK (overrides the system), that's signal. When they deny, the system was right.
+
+```typescript
+// Tracked on EscalationEvent when resolved
+export interface EscalationOutcome {
+  overridden: boolean;           // User approved despite SOFT_BLOCK/HARD_BLOCK
+  tradeOutcome?: 'profitable' | 'loss' | 'neutral';  // From post-trade PnL (future)
+}
+```
+
+**Phase 4 scope:**
+- Track override rate per secret: `overrides / total_escalations` over rolling 30-day window
+- Surface in `GET /api/secrets/:secretId/risk/settings` response: `{ overrideRate: 0.35, suggestion: "Your SOFT_BLOCK threshold may be too aggressive — 35% of flagged trades were approved" }`
+- No automatic threshold adjustment yet — just visibility. Users decide whether to tune.
+
+**Future (not in scope):** Auto-tune score thresholds based on override rates. When override rate > 30% for 2+ weeks, suggest specific threshold changes.
+
+### Cross-Secret Correlation (Same User)
+
+Stripe's biggest edge is network-level pattern detection across merchants. Our equivalent: detecting correlated behavior across a single user's multiple secrets.
+
+**Phase 4 scope:**
+- When running `preTradeCheck`, if the user owns multiple secrets with `simulationEnabled`, fetch cached snapshots for all of them
+- Compute `crossSecretConcentration`: aggregate exposure to the same asset across all user wallets. If Secret A has 20% ETH and Secret B has 25% ETH, the user's *total* ETH exposure is higher than either secret sees alone
+- Add `crossSecretExposure` as a signal contribution (+0-15 points) to the risk score
+- This is a pure read — no writes to other secrets' data, no cross-secret side effects
+
+```typescript
+// Added to RiskMetrics
+crossSecretExposure?: {
+  asset: string;
+  totalAcrossSecrets: number;  // Combined % across all user's portfolios
+  thisSecretPct: number;       // This secret's contribution
+  otherSecretsPct: number;     // Sum from other secrets
+};
+```
+
 ### Files Modified
 
 - **`src/risk/preTradeHook.service.ts`** — Add safe mode check at top of `preTradeCheck()`, add escalation evaluation after simulation
-- **`src/telegram/bot.ts`** — Add `/safemode` and `/risk` commands; extend `formatApprovalMessage()` with risk warnings
+- **`src/risk/metrics.service.ts`** — Add `crossSecretExposure` signal, accept optional `otherSnapshots` parameter
+- **`src/telegram/bot.ts`** — Add `/safemode` and `/risk` commands; extend `formatApprovalMessage()` with risk signal breakdown
 - **`src/api/routes/index.ts`** — Mount escalation + safe mode routes
 
 ### New Endpoints
@@ -382,11 +490,13 @@ POST /api/secrets/:secretId/safe-mode/deactivate           — Deactivate (sessi
 ```
 
 ### Verification
-- Unit test escalation tier selection with various risk metric combinations
+- Unit test escalation tier selection with various risk score ranges
 - Unit test safe mode restrictions block unauthorized action types
 - Integration test: trigger 3 HARD_BLOCKs -> verify safe mode auto-activates
 - Integration test: activate safe mode -> attempt swap -> expect deny
 - Integration test: deactivate safe mode -> attempt swap -> expect allow
+- Unit test feedback loop: resolve SOFT_BLOCK with override -> verify override rate updates
+- Unit test cross-secret correlation: two secrets with 25% ETH each -> crossSecretExposure shows 50% total
 
 ---
 
@@ -466,7 +576,21 @@ model VolatilitySnapshot {
 | `src/services/policy.service.ts` | 3 | Add 5 new Zod schemas + config types |
 | `src/skills/evmWallet.service.ts` | 3 | Replace `checkPolicies()` with `preTradeCheck()` in 4 functions (~4 line changes each) |
 | `src/skills/polymarketSkill.service.ts` | 3 | Replace `checkPolicies()` in `placeBet()` (~4 line change) |
-| `src/telegram/bot.ts` | 4 | Add `/safemode` + `/risk` commands (~60 lines) |
+| `src/telegram/bot.ts` | 4 | Add `/safemode` + `/risk` commands; risk signal breakdown in approval messages (~80 lines) |
 | `src/api/routes/index.ts` | 1-5 | Mount new routers (4 lines) |
 | `src/index.ts` | 5 | Start/stop volatility worker (3 lines) |
 | `src/utils/env.ts` | 2,5 | Add REPORT_SIGNING_KEY + VOLATILITY_POLL_INTERVAL_MS |
+
+## Design Principles (from Stripe Radar)
+
+These principles should guide implementation decisions throughout all phases:
+
+1. **Score first, explain second.** Every decision flows from the composite `riskScore`. Individual metrics exist to *explain* the score, not to independently trigger actions. This prevents the "too many knobs" problem where 10 independent thresholds create unpredictable interactions.
+
+2. **False positives are a product bug.** Track override rate. If users are approving >20% of SOFT_BLOCKs, the system is crying wolf. Surface this data in the dashboard so users can tune thresholds.
+
+3. **Explainability builds trust.** Every block/warn includes the signal breakdown. Users should never wonder "why was my trade blocked?" — the answer is always visible in the Telegram message and API response.
+
+4. **Latency is a feature constraint.** The risk check is in the hot path. If it adds >100ms (p99, cached), it's a bug. Instrument `simulationMs` and alert on drift. The 60s snapshot cache is the primary latency lever.
+
+5. **Start simple, add signals.** Phase 1 ships with 5 signals and hardcoded weights. The architecture supports adding signals without changing the scoring interface. New signals are just new entries in `signalContributions` — the score computation is a weighted sum.
