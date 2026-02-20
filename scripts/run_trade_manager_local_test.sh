@@ -1,11 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-TRADE_MANAGER_DIR="$REPO_ROOT/trade-manager"
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
-LOG_DIR="$TRADE_MANAGER_DIR/testRunLogs/$TIMESTAMP"
+LOG_DIR="$REPO_ROOT/trade-manager/testRunLogs/$TIMESTAMP"
 mkdir -p "$LOG_DIR"
 
 echo "=== Test Run: $TIMESTAMP ==="
@@ -58,8 +57,8 @@ wait_for_endpoint() {
   return 0
 }
 
-# --- Step 1: Start Vincent backend ---
-echo "[1/4] Starting Vincent backend (npm run dev:all from repo root)..."
+# --- Step 1: Start Vincent backend (includes Trade Manager worker) ---
+echo "[1/2] Starting Vincent backend (npm run dev:all from repo root)..."
 cd "$REPO_ROOT"
 npm run dev:all > "$LOG_DIR/vincentBackend.log" 2>&1 &
 VINCENT_PID=$!
@@ -67,25 +66,9 @@ PIDS+=($VINCENT_PID)
 echo "  PID: $VINCENT_PID"
 wait_for_endpoint "http://localhost:3000" "Vincent backend"
 
-# --- Step 2: Remove old test database ---
+# --- Step 2: Run Claude agent test ---
 echo ""
-echo "[2/4] Removing old test database..."
-rm -f /tmp/trade-manager-test.db
-echo "  Done"
-
-# --- Step 3: Start Trade Manager ---
-echo ""
-echo "[3/4] Starting Trade Manager (npm run dev:all from trade-manager/)..."
-cd "$TRADE_MANAGER_DIR"
-npm run dev:all > "$LOG_DIR/tradeManager.log" 2>&1 &
-TM_PID=$!
-PIDS+=($TM_PID)
-echo "  PID: $TM_PID"
-wait_for_endpoint "http://localhost:19000/health" "Trade Manager"
-
-# --- Step 4: Run Claude agent test ---
-echo ""
-echo "[4/4] Running Claude agent test..."
+echo "[2/2] Running Claude agent test..."
 echo "  Logging to: $LOG_DIR/agent.log"
 echo "  (stream-json format with full tool calls + thinking)"
 echo ""
@@ -107,5 +90,4 @@ echo ""
 echo "=== Test run complete (agent exit code: $AGENT_EXIT) ==="
 echo "Logs:"
 echo "  Vincent backend: $LOG_DIR/vincentBackend.log"
-echo "  Trade Manager:   $LOG_DIR/tradeManager.log"
 echo "  Agent output:    $LOG_DIR/agent.log"
