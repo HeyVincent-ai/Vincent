@@ -1,4 +1,5 @@
 import { type Hex } from 'viem';
+import { Prisma } from '@prisma/client';
 import prisma from '../db/client.js';
 import { AppError } from '../api/middleware/errorHandler.js';
 import { checkPolicies, type PolicyCheckAction } from '../policies/checker.js';
@@ -51,7 +52,7 @@ export interface BetOutput {
   transactionLogId: string;
   walletAddress: string;
   reason?: string;
-  orderDetails?: any;
+  orderDetails?: unknown;
 }
 
 export interface OpenOrdersOutput {
@@ -63,7 +64,7 @@ export interface OpenOrdersOutput {
 export type PositionsOutput = OpenOrdersOutput;
 
 export interface MarketInfoOutput {
-  market: any;
+  market: unknown;
 }
 
 export interface PolymarketBalanceOutput {
@@ -193,7 +194,7 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
       safeAddress: wallet.safeAddress,
     };
     const Side = await polymarket.getSide();
-    let orderResult: any;
+    let orderResult: unknown;
 
     if (price !== undefined) {
       // Limit order
@@ -227,16 +228,18 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
       });
     }
 
+    const orderRecord = orderResult as Record<string, unknown> | undefined;
+
     await prisma.transactionLog.update({
       where: { id: txLog.id },
       data: {
         status: 'EXECUTED',
-        responseData: orderResult,
+        responseData: orderResult as Prisma.InputJsonValue,
       },
     });
 
     return {
-      orderId: orderResult?.orderID,
+      orderId: orderRecord?.orderID as string | undefined,
       status: 'executed',
       transactionLogId: txLog.id,
       walletAddress: wallet.walletAddress,
@@ -365,13 +368,13 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 // Order Management
 // ============================================================
 
-export async function cancelOrder(secretId: string, orderId: string): Promise<any> {
+export async function cancelOrder(secretId: string, orderId: string): Promise<unknown> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.cancelOrder(clientConfig, orderId);
 }
 
-export async function cancelAllOrders(secretId: string): Promise<any> {
+export async function cancelAllOrders(secretId: string): Promise<unknown> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
   return polymarket.cancelAllOrders(clientConfig);
