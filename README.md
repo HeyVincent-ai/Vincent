@@ -210,13 +210,16 @@ npm start
 
 | Endpoint                                       | Description                          |
 | ---------------------------------------------- | ------------------------------------ |
-| `POST /api/skills/evm-wallet/transfer`         | Transfer ETH or ERC20                |
-| `POST /api/skills/evm-wallet/send-transaction` | Execute arbitrary transaction        |
-| `POST /api/skills/evm-wallet/swap/preview`     | Preview token swap                   |
-| `POST /api/skills/evm-wallet/swap/execute`     | Execute token swap                   |
-| `GET /api/skills/evm-wallet/balance`           | Get ETH/ERC20 balance                |
-| `GET /api/skills/evm-wallet/balances`          | Get portfolio balances (multi-chain) |
-| `GET /api/skills/evm-wallet/address`           | Get smart account address            |
+| `POST /api/skills/evm-wallet/transfer`                              | Transfer ETH or ERC20                |
+| `POST /api/skills/evm-wallet/send-transaction`                      | Execute arbitrary transaction        |
+| `POST /api/skills/evm-wallet/swap/preview`                          | Preview token swap                   |
+| `POST /api/skills/evm-wallet/swap/execute`                          | Execute token swap                   |
+| `POST /api/skills/evm-wallet/transfer-between-secrets/preview`      | Preview transfer between secrets     |
+| `POST /api/skills/evm-wallet/transfer-between-secrets/execute`      | Execute transfer between secrets     |
+| `GET /api/skills/evm-wallet/transfer-between-secrets/status/:reqId` | Check cross-chain transfer status    |
+| `GET /api/skills/evm-wallet/balance`                                | Get ETH/ERC20 balance                |
+| `GET /api/skills/evm-wallet/balances`                               | Get portfolio balances (multi-chain) |
+| `GET /api/skills/evm-wallet/address`                                | Get smart account address            |
 
 ### Polymarket Skill
 

@@ -95,7 +95,7 @@ const envSchema = z.object({
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 
   // OpenClaw Default Model
-  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/openrouter/auto'),
+  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/anthropic/claude-sonnet-4.6'),
 
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
@@ -106,6 +106,20 @@ const envSchema = z.object({
   // Data Sources - upstream API keys (optional; respective data source returns 503 if missing)
   TWITTER_BEARER_TOKEN: z.string().optional(),
   BRAVE_SEARCH_API_KEY: z.string().optional(),
+
+  // Trade Manager
+  TRADE_MANAGER_ENABLED: z
+    .string()
+    .optional()
+    .default('true')
+    .transform((val) => val === 'true'),
+  TRADE_MANAGER_POLL_INTERVAL_S: z.coerce.number().int().positive().default(60),
+  TRADE_MANAGER_WS_ENABLED: z
+    .string()
+    .optional()
+    .default('true')
+    .transform((val) => val === 'true'),
+  TRADE_MANAGER_MAX_RULES_PER_SECRET: z.coerce.number().int().positive().default(50),
 });
 
 export type Env = z.infer<typeof envSchema>;
