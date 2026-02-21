@@ -3,6 +3,7 @@ import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
 
 let stripeClient: Stripe | null = null;
+let creditPriceIdCache: string | null | undefined;
 
 function getStripe(): Stripe {
   if (!stripeClient) {
@@ -12,6 +13,24 @@ function getStripe(): Stripe {
     stripeClient = new Stripe(env.STRIPE_SECRET_KEY);
   }
   return stripeClient;
+}
+
+async function resolveCreditPriceId(): Promise<string | null> {
+  if (creditPriceIdCache !== undefined) return creditPriceIdCache;
+  if (env.STRIPE_CREDIT_PRICE_ID) {
+    creditPriceIdCache = env.STRIPE_CREDIT_PRICE_ID;
+    return creditPriceIdCache;
+  }
+
+  const lookupKey = env.STRIPE_CREDIT_PRICE_LOOKUP_KEY || 'openclaw_credits';
+  const stripe = getStripe();
+  const prices = await stripe.prices.list({
+    lookup_keys: [lookupKey],
+    active: true,
+    limit: 1,
+  });
+  creditPriceIdCache = prices.data[0]?.id ?? null;
+  return creditPriceIdCache;
 }
 
 /**
@@ -97,6 +116,62 @@ export async function createCheckoutSession(
 }
 
 /**
+ * Create a Stripe Checkout session for an OpenClaw credit purchase.
+ * Uses configured Price ID / lookup key if available, otherwise falls back to inline price data.
+ */
+export async function createOpenClawCreditsCheckoutSession(
+  userId: string,
+  deploymentId: string,
+  amountUsd: number,
+  successUrl: string,
+  cancelUrl: string
+): Promise<{ sessionId: string; url: string }> {
+  const stripe = getStripe();
+  const customerId = await getOrCreateStripeCustomer(userId);
+  const amountCents = Math.round(amountUsd * 100);
+  const priceId = await resolveCreditPriceId();
+
+  let lineItem: Stripe.Checkout.SessionCreateParams.LineItem | null = null;
+  if (priceId) {
+    try {
+      const price = await stripe.prices.retrieve(priceId);
+      if (price.custom_unit_amount || price.unit_amount === amountCents) {
+        lineItem = { price: priceId, quantity: 1 };
+      }
+    } catch (err) {
+      console.warn('[stripe] Failed to retrieve credit price, using inline price data', err);
+    }
+  }
+  if (!lineItem) {
+    lineItem = {
+      price_data: {
+        currency: 'usd',
+        unit_amount: amountCents,
+        product_data: { name: 'OpenClaw credits' },
+      },
+      quantity: 1,
+    };
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    customer: customerId,
+    mode: 'payment',
+    payment_method_types: ['card'],
+    line_items: [lineItem],
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    metadata: {
+      userId,
+      deploymentId,
+      type: 'openclaw_credits',
+      amountUsd: amountUsd.toFixed(2),
+    },
+  });
+
+  return { sessionId: session.id, url: session.url! };
+}
+
+/**
  * Get active subscription for a user.
  */
 export async function getSubscription(userId: string) {
@@ -175,6 +250,24 @@ export async function handleWebhookEvent(
 
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const userId = session.metadata?.userId;
+  const deploymentId = session.metadata?.deploymentId;
+  const checkoutType = session.metadata?.type;
+
+  if (checkoutType === 'openclaw_credits' && deploymentId && userId) {
+    const amountCents = session.amount_total;
+    if (!amountCents) return;
+    const amountUsd = amountCents / 100;
+    const paymentIntentId =
+      typeof session.payment_intent === 'string'
+        ? session.payment_intent
+        : session.payment_intent?.id;
+    if (!paymentIntentId) return;
+
+    const openclawService = await import('../services/openclaw.service.js');
+    await openclawService.fulfillCreditPurchase(deploymentId, amountUsd, paymentIntentId);
+    return;
+  }
+
   if (!userId || !session.subscription) return;
 
   const stripe = getStripe();
@@ -185,9 +278,6 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
   const period = extractPeriodDates(stripeSubscription);
 
   // Check if this is an OpenClaw deployment checkout
-  const deploymentId = session.metadata?.deploymentId;
-  const checkoutType = session.metadata?.type;
-
   if (checkoutType === 'openclaw' && deploymentId) {
     console.log(`[stripe] OpenClaw checkout completed for deployment ${deploymentId}`);
     const openclawService = await import('../services/openclaw.service.js');

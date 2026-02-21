@@ -41,7 +41,11 @@ import Stripe from 'stripe';
 import prisma from '../db/client.js';
 import * as ovhService from './ovh.service.js';
 import * as openRouterService from './openrouter.service.js';
-import { getOrCreateStripeCustomer, chargeCustomerOffSession } from '../billing/stripe.service.js';
+import {
+  getOrCreateStripeCustomer,
+  chargeCustomerOffSession,
+  createOpenClawCreditsCheckoutSession,
+} from '../billing/stripe.service.js';
 import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
@@ -1647,19 +1651,122 @@ export async function getUsage(
   };
 }
 
+async function applyCreditPurchase(
+  deployment: OpenClawDeployment,
+  amountUsd: number,
+  paymentIntentId: string
+): Promise<number> {
+  const existing = await prisma.openClawCreditPurchase.findUnique({
+    where: { stripePaymentIntentId: paymentIntentId },
+  });
+
+  if (existing) {
+    const refreshed = await prisma.openClawDeployment.findUnique({
+      where: { id: deployment.id },
+    });
+    return Number(refreshed?.creditBalanceUsd ?? deployment.creditBalanceUsd);
+  }
+
+  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
+
+  await prisma.$transaction([
+    prisma.openClawDeployment.update({
+      where: { id: deployment.id },
+      data: { creditBalanceUsd: newBalance },
+    }),
+    prisma.openClawCreditPurchase.create({
+      data: {
+        deploymentId: deployment.id,
+        amountUsd,
+        stripePaymentIntentId: paymentIntentId,
+      },
+    }),
+  ]);
+
+  // Update OpenRouter key spending limit to match new credit balance
+  if (deployment.openRouterKeyHash) {
+    try {
+      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
+    } catch (err) {
+      console.error(`[openclaw] Failed to update OpenRouter key limit:`, err);
+    }
+  }
+
+  return newBalance;
+}
+
+export async function fulfillCreditPurchase(
+  deploymentId: string,
+  amountUsd: number,
+  paymentIntentId: string
+): Promise<void> {
+  const deployment = await prisma.openClawDeployment.findUnique({
+    where: { id: deploymentId },
+  });
+  if (!deployment) {
+    throw new Error('Deployment not found');
+  }
+
+  await applyCreditPurchase(deployment, amountUsd, paymentIntentId);
+}
+
+function shouldFallbackToCheckout(error: unknown): boolean {
+  const message = (error as { message?: string })?.message?.toLowerCase() ?? '';
+  const code = (error as { code?: string })?.code?.toLowerCase() ?? '';
+  return (
+    message.includes('no default payment method') ||
+    message.includes('no stripe customer') ||
+    code === 'authentication_required' ||
+    code === 'payment_method_unexpected_state'
+  );
+}
+
+async function startCreditCheckoutFallback(
+  userId: string,
+  deploymentId: string,
+  amountUsd: number,
+  successUrl?: string,
+  cancelUrl?: string
+): Promise<{ success: false; requiresAction: true; checkoutUrl: string; sessionId: string }> {
+  if (!successUrl || !cancelUrl) {
+    throw new Error(
+      'Missing success/cancel URLs for Stripe checkout. Provide successUrl/cancelUrl or set FRONTEND_URL.'
+    );
+  }
+
+  const session = await createOpenClawCreditsCheckoutSession(
+    userId,
+    deploymentId,
+    amountUsd,
+    successUrl,
+    cancelUrl
+  );
+
+  return {
+    success: false,
+    requiresAction: true,
+    checkoutUrl: session.url,
+    sessionId: session.sessionId,
+  };
+}
+
 /**
  * Add LLM credits to a deployment by charging the user's Stripe payment method.
  */
 export async function addCredits(
   deploymentId: string,
   userId: string,
-  amountUsd: number
+  amountUsd: number,
+  successUrl?: string,
+  cancelUrl?: string
 ): Promise<{
   success: boolean;
-  newBalanceUsd: number;
+  newBalanceUsd?: number;
   paymentIntentId?: string;
   requiresAction?: boolean;
   clientSecret?: string;
+  checkoutUrl?: string;
+  sessionId?: string;
 }> {
   if (amountUsd < 5 || amountUsd > 500) {
     throw new Error('Credit amount must be between $5 and $500');
@@ -1675,54 +1782,47 @@ export async function addCredits(
   }
 
   const amountCents = Math.round(amountUsd * 100);
-  const result = await chargeCustomerOffSession(
-    userId,
-    amountCents,
-    `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
-    { deploymentId, type: 'openclaw_credits' }
-  );
+  try {
+    const result = await chargeCustomerOffSession(
+      userId,
+      amountCents,
+      `OpenClaw LLM credits ($${amountUsd.toFixed(2)})`,
+      { deploymentId, type: 'openclaw_credits' }
+    );
 
-  if (result.requiresAction) {
-    return {
-      success: false,
-      newBalanceUsd: Number(deployment.creditBalanceUsd),
-      requiresAction: true,
-      clientSecret: result.clientSecret,
-      paymentIntentId: result.paymentIntentId,
-    };
-  }
-
-  // Payment succeeded — update credit balance and OpenRouter key limit
-  const newBalance = Number(deployment.creditBalanceUsd) + amountUsd;
-
-  await prisma.$transaction([
-    prisma.openClawDeployment.update({
-      where: { id: deploymentId },
-      data: { creditBalanceUsd: newBalance },
-    }),
-    prisma.openClawCreditPurchase.create({
-      data: {
+    if (result.requiresAction) {
+      return await startCreditCheckoutFallback(
+        userId,
         deploymentId,
         amountUsd,
-        stripePaymentIntentId: result.paymentIntentId!,
-      },
-    }),
-  ]);
-
-  // Update OpenRouter key spending limit to match new credit balance
-  if (deployment.openRouterKeyHash) {
-    try {
-      await openRouterService.updateKeyLimit(deployment.openRouterKeyHash, newBalance);
-    } catch (err) {
-      console.error(`[openclaw] Failed to update OpenRouter key limit:`, err);
+        successUrl,
+        cancelUrl
+      );
     }
-  }
 
-  return {
-    success: true,
-    newBalanceUsd: newBalance,
-    paymentIntentId: result.paymentIntentId,
-  };
+    const newBalance = await applyCreditPurchase(
+      deployment,
+      amountUsd,
+      result.paymentIntentId!
+    );
+
+    return {
+      success: true,
+      newBalanceUsd: newBalance,
+      paymentIntentId: result.paymentIntentId,
+    };
+  } catch (error) {
+    if (shouldFallbackToCheckout(error)) {
+      return await startCreditCheckoutFallback(
+        userId,
+        deploymentId,
+        amountUsd,
+        successUrl,
+        cancelUrl
+      );
+    }
+    throw error;
+  }
 }
 
 // ============================================================

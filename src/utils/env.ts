@@ -28,6 +28,10 @@ const envSchema = z.object({
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
   STRIPE_PRICE_ID: z.string().optional(),
   STRIPE_OPENCLAW_PRICE_ID: z.string().optional(),
+  // Stripe price for OpenClaw credits (optional when using inline price data)
+  STRIPE_CREDIT_PRICE_ID: z.string().optional(),
+  // Optional Stripe lookup key to resolve OpenClaw credit price
+  STRIPE_CREDIT_PRICE_LOOKUP_KEY: z.string().optional(),
 
   // Telegram Bot (optional in development)
   TELEGRAM_BOT_TOKEN: z.string().optional(),

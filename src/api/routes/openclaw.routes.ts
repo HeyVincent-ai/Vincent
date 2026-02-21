@@ -23,6 +23,7 @@ import { AuthenticatedRequest } from '../../types/index.js';
 import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as openclawService from '../../services/openclaw.service.js';
+import { env } from '../../utils/env.js';
 
 const { toPublicData } = openclawService;
 
@@ -243,6 +244,8 @@ router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Resp
 
 const creditsSchema = z.object({
   amountUsd: z.number().min(5).max(500),
+  successUrl: z.string().url().optional(),
+  cancelUrl: z.string().url().optional(),
 });
 
 /**
@@ -256,15 +259,26 @@ router.post('/deployments/:id/credits', async (req: AuthenticatedRequest, res: R
   }
 
   try {
+    const origin = req.get('origin') || env.FRONTEND_URL;
+    const successUrl =
+      parsed.data.successUrl || (origin ? `${origin}/openclaw/${req.params.id}?credits=success` : undefined);
+    const cancelUrl =
+      parsed.data.cancelUrl || (origin ? `${origin}/openclaw/${req.params.id}` : undefined);
+
     const result = await openclawService.addCredits(
       req.params.id as string,
       req.user!.id,
-      parsed.data.amountUsd
+      parsed.data.amountUsd,
+      successUrl,
+      cancelUrl
     );
     sendSuccess(res, result);
   } catch (error: any) {
     if (error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
+    }
+    if (error.message?.includes('Missing success/cancel URLs')) {
+      return errors.badRequest(res, error.message);
     }
     console.error('OpenClaw credits error:', error);
     errors.internal(res);

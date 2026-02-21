@@ -130,6 +130,20 @@ export default function OpenClawDetail() {
       .catch(() => {});
   }, [id, deployment?.status]);
 
+  // Show toast if returning from Stripe Checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('credits') === 'success') {
+      toast('Credits added successfully!');
+      window.history.replaceState({}, '', window.location.pathname);
+      if (id) {
+        getOpenClawUsage(id)
+          .then((res) => setUsage(res.data.data))
+          .catch(() => {});
+      }
+    }
+  }, [id, toast]);
+
   // Auto-pop Telegram modal on first visit if not configured
   useEffect(() => {
     if (!id || !deployment || deployment.telegramConfigured) return;
@@ -153,8 +167,12 @@ export default function OpenClawDetail() {
     try {
       const res = await addOpenClawCredits(id, amount);
       const data = res.data.data;
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       if (data.requiresAction) {
-        setCreditError('3D Secure required — please complete authentication in the popup.');
+        setCreditError('Additional authentication required — please complete checkout.');
       } else {
         setShowCreditsModal(false);
         setCreditAmount('10');
