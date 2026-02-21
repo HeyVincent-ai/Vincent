@@ -29,7 +29,7 @@ export const createRuleSchema = z
     ruleType: z.enum(['STOP_LOSS', 'TAKE_PROFIT', 'TRAILING_STOP']),
     marketId: z.string().min(1),
     tokenId: z.string().min(1),
-    side: z.enum(['BUY', 'SELL']).default('BUY'),
+    side: z.literal('BUY').default('BUY'),
     triggerPrice: z.number().gt(0).lt(1),
     trailingPercent: z.number().gt(0).lt(100).optional(),
     action: actionSchema,
@@ -150,10 +150,12 @@ export async function markRuleTriggered(id: string, txHash?: string): Promise<bo
 
 export async function markRuleFailed(id: string, errorMessage: string): Promise<boolean> {
   const result = await prisma.tradeRule.updateMany({
-    where: { id, status: 'ACTIVE' },
+    where: { id, status: { in: ['ACTIVE', 'TRIGGERED'] } },
     data: { status: 'FAILED', errorMessage, triggeredAt: new Date() },
   });
-  await eventLogger.logEvent(id, 'RULE_FAILED', { errorMessage });
+  if (result.count === 1) {
+    await eventLogger.logEvent(id, 'RULE_FAILED', { errorMessage });
+  }
   return result.count === 1;
 }
 

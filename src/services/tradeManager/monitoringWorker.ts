@@ -99,11 +99,15 @@ async function tick(): Promise<void> {
         await maybeAdjustTrailingTrigger(rule, currentPrice);
 
         const shouldTrigger = ruleExecutor.evaluateRule(rule as RuleLike, currentPrice);
-        await eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
-          currentPrice,
-          triggerPrice: rule.triggerPrice,
-          shouldTrigger,
-        });
+
+        // Only log evaluations that result in a trigger to avoid excessive DB writes
+        if (shouldTrigger) {
+          await eventLogger.logEvent(rule.id, 'RULE_EVALUATED', {
+            currentPrice,
+            triggerPrice: rule.triggerPrice,
+            shouldTrigger,
+          });
+        }
 
         if (shouldTrigger) {
           await trigger(rule as RuleLike);
@@ -146,7 +150,11 @@ async function trigger(rule: RuleLike): Promise<void> {
   executingRuleIds.add(rule.id);
   try {
     const result = await ruleExecutor.executeRule(rule);
-    await eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
+    // Only log RULE_TRIGGERED if the trade was actually executed.
+    // If executeRule handled pending_approval, it reverted the rule to ACTIVE.
+    if (result.executed) {
+      await eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
+    }
   } catch (error) {
     // Execution failed — revert to ACTIVE so it can be retried,
     // unless executeRule already marked it FAILED (permanent failure)
@@ -220,7 +228,13 @@ function syncWebSocketSubscriptions(activeRules: Array<{ tokenId: string }>): vo
   const toUnsubscribe = [...currentTokenIds].filter((id) => !requiredTokenIds.has(id));
 
   if (toSubscribe.length > 0) webSocketService.subscribeToTokens(toSubscribe);
-  if (toUnsubscribe.length > 0) webSocketService.unsubscribeFromTokens(toUnsubscribe);
+  if (toUnsubscribe.length > 0) {
+    webSocketService.unsubscribeFromTokens(toUnsubscribe);
+    // Evict stale cache entries for unsubscribed tokens
+    for (const id of toUnsubscribe) {
+      priceCache.delete(id);
+    }
+  }
 
   status.webSocketSubscriptions = requiredTokenIds.size;
 }

@@ -17,7 +17,9 @@ export function evaluateRule(rule: RuleLike, currentPrice: number): boolean {
 }
 
 /** Execute a triggered rule — sells through polymarketSkill.placeBet() for policy enforcement. */
-export async function executeRule(rule: RuleLike): Promise<{ txHash?: string; orderId?: string }> {
+export async function executeRule(
+  rule: RuleLike
+): Promise<{ txHash?: string; orderId?: string; executed: boolean }> {
   const action = JSON.parse(rule.action) as {
     type: 'SELL_ALL' | 'SELL_PARTIAL';
     amount?: number;
@@ -89,7 +91,7 @@ export async function executeRule(rule: RuleLike): Promise<{ txHash?: string; or
         status: 'pending_approval',
         message: 'Trade requires human approval; rule reverted to ACTIVE',
       });
-      return { orderId: result.orderId };
+      return { orderId: result.orderId, executed: false };
     }
 
     // Success — update the triggered rule with the order reference
@@ -98,7 +100,7 @@ export async function executeRule(rule: RuleLike): Promise<{ txHash?: string; or
     }
     await eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', { result });
 
-    return { orderId: result.orderId };
+    return { orderId: result.orderId, executed: true };
   } catch (error) {
     const errorMessage = extractErrorMessage(error);
     const isPermanent = isPermanentFailure(errorMessage, error);
