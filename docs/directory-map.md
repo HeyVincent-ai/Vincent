@@ -80,6 +80,10 @@ src/
 │   ├── checker.ts              # Policy evaluation engine (8 checker types)
 │   └── index.ts                # Exports
 │
+├── mcp/
+│   ├── router.ts               # JSON-RPC MCP endpoint (initialize, tools/list, tools/call)
+│   └── tools.ts                # Tool definitions for all secret types (24 tools)
+│
 ├── dataSources/
 │   ├── registry.ts             # Data source config (endpoints, pricing)
 │   ├── middleware.ts            # Guard: type check, claim check, credit gate
@@ -141,9 +145,12 @@ frontend/
 │   │   ├── Claim.tsx           # Secret claim flow
 │   │   ├── OpenClawDetail.tsx  # OpenClaw instance management (iframe)
 │   │   ├── Account.tsx         # Account settings
+│   │   ├── Agents.tsx          # Agents page (wraps OpenClawSection)
+│   │   ├── AgentsLayout.tsx    # Tabbed layout: Deploy Agent / Connect Agent
+│   │   ├── AgentsConnect.tsx   # Connect Agent page (wraps ConnectAgents component)
 │   │   ├── Billing.tsx         # Subscription + usage management
 │   │   ├── Landing.tsx         # Landing page
-│   │   └── [marketing pages]   # Features, Skills, Security, Terms, Agents
+│   │   └── [marketing pages]   # Features, Skills, Security, Terms
 │   │
 │   ├── components/
 │   │   ├── PolicyManager.tsx   # Policy CRUD UI
@@ -153,6 +160,7 @@ frontend/
 │   │   ├── DataSourcesView.tsx # Data source credits + usage
 │   │   ├── TakeOwnership.tsx   # Wallet ownership transfer (RainbowKit)
 │   │   ├── OpenClawSection.tsx # OpenClaw dashboard card
+│   │   ├── ConnectAgents.tsx   # MCP connection guide for external agent runtimes
 │   │   ├── PolymarketPositions.tsx # Polymarket positions display
 │   │   ├── AppSidebar.tsx      # Sidebar navigation
 │   │   ├── Layout.tsx          # Page layout wrapper

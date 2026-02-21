@@ -28,6 +28,7 @@ The Express/TypeScript API server — handles auth, secrets, skills, policies, b
 
 Each skill is a capability tied to a secret type. These docs cover how each feature works end-to-end (backend + frontend + agent integration).
 
+- [MCP Server](./features/mcp.md) — JSON-RPC MCP endpoint for connecting external agent runtimes
 - [EVM Wallet](./features/evm-wallet.md) — ZeroDev smart accounts, transfers, swaps, balances
 - [Polymarket](./features/polymarket.md) — CLOB trading, bet placement, position management
 - [Self-Custody](./features/self-custody.md) — wallet ownership transfer to user's EOA
@@ -69,9 +70,13 @@ Each skill is a capability tied to a secret type. These docs cover how each feat
 
 **API Keys** — agents authenticate with `ssk_`-prefixed keys scoped to a specific secret. Keys are bcrypt-hashed in the DB, shown only once on creation.
 
+**MCP Server** — a JSON-RPC endpoint at `/mcp` that exposes Vincent skills to any MCP-compatible agent runtime (Claude, ChatGPT, Codex, Cursor, Manus). Authenticates with the same `ssk_` Bearer tokens and scopes tools by secret type.
+
 ## Key Flows
 
 **Agent onboarding:** Agent calls `POST /api/secrets` → gets API key + claim URL + wallet address → starts using the wallet immediately. Owner claims later, adds policies.
+
+**MCP connection:** External agent runtime connects to `/mcp` with Bearer API key → calls `initialize` → calls `tools/list` to discover available tools → calls `tools/call` to execute actions. Same auth and policy enforcement as REST API.
 
 **Action execution:** Agent requests action with API key → backend validates key → checks policies → executes or requests human approval → returns result.
 

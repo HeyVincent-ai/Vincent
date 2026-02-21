@@ -276,6 +276,23 @@ export default function Account() {
         </div>
       </section>
 
+      {/* Connect Section */}
+      <section className="mb-8">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Connect to Agents</h2>
+        <div className="bg-card rounded-lg border border-border p-6">
+          <p className="text-sm text-muted-foreground mb-4">
+            Add Vincent skills to the agent runtime you already use. Connect via MCP and use the API
+            key from the account you want to expose.
+          </p>
+          <Link
+            to="/agents/connect"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Connect an Agent
+          </Link>
+        </div>
+      </section>
+
       {/* Refer a Friend Section */}
       {referralLink && (
         <section className="mb-8">
@@ -426,7 +443,9 @@ export default function Account() {
                             </span>
                           )}
                         </p>
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-violet-500/10 text-violet-400'}`}>
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${d.status === 'READY' ? 'bg-green-500/10 text-green-400' : 'bg-violet-500/10 text-violet-400'}`}
+                        >
                           {d.status}
                         </span>
                         {trial && (
@@ -441,7 +460,10 @@ export default function Account() {
                       <div className="text-xs text-muted-foreground">
                         {d.canceledAt || d.status === 'CANCELING' ? (
                           <span className="text-violet-400">
-                            Active until {d.currentPeriodEnd ? new Date(d.currentPeriodEnd).toLocaleDateString() : 'period end'}
+                            Active until{' '}
+                            {d.currentPeriodEnd
+                              ? new Date(d.currentPeriodEnd).toLocaleDateString()
+                              : 'period end'}
                           </span>
                         ) : trial && d.currentPeriodEnd ? (
                           <span>

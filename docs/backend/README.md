@@ -13,10 +13,11 @@ The backend is a single Express 5 + TypeScript server in `src/`. It handles auth
 - Graceful shutdown for all the above
 
 `src/app.ts` configures the Express app:
-- CORS, Helmet, rate limiting
+- CORS (permissive for `/mcp`, stricter for everything else)
+- Helmet, rate limiting
 - Raw body capture for Stripe webhook verification
 - Request logging
-- Route mounting
+- Route mounting (`/api`, `/mcp`, `/docs`)
 - Global error handler
 
 ## How Requests Flow
@@ -35,6 +36,23 @@ Request with Authorization: Bearer ssk_...
     → Executes skill action (or creates pending approval)
     → Creates audit log entry (fire-and-forget)
     → Returns result
+```
+
+### MCP requests (external agent runtimes)
+
+```
+POST /mcp with Authorization: Bearer ssk_...
+  → MCP router (src/mcp/router.ts)
+    → authenticateMcpRequest()
+      → Validates API key (same as apiKeyAuth)
+      → Loads secret metadata onto req.secret
+    → JSON-RPC method dispatch
+      → initialize: returns server info + capabilities
+      → tools/list: returns tools filtered by secret type
+      → tools/call: validates tool access, executes handler
+        → Same skill services as REST (evmWallet, polymarket, etc.)
+        → Same policy enforcement + audit logging
+    → Returns JSON-RPC response
 ```
 
 ### User requests (frontend)
