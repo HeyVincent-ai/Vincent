@@ -113,6 +113,8 @@ router.get(
       yourActiveRulesCount: secretRules.length,
       lastSyncTime: workerStatus.lastSyncTime,
       webSocketConnected: workerStatus.webSocketConnected,
+      consecutiveFailures: workerStatus.consecutiveFailures,
+      circuitBreakerUntil: workerStatus.circuitBreakerUntil,
     });
   })
 );

@@ -102,14 +102,7 @@ export async function createRule(secretId: string, input: z.infer<typeof createR
   return rule;
 }
 
-const VALID_RULE_STATUSES = new Set<string>([
-  'ACTIVE',
-  'TRIGGERED',
-  'PENDING_APPROVAL',
-  'CANCELED',
-  'EXPIRED',
-  'FAILED',
-]);
+const VALID_RULE_STATUSES = new Set<string>(Object.values(TradeRuleStatus));
 
 /**
  * Get rules. When secretId is provided, returns rules for that secret only.
@@ -119,8 +112,12 @@ const VALID_RULE_STATUSES = new Set<string>([
 export async function getRules(secretId?: string, status?: string, tokenId?: string) {
   const where: Record<string, unknown> = {};
   if (secretId) where.secretId = secretId;
-  if (status && VALID_RULE_STATUSES.has(status)) {
-    where.status = status as TradeRuleStatus;
+  if (status) {
+    const normalized = status.trim().toUpperCase();
+    if (!VALID_RULE_STATUSES.has(normalized)) {
+      throw new AppError('BAD_REQUEST', `Invalid status filter: ${status}`, 400);
+    }
+    where.status = normalized as TradeRuleStatus;
   }
   if (tokenId) where.tokenId = tokenId;
 
