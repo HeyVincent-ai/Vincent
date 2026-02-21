@@ -214,8 +214,10 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
         const bal = parseFloat(res.data.data.collateral.balance);
         setUsdcBalance(isNaN(bal) ? 0 : bal);
       })
-      .catch(() => {});
-  }, [secretId]);
+      .catch(() => {
+        toast('Failed to load USDC balance', 'error');
+      });
+  }, [secretId, toast]);
 
   useEffect(() => {
     if (!walletAddress) return;

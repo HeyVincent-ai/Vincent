@@ -19,8 +19,8 @@ export default function PolymarketWithdrawModal({
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [pendingApproval, setPendingApproval] = useState(false);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -32,7 +32,9 @@ export default function PolymarketWithdrawModal({
 
   const isValidAddress = /^0x[a-fA-F0-9]{40}$/.test(to);
   const numAmount = parseFloat(amount);
-  const isValidAmount = !isNaN(numAmount) && numAmount > 0 && numAmount <= balance;
+  const hasValidDecimals = /^\d+(\.\d{1,6})?$/.test(amount);
+  const isValidAmount =
+    !isNaN(numAmount) && numAmount > 0 && numAmount <= balance && hasValidDecimals;
   const canSubmit = isValidAddress && isValidAmount && !loading;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +43,6 @@ export default function PolymarketWithdrawModal({
 
     setLoading(true);
     setError(null);
-    setInfo(null);
 
     try {
       const res = await polymarketWithdraw(secretId, to, amount);
@@ -49,7 +50,7 @@ export default function PolymarketWithdrawModal({
       if (data.status === 'denied') {
         setError(data.reason || 'Transaction denied by policy');
       } else if (data.status === 'pending_approval') {
-        setInfo('Transaction requires approval. Check your notifications.');
+        setPendingApproval(true);
       } else {
         setTxHash(data.transactionHash);
         onSuccess();
@@ -88,7 +89,19 @@ export default function PolymarketWithdrawModal({
           </button>
         </div>
 
-        {txHash ? (
+        {pendingApproval ? (
+          <div>
+            <p className="text-xs text-yellow-400 bg-yellow-500/10 rounded-lg px-3 py-2 mb-3">
+              Transaction requires approval. Check your notifications.
+            </p>
+            <button
+              onClick={onClose}
+              className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Done
+            </button>
+          </div>
+        ) : txHash ? (
           <div>
             <p className="text-sm text-green-400 mb-3">Transfer successful!</p>
             <div className="bg-muted rounded-lg p-3">
@@ -151,16 +164,14 @@ export default function PolymarketWithdrawModal({
                 />
                 {amount && !isValidAmount && (
                   <p className="text-xs text-destructive mt-1">
-                    {numAmount > balance ? 'Exceeds balance' : 'Enter a valid amount'}
+                    {numAmount > balance
+                      ? 'Exceeds balance'
+                      : !hasValidDecimals
+                        ? 'Max 6 decimal places'
+                        : 'Enter a valid amount'}
                   </p>
                 )}
               </div>
-
-              {info && (
-                <p className="text-xs text-yellow-400 bg-yellow-500/10 rounded-lg px-3 py-2">
-                  {info}
-                </p>
-              )}
 
               {error && (
                 <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">

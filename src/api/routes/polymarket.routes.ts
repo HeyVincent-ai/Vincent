@@ -262,7 +262,9 @@ router.post(
 
 const withdrawSchema = z.object({
   to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
-  amount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
+  amount: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/, 'Amount must be a numeric string with at most 6 decimal places'),
 });
 
 router.post(

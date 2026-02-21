@@ -2,6 +2,7 @@ import { type Hex, type Address, parseEther, parseUnits } from 'viem';
 import prisma from '../db/client.js';
 import * as zerodev from '../skills/zerodev.service.js';
 import * as zeroExService from '../skills/zeroEx.service.js';
+import * as polymarket from '../skills/polymarket.service.js';
 
 /**
  * Execute a transaction that has been approved via Telegram.
@@ -164,6 +165,12 @@ export async function executeApprovedTransaction(txLog: {
           smartAccountAddress: smartAccountAddressForExec,
         });
       }
+    } else if (txLog.actionType === 'polymarket_withdraw') {
+      const to = requestData.to as string;
+      const amount = requestData.amount as string;
+      const rawAmount = parseUnits(amount, 6).toString();
+      const txResult = await polymarket.transferUsdc(privateKey, to, rawAmount);
+      result = { txHash: txResult.transactionHash, smartAccountAddress: '' };
     } else {
       throw new Error(`Unknown action type: ${txLog.actionType}`);
     }
