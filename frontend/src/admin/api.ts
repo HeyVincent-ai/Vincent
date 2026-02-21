@@ -14,3 +14,4 @@ export const getAdminWallets = () => api.get('/admin/wallets');
 
 // Admin - Active Agents
 export const getAdminActiveAgents = () => api.get('/admin/active-agents');
+export const retryAdminAgent = (id: string) => api.post(`/admin/active-agents/${id}/retry`);
