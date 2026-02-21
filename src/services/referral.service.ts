@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import prisma from '../db/client.js';
 import * as openRouterService from './openrouter.service.js';
 import { sendReferralRewardEmail } from './email.service.js';
@@ -26,9 +27,9 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
         data: { referralCode: code },
       });
       return updated.referralCode!;
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Unique constraint violation — retry with a new code
-      if (err.code === 'P2002') continue;
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') continue;
       throw err;
     }
   }
@@ -152,8 +153,11 @@ export async function applyPendingRewards(userId: string): Promise<number> {
       if (wasApplied) {
         applied++;
       }
-    } catch (err: any) {
-      console.error(`[referral] Failed to apply pending reward ${referral.id}:`, err.message);
+    } catch (err: unknown) {
+      console.error(
+        `[referral] Failed to apply pending reward ${referral.id}:`,
+        err instanceof Error ? err.message : err
+      );
     }
   }
 
@@ -270,8 +274,11 @@ async function applyCredit(
   if (referral?.referrer.email) {
     try {
       await sendReferralRewardEmail(referral.referrer.email, amountUsd);
-    } catch (emailErr: any) {
-      console.error('[referral] Failed to send reward email:', emailErr.message);
+    } catch (emailErr: unknown) {
+      console.error(
+        '[referral] Failed to send reward email:',
+        emailErr instanceof Error ? emailErr.message : emailErr
+      );
     }
   }
 
