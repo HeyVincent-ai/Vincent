@@ -12,6 +12,12 @@ const skillContent = readFileSync(
   'utf-8'
 );
 
+/** Safely get the args string from a tool call record */
+function getArgs(c: { args: Record<string, unknown> }): string {
+  const a = c.args?.args;
+  return typeof a === 'string' ? a : '';
+}
+
 describe('Skill: wallet', () => {
   let stateDir: string;
 
@@ -30,10 +36,13 @@ describe('Skill: wallet', () => {
       skillContent,
       baseUrl: BASE_URL,
       stateDir,
-      task: `Follow the skill instructions to:
-1. Create a new EVM wallet (type: EVM_WALLET, chain-id: 84532, memo: "CI test wallet")
-2. Parse the JSON output to get the keyId
-3. Use that keyId to check the wallet balances
+      task: `Follow the skill instructions. You MUST make exactly these CLI calls in order:
+
+Step 1: Run vincent_cli with args: secret create --type EVM_WALLET --memo "CI test wallet" --chain-id 84532
+
+Step 2: Parse the JSON output from Step 1 to find the "keyId" field.
+
+Step 3: Run vincent_cli with args: wallet balances --key-id <KEYID> (replacing <KEYID> with the actual keyId from Step 1)
 
 You MUST make both CLI calls. Report the wallet address and balance.`,
     });
@@ -45,9 +54,7 @@ You MUST make both CLI calls. Report the wallet address and balance.`,
     expect(calls.length).toBeGreaterThanOrEqual(2);
 
     // Verify a secret was created
-    const createCall = calls.find((c) =>
-      (c.args as { args: string }).args.includes('secret create')
-    );
+    const createCall = calls.find((c) => getArgs(c).includes('secret create'));
     expect(createCall).toBeDefined();
 
     const createResult = createCall!.result as { exitCode: number; output: string };
@@ -57,9 +64,7 @@ You MUST make both CLI calls. Report the wallet address and balance.`,
 
     // Verify balance was checked
     const balanceCall = calls.find(
-      (c) =>
-        (c.args as { args: string }).args.includes('wallet balances') ||
-        (c.args as { args: string }).args.includes('wallet address')
+      (c) => getArgs(c).includes('wallet balances') || getArgs(c).includes('wallet address')
     );
     expect(balanceCall).toBeDefined();
 

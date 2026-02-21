@@ -68,8 +68,12 @@ Report the number of results and the title of the first result.`,
     expect(result.success).toBe(true);
 
     // Verify a brave web search CLI call was made
+    const getArgs = (c: { args: Record<string, unknown> }) => {
+      const a = c.args?.args;
+      return typeof a === 'string' ? a : '';
+    };
     const searchCall = result.toolCalls.find(
-      (c) => c.name === 'vincent_cli' && (c.args as { args: string }).args.includes('brave web')
+      (c) => c.name === 'vincent_cli' && getArgs(c).includes('brave web')
     );
     expect(searchCall).toBeDefined();
 

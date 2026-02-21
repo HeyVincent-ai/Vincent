@@ -68,9 +68,12 @@ Report the number of tweets found and the text of the first tweet.`,
     expect(result.success).toBe(true);
 
     // Verify a twitter search CLI call was made
+    const getArgs = (c: { args: Record<string, unknown> }) => {
+      const a = c.args?.args;
+      return typeof a === 'string' ? a : '';
+    };
     const searchCall = result.toolCalls.find(
-      (c) =>
-        c.name === 'vincent_cli' && (c.args as { args: string }).args.includes('twitter search')
+      (c) => c.name === 'vincent_cli' && getArgs(c).includes('twitter search')
     );
     expect(searchCall).toBeDefined();
 

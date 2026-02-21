@@ -12,6 +12,12 @@ const skillContent = readFileSync(
   'utf-8'
 );
 
+/** Safely get the args string from a tool call record */
+function getArgs(c: { args: Record<string, unknown> }): string {
+  const a = c.args?.args;
+  return typeof a === 'string' ? a : '';
+}
+
 describe('Skill: polymarket', () => {
   let stateDir: string;
 
@@ -30,10 +36,13 @@ describe('Skill: polymarket', () => {
       skillContent,
       baseUrl: BASE_URL,
       stateDir,
-      task: `Follow the skill instructions to:
-1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test polymarket wallet")
-2. Parse the JSON output to get the keyId
-3. Use that keyId to search markets for "bitcoin" with limit 5
+      task: `Follow the skill instructions. You MUST make exactly these CLI calls in order:
+
+Step 1: Run vincent_cli with args: secret create --type POLYMARKET_WALLET --memo "CI test polymarket wallet"
+
+Step 2: Parse the JSON output from Step 1 to find the "keyId" field.
+
+Step 3: Run vincent_cli with args: polymarket markets --key-id <KEYID> --query bitcoin --limit 5 (replacing <KEYID> with the actual keyId from Step 1)
 
 You MUST make both CLI calls. Report the keyId and the first market found.`,
     });
@@ -45,9 +54,7 @@ You MUST make both CLI calls. Report the keyId and the first market found.`,
     expect(calls.length).toBeGreaterThanOrEqual(2);
 
     // Verify a POLYMARKET_WALLET secret was created
-    const createCall = calls.find((c) =>
-      (c.args as { args: string }).args.includes('secret create')
-    );
+    const createCall = calls.find((c) => getArgs(c).includes('secret create'));
     expect(createCall).toBeDefined();
 
     const createResult = createCall!.result as { exitCode: number; output: string };
@@ -56,9 +63,7 @@ You MUST make both CLI calls. Report the keyId and the first market found.`,
     expect(createBody.keyId).toBeDefined();
 
     // Verify markets were searched
-    const marketCall = calls.find((c) =>
-      (c.args as { args: string }).args.includes('polymarket markets')
-    );
+    const marketCall = calls.find((c) => getArgs(c).includes('polymarket markets'));
     expect(marketCall).toBeDefined();
 
     const marketResult = marketCall!.result as { exitCode: number; output: string };
@@ -74,10 +79,13 @@ You MUST make both CLI calls. Report the keyId and the first market found.`,
         skillContent,
         baseUrl: BASE_URL,
         stateDir: holdingsStateDir,
-        task: `Follow the skill instructions to:
-1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test holdings check")
-2. Parse the JSON output to get the keyId
-3. Use that keyId to check your holdings
+        task: `Follow the skill instructions. You MUST make exactly these CLI calls in order:
+
+Step 1: Run vincent_cli with args: secret create --type POLYMARKET_WALLET --memo "CI test holdings check"
+
+Step 2: Parse the JSON output from Step 1 to find the "keyId" field.
+
+Step 3: Run vincent_cli with args: polymarket holdings --key-id <KEYID> (replacing <KEYID> with the actual keyId from Step 1)
 
 You MUST make both CLI calls. Report the keyId and the holdings response.`,
       });
@@ -89,18 +97,14 @@ You MUST make both CLI calls. Report the keyId and the holdings response.`,
       expect(calls.length).toBeGreaterThanOrEqual(2);
 
       // Verify a POLYMARKET_WALLET secret was created
-      const createCall = calls.find((c) =>
-        (c.args as { args: string }).args.includes('secret create')
-      );
+      const createCall = calls.find((c) => getArgs(c).includes('secret create'));
       expect(createCall).toBeDefined();
 
       const createResult = createCall!.result as { exitCode: number; output: string };
       expect(createResult.exitCode).toBe(0);
 
       // Verify holdings endpoint was called
-      const holdingsCall = calls.find((c) =>
-        (c.args as { args: string }).args.includes('polymarket holdings')
-      );
+      const holdingsCall = calls.find((c) => getArgs(c).includes('polymarket holdings'));
       expect(holdingsCall).toBeDefined();
 
       const holdingsResult = holdingsCall!.result as { exitCode: number; output: string };
