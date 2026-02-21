@@ -93,7 +93,7 @@ async function main() {
 
     // Step 5: Wait for rebuild
     console.log('\n[5] Waiting for VPS rebuild...');
-    await waitForRebuild(serviceName, addLog);
+    await waitForRebuild(serviceName, addLog, rebuildResult.id);
     console.log('  Rebuild complete. Waiting 30s for SSH to come up...');
     await sleep(30_000);
   } else {
