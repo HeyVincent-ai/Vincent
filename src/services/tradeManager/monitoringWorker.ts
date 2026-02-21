@@ -10,10 +10,12 @@ const CIRCUIT_BREAKER_THRESHOLD = 5;
 const CIRCUIT_BREAKER_COOLDOWN_S = 60;
 
 let timer: NodeJS.Timeout | undefined;
+let ticking = false;
 let webSocketService: PolymarketWebSocketService | undefined;
 
 const executingRuleIds = new Set<string>();
-const priceCache = new Map<string, number>();
+const PRICE_CACHE_TTL_MS = 120_000; // 2 minutes
+const priceCache = new Map<string, { price: number; timestamp: number }>();
 
 const status: WorkerStatus = {
   running: false,
@@ -69,10 +71,12 @@ export function stopTradeMonitoringWorker(): void {
 // ── Tick ────────────────────────────────────────────────────
 
 async function tick(): Promise<void> {
+  if (ticking) return; // prevent overlapping ticks
   if (status.circuitBreakerUntil && new Date(status.circuitBreakerUntil) > new Date()) {
     return;
   }
 
+  ticking = true;
   try {
     const activeRules = await ruleManager.getRules(undefined, 'ACTIVE');
     status.activeRulesCount = activeRules.length;
@@ -88,12 +92,14 @@ async function tick(): Promise<void> {
     // Evaluate each rule
     for (const rule of activeRules) {
       try {
-        let currentPrice = priceCache.get(rule.tokenId);
+        const cached = priceCache.get(rule.tokenId);
+        const isFresh = cached && Date.now() - cached.timestamp < PRICE_CACHE_TTL_MS;
+        let currentPrice = isFresh ? cached.price : undefined;
 
-        // Fallback to HTTP if no WebSocket price
+        // Fallback to HTTP if no fresh WebSocket price
         if (currentPrice === undefined) {
           currentPrice = await positionMonitor.getCurrentPrice(rule.tokenId);
-          priceCache.set(rule.tokenId, currentPrice);
+          priceCache.set(rule.tokenId, { price: currentPrice, timestamp: Date.now() });
         }
 
         await maybeAdjustTrailingTrigger(rule, currentPrice);
@@ -132,6 +138,8 @@ async function tick(): Promise<void> {
       ).toISOString();
       console.warn(`[TradeManager] Circuit breaker open until ${status.circuitBreakerUntil}`);
     }
+  } finally {
+    ticking = false;
   }
 }
 
@@ -179,7 +187,7 @@ function setupWebSocketHandlers(ws: PolymarketWebSocketService): void {
   });
 
   ws.on('price', (update: PriceUpdate) => {
-    priceCache.set(update.tokenId, update.price);
+    priceCache.set(update.tokenId, { price: update.price, timestamp: Date.now() });
     void evaluateRulesForToken(update.tokenId, update.price);
   });
 

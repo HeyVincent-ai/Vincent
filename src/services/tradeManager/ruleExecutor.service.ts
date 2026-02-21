@@ -20,10 +20,18 @@ export function evaluateRule(rule: RuleLike, currentPrice: number): boolean {
 export async function executeRule(
   rule: RuleLike
 ): Promise<{ txHash?: string; orderId?: string; executed: boolean }> {
-  const action = JSON.parse(rule.action) as {
-    type: 'SELL_ALL' | 'SELL_PARTIAL';
-    amount?: number;
-  };
+  let action: { type: 'SELL_ALL' | 'SELL_PARTIAL'; amount?: number };
+  try {
+    action = JSON.parse(rule.action) as typeof action;
+  } catch {
+    const errorMessage = `Invalid action JSON on rule ${rule.id}: ${rule.action}`;
+    await ruleManager.markRuleFailed(rule.id, errorMessage);
+    await eventLogger.logEvent(rule.id, 'ACTION_FAILED', {
+      message: errorMessage,
+      isPermanent: true,
+    });
+    throw new Error(errorMessage);
+  }
 
   try {
     // Check if market is resolved before attempting execution

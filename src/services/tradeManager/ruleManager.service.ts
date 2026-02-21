@@ -5,17 +5,30 @@ import { AppError } from '../../api/middleware/errorHandler.js';
 import * as eventLogger from './eventLogger.service.js';
 
 // Fetch market slug from Gamma API using condition ID
+const FETCH_SLUG_TIMEOUT_MS = 3000;
+
 async function fetchMarketSlug(conditionId: string): Promise<string | null> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), FETCH_SLUG_TIMEOUT_MS);
+
   try {
     const response = await fetch(
-      `https://gamma-api.polymarket.com/markets?condition_ids=${conditionId}&limit=1`
+      `https://gamma-api.polymarket.com/markets?condition_ids=${conditionId}&limit=1`,
+      { signal: controller.signal }
     );
     if (!response.ok) return null;
     const markets = await response.json();
     if (!Array.isArray(markets) || markets.length === 0) return null;
     return markets[0].slug || null;
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.warn(
+        `[TradeManager] fetchMarketSlug timeout after ${FETCH_SLUG_TIMEOUT_MS}ms for conditionId=${conditionId}`
+      );
+    }
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

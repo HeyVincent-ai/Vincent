@@ -144,7 +144,7 @@ jobs:
   auto-fix-copilot:
     if: |
       github.event_name == 'pull_request_review' &&
-      github.event.review.user.login == 'copilot-pull-request-reviewer[bot]' &&
+      github.event.review.user.login == 'github-copilot[bot]' &&
       github.event.review.state == 'COMMENTED'
     runs-on: ubuntu-latest
     steps:
