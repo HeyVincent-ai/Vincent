@@ -399,7 +399,7 @@ export default function SecretDetail() {
           )}
 
           {tab === 'overview' && secret.type === 'POLYMARKET_WALLET' && secret.walletAddress && (
-            <PolymarketPositions walletAddress={secret.walletAddress} />
+            <PolymarketPositions walletAddress={secret.walletAddress} secretId={secret.id} />
           )}
 
           {tab === 'overview' && secret.type === 'DATA_SOURCES' && (

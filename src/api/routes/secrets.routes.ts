@@ -10,6 +10,7 @@ import { sendSuccess, errors } from '../../utils/response.js';
 import * as secretService from '../../services/secret.service.js';
 import * as apiKeyService from '../../services/apiKey.service.js';
 import * as evmWallet from '../../skills/evmWallet.service.js';
+import * as polymarketSkill from '../../skills/polymarketSkill.service.js';
 import { auditService } from '../../audit/index.js';
 import { calculateTrialStatus } from '../../skills/gas.service.js';
 import prisma from '../../db/client.js';
@@ -403,6 +404,108 @@ router.post(
       secretId: id,
       userId: req.user!.id,
       action: 'skill.swap_execute',
+      inputData: body,
+      outputData: result,
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
+      errorMessage: result.status === 'denied' ? result.reason : undefined,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;
+    sendSuccess(res, result, statusCode);
+  })
+);
+
+/**
+ * GET /api/secrets/:id/polymarket/balance
+ * Get USDC balance for a Polymarket wallet secret
+ * Requires: User session + ownership
+ */
+router.get(
+  '/:id/polymarket/balance',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+    const result = await polymarketSkill.getBalance(id);
+    sendSuccess(res, result);
+  })
+);
+
+/**
+ * POST /api/secrets/:id/polymarket/redeem
+ * Redeem resolved Polymarket positions
+ * Requires: User session + ownership
+ */
+router.post(
+  '/:id/polymarket/redeem',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+
+    const body = z
+      .object({
+        conditionIds: z.array(z.string().min(1)).optional(),
+      })
+      .parse(req.body);
+
+    const start = Date.now();
+    const result = await polymarketSkill.redeemPositions(id, body.conditionIds);
+
+    auditService.log({
+      secretId: id,
+      userId: req.user!.id,
+      action: 'skill.polymarket_redeem',
+      inputData: body,
+      outputData: result,
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    sendSuccess(res, result);
+  })
+);
+
+/**
+ * POST /api/secrets/:id/polymarket/withdraw
+ * Withdraw USDC from a Polymarket wallet
+ * Requires: User session + ownership
+ */
+router.post(
+  '/:id/polymarket/withdraw',
+  sessionAuthMiddleware,
+  requireSecretOwnership,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+
+    const body = z
+      .object({
+        to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+        amount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
+      })
+      .parse(req.body);
+
+    const start = Date.now();
+    const result = await polymarketSkill.withdrawUsdc({
+      secretId: id,
+      to: body.to,
+      amount: body.amount,
+    });
+
+    auditService.log({
+      secretId: id,
+      userId: req.user!.id,
+      action: 'skill.polymarket_withdraw',
       inputData: body,
       outputData: result,
       status:

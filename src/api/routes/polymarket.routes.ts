@@ -257,6 +257,56 @@ router.post(
 );
 
 // ============================================================
+// POST /api/skills/polymarket/withdraw
+// ============================================================
+
+const withdrawSchema = z.object({
+  to: z.string().regex(/^0x[a-fA-F0-9]{40}$/, 'Invalid Ethereum address'),
+  amount: z.string().regex(/^\d+(\.\d+)?$/, 'Amount must be a numeric string'),
+});
+
+router.post(
+  '/withdraw',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+    const body = withdrawSchema.parse(req.body);
+
+    if (!req.secret) {
+      errors.unauthorized(res, 'No secret associated with API key');
+      return;
+    }
+
+    const start = Date.now();
+    const result = await polymarketSkill.withdrawUsdc({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      to: body.to,
+      amount: body.amount,
+    });
+
+    auditService.log({
+      secretId: req.secret.id,
+      apiKeyId: req.apiKey?.id,
+      action: 'skill.polymarket_withdraw',
+      inputData: body,
+      outputData: result,
+      status:
+        result.status === 'denied'
+          ? 'FAILED'
+          : result.status === 'pending_approval'
+            ? 'PENDING'
+            : 'SUCCESS',
+      errorMessage: result.status === 'denied' ? result.reason : undefined,
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+      durationMs: Date.now() - start,
+    });
+
+    const statusCode = result.status === 'executed' ? 200 : result.status === 'denied' ? 403 : 202;
+    sendSuccess(res, result, statusCode);
+  })
+);
+
+// ============================================================
 // DELETE /api/skills/polymarket/orders/:orderId
 // ============================================================
 

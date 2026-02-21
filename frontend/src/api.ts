@@ -113,6 +113,14 @@ export const executeSwap = (
   }
 ) => api.post(`/secrets/${secretId}/swap/execute`, data);
 
+// Polymarket (session-auth)
+export const polymarketBalance = (secretId: string) =>
+  api.get(`/secrets/${secretId}/polymarket/balance`);
+export const polymarketRedeem = (secretId: string, conditionIds?: string[]) =>
+  api.post(`/secrets/${secretId}/polymarket/redeem`, { conditionIds });
+export const polymarketWithdraw = (secretId: string, to: string, amount: string) =>
+  api.post(`/secrets/${secretId}/polymarket/withdraw`, { to, amount });
+
 // OpenClaw
 export const deployOpenClaw = (successUrl: string, cancelUrl: string) =>
   api.post('/openclaw/deploy', { successUrl, cancelUrl });
