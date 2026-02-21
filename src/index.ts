@@ -13,6 +13,10 @@ import {
   stopHardeningWorker,
   resumeInterruptedDeployments,
 } from './services/openclaw.service.js';
+import {
+  startTradeMonitoringWorker,
+  stopTradeMonitoringWorker,
+} from './services/tradeManager/index.js';
 
 // Prevent unhandled rejections from crashing the process (e.g. Telegram polling conflicts during deploys)
 process.on('unhandledRejection', (reason) => {
@@ -53,6 +57,9 @@ async function main() {
   startUsagePoller();
   startHardeningWorker();
 
+  // Start Trade Manager monitoring worker
+  startTradeMonitoringWorker();
+
   // Start server
   const server = app.listen(env.PORT, () => {
     console.log(`Server running on port ${env.PORT}`);
@@ -73,6 +80,7 @@ async function main() {
     stopTimeoutChecker();
     stopUsagePoller();
     stopHardeningWorker();
+    stopTradeMonitoringWorker();
     await stopBot();
 
     server.close(async () => {

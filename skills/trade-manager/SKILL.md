@@ -1,33 +1,32 @@
 # Trade Manager - Automated Stop-Loss, Take-Profit, and Trailing Stops
 
-Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs locally on your OpenClaw VPS and automatically executes trades when price conditions are met.
+Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs as part of the Vincent backend and automatically executes trades when price conditions are met.
 
 ## How It Works
 
 **Trade Manager is a companion to the Polymarket skill:**
 1. Use the **Polymarket skill** to browse markets and place bets
 2. Use **Trade Manager** to set automated exit rules on those positions
-3. The Trade Manager monitors prices **in real-time via WebSocket** (with 15-second polling as fallback) and executes trades through Vincent's Polymarket API when triggers are met
+3. The Trade Manager monitors prices **in real-time via WebSocket** (with polling as fallback) and executes trades through the same Polymarket infrastructure when triggers are met
 
 **Architecture:**
-- Local daemon running on your OpenClaw VPS
-- Local HTTP API at `http://localhost:19000`
-- Stores rules and events in local SQLite database
-- Executes trades through Vincent Polymarket API (same as manual trading)
+- Integrated into the Vincent backend (no separate service to run)
+- API endpoints under `/api/skills/polymarket/rules/...`
+- Uses the same API key as the Polymarket skill
+- Stores rules and events in the Vincent database
+- Executes trades through the same policy-enforced Polymarket pipeline
 - All Vincent policies (spending limits, approvals) still apply
 
 ## Quick Start
 
-### 1. Check Trade Manager Status
+### 1. Check Worker Status
 
-Before creating rules, verify the service is running:
+Before creating rules, verify the monitoring worker is running:
 
 ```bash
-curl http://localhost:19000/health
-# Expected: {"status":"ok","version":"0.1.0"}
-
-curl http://localhost:19000/status
-# Returns: worker status, active rules count, last sync time, circuit breaker state
+curl "https://heyvincent.ai/api/skills/polymarket/rules/status" \
+  -H "Authorization: Bearer <API_KEY>"
+# Returns: running state, active rules count, last sync time, circuit breaker state, WebSocket status
 ```
 
 ### 2. Create a Stop-Loss Rule
@@ -35,9 +34,9 @@ curl http://localhost:19000/status
 Automatically sell a position if price drops below a threshold:
 
 ```bash
-curl -X POST http://localhost:19000/api/rules \
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/rules" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>" \
+  -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "marketId": "0x123...",
     "tokenId": "456789",
@@ -50,24 +49,27 @@ curl -X POST http://localhost:19000/api/rules \
 **Parameters:**
 - `marketId`: The Polymarket condition ID (from market data)
 - `tokenId`: The outcome token ID you hold (from market data - use the token ID you bought)
-- `ruleType`: `"STOP_LOSS"` (sells if price ≤ trigger) or `"TAKE_PROFIT"` (sells if price ≥ trigger)
-- `triggerPrice`: Price threshold between 0 and 1 (e.g., 0.40 = 40¢)
-- `action`: `{"type": "SELL_ALL"}` (only supported type in MVP)
+- `ruleType`: `"STOP_LOSS"` (sells if price <= trigger) or `"TAKE_PROFIT"` (sells if price >= trigger)
+- `triggerPrice`: Price threshold between 0 and 1 (e.g., 0.40 = 40 cents)
+- `action`: `{"type": "SELL_ALL"}` or `{"type": "SELL_PARTIAL", "amount": N}`
 
 **Response:**
 ```json
 {
-  "id": "clxyz123...",
-  "ruleType": "STOP_LOSS",
-  "marketId": "0x123...",
-  "tokenId": "456789",
-  "triggerPrice": 0.40,
-  "action": "{\"type\":\"SELL_ALL\"}",
-  "status": "ACTIVE",
-  "triggeredAt": null,
-  "triggerTxHash": null,
-  "createdAt": "2025-02-16T12:00:00.000Z",
-  "updatedAt": "2025-02-16T12:00:00.000Z"
+  "success": true,
+  "data": {
+    "id": "clxyz123...",
+    "ruleType": "STOP_LOSS",
+    "marketId": "0x123...",
+    "tokenId": "456789",
+    "triggerPrice": 0.40,
+    "action": "{\"type\":\"SELL_ALL\"}",
+    "status": "ACTIVE",
+    "triggeredAt": null,
+    "triggerTxHash": null,
+    "createdAt": "2026-02-20T12:00:00.000Z",
+    "updatedAt": "2026-02-20T12:00:00.000Z"
+  }
 }
 ```
 
@@ -76,9 +78,9 @@ curl -X POST http://localhost:19000/api/rules \
 Automatically sell a position if price rises above a threshold:
 
 ```bash
-curl -X POST http://localhost:19000/api/rules \
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/rules" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>" \
+  -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "marketId": "0x123...",
     "tokenId": "456789",
@@ -95,9 +97,9 @@ curl -X POST http://localhost:19000/api/rules \
 A trailing stop starts with a stop price, then automatically moves that stop price up as price rises.
 
 ```bash
-curl -X POST http://localhost:19000/api/rules \
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/rules" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>" \
+  -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "marketId": "0x123...",
     "tokenId": "456789",
@@ -119,24 +121,24 @@ curl -X POST http://localhost:19000/api/rules \
 
 ```bash
 # All rules
-curl http://localhost:19000/api/rules \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules" \
+  -H "Authorization: Bearer <API_KEY>"
 
 # Only active rules
-curl 'http://localhost:19000/api/rules?status=ACTIVE' \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules?status=ACTIVE" \
+  -H "Authorization: Bearer <API_KEY>"
 
 # Only triggered rules
-curl 'http://localhost:19000/api/rules?status=TRIGGERED' \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules?status=TRIGGERED" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
 ### 6. Update a Rule's Trigger Price
 
 ```bash
-curl -X PATCH http://localhost:19000/api/rules/<rule-id> \
+curl -X PATCH "https://heyvincent.ai/api/skills/polymarket/rules/<rule-id>" \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>" \
+  -H "Authorization: Bearer <API_KEY>" \
   -d '{
     "triggerPrice": 0.45
   }'
@@ -145,8 +147,8 @@ curl -X PATCH http://localhost:19000/api/rules/<rule-id> \
 ### 7. Cancel a Rule
 
 ```bash
-curl -X DELETE http://localhost:19000/api/rules/<rule-id> \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl -X DELETE "https://heyvincent.ai/api/skills/polymarket/rules/<rule-id>" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
 The rule status changes to "CANCELED" and won't trigger anymore.
@@ -156,11 +158,11 @@ The rule status changes to "CANCELED" and won't trigger anymore.
 See what positions the Trade Manager is currently tracking:
 
 ```bash
-curl http://localhost:19000/api/positions \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules/positions" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
-Returns cached position data with current prices. This cache updates in real-time via WebSocket (with 15-second polling fallback).
+Returns cached position data with current prices. This cache updates via WebSocket and periodic polling.
 
 ### 9. View Event Log (Audit Trail)
 
@@ -168,16 +170,16 @@ See detailed history of rule evaluations and executions:
 
 ```bash
 # All events (most recent first, default limit=100)
-curl http://localhost:19000/api/events \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules/events" \
+  -H "Authorization: Bearer <API_KEY>"
 
 # Events for specific rule
-curl 'http://localhost:19000/api/events?ruleId=<rule-id>' \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+curl "https://heyvincent.ai/api/skills/polymarket/rules/events?ruleId=<rule-id>" \
+  -H "Authorization: Bearer <API_KEY>"
 
-# Paginated results (limit 1-1000, offset for paging)
-curl 'http://localhost:19000/api/events?ruleId=<rule-id>&limit=50&offset=100' \
-  -H "Authorization: Bearer <POLYMARKET_API_KEY>"
+# Paginated results (limit 1-500, offset for paging)
+curl "https://heyvincent.ai/api/skills/polymarket/rules/events?ruleId=<rule-id>&limit=50&offset=100" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
 **Event types:**
@@ -185,11 +187,12 @@ curl 'http://localhost:19000/api/events?ruleId=<rule-id>&limit=50&offset=100' \
 - `RULE_TRAILING_UPDATED` - Trailing stop moved triggerPrice upward
 - `RULE_EVALUATED` - Worker checked the rule against current price
 - `RULE_TRIGGERED` - Trigger condition was met
+- `ACTION_PENDING_APPROVAL` - Trade requires human approval, rule paused
 - `ACTION_EXECUTED` - Trade executed successfully
 - `ACTION_FAILED` - Trade execution failed
 - `RULE_CANCELED` - Rule was manually canceled
 
-Each event includes a `data` object (parsed JSON) with fields relevant to the event type:
+Each event includes a `data` object with fields relevant to the event type:
 - `currentPrice` - Price at time of evaluation
 - `triggerPrice` - The rule's trigger threshold
 - `shouldTrigger` - Whether the condition was met
@@ -213,17 +216,15 @@ curl -X POST "https://heyvincent.ai/api/skills/polymarket/bet" \
   -d '{
     "tokenId": "123456789",
     "side": "BUY",
-    "amount": 10,
-    "price": 0.55
+    "amount": 10
   }'
-# You bought 18.18 shares at 55¢
 ```
 
 ### Step 2: Set stop-loss with Trade Manager
 
 ```bash
-# Protect your position with a 40¢ stop-loss
-curl -X POST http://localhost:19000/api/rules \
+# Protect your position with a 40 cent stop-loss
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/rules" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -238,8 +239,8 @@ curl -X POST http://localhost:19000/api/rules \
 ### Step 3: Set take-profit with Trade Manager
 
 ```bash
-# Lock in profit if price hits 85¢
-curl -X POST http://localhost:19000/api/rules \
+# Lock in profit if price hits 85 cents
+curl -X POST "https://heyvincent.ai/api/skills/polymarket/rules" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <API_KEY>" \
   -d '{
@@ -254,22 +255,26 @@ curl -X POST http://localhost:19000/api/rules \
 ### Step 4: Monitor your rules
 
 ```bash
-# Check status
-curl http://localhost:19000/api/rules?status=ACTIVE \
+# Check active rules
+curl "https://heyvincent.ai/api/skills/polymarket/rules?status=ACTIVE" \
   -H "Authorization: Bearer <API_KEY>"
 
 # Check recent events
-curl http://localhost:19000/api/events \
+curl "https://heyvincent.ai/api/skills/polymarket/rules/events" \
+  -H "Authorization: Bearer <API_KEY>"
+
+# Check worker status
+curl "https://heyvincent.ai/api/skills/polymarket/rules/status" \
   -H "Authorization: Bearer <API_KEY>"
 ```
 
 ### What Happens When a Rule Triggers
 
-1. **Worker detects trigger:** The background worker checks all active rules against current prices in real-time via WebSocket (with 15-second polling as fallback)
+1. **Worker detects trigger:** The background worker checks all active rules against current prices in real-time via WebSocket (with periodic polling as fallback)
 2. **Rule marked as triggered:** Status changes from `ACTIVE` to `TRIGGERED` atomically (prevents double-execution)
-3. **Trade executes:** Calls Vincent Polymarket API to place a market sell order
+3. **Trade executes:** Calls the Polymarket bet pipeline to place a market sell order (same pipeline as manual trading, with full policy enforcement)
 4. **Events logged:** Creates `RULE_TRIGGERED` and `ACTION_EXECUTED` events
-5. **You're notified:** (Future feature - Telegram notifications coming soon)
+5. **Rule scoped to your agent:** Each agent only sees and manages their own rules
 
 **Important:** Executed trades still go through Vincent's policy enforcement. If your trade violates a spending limit or requires approval, the Trade Manager respects those policies.
 
@@ -277,6 +282,7 @@ curl http://localhost:19000/api/events \
 
 - `ACTIVE` - Rule is live and being monitored
 - `TRIGGERED` - Condition was met, trade executed (or attempted)
+- `PENDING_APPROVAL` - Trade requires human approval; rule is paused until the approval is granted or denied
 - `CANCELED` - Rule was manually canceled before triggering
 - `FAILED` - Rule triggered but trade execution failed
 - `EXPIRED` - (Future feature for time-based expiration)
@@ -285,20 +291,21 @@ curl http://localhost:19000/api/events \
 
 The Trade Manager runs a background worker that:
 - Monitors prices in real-time via Polymarket WebSocket feed
-- Falls back to HTTP polling every 15 seconds if WebSocket is unavailable
-- Fetches current positions from Vincent Polymarket API
+- Falls back to HTTP polling on a configurable interval if WebSocket is unavailable
+- Fetches current positions from the Polymarket API for each agent with active rules
 - Evaluates each rule against current price on every update
 - Executes trades when conditions are met
-- Logs all evaluations and actions
+- Logs trigger events, trailing stop adjustments, and execution outcomes
 
 **Circuit Breaker:**
-If Vincent API fails 5+ consecutive times, the worker enters "OPEN" state and pauses polling. It resumes after a cooldown period. Check worker status:
+If the Polymarket API fails 5+ consecutive times, the worker pauses. It resumes after a cooldown period. Check worker status:
 
 ```bash
-curl http://localhost:19000/status
+curl "https://heyvincent.ai/api/skills/polymarket/rules/status" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
-Look for `circuitBreakerState: "CLOSED"` (healthy) or `"OPEN"` (paused due to errors).
+Look for `consecutiveFailures: 0` (healthy) or a `circuitBreakerUntil` timestamp (paused due to errors).
 
 ## Error Handling
 
@@ -320,49 +327,44 @@ Fix: Include all required fields (marketId, tokenId, ruleType, triggerPrice, act
 ```json
 {"error": "Rule not found"}
 ```
-Fix: Check the rule ID is correct
+Fix: Check the rule ID is correct and belongs to your agent
 
-**500 Internal Server Error - Trade execution failed:**
+**Failed rule execution:**
 The rule status will be `FAILED` with an `errorMessage` field explaining what went wrong. Common causes:
 - Insufficient balance
-- Market closed
-- Vincent API unreachable
-- Policy violation
+- Market closed or resolved
+- Policy violation (spending limit, approval required)
 
 Check the event log for details:
 ```bash
-curl 'http://localhost:19000/api/events?ruleId=<rule-id>'
+curl "https://heyvincent.ai/api/skills/polymarket/rules/events?ruleId=<rule-id>" \
+  -H "Authorization: Bearer <API_KEY>"
 ```
 
 ## Best Practices
 
 1. **Always set both stop-loss and take-profit** to bracket your position
 2. **Don't set triggers too close** to current price - market noise can trigger prematurely
-3. **Monitor the worker status** - if circuit breaker is OPEN, your rules won't trigger
+3. **Monitor the worker status** - if circuit breaker is active, your rules won't trigger
 4. **Check event logs** after rules trigger to verify execution
 5. **Cancel old rules** after positions close to keep your rule list clean
-6. **Use SELL_ALL** - partial sells (`SELL_PARTIAL`) coming in v2
-
-## Limitations (MVP)
-
-- Only supports `SELL_ALL` action (no partial sells yet)
-- No time-based triggers (coming in v2)
-- No Telegram notifications yet (manual event log checking)
 
 ## Example User Prompts
 
 When a user says:
-- **"Set a stop-loss at 40¢ for my Bitcoin Yes position"** → Create STOP_LOSS rule
-- **"Take profit at 85¢"** → Create TAKE_PROFIT rule
-- **"Set a 5% trailing stop on my Bitcoin Yes position"** → Create TRAILING_STOP rule
-- **"What are my active stop-losses?"** → List rules with `status=ACTIVE`
-- **"Cancel my stop-loss for market XYZ"** → Delete the rule
-- **"Did my stop-loss trigger?"** → Check rule status and event log
-- **"Move my stop-loss to 50¢"** → PATCH the rule's triggerPrice
+- **"Set a stop-loss at 40 cents for my Bitcoin Yes position"** -> Create STOP_LOSS rule
+- **"Take profit at 85 cents"** -> Create TAKE_PROFIT rule
+- **"Set a 5% trailing stop on my Bitcoin Yes position"** -> Create TRAILING_STOP rule
+- **"What are my active stop-losses?"** -> List rules with `status=ACTIVE`
+- **"Cancel my stop-loss for market XYZ"** -> Delete the rule
+- **"Did my stop-loss trigger?"** -> Check rule status and event log
+- **"Move my stop-loss to 50 cents"** -> PATCH the rule's triggerPrice
 
 ## API Reference
 
-### POST /api/rules
+All endpoints are under `/api/skills/polymarket/rules` and require the same API key used for the Polymarket skill.
+
+### POST /api/skills/polymarket/rules
 Create a new trading rule.
 
 **Request:**
@@ -371,50 +373,46 @@ Create a new trading rule.
   "marketId": "string",
   "tokenId": "string",
   "ruleType": "STOP_LOSS" | "TAKE_PROFIT" | "TRAILING_STOP",
-  "triggerPrice": number,  // 0 to 1
-  "trailingPercent": number,  // required for TRAILING_STOP (0 < x < 100)
-  "action": {"type": "SELL_ALL"}
+  "triggerPrice": number,
+  "trailingPercent": number,
+  "action": {"type": "SELL_ALL"} | {"type": "SELL_PARTIAL", "amount": number}
 }
 ```
 
 **Response:** Rule object with `id`, `status: "ACTIVE"`, timestamps
 
-### GET /api/rules
-List all rules. Optional query param: `?status=ACTIVE|TRIGGERED|CANCELED|FAILED`
+### GET /api/skills/polymarket/rules
+List all rules for your agent. Optional query param: `?status=ACTIVE|TRIGGERED|PENDING_APPROVAL|CANCELED|FAILED`
 
-### GET /api/rules/:id
+### GET /api/skills/polymarket/rules/:id
 Get a specific rule by ID.
 
-### PATCH /api/rules/:id
+### PATCH /api/skills/polymarket/rules/:id
 Update a rule's trigger price.
 
 **Request:**
 ```json
 {
-  "triggerPrice": number  // New trigger price
+  "triggerPrice": number
 }
 ```
 
-### DELETE /api/rules/:id
+### DELETE /api/skills/polymarket/rules/:id
 Cancel a rule. Changes status to "CANCELED".
 
-### GET /api/positions
-Get monitored positions (cached, updated every 15s).
+### GET /api/skills/polymarket/rules/positions
+Get monitored positions for your agent (cached, updated periodically).
 
-### GET /api/events
-Get event log. Query params: `?ruleId=<id>&limit=100&offset=0` (limit: 1-1000, default 100)
+### GET /api/skills/polymarket/rules/events
+Get event log. Query params: `?ruleId=<id>&limit=100&offset=0` (limit: 1-500, default 100)
 
-### GET /health
-Health check. Returns `{"status":"ok","version":"0.1.0"}`
-
-### GET /status
-Worker status including active rules count, last sync time, circuit breaker state.
+### GET /api/skills/polymarket/rules/status
+Worker status including running state, active rules count, last sync time, circuit breaker state, WebSocket connection status.
 
 ## Important Notes
 
-- **Authorization:** All endpoints require the same Polymarket API key you use for the Polymarket skill
-- **Local only:** The API listens on `localhost:19000` - only accessible from the same VPS
-- **No private keys:** Trade Manager uses Vincent API for all trades - your private key stays secure on Vincent's servers
-- **Policy enforcement:** All trades executed by Trade Manager still go through Vincent's policy checks
-- **Idempotency:** Rules only trigger once - even if the worker crashes and restarts
-- **Database location:** SQLite DB at `${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/trade-manager.db` (or configured path)
+- **Authorization:** Uses the same Polymarket API key as the Polymarket skill
+- **Multi-tenant:** Each agent only sees their own rules and positions
+- **No private keys:** Trade Manager uses the same server-side Polymarket pipeline - your private key stays secure
+- **Policy enforcement:** All trades executed by Trade Manager go through Vincent's policy checks
+- **Idempotency:** Rules only trigger once - even if the worker restarts

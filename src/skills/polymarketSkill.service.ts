@@ -393,6 +393,7 @@ export async function getTrades(secretId: string, market?: string): Promise<poly
 
 export interface Holding {
   tokenId: string;
+  conditionId: string;
   shares: number;
   averageEntryPrice: number;
   currentPrice: number;
@@ -418,6 +419,7 @@ export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
   // Map to our holding format
   const holdings: Holding[] = positions.map((pos) => ({
     tokenId: pos.asset,
+    conditionId: pos.conditionId,
     shares: parseFloat(pos.size),
     averageEntryPrice: parseFloat(pos.avgPrice),
     currentPrice: parseFloat(pos.curPrice),
