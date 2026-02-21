@@ -201,6 +201,7 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'CURRENT' | 'CASHPNL' | 'TOKENS'>('CURRENT');
+  const [fetchTick, setFetchTick] = useState(0);
   const [usdcBalance, setUsdcBalance] = useState<number | undefined>(undefined);
   const [redeeming, setRedeeming] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -256,7 +257,7 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
         setError(err.message || 'Failed to load positions');
       })
       .finally(() => setLoading(false));
-  }, [walletAddress, sortBy]);
+  }, [walletAddress, sortBy, fetchTick]);
 
   const totalValue = positions.reduce((s, p) => s + p.currentValue, 0);
   const totalPnl = positions.reduce((s, p) => s + p.cashPnl, 0);
@@ -275,7 +276,7 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
         polymarketBalance(secretId)
           .then((r) => setUsdcBalance(parseFloat(r.data.data.collateral.balance) || 0))
           .catch(() => {});
-        setSortBy(sortBy); // trigger re-fetch
+        setFetchTick((t) => t + 1);
       }
     } catch {
       toast('Failed to redeem positions', 'error');
@@ -306,7 +307,7 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
         <p className="text-sm text-destructive mb-2">Failed to load positions</p>
         <p className="text-xs text-muted-foreground">{error}</p>
         <button
-          onClick={() => setSortBy(sortBy)}
+          onClick={() => setFetchTick((t) => t + 1)}
           className="text-xs text-primary hover:text-primary/80 mt-2"
         >
           Retry
@@ -328,22 +329,24 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
       )}
       <button
         onClick={() => setShowWithdrawModal(true)}
-        className="text-xs px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+        disabled={usdcBalance === undefined}
+        className="text-xs px-3 py-1.5 rounded-lg border border-primary/30 text-primary hover:bg-primary/10 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         Send USDC
       </button>
     </>
   );
 
-  if (positions.length === 0) {
-    return (
-      <div className="space-y-6">
-        <PortfolioSummary
-          totalValue={0}
-          totalPnl={0}
-          usdcBalance={usdcBalance}
-          actions={actionButtons}
-        />
+  return (
+    <div className="space-y-6">
+      <PortfolioSummary
+        totalValue={totalValue}
+        totalPnl={totalPnl}
+        usdcBalance={usdcBalance}
+        actions={actionButtons}
+      />
+
+      {positions.length === 0 ? (
         <div className="text-center py-8 border-t border-border/50">
           <p className="text-sm text-muted-foreground mb-1">No positions yet</p>
           <p className="text-xs text-muted-foreground">
@@ -358,60 +361,40 @@ export default function PolymarketPositions({ walletAddress, secretId }: Polymar
             Browse Polymarket Markets &rarr;
           </a>
         </div>
-        {showWithdrawModal && usdcBalance !== undefined && (
-          <PolymarketWithdrawModal
-            secretId={secretId}
-            balance={usdcBalance}
-            onClose={() => setShowWithdrawModal(false)}
-            onSuccess={refreshBalance}
-          />
-        )}
-      </div>
-    );
-  }
+      ) : (
+        <div className="border-t border-border/50 pt-6">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs text-muted-foreground uppercase tracking-wider">
+              Open Positions ({positions.length})
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'CURRENT' | 'CASHPNL' | 'TOKENS')}
+                className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground"
+              >
+                <option value="CURRENT">Value</option>
+                <option value="CASHPNL">P&L</option>
+                <option value="TOKENS">Shares</option>
+              </select>
+              <a
+                href="https://polymarket.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-primary hover:text-primary/80 transition-colors"
+              >
+                Polymarket &rarr;
+              </a>
+            </div>
+          </div>
 
-  return (
-    <div className="space-y-6">
-      <PortfolioSummary
-        totalValue={totalValue}
-        totalPnl={totalPnl}
-        usdcBalance={usdcBalance}
-        actions={actionButtons}
-      />
-
-      {/* Positions header */}
-      <div className="border-t border-border/50 pt-6">
-        <div className="flex items-center justify-between mb-1">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider">
-            Open Positions ({positions.length})
-          </p>
-          <div className="flex items-center gap-2">
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'CURRENT' | 'CASHPNL' | 'TOKENS')}
-              className="bg-transparent border border-border/50 rounded px-2 py-1.5 text-xs text-muted-foreground"
-            >
-              <option value="CURRENT">Value</option>
-              <option value="CASHPNL">P&L</option>
-              <option value="TOKENS">Shares</option>
-            </select>
-            <a
-              href="https://polymarket.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-primary hover:text-primary/80 transition-colors"
-            >
-              Polymarket &rarr;
-            </a>
+          <div className="divide-y divide-border/50">
+            {positions.map((pos, i) => (
+              <PositionCard key={`${pos.conditionId}-${pos.outcome}-${i}`} position={pos} />
+            ))}
           </div>
         </div>
-
-        <div className="divide-y divide-border/50">
-          {positions.map((pos, i) => (
-            <PositionCard key={`${pos.conditionId}-${pos.outcome}-${i}`} position={pos} />
-          ))}
-        </div>
-      </div>
+      )}
 
       {showWithdrawModal && usdcBalance !== undefined && (
         <PolymarketWithdrawModal

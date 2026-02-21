@@ -623,6 +623,17 @@ export async function withdrawUsdc(input: WithdrawInput): Promise<WithdrawOutput
     const USDC_DECIMALS = 6;
     const rawAmount = Math.round(usdValue * 10 ** USDC_DECIMALS).toString();
 
+    // Pre-check balance to give a clear error before hitting the relayer
+    const clientConfig = {
+      privateKey: wallet.privateKey,
+      secretId,
+      safeAddress: wallet.safeAddress,
+    };
+    const collateral = await polymarket.getCollateralBalance(clientConfig);
+    if (BigInt(rawAmount) > BigInt(collateral.balance)) {
+      throw new AppError('INSUFFICIENT_BALANCE', 'Insufficient USDC balance', 400);
+    }
+
     const result = await polymarket.transferUsdc(wallet.privateKey, to, rawAmount);
 
     await prisma.transactionLog.update({

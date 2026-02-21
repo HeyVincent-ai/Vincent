@@ -246,7 +246,7 @@ router.post(
       action: 'skill.polymarket_redeem',
       inputData: body,
       outputData: result,
-      status: result.redeemed.length > 0 ? 'SUCCESS' : 'SUCCESS',
+      status: 'SUCCESS',
       ipAddress: req.ip,
       userAgent: req.get('user-agent'),
       durationMs: Date.now() - start,
@@ -268,12 +268,12 @@ const withdrawSchema = z.object({
 router.post(
   '/withdraw',
   asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const body = withdrawSchema.parse(req.body);
-
     if (!req.secret) {
       errors.unauthorized(res, 'No secret associated with API key');
       return;
     }
+
+    const body = withdrawSchema.parse(req.body);
 
     const start = Date.now();
     const result = await polymarketSkill.withdrawUsdc({

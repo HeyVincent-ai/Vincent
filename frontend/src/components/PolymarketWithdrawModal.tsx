@@ -19,6 +19,7 @@ export default function PolymarketWithdrawModal({
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function PolymarketWithdrawModal({
 
     setLoading(true);
     setError(null);
+    setInfo(null);
 
     try {
       const res = await polymarketWithdraw(secretId, to, amount);
@@ -47,7 +49,7 @@ export default function PolymarketWithdrawModal({
       if (data.status === 'denied') {
         setError(data.reason || 'Transaction denied by policy');
       } else if (data.status === 'pending_approval') {
-        setError('Transaction requires approval. Check your notifications.');
+        setInfo('Transaction requires approval. Check your notifications.');
       } else {
         setTxHash(data.transactionHash);
         onSuccess();
@@ -68,6 +70,9 @@ export default function PolymarketWithdrawModal({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Send USDC"
     >
       <div
         className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
@@ -150,6 +155,12 @@ export default function PolymarketWithdrawModal({
                   </p>
                 )}
               </div>
+
+              {info && (
+                <p className="text-xs text-yellow-400 bg-yellow-500/10 rounded-lg px-3 py-2">
+                  {info}
+                </p>
+              )}
 
               {error && (
                 <p className="text-xs text-destructive bg-destructive/10 rounded-lg px-3 py-2">
