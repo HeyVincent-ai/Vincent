@@ -1216,10 +1216,29 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
               );
 
               if (currentDetails.state === 'installing') {
-                // A rebuild is already in progress — skip initiating a new one
-                addLog(
-                  'Rebuild already in progress (VPS is installing), waiting for completion...'
-                );
+                // VPS is installing — check if the rebuild task already failed
+                const taskIds = await ovhService.getVpsTasks(ctx.serviceName);
+                let hasActiveReinstall = false;
+                for (const tid of taskIds) {
+                  try {
+                    const task = await ovhService.getVpsTaskDetails(ctx.serviceName, tid);
+                    addLog(`OVH task ${tid}: type=${task.type}, state=${task.state}`);
+                    if (task.type === 'reinstallVm' && ACTIVE_TASK_STATES.has(task.state)) {
+                      hasActiveReinstall = true;
+                    }
+                  } catch {
+                    // Task may have completed
+                  }
+                }
+                if (hasActiveReinstall) {
+                  addLog('Rebuild in progress, waiting for completion...');
+                } else {
+                  // No active reinstall — VPS is stuck installing with an errored task
+                  addLog('VPS is installing but no active reinstall tasks found — rebuild failed');
+                  throw new RebuildTaskError(
+                    'VPS stuck in installing state with no active reinstall tasks'
+                  );
+                }
               } else if (currentDetails.state === 'maintenance') {
                 // VPS stuck in maintenance from a previous failed rebuild — need a fresh rebuild
                 addLog(
@@ -1636,60 +1655,60 @@ export async function waitForRebuild(
         maintenanceCount++;
       }
 
-      // Check rebuild task state for early error detection
-      if (rebuildTaskId) {
+      // Check OVH task states periodically for error detection and diagnostics.
+      // When we have a specific rebuildTaskId, check it every poll.
+      // For full task scan, throttle to every ~60s.
+      const now = Date.now();
+      const shouldCheckAllTasks = now - lastTaskLog >= 60_000;
+
+      if (rebuildTaskId || shouldCheckAllTasks || maintenanceCount >= 2) {
         try {
-          const task = await ovhService.getVpsTaskDetails(serviceName, rebuildTaskId);
-          if (task.state === 'error') {
-            addLog(`[${elapsed}s] Rebuild task ${rebuildTaskId} failed (state=error)`);
-            throw new RebuildTaskError(`OVH rebuild task ${rebuildTaskId} failed with state=error`);
+          // If we have a specific task ID, check it directly every poll
+          if (rebuildTaskId) {
+            const task = await ovhService.getVpsTaskDetails(serviceName, rebuildTaskId);
+            if (task.state === 'error') {
+              addLog(`[${elapsed}s] Rebuild task ${rebuildTaskId} failed (state=error)`);
+              throw new RebuildTaskError(
+                `OVH rebuild task ${rebuildTaskId} failed with state=error`
+              );
+            }
+          }
+
+          // Full task scan: log all tasks and check for stuck state
+          if (shouldCheckAllTasks || maintenanceCount >= 2) {
+            lastTaskLog = now;
+            const taskIds = await ovhService.getVpsTasks(serviceName);
+            let hasActiveReinstall = false;
+            let hasErroredReinstall = false;
+
+            for (const taskId of taskIds) {
+              const task = await ovhService.getVpsTaskDetails(serviceName, taskId);
+              addLog(`[${elapsed}s] OVH task ${taskId}: type=${task.type}, state=${task.state}`);
+              if (task.type === 'reinstallVm') {
+                if (ACTIVE_TASK_STATES.has(task.state)) {
+                  hasActiveReinstall = true;
+                } else if (task.state === 'error') {
+                  hasErroredReinstall = true;
+                }
+              }
+            }
+
+            // If VPS is not running and there are no active reinstall tasks
+            // but there are errored ones, the rebuild has failed
+            if (!hasActiveReinstall && hasErroredReinstall && details.state !== 'running') {
+              addLog(`[${elapsed}s] No active reinstall tasks, only errored — rebuild failed`);
+              throw new RebuildTaskError(
+                'VPS has no active rebuild tasks and errored reinstallVm detected'
+              );
+            }
+
+            if (taskIds.length === 0) {
+              addLog(`[${elapsed}s] No OVH tasks found`);
+            }
           }
         } catch (e) {
           if (e instanceof RebuildTaskError) throw e;
           // Task API may be unavailable during rebuild
-        }
-      }
-
-      // If in maintenance for 2+ consecutive polls and no active rebuild, fail fast
-      if (maintenanceCount >= 2 && wasInstalling) {
-        // Double-check: look for any active reinstall tasks
-        try {
-          const taskIds = await ovhService.getVpsTasks(serviceName);
-          let hasActiveReinstall = false;
-          for (const taskId of taskIds) {
-            const task = await ovhService.getVpsTaskDetails(serviceName, taskId);
-            addLog(`[${elapsed}s] OVH task ${taskId}: type=${task.type}, state=${task.state}`);
-            if (task.type === 'reinstallVm' && ACTIVE_TASK_STATES.has(task.state)) {
-              hasActiveReinstall = true;
-            }
-          }
-          if (!hasActiveReinstall) {
-            addLog(`[${elapsed}s] VPS stuck in maintenance with no active reinstall tasks`);
-            throw new RebuildTaskError(
-              'VPS entered maintenance state with no active rebuild tasks — rebuild likely failed on OVH side'
-            );
-          }
-        } catch (e) {
-          if (e instanceof RebuildTaskError) throw e;
-        }
-      }
-
-      // Log OVH task details periodically for diagnostics
-      const now = Date.now();
-      if (now - lastTaskLog >= 60_000) {
-        lastTaskLog = now;
-        try {
-          const taskIds = await ovhService.getVpsTasks(serviceName);
-          if (taskIds.length > 0) {
-            for (const taskId of taskIds) {
-              const task = await ovhService.getVpsTaskDetails(serviceName, taskId);
-              addLog(`[${elapsed}s] OVH task ${taskId}: type=${task.type}, state=${task.state}`);
-            }
-          } else {
-            addLog(`[${elapsed}s] No active OVH tasks`);
-          }
-        } catch {
-          // Non-critical — task API may be unavailable during rebuild
         }
       }
     } catch (e: any) {
