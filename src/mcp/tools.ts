@@ -210,7 +210,15 @@ async function runDataSourceTool<T extends z.ZodTypeAny>(
     };
   } catch (err: unknown) {
     // Refund credit if the external API call failed
-    refundCredit(user.id, cost).catch(console.error);
+    try {
+      await refundCredit(user.id, cost);
+    } catch (refundErr) {
+      console.error('CRITICAL: credit refund failed', {
+        userId: user.id,
+        costUsd: cost,
+        refundErr,
+      });
+    }
 
     auditService
       .log({

@@ -5,7 +5,6 @@ import { deductCredit, refundCredit } from './credit.service.js';
 import { logUsage } from './usage.service.js';
 import { DataSourceRequest } from './middleware.js';
 import { sendError } from '../utils/response.js';
-import { AppError } from '../api/middleware/errorHandler.js';
 import * as audit from '../audit/audit.service.js';
 
 type ProxyHandler = (req: DataSourceRequest) => Promise<unknown>;
@@ -39,24 +38,8 @@ export function wrapProxy(
     const userId = dsReq.dataSourceUser.id;
 
     // Atomically deduct credit BEFORE calling the external API to prevent race conditions.
-    // If deductCredit fails (insufficient balance), it throws a 402 error.
-    let newBalance;
-    try {
-      newBalance = await deductCredit(userId, cost);
-    } catch (err: unknown) {
-      if (err instanceof AppError && err.code === 'INSUFFICIENT_CREDIT') {
-        const balance = dsReq.dataSourceUser.dataSourceCreditUsd.toNumber();
-        sendError(
-          res,
-          'INSUFFICIENT_CREDIT',
-          `Insufficient data source credit. Balance: $${balance.toFixed(2)}, required: $${cost.toFixed(4)}`,
-          402,
-          { balance, required: cost }
-        );
-        return;
-      }
-      throw err;
-    }
+    // If deductCredit throws (insufficient balance), the AppError propagates to Express error handler.
+    const newBalance = await deductCredit(userId, cost);
 
     try {
       // Call upstream handler
@@ -96,7 +79,11 @@ export function wrapProxy(
       });
     } catch (err: unknown) {
       // Refund credit if the external API call failed
-      refundCredit(userId, cost).catch(console.error);
+      try {
+        await refundCredit(userId, cost);
+      } catch (refundErr) {
+        console.error('CRITICAL: credit refund failed', { userId, costUsd: cost, refundErr });
+      }
 
       // Audit log failure (fire-and-forget)
       audit
