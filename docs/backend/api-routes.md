@@ -87,6 +87,21 @@ All routes are mounted under `/api` via `src/api/routes/index.ts`. Routes are gr
 | DELETE | `/api/skills/polymarket/orders/:orderId` | API Key | Cancel specific order |
 | DELETE | `/api/skills/polymarket/orders` | API Key | Cancel all orders |
 
+## Trade Manager (Polymarket Rules)
+
+**File:** `src/api/routes/tradeRules.routes.ts` (mounted under polymarket routes)
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/api/skills/polymarket/rules` | API Key | Create a trade rule (stop-loss, take-profit, trailing stop) |
+| GET | `/api/skills/polymarket/rules` | API Key | List rules (`?status=ACTIVE`) |
+| GET | `/api/skills/polymarket/rules/:id` | API Key | Get rule details |
+| PATCH | `/api/skills/polymarket/rules/:id` | API Key | Update trigger price |
+| DELETE | `/api/skills/polymarket/rules/:id` | API Key | Cancel a rule |
+| GET | `/api/skills/polymarket/rules/events` | API Key | Event log (`?ruleId=...&limit=100&offset=0`) |
+| GET | `/api/skills/polymarket/rules/positions` | API Key | Monitored positions for this agent |
+| GET | `/api/skills/polymarket/rules/status` | API Key | Worker status (running, circuit breaker, WebSocket) |
+
 ## Raw Signer
 
 **File:** `src/api/routes/rawSigner.routes.ts`

@@ -1,23 +1,24 @@
 # Trade Manager
 
-The Trade Manager is a standalone Node.js app that runs on each OpenClaw VPS. It manages automated trading rules (stop-loss, take-profit) for Polymarket positions, triggered by price movements.
+The Trade Manager is integrated into the Vincent backend as a service. It manages automated trading rules (stop-loss, take-profit, trailing stop) for Polymarket positions, triggered by price movements. It is multi-tenant — every rule and position is scoped to a `secretId`.
 
 ## Architecture
 
 ```
-User (Telegram) → OpenClaw Agent → Trade Manager (localhost:19000) → Vincent API
-                                        │
-                                   ┌────┴────┐
-                                   │ SQLite  │
-                                   │ Database│
-                                   └─────────┘
+AI Agent → Vincent API (/api/skills/polymarket/rules/...) → PostgreSQL
+                │
+        ┌───────┴────────┐
+        │ Trade Manager  │
+        │ Worker (in     │──── Polymarket WebSocket
+        │ backend process)│     (real-time prices)
+        └────────────────┘
 ```
 
-- **Separate process** from OpenClaw, supervised by systemd
-- **Local HTTP API** on `localhost:19000`
-- **SQLite database** for state (rules, positions, events)
-- **Background worker** monitors prices via Polymarket websockets (with 15-second polling as fallback)
-- Communicates with Vincent backend as a REST client using the Polymarket wallet API key
+- **Part of the Vincent backend** — no separate process, no separate database
+- **API endpoints** under `/api/skills/polymarket/rules/...` (same auth as Polymarket skill)
+- **PostgreSQL** for state (rules, positions, events) via Prisma
+- **Background worker** monitors prices via Polymarket WebSocket (with configurable polling fallback)
+- Trade execution goes through `polymarketSkill.placeBet()` — full policy enforcement and audit logging
 
 ## Core Concepts
 
@@ -27,64 +28,74 @@ A rule that triggers an action when price conditions are met.
 
 | Field | Description |
 |---|---|
-| `ruleType` | `STOP_LOSS`, `TAKE_PROFIT`, `TRAILING_STOP` (v2) |
+| `secretId` | Scoping — which agent's rule this is |
+| `ruleType` | `STOP_LOSS`, `TAKE_PROFIT`, `TRAILING_STOP` |
 | `marketId` | Polymarket market condition ID |
 | `tokenId` | Polymarket outcome token (CLOB token ID) |
 | `triggerPrice` | Price threshold that triggers the rule |
-| `action` | JSON: `{ "type": "SELL_ALL" }` or `{ "type": "SELL_PARTIAL", "amount": 100 }` |
+| `trailingPercent` | For `TRAILING_STOP` only — percentage below current price |
+| `action` | JSON: `{ "type": "SELL_ALL" }` or `{ "type": "SELL_PARTIAL", "amount": N }` |
 | `status` | `ACTIVE`, `TRIGGERED`, `CANCELED`, `EXPIRED`, `FAILED` |
 
-### MonitoredPosition
+### TradeMonitoredPosition
 
-Cached snapshot of positions being watched, updated each poll cycle.
+Cached snapshot of positions being watched, updated each poll cycle. Scoped by `secretId`.
 
-### RuleEvent
+### TradeRuleEvent
 
 Append-only audit log of rule evaluations and actions.
 
 ## Background Worker
 
-Runs continuously in the same process as the HTTP API.
+Starts automatically with the Vincent backend. Controlled by environment variables:
+
+| Variable | Default | Description |
+|---|---|---|
+| `TRADE_MANAGER_ENABLED` | `true` | Enable/disable the worker |
+| `TRADE_MANAGER_POLL_INTERVAL_S` | `60` | Polling interval in seconds |
+| `TRADE_MANAGER_WS_ENABLED` | `true` | Enable WebSocket price feed |
 
 ### Price Monitoring
 
-**Primary: Polymarket websockets** — subscribes to real-time price updates for all markets with active rules. Price changes trigger immediate rule evaluation.
+**Primary: Polymarket WebSocket** — single shared connection subscribes to real-time price updates for all markets with active rules across all agents. Price changes trigger immediate rule evaluation.
 
-**Fallback: Polling (every 15 seconds)** — if the websocket disconnects or as a safety net, the worker falls back to polling positions and prices from the Vincent Polymarket API on a 15-second interval.
+**Fallback: Polling** — on each poll tick, the worker fetches positions and prices via HTTP for each agent with active rules.
 
 ### Evaluation Loop
 
-On each price update (websocket or poll):
-1. Fetch all active rules from SQLite
-2. Update monitored positions cache
+On each price update (WebSocket or poll):
+1. Fetch all active rules across all agents from PostgreSQL
+2. Update monitored positions for each distinct `secretId`
 3. For each active rule: evaluate trigger condition against current price
-4. If triggered: execute market sell order via Vincent Polymarket API
-5. Mark rule as triggered atomically
+4. If triggered: execute market sell order via `polymarketSkill.placeBet()`
+5. Mark rule as triggered atomically (prevents double-execution)
 6. Log events
 
-**Trade execution:** Rules always execute as market orders (FOK) for immediate fill. Pre-execution checks verify the market is still open, not resolved/redeemable, and that the position has shares to sell.
+**Trade execution:** Goes through the same `polymarketSkill.placeBet()` pipeline as manual trades. This means full policy enforcement (spending limits, approvals) and audit logging happen automatically.
 
 **Guardrails:**
-- Idempotent: rules marked triggered in DB transaction
-- Circuit breaker: pauses polling after 5+ consecutive API failures
-- Error handling: logs failures, doesn't crash, retries with backoff
-- Rate limiting: respects Polymarket/Vincent API limits
+- Idempotent: rules marked triggered atomically via `updateMany` with status check
+- Circuit breaker: pauses after 5+ consecutive failures (60s cooldown)
+- Deduplication: `executingRuleIds` Set prevents concurrent execution of the same rule
+- Pre-execution checks: verifies market is open, not resolved, position has shares
+- Error classification: permanent failures (market closed, insufficient funds) mark rule as `FAILED`; transient failures allow retry
 
-## Local API Endpoints
+## API Endpoints
+
+All under `/api/skills/polymarket/rules` with the same API key auth as Polymarket.
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/health` | Health check |
-| GET | `/status` | Worker status, active rule count, circuit breaker state |
-| POST | `/api/rules` | Create a new rule |
-| GET | `/api/rules` | List rules (filter by `?status=ACTIVE`) |
-| GET | `/api/rules/:id` | Get rule details |
-| DELETE | `/api/rules/:id` | Cancel a rule |
-| PATCH | `/api/rules/:id` | Update trigger price |
-| GET | `/api/positions` | List monitored positions with prices |
-| GET | `/api/events` | Event log (filter by `?ruleId=...`) |
+| POST | `/rules` | Create a new rule |
+| GET | `/rules` | List rules (filter by `?status=ACTIVE`) |
+| GET | `/rules/:id` | Get rule details |
+| PATCH | `/rules/:id` | Update trigger price |
+| DELETE | `/rules/:id` | Cancel a rule |
+| GET | `/rules/events` | Event log (filter by `?ruleId=...&limit=100&offset=0`) |
+| GET | `/rules/positions` | List monitored positions for this agent |
+| GET | `/rules/status` | Worker status (running, circuit breaker, WebSocket, active rules count) |
 
-## Planned: Harness Layer (Phase 7)
+## Planned: Harness Layer
 
 Alert intake + durable queue for routing alerts into either direct transaction execution or agent wakeups:
 
@@ -94,13 +105,7 @@ Alert intake + durable queue for routing alerts into either direct transaction e
 - `WAKE_AGENT` jobs call the local OpenClaw gateway to wake the agent
 - Retry with backoff, max attempts, concurrency cap
 
-### Planned Data Models
-
-- **AlertEvent** — inbound alert payloads
-- **HarnessJob** — durable queue items (EXECUTE_TXN or WAKE_AGENT)
-- **ExecutionAttempt** — transaction audit records
-
-## Planned: Strategy Layer (Phases 10-15)
+## Planned: Strategy Layer
 
 Higher-level abstraction above individual rules:
 
@@ -114,58 +119,31 @@ Two evaluator types:
 - **auto** — execute immediately (mechanical strategies)
 - **agent** — wake LLM to evaluate against thesis before deciding (thesis-driven strategies)
 
-Strategy templates: mean-reversion, arbitrage, breakout, dip-buying, attention-breakout, event-driven, sentiment-shift, and more.
-
-## Deployment
-
-Auto-installed on every OpenClaw VPS during provisioning:
-
-1. Trade manager binary/package installed
-2. Systemd service created: `openclaw-trade-manager.service`
-3. Config written to `~/.openclaw/trade-manager.json`
-4. Service started and enabled
-
-**Config:**
-```json
-{
-  "port": 19000,
-  "vincentApiUrl": "https://heyvincent.ai",
-  "vincentApiKey": "ssk_...",
-  "pollIntervalSeconds": 15,
-  "databaseUrl": "file:~/.openclaw/trade-manager.db"
-}
-```
-
-Vincent API key auto-read from `~/.openclaw/credentials/agentwallet/`.
-
 ## Integration with Vincent
 
-The trade manager is a **client** of Vincent's existing Polymarket API:
+The trade manager is **part of** the Vincent backend:
 
-- `POST /api/skills/polymarket/bet` — execute trades
-- `GET /api/skills/polymarket/open-orders` — fetch open orders
-- `GET /api/skills/polymarket/markets` — fetch prices
-
-All Vincent policies (spending limits, approvals) are still enforced server-side. The trade manager does not bypass any security controls.
+- Rules stored in the same PostgreSQL database as all other Vincent data
+- Trade execution uses `polymarketSkill.placeBet()` directly (no HTTP round-trip)
+- Policy enforcement and audit logging happen automatically
+- Multi-tenant: each agent only sees/manages their own rules via `secretId` scoping
 
 ## Files
 
 ```
-trade-manager/
-├── src/
-│   ├── index.ts                    # Entry point
-│   ├── api/routes/                 # HTTP API routes
-│   ├── services/
-│   │   ├── ruleManager.service.ts  # Rule CRUD
-│   │   ├── positionMonitor.service.ts # Position/price fetching
-│   │   ├── ruleExecutor.service.ts # Trade execution
-│   │   ├── eventLogger.service.ts  # Event logging
-│   │   └── vincentClient.service.ts # Vincent API client
-│   ├── worker/monitoringWorker.ts  # Background loop
-│   ├── db/client.ts                # Prisma client (SQLite)
-│   └── config/config.ts            # Config loader
-├── prisma/schema.prisma            # SQLite schema
-├── systemd/                        # Service file
-├── skills/trade-manager/SKILL.md   # Agent skill docs
-└── package.json
+src/services/tradeManager/
+├── types.ts                        # Shared types (RuleLike, WorkerStatus, PriceUpdate)
+├── ruleManager.service.ts          # Rule CRUD (multi-tenant, Zod validation)
+├── eventLogger.service.ts          # Event logging (PostgreSQL native JSON)
+├── positionMonitor.service.ts      # Position sync from polymarketSkill.getHoldings()
+├── ruleExecutor.service.ts         # Rule evaluation + trade execution
+├── polymarketWebSocket.service.ts  # Shared WebSocket connection to Polymarket
+├── monitoringWorker.ts             # Background worker (start/stop lifecycle)
+└── index.ts                        # Re-exports
+
+src/api/routes/tradeRules.routes.ts # API route handlers (mounted in polymarket.routes.ts)
+
+prisma/schema.prisma                # TradeRule, TradeMonitoredPosition, TradeRuleEvent models
 ```
+
+The standalone `trade-manager/` directory contains the original standalone implementation (historical reference) and test scripts.

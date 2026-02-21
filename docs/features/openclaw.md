@@ -57,7 +57,7 @@ OVH VPS
   │   ├── Polymarket
   │   ├── Twitter
   │   └── Brave Search
-  └── Trade Manager (systemd service, port 19000)
+  └── (Trade Manager now runs centrally in the Vincent backend)
 ```
 
 **Why direct HTTPS to VPS IP:**

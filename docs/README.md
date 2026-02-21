@@ -33,7 +33,7 @@ Each skill is a capability tied to a secret type. These docs cover how each feat
 - [Self-Custody](./features/self-custody.md) — wallet ownership transfer to user's EOA
 - [Data Sources](./features/data-sources.md) — Twitter/Brave Search proxy with credit billing
 - [OpenClaw Deploy](./features/openclaw.md) — 1-click VPS deployment with embedded web UI
-- [Trade Manager](./features/trade-manager.md) — standalone trading automation on OpenClaw VPSes
+- [Trade Manager](./features/trade-manager.md) — automated stop-loss, take-profit, and trailing stops for Polymarket
 
 ### Frontend (`frontend/`)
 
