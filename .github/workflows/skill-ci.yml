@@ -33,6 +33,9 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts
+
       - name: Build CLI
         run: cd cli && npx tsc
 
