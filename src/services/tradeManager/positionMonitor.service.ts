@@ -1,7 +1,8 @@
 import prisma from '../../db/client.js';
 import * as polymarketSkill from '../../skills/polymarketSkill.service.js';
 
-/** Fetch holdings from Polymarket and upsert monitored positions for a single secret. */
+/** Fetch holdings from Polymarket and upsert monitored positions for a single secret.
+ *  Only writes to DB when a position is new or field values have actually changed. */
 export async function updatePositions(secretId: string): Promise<void> {
   const { holdings } = await polymarketSkill.getHoldings(secretId);
   const now = new Date();
@@ -9,9 +10,33 @@ export async function updatePositions(secretId: string): Promise<void> {
   // Filter out resolved markets and empty positions
   const activeHoldings = holdings.filter((h) => !h.redeemable && h.shares > 0);
 
+  // Fetch existing cached positions so we can diff
+  const existing = await prisma.tradeMonitoredPosition.findMany({
+    where: { secretId },
+  });
+  const existingMap = new Map(existing.map((p) => [`${p.marketId}|${p.tokenId}|${p.side}`, p]));
+
   await Promise.all(
-    activeHoldings.map((holding) =>
-      prisma.tradeMonitoredPosition.upsert({
+    activeHoldings.map((holding) => {
+      const key = `${holding.conditionId}|${holding.tokenId}|BUY`;
+      const cached = existingMap.get(key);
+
+      // Skip upsert if nothing changed
+      if (
+        cached &&
+        cached.quantity === holding.shares &&
+        cached.avgEntryPrice === holding.averageEntryPrice &&
+        cached.currentPrice === holding.currentPrice &&
+        cached.marketTitle === holding.marketTitle &&
+        cached.marketSlug === holding.marketSlug &&
+        cached.outcome === holding.outcome &&
+        cached.endDate === holding.endDate &&
+        cached.redeemable === (holding.redeemable || false)
+      ) {
+        return Promise.resolve();
+      }
+
+      return prisma.tradeMonitoredPosition.upsert({
         where: {
           secretId_marketId_tokenId_side: {
             secretId,
@@ -46,8 +71,8 @@ export async function updatePositions(secretId: string): Promise<void> {
           redeemable: holding.redeemable || false,
           lastUpdatedAt: now,
         },
-      })
-    )
+      });
+    })
   );
 }
 
