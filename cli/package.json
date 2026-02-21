@@ -1,0 +1,28 @@
+{
+  "name": "@vincentai/cli",
+  "version": "0.1.0",
+  "description": "CLI for Vincent AI agent skills",
+  "type": "module",
+  "bin": {
+    "vincent": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && chmod +x dist/index.js",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "vincent",
+    "ai-agent",
+    "wallet",
+    "cli"
+  ],
+  "license": "ISC"
+}
