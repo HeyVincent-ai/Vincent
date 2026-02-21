@@ -555,7 +555,8 @@ export async function executeBatchTransaction(
           data: c.data,
           value: c.value,
         })),
-      } as any);
+        // ZeroDev's sendTransaction accepts calls array for batching but types don't reflect it
+      } as unknown as { to: Address; data: Hex; value: bigint });
     },
     {
       chainId,
