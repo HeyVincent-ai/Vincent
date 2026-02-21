@@ -5,17 +5,21 @@
 ```
 ┌─────────────────┐     ┌──────────────────────┐     ┌─────────────────┐
 │   AI Agent      │────▶│   Vincent API         │────▶│   PostgreSQL    │
-│                 │     │   (Express backend)   │     │   (Prisma ORM)  │
-└─────────────────┘     └────────┬─────────────┘     └─────────────────┘
-                                 │
-            ┌────────────────────┼────────────────────────┐
-            ▼                    ▼                        ▼
-   ┌───────────────┐   ┌─────────────────┐     ┌─────────────────┐
-   │ Telegram Bot  │   │  Frontend App   │     │  Skill Executors │
-   │ (Approvals)   │   │  (React SPA)    │     │  ZeroDev, 0x,   │
-   └───────────────┘   └─────────────────┘     │  Polymarket,    │
-                                                │  Twitter, Brave │
-                                                └─────────────────┘
+│  (REST API)     │     │   (Express backend)   │     │   (Prisma ORM)  │
+└─────────────────┘     └──┬─────────┬─────────┘     └─────────────────┘
+                           │         │
+┌─────────────────┐        │         │
+│  External Agent │────────┘         │
+│  (MCP Client)   │                  │
+│  Claude, ChatGPT│   ┌─────────────┼────────────────────────┐
+│  Codex, Cursor  │   │             │                        │
+└─────────────────┘   ▼             ▼                        ▼
+             ┌───────────────┐ ┌─────────────────┐ ┌─────────────────┐
+             │ Telegram Bot  │ │  Frontend App   │ │  Skill Executors │
+             │ (Approvals)   │ │  (React SPA)    │ │  ZeroDev, 0x,   │
+             └───────────────┘ └─────────────────┘ │  Polymarket,    │
+                                                    │  Twitter, Brave │
+                                                    └─────────────────┘
 ```
 
 ## Request Flow
@@ -39,6 +43,7 @@ The backend is a single Express server that handles everything:
 - **API layer** (`src/api/`) — routes, middleware, request validation
 - **Services** (`src/services/`) — business logic (secrets, auth, policies, billing, OpenClaw orchestration)
 - **Skills** (`src/skills/`) — blockchain/trading execution (ZeroDev, Polymarket, 0x, Alchemy)
+- **MCP Server** (`src/mcp/`) — JSON-RPC MCP endpoint for external agent runtimes (Claude, ChatGPT, etc.)
 - **Data Sources** (`src/dataSources/`) — proxy layer for Twitter and Brave Search APIs
 - **Telegram** (`src/telegram/`) — bot for human approvals
 - **Billing** (`src/billing/`) — Stripe integration and gas aggregation
@@ -84,11 +89,13 @@ Markdown files (`SKILL.md`) that agents read to learn how to use each skill. The
 
 ## Authentication Model
 
-Two auth paths coexist:
+Three auth paths coexist:
 
 1. **Session auth** (frontend/users) — Stytch session tokens validated via `validateSession` middleware. Used for dashboard, secret management, billing.
 
-2. **API key auth** (agents) — `ssk_`-prefixed bearer tokens validated via `apiKeyAuth` middleware. Each key is scoped to one secret. Used for all skill execution endpoints.
+2. **API key auth** (agents via REST) — `ssk_`-prefixed bearer tokens validated via `apiKeyAuth` middleware. Each key is scoped to one secret. Used for all skill execution endpoints.
+
+3. **API key auth** (agents via MCP) — Same `ssk_` bearer tokens, validated by the MCP router's own `authenticateMcpRequest()`. Tools are scoped by secret type. Used by external agent runtimes (Claude, ChatGPT, Codex, Cursor, Manus).
 
 Some endpoints accept either (e.g., `GET /api/secrets/info`).
 
