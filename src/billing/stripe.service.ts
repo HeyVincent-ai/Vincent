@@ -273,8 +273,11 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
     if (amountPaidUsd > 0) {
       try {
         await referralService.fulfillReferralReward(sub.userId);
-      } catch (err: any) {
-        console.error('[stripe] Failed to fulfill referral reward:', err.message);
+      } catch (err: unknown) {
+        console.error(
+          '[stripe] Failed to fulfill referral reward:',
+          err instanceof Error ? err.message : err
+        );
       }
     }
     return;
@@ -288,8 +291,11 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
   if (openclawDeployment && amountPaidUsd > 0) {
     try {
       await referralService.fulfillReferralReward(openclawDeployment.userId);
-    } catch (err: any) {
-      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    } catch (err: unknown) {
+      console.error(
+        '[stripe] Failed to fulfill referral reward:',
+        err instanceof Error ? err.message : err
+      );
     }
   }
 }

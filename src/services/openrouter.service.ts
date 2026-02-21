@@ -41,7 +41,7 @@ function getProvisioningKey(): string {
   return env.OPENROUTER_PROVISIONING_KEY;
 }
 
-async function openRouterFetch(path: string, options: RequestInit = {}): Promise<any> {
+async function openRouterFetch(path: string, options: RequestInit = {}): Promise<unknown> {
   const url = `${OPENROUTER_API_BASE}${path}`;
   const res = await fetch(url, {
     ...options,
@@ -75,20 +75,20 @@ export async function createKey(
     expires_at?: string;
   }
 ): Promise<OpenRouterKeyResult> {
-  const body: any = { name };
+  const body: Record<string, unknown> = { name };
   if (options?.limit !== undefined) body.limit = options.limit;
   if (options?.limit_reset) body.limit_reset = options.limit_reset;
   if (options?.expires_at) body.expires_at = options.expires_at;
 
-  const data = await openRouterFetch('/keys', {
+  const data = (await openRouterFetch('/keys', {
     method: 'POST',
     body: JSON.stringify(body),
-  });
+  })) as Record<string, unknown> & { data?: Record<string, unknown> };
 
   return {
-    key: data.data?.key || data.key,
-    hash: data.data?.hash || data.hash,
-    name: data.data?.name || data.name || name,
+    key: (data.data?.key || data.key) as string,
+    hash: (data.data?.hash || data.hash) as string,
+    name: (data.data?.name || data.name || name) as string,
   };
 }
 
@@ -105,15 +105,17 @@ export async function deleteKey(hash: string): Promise<void> {
  * Get usage stats for an OpenRouter API key.
  */
 export async function getKeyUsage(hash: string): Promise<OpenRouterKeyUsage> {
-  const data = await openRouterFetch(`/keys/${hash}`);
+  const data = (await openRouterFetch(`/keys/${hash}`)) as Record<string, unknown> & {
+    data?: Record<string, unknown>;
+  };
   const d = data.data ?? data;
   return {
-    usage: d.usage ?? 0,
-    usage_daily: d.usage_daily ?? 0,
-    usage_weekly: d.usage_weekly ?? 0,
-    usage_monthly: d.usage_monthly ?? 0,
-    limit: d.limit ?? null,
-    limit_remaining: d.limit_remaining ?? null,
+    usage: (d.usage as number) ?? 0,
+    usage_daily: (d.usage_daily as number) ?? 0,
+    usage_weekly: (d.usage_weekly as number) ?? 0,
+    usage_monthly: (d.usage_monthly as number) ?? 0,
+    limit: (d.limit as number | null) ?? null,
+    limit_remaining: (d.limit_remaining as number | null) ?? null,
   };
 }
 
