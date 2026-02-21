@@ -7,9 +7,14 @@ declare module '@ovhcloud/node-ovh' {
   }
 
   interface OvhClient {
-    requestPromised(method: string, path: string, body?: any): Promise<any>;
-    request(method: string, path: string, callback: (err: any, data: any) => void): void;
-    request(method: string, path: string, body: any, callback: (err: any, data: any) => void): void;
+    requestPromised(method: string, path: string, body?: unknown): Promise<unknown>;
+    request(method: string, path: string, callback: (err: unknown, data: unknown) => void): void;
+    request(
+      method: string,
+      path: string,
+      body: unknown,
+      callback: (err: unknown, data: unknown) => void
+    ): void;
   }
 
   function ovh(options: OvhClientOptions): OvhClient;

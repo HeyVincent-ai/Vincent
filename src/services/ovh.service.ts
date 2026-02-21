@@ -64,7 +64,7 @@ export interface OvhVpsIp {
 }
 
 interface OvhClient {
-  requestPromised(method: string, path: string, body?: any): Promise<any>;
+  requestPromised(method: string, path: string, body?: unknown): Promise<unknown>;
 }
 
 // ============================================================
@@ -124,34 +124,29 @@ export async function orderVps(options: {
 
   // Step 1: Create cart (subsidiary depends on plan region)
   const subsidiary = getSubsidiaryForPlan(planCode);
-  const cart = await ovh.requestPromised('POST', '/order/cart', {
+  const cart = (await ovh.requestPromised('POST', '/order/cart', {
     ovhSubsidiary: subsidiary,
     description: `OpenClaw VPS - ${planCode}`,
-  });
+  })) as { cartId: string };
   const cartId = cart.cartId;
 
   // Step 2: Assign cart to account
   await ovh.requestPromised('POST', `/order/cart/${cartId}/assign`);
 
   // Step 3: Add VPS to cart
-  const item = await ovh.requestPromised('POST', `/order/cart/${cartId}/vps`, {
+  const item = (await ovh.requestPromised('POST', `/order/cart/${cartId}/vps`, {
     duration: 'P1M',
     planCode,
     pricingMode: 'default',
     quantity: 1,
-  });
+  })) as { itemId: number };
   const itemId = item.itemId;
 
   // Step 4: Get required configuration labels
-  const requiredConfig: Array<{
-    label: string;
-    type: string;
-    fields: string[];
-    required: boolean;
-  }> = await ovh.requestPromised(
+  const requiredConfig = (await ovh.requestPromised(
     'GET',
     `/order/cart/${cartId}/item/${itemId}/requiredConfiguration`
-  );
+  )) as Array<{ label: string; type: string; fields: string[]; required: boolean }>;
 
   // Step 5: Configure datacenter and OS
   const dcLabel =
@@ -169,10 +164,10 @@ export async function orderVps(options: {
   });
 
   // Step 6: Checkout
-  const order = await ovh.requestPromised('POST', `/order/cart/${cartId}/checkout`, {
+  const order = (await ovh.requestPromised('POST', `/order/cart/${cartId}/checkout`, {
     autoPayWithPreferredPaymentMethod,
     waiveRetractationPeriod: false,
-  });
+  })) as { orderId: number; url: string };
 
   return {
     orderId: order.orderId,
@@ -191,10 +186,10 @@ export async function orderVps(options: {
  */
 export async function getOrderStatus(orderId: number): Promise<OvhOrderStatus> {
   const ovh = getClient();
-  const followUp: Array<{ step: string; status: string }> = await ovh.requestPromised(
-    'GET',
-    `/me/order/${orderId}/followUp`
-  );
+  const followUp = (await ovh.requestPromised('GET', `/me/order/${orderId}/followUp`)) as Array<{
+    step: string;
+    status: string;
+  }>;
   // The array contains one entry per step; pick the latest active one
   const latest = followUp.length > 0 ? followUp[followUp.length - 1] : null;
   return {
@@ -215,7 +210,10 @@ export async function getOrderAssociatedService(orderId: number): Promise<string
     if (Array.isArray(details) && details.length > 0) {
       // Each detail ID can give us the domain/service
       for (const detailId of details) {
-        const detail = await ovh.requestPromised('GET', `/me/order/${orderId}/details/${detailId}`);
+        const detail = (await ovh.requestPromised(
+          'GET',
+          `/me/order/${orderId}/details/${detailId}`
+        )) as { domain?: string };
         if (detail.domain) return detail.domain;
       }
     }
@@ -236,7 +234,7 @@ export async function getOrderAssociatedService(orderId: number): Promise<string
  */
 export async function listVps(): Promise<string[]> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', '/vps');
+  return ovh.requestPromised('GET', '/vps') as Promise<string[]>;
 }
 
 /**
@@ -244,15 +242,15 @@ export async function listVps(): Promise<string[]> {
  */
 export async function getVpsDetails(serviceName: string): Promise<OvhVpsDetails> {
   const ovh = getClient();
-  const vps = await ovh.requestPromised('GET', `/vps/${serviceName}`);
+  const vps = (await ovh.requestPromised('GET', `/vps/${serviceName}`)) as Record<string, unknown>;
   return {
-    name: vps.name,
-    displayname: vps.displayname,
-    state: vps.state,
-    ips: vps.ips || [],
-    memory: vps.memory,
-    vcore: vps.vcore,
-    zone: vps.zone,
+    name: vps.name as string,
+    displayname: vps.displayname as string,
+    state: vps.state as string,
+    ips: (vps.ips as string[]) || [],
+    memory: vps.memory as number,
+    vcore: vps.vcore as number,
+    zone: vps.zone as string,
   };
 }
 
@@ -261,7 +259,7 @@ export async function getVpsDetails(serviceName: string): Promise<OvhVpsDetails>
  */
 export async function getVpsIps(serviceName: string): Promise<string[]> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/${serviceName}/ips`);
+  return ovh.requestPromised('GET', `/vps/${serviceName}/ips`) as Promise<string[]>;
 }
 
 /**
@@ -296,7 +294,7 @@ export async function rebuildVps(
     imageId,
     publicSshKey: sshPublicKey,
     doNotSendPassword: true,
-  });
+  }) as Promise<{ id: number; state: string; type: string }>;
 }
 
 /**
@@ -304,7 +302,7 @@ export async function rebuildVps(
  */
 export async function getAvailableImages(serviceName: string): Promise<string[]> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/${serviceName}/images/available`);
+  return ovh.requestPromised('GET', `/vps/${serviceName}/images/available`) as Promise<string[]>;
 }
 
 /**
@@ -315,7 +313,10 @@ export async function getImageDetails(
   imageId: string
 ): Promise<{ id: string; name: string }> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/${serviceName}/images/available/${imageId}`);
+  return ovh.requestPromised('GET', `/vps/${serviceName}/images/available/${imageId}`) as Promise<{
+    id: string;
+    name: string;
+  }>;
 }
 
 // ============================================================
@@ -327,7 +328,7 @@ export async function getImageDetails(
  */
 export async function getVpsTasks(serviceName: string): Promise<number[]> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks`);
+  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks`) as Promise<number[]>;
 }
 
 /**
@@ -338,7 +339,11 @@ export async function getVpsTaskDetails(
   taskId: number
 ): Promise<{ id: number; state: string; type: string }> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks/${taskId}`);
+  return ovh.requestPromised('GET', `/vps/${serviceName}/tasks/${taskId}`) as Promise<{
+    id: number;
+    state: string;
+    type: string;
+  }>;
 }
 
 // ============================================================
@@ -369,7 +374,7 @@ export async function deleteSshKey(keyName: string): Promise<void> {
  */
 export async function listSshKeys(): Promise<string[]> {
   const ovh = getClient();
-  return ovh.requestPromised('GET', '/me/sshKey');
+  return ovh.requestPromised('GET', '/me/sshKey') as Promise<string[]>;
 }
 
 // ============================================================
@@ -379,7 +384,7 @@ export async function listSshKeys(): Promise<string[]> {
 /**
  * Check available datacenters for a VPS plan.
  */
-export async function getAvailableDatacenters(planCode: string): Promise<any> {
+export async function getAvailableDatacenters(planCode: string): Promise<unknown> {
   const ovh = getClient();
   const subsidiary = getSubsidiaryForPlan(planCode);
   return ovh.requestPromised(
@@ -399,13 +404,16 @@ export async function findAvailableDatacenter(planCode: string): Promise<string 
     getAvailableDatacenters(planCode),
     getCartDatacenters(planCode),
   ]);
-  if (!stockResult?.datacenters) return null;
+  const stock = stockResult as {
+    datacenters?: Array<{ linuxStatus: string; datacenter: string }>;
+  } | null;
+  if (!stock?.datacenters) return null;
 
   const allowedSet = new Set(allowedDcs);
 
   // Only consider datacenters that are both in-stock AND allowed for this plan
-  const available = stockResult.datacenters.find(
-    (dc: any) =>
+  const available = stock.datacenters.find(
+    (dc) =>
       dc.linuxStatus === 'available' && (allowedSet.size === 0 || allowedSet.has(dc.datacenter))
   );
   return available?.datacenter || null;
@@ -419,23 +427,23 @@ export async function findAvailableDatacenter(planCode: string): Promise<string 
 export async function getCartDatacenters(planCode: string): Promise<string[]> {
   const ovh = getClient();
   const subsidiary = getSubsidiaryForPlan(planCode);
-  const cart = await ovh.requestPromised('POST', '/order/cart', {
+  const cart = (await ovh.requestPromised('POST', '/order/cart', {
     ovhSubsidiary: subsidiary,
     description: 'datacenter check',
-  });
+  })) as { cartId: string };
   await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/assign`);
   try {
-    const item = await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/vps`, {
+    const item = (await ovh.requestPromised('POST', `/order/cart/${cart.cartId}/vps`, {
       duration: 'P1M',
       planCode,
       pricingMode: 'default',
       quantity: 1,
-    });
-    const reqConfig = await ovh.requestPromised(
+    })) as { itemId: number };
+    const reqConfig = (await ovh.requestPromised(
       'GET',
       `/order/cart/${cart.cartId}/item/${item.itemId}/requiredConfiguration`
-    );
-    const dcConfig = reqConfig.find((c: any) => c.label.includes('datacenter'));
+    )) as Array<{ label: string; allowedValues?: string[] }>;
+    const dcConfig = reqConfig.find((c) => c.label.includes('datacenter'));
     return dcConfig?.allowedValues || [];
   } catch {
     return [];
@@ -451,21 +459,23 @@ export async function getAvailableOs(planCode: string): Promise<string[]> {
   // We use the catalog endpoint here for a quick check.
   const ovh = getClient();
   const subsidiary = getSubsidiaryForPlan(planCode);
-  const catalog = await ovh.requestPromised(
+  const catalog = (await ovh.requestPromised(
     'GET',
     `/order/catalog/public/vps?ovhSubsidiary=${subsidiary}`
-  );
-  const plan = catalog.plans?.find((p: any) => p.planCode === planCode);
+  )) as {
+    plans?: Array<{ planCode: string; addonFamilies?: Array<{ name: string; addons?: string[] }> }>;
+  };
+  const plan = catalog.plans?.find((p) => p.planCode === planCode);
   if (!plan) return [];
   // Extract OS names from addon families or configurations
-  const osAddon = plan.addonFamilies?.find((f: any) => f.name === 'os');
+  const osAddon = plan.addonFamilies?.find((f) => f.name === 'os');
   return osAddon?.addons || [];
 }
 
 /**
  * Verify OVH API credentials by calling /me.
  */
-export async function getAccountInfo(): Promise<any> {
+export async function getAccountInfo(): Promise<unknown> {
   const ovh = getClient();
   return ovh.requestPromised('GET', '/me');
 }
