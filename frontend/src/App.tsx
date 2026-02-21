@@ -10,6 +10,8 @@ import SecretDetail from './pages/SecretDetail';
 import Account from './pages/Account';
 import Claim from './pages/Claim';
 import Agents from './pages/Agents';
+import AgentsConnect from './pages/AgentsConnect';
+import AgentsLayout from './pages/AgentsLayout';
 import OpenClawDetail from './pages/OpenClawDetail';
 import Landing from './pages/Landing';
 import Features from './pages/Features';
@@ -77,10 +79,13 @@ function AppRoutes() {
           path="/agents"
           element={
             <ProtectedRoute>
-              <Agents />
+              <AgentsLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Agents />} />
+          <Route path="connect" element={<AgentsConnect />} />
+        </Route>
         <Route
           path="/secrets/:id"
           element={

@@ -195,6 +195,34 @@ All proxy endpoints use API key auth + data source guard middleware (type check,
 | GET | `/api/data-sources/brave/web` | API Key | Web search |
 | GET | `/api/data-sources/brave/news` | API Key | News search |
 
+## MCP Server
+
+**File:** `src/mcp/router.ts` + `src/mcp/tools.ts`
+
+The MCP endpoint is mounted at `/mcp` (not under `/api`). It uses JSON-RPC 2.0 over HTTP POST with Bearer API key auth. CORS is set to allow all origins so external agent runtimes can connect directly.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| POST | `/mcp` | API Key (Bearer) | JSON-RPC endpoint (initialize, tools/list, tools/call) |
+| GET | `/mcp` | — | Returns 405 with usage hint |
+
+**JSON-RPC methods:**
+
+| Method | Description |
+|---|---|
+| `initialize` | MCP handshake — returns server info and capabilities |
+| `tools/list` | Lists available tools scoped to the API key's secret type |
+| `tools/call` | Executes a tool by name with arguments |
+
+**Tool scope by secret type:**
+
+| Secret Type | Tools |
+|---|---|
+| `EVM_WALLET` | `vincent_wallet_transfer`, `vincent_wallet_send_transaction`, `vincent_wallet_balances`, `vincent_wallet_address`, `vincent_wallet_swap_preview`, `vincent_wallet_swap_execute` |
+| `POLYMARKET_WALLET` | `vincent_polymarket_bet`, `vincent_polymarket_markets`, `vincent_polymarket_market`, `vincent_polymarket_orderbook`, `vincent_polymarket_positions`, `vincent_polymarket_holdings`, `vincent_polymarket_trades`, `vincent_polymarket_balance`, `vincent_polymarket_cancel_order`, `vincent_polymarket_cancel_all` |
+| `RAW_SIGNER` | `vincent_raw_signer_sign`, `vincent_raw_signer_addresses` |
+| `DATA_SOURCES` | `vincent_brave_web_search`, `vincent_brave_news_search`, `vincent_twitter_search`, `vincent_twitter_get_tweet`, `vincent_twitter_get_user`, `vincent_twitter_user_tweets` |
+
 ## Admin
 
 **File:** `src/api/routes/admin.routes.ts`

@@ -82,6 +82,25 @@ Policies govern how secrets can be used:
 
 Each secret can have multiple API keys for agent access. Keys are bcrypt-hashed and prefixed with `ssk_`.
 
+## MCP Server
+
+Vincent exposes an MCP server for connecting external agent runtimes (Claude, ChatGPT, Codex, Cursor, Manus, etc.).
+
+- **URL:** `/mcp`
+- **Auth:** `Authorization: Bearer ssk_...`
+- **Tool scope:** Tools are exposed based on the API key's secret type (wallet, polymarket, raw signer, data sources).
+
+Example JSON-RPC call:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/list",
+  "params": {}
+}
+```
+
 ## Tech Stack
 
 | Component          | Technology                                  |

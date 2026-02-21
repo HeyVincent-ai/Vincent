@@ -36,6 +36,8 @@ The frontend is a React + TypeScript SPA in `frontend/`, built with Vite and sty
 | SecretDetail | `/secrets/:id` | Tabbed: policies, API keys, audit logs, balances |
 | Claim | `/claim` | Secret claim flow (no layout, accessible pre-login) |
 | OpenClawDetail | `/openclaw/:id` | Instance management + iframe |
+| AgentsLayout | `/agents` | Tabbed layout (Deploy Agent / Connect Agent) |
+| AgentsConnect | `/agents/connect` | MCP connection guide for external agents |
 | Account | `/account` | Account settings |
 | Billing | `/billing` | Subscription, usage, invoices |
 | Landing | `/` | Landing page |
@@ -62,6 +64,7 @@ The most complex page — conditionally renders different content based on secre
 | `DataSourcesView` | Credit balance, data source cards, usage history, add credits |
 | `TakeOwnership` | Wallet ownership transfer (RainbowKit connection + signing) |
 | `OpenClawSection` | Dashboard card with deploy/progress/ready states |
+| `ConnectAgents` | MCP connection guide — skill selector + accordion setup guides for 7 runtimes |
 | `PolymarketPositions` | Polymarket positions display |
 
 ### Admin Panel
