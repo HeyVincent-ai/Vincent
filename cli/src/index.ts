@@ -36,6 +36,7 @@ const COMMANDS: Record<string, Record<string, () => Promise<{ run: CommandFn }>>
     'cancel-order': () => import('./commands/polymarket/cancel-order.js'),
     'cancel-all': () => import('./commands/polymarket/cancel-all.js'),
     redeem: () => import('./commands/polymarket/redeem.js'),
+    withdraw: () => import('./commands/polymarket/withdraw.js'),
   },
   twitter: {
     search: () => import('./commands/twitter/search.js'),
