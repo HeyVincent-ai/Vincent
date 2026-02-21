@@ -1,6 +1,6 @@
 import { parseArgs, getOptional, hasFlag, showHelp } from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
-import { vincentGet, getTradeManagerBaseUrl } from '../../lib/client.js';
+import { vincentGet } from '../../lib/client.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -18,6 +18,6 @@ export async function run(argv: string[]): Promise<void> {
   const status = getOptional(flags, 'status');
   if (status) params.status = status;
 
-  const res = await vincentGet('/api/rules', apiKey, params, { baseUrl: getTradeManagerBaseUrl() });
+  const res = await vincentGet('/api/skills/polymarket/rules', apiKey, params);
   console.log(JSON.stringify(res, null, 2));
 }

@@ -1,6 +1,6 @@
 import { parseArgs, hasFlag, showHelp } from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
-import { vincentGet, getTradeManagerBaseUrl } from '../../lib/client.js';
+import { vincentGet } from '../../lib/client.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -11,6 +11,6 @@ export async function run(argv: string[]): Promise<void> {
   }
 
   const apiKey = resolveApiKey(flags, 'POLYMARKET_WALLET');
-  const res = await vincentGet('/status', apiKey, undefined, { baseUrl: getTradeManagerBaseUrl() });
+  const res = await vincentGet('/api/skills/polymarket/rules/status', apiKey);
   console.log(JSON.stringify(res, null, 2));
 }

@@ -1,26 +1,16 @@
 const DEFAULT_BASE_URL = 'https://heyvincent.ai';
-const TRADE_MANAGER_BASE_URL = 'http://localhost:19000';
 
 function getBaseUrl(): string {
   return process.env.VINCENT_BASE_URL || DEFAULT_BASE_URL;
-}
-
-export function getTradeManagerBaseUrl(): string {
-  return process.env.VINCENT_TRADE_MANAGER_URL || TRADE_MANAGER_BASE_URL;
-}
-
-interface RequestOptions {
-  baseUrl?: string;
 }
 
 async function request(
   method: string,
   path: string,
   apiKey: string | null,
-  body?: unknown,
-  opts?: RequestOptions
+  body?: unknown
 ): Promise<unknown> {
-  const base = opts?.baseUrl || getBaseUrl();
+  const base = getBaseUrl();
   const url = `${base}${path}`;
 
   const headers: Record<string, string> = {};
@@ -62,8 +52,7 @@ async function request(
 export function vincentGet(
   path: string,
   apiKey: string | null,
-  params?: Record<string, string>,
-  opts?: RequestOptions
+  params?: Record<string, string>
 ): Promise<unknown> {
   let fullPath = path;
   if (params) {
@@ -72,31 +61,17 @@ export function vincentGet(
       fullPath += '?' + new URLSearchParams(entries).toString();
     }
   }
-  return request('GET', fullPath, apiKey, undefined, opts);
+  return request('GET', fullPath, apiKey);
 }
 
-export function vincentPost(
-  path: string,
-  apiKey: string | null,
-  body?: unknown,
-  opts?: RequestOptions
-): Promise<unknown> {
-  return request('POST', path, apiKey, body, opts);
+export function vincentPost(path: string, apiKey: string | null, body?: unknown): Promise<unknown> {
+  return request('POST', path, apiKey, body);
 }
 
-export function vincentDelete(
-  path: string,
-  apiKey: string,
-  opts?: RequestOptions
-): Promise<unknown> {
-  return request('DELETE', path, apiKey, undefined, opts);
+export function vincentDelete(path: string, apiKey: string): Promise<unknown> {
+  return request('DELETE', path, apiKey);
 }
 
-export function vincentPatch(
-  path: string,
-  apiKey: string,
-  body: unknown,
-  opts?: RequestOptions
-): Promise<unknown> {
-  return request('PATCH', path, apiKey, body, opts);
+export function vincentPatch(path: string, apiKey: string, body: unknown): Promise<unknown> {
+  return request('PATCH', path, apiKey, body);
 }

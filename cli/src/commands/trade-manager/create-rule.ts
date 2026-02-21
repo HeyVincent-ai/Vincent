@@ -1,6 +1,6 @@
 import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
-import { vincentPost, getTradeManagerBaseUrl } from '../../lib/client.js';
+import { vincentPost } from '../../lib/client.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -32,6 +32,6 @@ export async function run(argv: string[]): Promise<void> {
   const trailingPercent = getOptional(flags, 'trailing-percent');
   if (trailingPercent) body.trailingPercent = Number(trailingPercent);
 
-  const res = await vincentPost('/api/rules', apiKey, body, { baseUrl: getTradeManagerBaseUrl() });
+  const res = await vincentPost('/api/skills/polymarket/rules', apiKey, body);
   console.log(JSON.stringify(res, null, 2));
 }

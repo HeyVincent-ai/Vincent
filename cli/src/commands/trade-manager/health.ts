@@ -1,5 +1,5 @@
 import { parseArgs, hasFlag, showHelp } from '../../lib/args.js';
-import { vincentGet, getTradeManagerBaseUrl } from '../../lib/client.js';
+import { vincentGet } from '../../lib/client.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -9,6 +9,6 @@ export async function run(argv: string[]): Promise<void> {
     return;
   }
 
-  const res = await vincentGet('/health', null, undefined, { baseUrl: getTradeManagerBaseUrl() });
+  const res = await vincentGet('/health', null);
   console.log(JSON.stringify(res, null, 2));
 }
