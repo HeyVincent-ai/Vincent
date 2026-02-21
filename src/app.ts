@@ -47,11 +47,20 @@ export function createApp(): Express {
             'https://*.merkle.io',
             'https://*.ingest.us.sentry.io',
             'https://*.zerodev.app',
+            'https://*.zendesk.com',
+            'https://*.zdassets.com',
+            'wss://*.zendesk.com',
+            'https://*.polymarket.com',
           ],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", 'https://static.zdassets.com'],
           styleSrc: ["'self'", "'unsafe-inline'"],
           workerSrc: ["'self'", 'blob:'],
-          frameSrc: ["'self'", 'https://*.vps.ovh.us'],
+          frameSrc: [
+            "'self'",
+            'https://*.vps.ovh.us',
+            'https://*.vps.ovh.ca',
+            'https://*.vps.ovh.net',
+          ],
         },
       },
     })
@@ -106,7 +115,7 @@ export function createApp(): Express {
   // API info endpoint
   app.get('/api', (_req, res) => {
     sendSuccess(res, {
-      message: 'SafeSkills API',
+      message: 'Vincent API',
       version: '1.0.0',
       endpoints: {
         secrets: '/api/secrets',

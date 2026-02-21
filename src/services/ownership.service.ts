@@ -45,7 +45,7 @@ export function generateOwnershipChallenge(
   const timestamp = Date.now();
   const nonce = randomBytes(16).toString('hex');
 
-  return `SafeSkills Ownership Verification
+  return `Vincent Ownership Verification
 
 I am taking ownership of the smart wallet:
 ${walletAddress}
@@ -55,7 +55,7 @@ Secret ID: ${secretId}
 Timestamp: ${timestamp}
 Nonce: ${nonce}
 
-By signing this message, I confirm that I control the address above and authorize SafeSkills to transfer smart account ownership to me.`;
+By signing this message, I confirm that I control the address above and authorize Vincent to transfer smart account ownership to me.`;
 }
 
 /**

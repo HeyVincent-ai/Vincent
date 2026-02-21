@@ -141,6 +141,6 @@ export async function initializePolymarketProxy(): Promise<void> {
     return;
   }
 
-  await configureAxiosProxy(['clob.polymarket.com', 'polymarket.com']);
+  await configureAxiosProxy(['clob.polymarket.com', 'polymarket.com', 'data-api.polymarket.com']);
   polymarketProxyInitialized = true;
 }

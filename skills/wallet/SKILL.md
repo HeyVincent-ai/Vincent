@@ -8,7 +8,7 @@ metadata:
     homepage: https://heyvincent.ai
     requires:
       config:
-        - ~/.openclaw/credentials/agentwallet
+        - ${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/credentials/agentwallet
         - ./agentwallet
 ---
 
@@ -22,7 +22,7 @@ Use this skill to safely create a wallet the agent can use for transfers, swaps,
 
 This skill is designed for **autonomous agent operation with human oversight via server-side controls**. Understanding this model is important:
 
-**No environment variables are required** because this skill uses agent-first onboarding: the agent creates its own wallet at runtime by calling the Vincent API, which returns a scoped API key. There is no pre-existing credential to configure. The agent generates and stores its own API key during wallet creation — no secrets need to exist before the skill runs. The config paths where the agent persists the returned API key (`~/.openclaw/credentials/agentwallet/` or `./agentwallet/`) are declared in this skill's metadata.
+**No environment variables are required** because this skill uses agent-first onboarding: the agent creates its own wallet at runtime by calling the Vincent API, which returns a scoped API key. There is no pre-existing credential to configure. The agent generates and stores its own API key during wallet creation — no secrets need to exist before the skill runs. The config paths where the agent persists the returned API key (`${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/credentials/agentwallet/` or `./agentwallet/`) are declared in this skill's metadata.
 
 **The agent's API key is not a private key.** It is a scoped Bearer token that can only execute transactions within the policies set by the wallet owner. The Vincent server enforces all policies server-side — the agent cannot bypass them regardless of what it sends. If a transaction violates a policy, the server rejects it. If a transaction requires approval, the server holds it and notifies the wallet owner via Telegram for out-of-band human approval.
 
@@ -64,7 +64,7 @@ This skill is designed for **autonomous agent operation with human oversight via
 
 All API requests require a Bearer token (the scoped API key returned when creating a wallet). This key is not a private key — it is a server-enforced, policy-scoped credential that the wallet owner can revoke at any time.
 
-Store the API key locally after wallet creation in one of the declared config paths. If you're an OpenClaw instance, store and retrieve it from `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`. These paths are declared in this skill's metadata so the host environment can audit and manage credential storage.
+Store the API key locally after wallet creation in one of the declared config paths. If you're an OpenClaw instance, store and retrieve it from `${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`. These paths are declared in this skill's metadata so the host environment can audit and manage credential storage.
 
 ```
 Authorization: Bearer <API_KEY>
@@ -193,6 +193,69 @@ curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/send-transaction" \
   }'
 ```
 
+### 7. Transfer Between Your Secrets
+
+Transfer funds between Vincent secrets you own (e.g., from one EVM wallet to another, or to a Polymarket wallet). Vincent verifies you own both secrets and handles any token conversion or cross-chain bridging automatically.
+
+#### Preview a Transfer
+
+Get a quote showing expected output, fees, and whether your balance is sufficient — without executing anything.
+
+```bash
+curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/preview" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toSecretId": "<DESTINATION_SECRET_ID>",
+    "fromChainId": 8453,
+    "toChainId": 8453,
+    "tokenIn": "ETH",
+    "tokenInAmount": "0.1",
+    "tokenOut": "ETH"
+  }'
+```
+
+#### Execute a Transfer
+
+```bash
+curl -X POST "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/execute" \
+  -H "Authorization: Bearer <API_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "toSecretId": "<DESTINATION_SECRET_ID>",
+    "fromChainId": 8453,
+    "toChainId": 8453,
+    "tokenIn": "ETH",
+    "tokenInAmount": "0.1",
+    "tokenOut": "ETH"
+  }'
+```
+
+#### Check Cross-Chain Transfer Status
+
+For cross-chain transfers, the execute response includes a `relayRequestId`. Use it to poll for completion.
+
+```bash
+curl -X GET "https://heyvincent.ai/api/skills/evm-wallet/transfer-between-secrets/status/<RELAY_REQUEST_ID>" \
+  -H "Authorization: Bearer <API_KEY>"
+```
+
+**Parameters:**
+
+- `toSecretId`: The ID of the destination secret (must be owned by the same user).
+- `fromChainId` / `toChainId`: Chain IDs for source and destination.
+- `tokenIn` / `tokenOut`: Token addresses or `"ETH"` for native ETH.
+- `tokenInAmount`: Human-readable amount to send (e.g. `"0.1"`).
+- `slippage`: Optional slippage tolerance in basis points (e.g. `100` = 1%).
+
+**Behavior:**
+
+- **Same token + same chain**: Executes as a direct transfer (gas sponsored).
+- **Different token or chain**: Uses a relay service for atomic swap + bridge.
+- The destination secret can be an `EVM_WALLET` or `POLYMARKET_WALLET`.
+- The server verifies you own both the source and destination secrets — transfers to secrets you don't own are rejected.
+- Transfers are subject to the same server-side policies as regular transfers (spending limits, approval thresholds, etc.).
+
 ## Policies (Server-Side Enforcement)
 
 The wallet owner controls what the agent can do by setting policies via the claim URL at `https://heyvincent.ai`. All policies are enforced server-side by the Vincent API — the agent cannot bypass or modify them. If a transaction violates a policy, the API rejects it. If a transaction triggers an approval threshold, the API holds it and sends the wallet owner a Telegram notification for out-of-band human approval. The policy enforcement logic is open source and auditable at [github.com/HeyVincent-ai/Vincent](https://github.com/HeyVincent-ai/Vincent).
@@ -242,8 +305,8 @@ If a user tells you they have a re-link token, use this endpoint to regain acces
 
 - **No gas needed.** A paymaster is fully set up -- all transaction gas fees are sponsored automatically. The wallet does not need ETH for gas.
 - **Never try to access raw secret values.** The private key stays server-side -- that's the whole point.
-- Always store the API key from wallet creation in the declared config paths. If you're an OpenClaw instance, store it in `~/.openclaw/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
-- Always search for existing API keys in the declared config paths before creating a new wallet. If you're an OpenClaw instance, search in `~/.openclaw/credentials/agentwallet/`. Otherwise, search in `./agentwallet/`.
+- Always store the API key from wallet creation in the declared config paths. If you're an OpenClaw instance, store it in `${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/credentials/agentwallet/<API_KEY_ID>.json`. Otherwise, store it in your current working directory at `agentwallet/<API_KEY_ID>.json`.
+- Always search for existing API keys in the declared config paths before creating a new wallet. If you're an OpenClaw instance, search in `${OPENCLAW_STATE_DIR:-$HOME/.openclaw}/credentials/agentwallet/`. Otherwise, search in `./agentwallet/`.
 - Always share the claim URL with the user after creating a wallet.
 - If a transaction is rejected, it may be blocked by a server-side policy. Tell the user to check their policy settings at `https://heyvincent.ai`.
 - If a transaction requires approval, it will return `status: "pending_approval"`. The wallet owner will receive a Telegram notification to approve or deny.

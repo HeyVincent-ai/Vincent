@@ -27,7 +27,8 @@ api.interceptors.response.use(
 );
 
 // Auth
-export const syncSession = (sessionToken: string) => api.post('/auth/session', { sessionToken });
+export const syncSession = (sessionToken: string, referralCode?: string) =>
+  api.post('/auth/session', { sessionToken, ...(referralCode && { referralCode }) });
 
 export const logout = () => api.post('/auth/logout');
 
@@ -129,19 +130,15 @@ export const reprovisionOpenClawDeployment = (id: string) =>
 export const downloadOpenClawSshKey = (id: string) =>
   api.get(`/openclaw/deployments/${id}/ssh-key`, { responseType: 'blob' });
 export const getOpenClawUsage = (id: string) => api.get(`/openclaw/deployments/${id}/usage`);
-export const createOpenClawCreditsCheckout = (
-  id: string,
-  successUrl: string,
-  cancelUrl: string
-) => api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
+export const createOpenClawCreditsCheckout = (id: string, successUrl: string, cancelUrl: string) =>
+  api.post(`/openclaw/deployments/${id}/credits/checkout`, { successUrl, cancelUrl });
 export const setupOpenClawTelegram = (id: string, botToken: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/setup`, { botToken });
 export const pairOpenClawTelegram = (id: string, code: string) =>
   api.post(`/openclaw/deployments/${id}/telegram/pair`, { code });
 
 // Data Sources
-export const getDataSourceInfo = (secretId: string) =>
-  api.get(`/secrets/${secretId}/data-sources`);
+export const getDataSourceInfo = (secretId: string) => api.get(`/secrets/${secretId}/data-sources`);
 export const getDataSourceCredits = (secretId: string) =>
   api.get(`/secrets/${secretId}/data-sources/credits`);
 export const createDataSourceCreditsCheckout = (
@@ -160,6 +157,9 @@ export const cancelSubscription = () => api.post('/billing/cancel');
 export const getUsage = () => api.get('/billing/usage');
 export const getUsageHistory = () => api.get('/billing/usage/history');
 export const getInvoices = () => api.get('/billing/invoices');
+
+// Referrals
+export const getReferral = () => api.get('/user/referral');
 
 // Ownership
 export const requestOwnershipChallenge = (secretId: string, address: string) =>

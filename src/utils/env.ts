@@ -94,8 +94,14 @@ const envSchema = z.object({
   // OpenRouter Provisioning Key (for per-deployment API key management)
   OPENROUTER_PROVISIONING_KEY: z.string().optional(),
 
+  // OpenClaw Default Model
+  OPENCLAW_DEFAULT_MODEL: z.string().optional().default('openrouter/anthropic/claude-sonnet-4.6'),
+
   // Resend (email notifications)
   RESEND_API_KEY: z.string().optional(),
+
+  // Admin (comma-separated list of admin email addresses)
+  ADMIN_EMAILS: z.string().optional(),
 
   // Data Sources - upstream API keys (optional; respective data source returns 503 if missing)
   TWITTER_BEARER_TOKEN: z.string().optional(),

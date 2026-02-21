@@ -1,6 +1,7 @@
 import Stripe from 'stripe';
 import { env } from '../utils/env.js';
 import prisma from '../db/client.js';
+import * as referralService from '../services/referral.service.js';
 
 let stripeClient: Stripe | null = null;
 
@@ -87,6 +88,7 @@ export async function createCheckoutSession(
     mode: 'subscription',
     payment_method_types: ['card'],
     payment_method_collection: 'if_required',
+    allow_promotion_codes: true,
     line_items: [{ price: env.STRIPE_PRICE_ID, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
@@ -250,6 +252,11 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  const amountPaidUsd = Number(invoice.amount_paid ?? 0) / 100;
+  if (amountPaidUsd <= 0) {
+    console.log('[stripe] Skipping referral fulfillment for non-paid invoice');
+  }
+
   const subscriptionId = getSubscriptionIdFromInvoice(invoice);
   if (!subscriptionId) return;
 
@@ -262,6 +269,28 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
       where: { id: sub.id },
       data: { status: 'ACTIVE' },
     });
+
+    if (amountPaidUsd > 0) {
+      try {
+        await referralService.fulfillReferralReward(sub.userId);
+      } catch (err: any) {
+        console.error('[stripe] Failed to fulfill referral reward:', err.message);
+      }
+    }
+    return;
+  }
+
+  const openclawDeployment = await prisma.openClawDeployment.findFirst({
+    where: { stripeSubscriptionId: subscriptionId },
+    select: { userId: true },
+  });
+
+  if (openclawDeployment && amountPaidUsd > 0) {
+    try {
+      await referralService.fulfillReferralReward(openclawDeployment.userId);
+    } catch (err: any) {
+      console.error('[stripe] Failed to fulfill referral reward:', err.message);
+    }
   }
 }
 
@@ -344,6 +373,7 @@ export async function createCreditsCheckoutSession(
     customer: customerId,
     mode: 'payment',
     payment_method_types: ['card'],
+    allow_promotion_codes: true,
     line_items: [{ price: env.STRIPE_CREDIT_PRICE_ID, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
@@ -378,6 +408,7 @@ export async function createDataSourceCreditsCheckoutSession(
     customer: customerId,
     mode: 'payment',
     payment_method_types: ['card'],
+    allow_promotion_codes: true,
     line_items: [{ price: env.STRIPE_DATASOURCES_CREDITS_PRICE_ID, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
