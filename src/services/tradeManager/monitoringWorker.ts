@@ -99,8 +99,12 @@ async function tick(): Promise<void> {
         // Fallback to HTTP if no fresh WebSocket price
         if (currentPrice === undefined) {
           currentPrice = await positionMonitor.getCurrentPrice(rule.tokenId);
-          priceCache.set(rule.tokenId, { price: currentPrice, timestamp: Date.now() });
+          if (Number.isFinite(currentPrice)) {
+            priceCache.set(rule.tokenId, { price: currentPrice, timestamp: Date.now() });
+          }
         }
+
+        if (!Number.isFinite(currentPrice)) continue;
 
         await maybeAdjustTrailingTrigger(rule, currentPrice);
 
@@ -257,10 +261,11 @@ async function maybeAdjustTrailingTrigger(
 ): Promise<void> {
   if (rule.ruleType !== 'TRAILING_STOP') return;
   if (typeof rule.trailingPercent !== 'number' || rule.trailingPercent <= 0) return;
+  if (!Number.isFinite(currentPrice)) return;
 
   const nextTrigger =
     Math.round(Math.min(0.99, currentPrice * (1 - rule.trailingPercent / 100)) * 10000) / 10000;
-  if (nextTrigger <= rule.triggerPrice) return;
+  if (!Number.isFinite(nextTrigger) || nextTrigger <= rule.triggerPrice) return;
 
   const updated = await ruleManager.updateTrailingTrigger(rule.id, nextTrigger, {
     currentPrice,
