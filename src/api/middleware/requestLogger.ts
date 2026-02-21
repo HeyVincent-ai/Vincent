@@ -34,7 +34,15 @@ function sanitizeBody(body: unknown): Record<string, unknown> | undefined {
   const sanitized = { ...body } as Record<string, unknown>;
 
   // Remove sensitive fields
-  const sensitiveFields = ['password', 'token', 'secret', 'privateKey', 'apiKey', 'authorization'];
+  const sensitiveFields = [
+    'password',
+    'token',
+    'secret',
+    'privateKey',
+    'apiKey',
+    'authorization',
+    'value',
+  ];
   for (const field of sensitiveFields) {
     if (field in sanitized) {
       sanitized[field] = '[REDACTED]';

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { SecretType } from '@prisma/client';
 import rateLimit from 'express-rate-limit';
 import { asyncHandler } from '../middleware/errorHandler.js';
-import { apiKeyAuthMiddleware } from '../middleware/apiKeyAuth.js';
+import { apiKeyAuthMiddleware, requireSecretAccess } from '../middleware/apiKeyAuth.js';
 import { sessionAuthMiddleware, requireSecretOwnership } from '../middleware/sessionAuth.js';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { sendSuccess, errors } from '../../utils/response.js';
@@ -42,7 +42,11 @@ const claimSecretSchema = z.object({
 });
 
 const setSecretValueSchema = z.object({
-  value: z.string().min(1),
+  value: z.unknown(),
+});
+
+const setSecretValueAgentSchema = z.object({
+  value: z.unknown(),
 });
 
 const relinkSchema = z.object({
@@ -291,8 +295,17 @@ router.put(
       errors.notFound(res, 'Secret');
       return;
     }
-    if (existing.type !== SecretType.API_KEY) {
-      errors.forbidden(res, 'Only API_KEY secrets can be updated manually');
+    const allowedTypes = [
+      SecretType.API_KEY,
+      SecretType.OAUTH_TOKEN,
+      SecretType.SSH_KEY,
+      SecretType.CREDENTIALS,
+    ];
+    if (!allowedTypes.includes(existing.type)) {
+      errors.forbidden(
+        res,
+        'Only API_KEY, OAUTH_TOKEN, SSH_KEY, or CREDENTIALS secrets can be updated manually'
+      );
       return;
     }
 
@@ -303,6 +316,44 @@ router.put(
     });
 
     sendSuccess(res, { secret });
+  })
+);
+
+/**
+ * PATCH /api/secrets/:id/value/agent
+ * Set or overwrite secret value (agent-first onboarding)
+ * Requires: API key authentication + secret access
+ */
+router.patch(
+  '/:id/value/agent',
+  apiKeyAuthMiddleware,
+  requireSecretAccess,
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const id = (req.params as Record<string, string>).id;
+    const body = setSecretValueAgentSchema.parse(req.body);
+
+    if (!req.apiKey) {
+      errors.unauthorized(res, 'Not authenticated');
+      return;
+    }
+
+    const result = await secretService.setSecretValueByAgent({
+      secretId: id,
+      apiKeyId: req.apiKey.id,
+      value: body.value,
+    });
+
+    auditService.log({
+      secretId: id,
+      apiKeyId: req.apiKey.id,
+      action: result.didOverwrite ? 'secret.value_overwrite' : 'secret.value_set',
+      inputData: { secretId: id },
+      status: 'SUCCESS',
+      ipAddress: req.ip,
+      userAgent: req.get('user-agent'),
+    });
+
+    sendSuccess(res, { secret: result.secret });
   })
 );
 

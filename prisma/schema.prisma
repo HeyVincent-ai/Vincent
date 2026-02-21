@@ -44,6 +44,7 @@ enum SecretType {
   API_KEY
   SSH_KEY
   OAUTH_TOKEN
+  CREDENTIALS
   DATA_SOURCES
 }
 
@@ -53,6 +54,7 @@ model Secret {
   userId      String?     @map("user_id")
   type        SecretType
   value       String?     // Encrypted at rest, null for user-provided secrets until set
+  valueSetByApiKeyId String? @map("value_set_by_api_key_id")
   memo        String?     // User-friendly description
   claimToken  String?     @unique @map("claim_token")
   claimedAt   DateTime?   @map("claimed_at")
