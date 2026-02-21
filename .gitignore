@@ -65,3 +65,6 @@ docker-compose.override.yml
 tmp/
 temp/
 reports/
+
+# local agentwallet storage from testing
+agentwallet/

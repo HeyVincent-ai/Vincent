@@ -5,6 +5,7 @@ import { sessionAuthMiddleware } from '../middleware/sessionAuth.js';
 import { AuthenticatedRequest } from '../../types/index.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import prisma from '../../db/client.js';
+import * as openclawService from '../../services/openclaw.service.js';
 
 const router = Router();
 
@@ -176,9 +177,33 @@ router.get(
         readyAt: d.readyAt,
         creditBalanceUsd: Number(d.creditBalanceUsd),
         currentPeriodEnd: d.currentPeriodEnd,
+        hasSubscription: !!d.stripeSubscriptionId,
         createdAt: d.createdAt,
       })),
     });
+  })
+);
+
+/**
+ * POST /api/admin/active-agents/:id/retry
+ * Admin-initiated retry of a failed deployment.
+ */
+router.post(
+  '/active-agents/:id/retry',
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const { id } = req.params as { id: string };
+
+    const deployment = await prisma.openClawDeployment.findUnique({
+      where: { id },
+      select: { userId: true },
+    });
+    if (!deployment) {
+      errors.notFound(res, 'Deployment');
+      return;
+    }
+
+    const updated = await openclawService.retryDeploy(id, deployment.userId);
+    sendSuccess(res, { deployment: { id: updated.id, status: updated.status } });
   })
 );
 

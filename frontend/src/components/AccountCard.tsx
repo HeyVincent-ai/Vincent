@@ -42,15 +42,15 @@ function formatBalance(n: number) {
 export default function AccountCard({ account, onReceive }: AccountCardProps) {
   const addr = getPrimaryAddress(account);
   const hasBalance = account.totalBalance !== undefined;
-  const canReceive = account.type === 'EVM_WALLET' || account.type === 'POLYMARKET_WALLET' || account.type === 'RAW_SIGNER';
+  const canReceive =
+    account.type === 'EVM_WALLET' ||
+    account.type === 'POLYMARKET_WALLET' ||
+    account.type === 'RAW_SIGNER';
 
   return (
     <div className="flex items-center justify-between gap-4 px-3 py-2.5 rounded-lg hover:bg-muted/50 transition-colors group">
       <div className="min-w-0 flex items-center gap-2 flex-1">
-        <Link
-          to={`/secrets/${account.id}`}
-          className="min-w-0 flex items-center gap-2"
-        >
+        <Link to={`/secrets/${account.id}`} className="min-w-0 flex items-center gap-2">
           <span className="text-sm text-foreground font-medium group-hover:text-primary transition-colors truncate">
             {account.memo || 'Unnamed account'}
           </span>

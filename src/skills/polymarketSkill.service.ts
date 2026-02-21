@@ -54,10 +54,13 @@ export interface BetOutput {
   orderDetails?: any;
 }
 
-export interface PositionsOutput {
+export interface OpenOrdersOutput {
   walletAddress: string;
   openOrders: polymarket.OpenOrder[];
 }
+
+/** @deprecated Use OpenOrdersOutput instead */
+export type PositionsOutput = OpenOrdersOutput;
 
 export interface MarketInfoOutput {
   market: any;
@@ -283,10 +286,10 @@ export async function placeBet(input: BetInput): Promise<BetOutput> {
 }
 
 // ============================================================
-// Positions
+// Open Orders
 // ============================================================
 
-export async function getPositions(secretId: string, market?: string): Promise<PositionsOutput> {
+export async function getOpenOrders(secretId: string, market?: string): Promise<OpenOrdersOutput> {
   const wallet = await getWalletData(secretId);
   const clientConfig = { privateKey: wallet.privateKey, secretId, safeAddress: wallet.safeAddress };
 
@@ -297,6 +300,9 @@ export async function getPositions(secretId: string, market?: string): Promise<P
     openOrders,
   };
 }
+
+/** @deprecated Use getOpenOrders instead */
+export const getPositions = getOpenOrders;
 
 // ============================================================
 // Market Info
@@ -309,15 +315,16 @@ export async function getMarketInfo(conditionId: string): Promise<MarketInfoOutp
 
 export async function searchMarkets(params: {
   query?: string;
+  slug?: string;
   active?: boolean;
   limit?: number;
   nextCursor?: string;
 }) {
-  const { query, active = true, limit = 50 } = params;
+  const { query, slug, active = true, limit = 50 } = params;
 
   // Use Gamma API for both search and browsing — it supports text search
   // via /public-search and filtered browsing via /markets with proper params
-  return polymarket.searchMarketsGamma({ query, active, limit });
+  return polymarket.searchMarketsGamma({ query, slug, active, limit });
 }
 
 export async function getOrderBook(tokenId: string) {
@@ -346,7 +353,10 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
     walletAddress: wallet.walletAddress,
     collateral: {
       balance: toHuman(collateral.balance),
-      allowance: toHuman(collateral.allowance),
+      allowance:
+        collateral.allowance != null && collateral.allowance !== ''
+          ? toHuman(collateral.allowance)
+          : 'unknown',
     },
   };
 }
@@ -389,7 +399,10 @@ export interface Holding {
   pnl: number;
   pnlPercent: number;
   marketTitle: string;
+  marketSlug: string;
   outcome: string;
+  endDate?: string;
+  redeemable?: boolean;
 }
 
 export interface HoldingsOutput {
@@ -411,11 +424,102 @@ export async function getHoldings(secretId: string): Promise<HoldingsOutput> {
     pnl: parseFloat(pos.cashPnl),
     pnlPercent: parseFloat(pos.percentPnl),
     marketTitle: pos.title,
+    marketSlug: pos.slug,
     outcome: pos.outcome,
+    endDate: pos.endDate,
+    redeemable: pos.redeemable,
   }));
 
   return {
     walletAddress: wallet.walletAddress,
     holdings,
+  };
+}
+
+// ============================================================
+// Redeem Positions
+// ============================================================
+
+export interface RedeemOutput {
+  walletAddress: string;
+  redeemed: Array<{
+    conditionId: string;
+    marketTitle: string;
+    outcome: string;
+    shares: number;
+  }>;
+  transactionHash?: string;
+}
+
+/**
+ * Redeem resolved (winning) positions back to USDC.e.
+ * Fetches redeemable positions from the Data API and executes
+ * on-chain redemption via the Polymarket relayer (gasless).
+ */
+export async function redeemPositions(
+  secretId: string,
+  conditionIds?: string[]
+): Promise<RedeemOutput> {
+  const wallet = await getWalletData(secretId);
+
+  const allPositions = await polymarket.getPositions(wallet.safeAddress);
+
+  let redeemable = allPositions.filter((pos) => pos.redeemable && parseFloat(pos.size) > 0);
+
+  if (conditionIds && conditionIds.length > 0) {
+    const idSet = new Set(conditionIds);
+    redeemable = redeemable.filter((pos) => idSet.has(pos.conditionId));
+  }
+
+  if (redeemable.length === 0) {
+    return {
+      walletAddress: wallet.walletAddress,
+      redeemed: [],
+    };
+  }
+
+  // Group by conditionId to handle multi-outcome positions
+  const grouped = new Map<string, { negativeRisk: boolean; outcomes: Map<number, string> }>();
+  for (const pos of redeemable) {
+    if (!grouped.has(pos.conditionId)) {
+      grouped.set(pos.conditionId, {
+        negativeRisk: pos.negativeRisk,
+        outcomes: new Map(),
+      });
+    }
+    grouped.get(pos.conditionId)!.outcomes.set(pos.outcomeIndex, pos.size);
+  }
+
+  const CONDITIONAL_TOKEN_DECIMALS = 6;
+  const toRawAmount = (size: string) =>
+    Math.round(parseFloat(size) * 10 ** CONDITIONAL_TOKEN_DECIMALS).toString();
+
+  const positionsToRedeem: polymarket.RedeemablePosition[] = [];
+  for (const [conditionId, group] of grouped) {
+    if (group.negativeRisk) {
+      const maxIndex = Math.max(...group.outcomes.keys());
+      const amounts: string[] = [];
+      for (let i = 0; i <= maxIndex; i++) {
+        amounts.push(toRawAmount(group.outcomes.get(i) ?? '0'));
+      }
+      positionsToRedeem.push({ conditionId, negativeRisk: true, amounts });
+    } else {
+      positionsToRedeem.push({ conditionId, negativeRisk: false });
+    }
+  }
+
+  const result = await polymarket.redeemPositions(wallet.privateKey, positionsToRedeem);
+
+  const redeemedSummary = redeemable.map((pos) => ({
+    conditionId: pos.conditionId,
+    marketTitle: pos.title,
+    outcome: pos.outcome,
+    shares: parseFloat(pos.size),
+  }));
+
+  return {
+    walletAddress: wallet.walletAddress,
+    redeemed: redeemedSummary,
+    transactionHash: result.transactionHash,
   };
 }
