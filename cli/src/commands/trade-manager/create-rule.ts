@@ -1,4 +1,11 @@
-import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
+import {
+  parseArgs,
+  getRequired,
+  getRequiredNumber,
+  getNumber,
+  hasFlag,
+  showHelp,
+} from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
 import { vincentPost } from '../../lib/client.js';
 
@@ -26,11 +33,11 @@ export async function run(argv: string[]): Promise<void> {
     marketId: getRequired(flags, 'market-id'),
     tokenId: getRequired(flags, 'token-id'),
     ruleType: getRequired(flags, 'rule-type'),
-    triggerPrice: Number(getRequired(flags, 'trigger-price')),
+    triggerPrice: getRequiredNumber(flags, 'trigger-price'),
     action: { type: 'SELL_ALL' },
   };
-  const trailingPercent = getOptional(flags, 'trailing-percent');
-  if (trailingPercent) body.trailingPercent = Number(trailingPercent);
+  const trailingPercent = getNumber(flags, 'trailing-percent');
+  if (trailingPercent !== undefined) body.trailingPercent = trailingPercent;
 
   const res = await vincentPost('/api/skills/polymarket/rules', apiKey, body);
   console.log(JSON.stringify(res, null, 2));

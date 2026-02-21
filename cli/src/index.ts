@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const pkg = require('../package.json') as { version: string };
+
 type CommandFn = (args: string[]) => Promise<void>;
 
 const COMMANDS: Record<string, Record<string, () => Promise<{ run: CommandFn }>>> = {
@@ -81,7 +85,7 @@ async function main(): Promise<void> {
   }
 
   if (argv[0] === '--version' || argv[0] === '-v') {
-    console.log('0.1.0');
+    console.log(pkg.version);
     process.exit(0);
   }
 

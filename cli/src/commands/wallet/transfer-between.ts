@@ -1,4 +1,11 @@
-import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
+import {
+  parseArgs,
+  getRequired,
+  getRequiredNumber,
+  getNumber,
+  hasFlag,
+  showHelp,
+} from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
 import { vincentPost, vincentGet } from '../../lib/client.js';
 
@@ -52,14 +59,14 @@ export async function run(argv: string[]): Promise<void> {
 
   const body: Record<string, unknown> = {
     toSecretId: getRequired(flags, 'to-secret-id'),
-    fromChainId: Number(getRequired(flags, 'from-chain')),
-    toChainId: Number(getRequired(flags, 'to-chain')),
+    fromChainId: getRequiredNumber(flags, 'from-chain'),
+    toChainId: getRequiredNumber(flags, 'to-chain'),
     tokenIn: getRequired(flags, 'token-in'),
     tokenInAmount: getRequired(flags, 'amount'),
     tokenOut: getRequired(flags, 'token-out'),
   };
-  const slippage = getOptional(flags, 'slippage');
-  if (slippage) body.slippage = Number(slippage);
+  const slippage = getNumber(flags, 'slippage');
+  if (slippage !== undefined) body.slippage = slippage;
 
   const res = await vincentPost(
     `/api/skills/evm-wallet/transfer-between-secrets/${subcommand}`,

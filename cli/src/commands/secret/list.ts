@@ -1,6 +1,6 @@
 import { parseArgs, getOptional, hasFlag, showHelp } from '../../lib/args.js';
 import { listKeys } from '../../lib/keystore.js';
-import type { SecretType } from '../../lib/types.js';
+import { validateSecretType } from '../../lib/types.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -15,7 +15,8 @@ export async function run(argv: string[]): Promise<void> {
     return;
   }
 
-  const type = getOptional(flags, 'type') as SecretType | undefined;
+  const rawType = getOptional(flags, 'type');
+  const type = rawType !== undefined ? validateSecretType(rawType) : undefined;
   const keys = listKeys(type);
 
   console.log(

@@ -1,7 +1,7 @@
-import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
+import { parseArgs, getRequired, getNumber, hasFlag, showHelp } from '../../lib/args.js';
 import { vincentPost } from '../../lib/client.js';
 import { storeKey } from '../../lib/keystore.js';
-import type { SecretType } from '../../lib/types.js';
+import { validateSecretType } from '../../lib/types.js';
 
 export async function run(argv: string[]): Promise<void> {
   const { flags } = parseArgs(argv);
@@ -19,24 +19,26 @@ export async function run(argv: string[]): Promise<void> {
     return;
   }
 
-  const type = getRequired(flags, 'type') as SecretType;
+  const type = validateSecretType(getRequired(flags, 'type'));
   const memo = getRequired(flags, 'memo');
-  const chainId = getOptional(flags, 'chain-id');
+  const chainId = getNumber(flags, 'chain-id');
 
   const body: Record<string, unknown> = { type, memo };
-  if (chainId) body.chainId = Number(chainId);
+  if (chainId !== undefined) body.chainId = chainId;
 
   const res = (await vincentPost('/api/secrets', null, body)) as Record<string, unknown>;
 
   const apiKey = res.apiKey as string;
   const keyId = (res.apiKeyId as string) || (res.id as string);
 
+  const secretId = (res.secretId as string) || (res.id as string);
+
   storeKey({
     id: keyId,
     apiKey,
     type,
     memo,
-    secretId: (res.secretId as string) || (res.id as string),
+    secretId,
     createdAt: new Date().toISOString(),
   });
 
@@ -46,7 +48,7 @@ export async function run(argv: string[]): Promise<void> {
         keyId,
         claimUrl: res.claimUrl,
         address: res.address,
-        secretId: res.secretId || res.id,
+        secretId,
       },
       null,
       2

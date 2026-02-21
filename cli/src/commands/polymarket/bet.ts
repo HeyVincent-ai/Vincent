@@ -1,4 +1,11 @@
-import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
+import {
+  parseArgs,
+  getRequired,
+  getRequiredNumber,
+  getNumber,
+  hasFlag,
+  showHelp,
+} from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
 import { vincentPost } from '../../lib/client.js';
 
@@ -20,10 +27,10 @@ export async function run(argv: string[]): Promise<void> {
   const body: Record<string, unknown> = {
     tokenId: getRequired(flags, 'token-id'),
     side: getRequired(flags, 'side'),
-    amount: Number(getRequired(flags, 'amount')),
+    amount: getRequiredNumber(flags, 'amount'),
   };
-  const price = getOptional(flags, 'price');
-  if (price) body.price = Number(price);
+  const price = getNumber(flags, 'price');
+  if (price !== undefined) body.price = price;
 
   const res = await vincentPost('/api/skills/polymarket/bet', apiKey, body);
   console.log(JSON.stringify(res, null, 2));

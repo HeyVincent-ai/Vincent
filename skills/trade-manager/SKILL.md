@@ -2,7 +2,7 @@
 
 Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs as part of the Vincent backend and automatically executes trades when price conditions are met.
 
-All commands use the `@vincentai/cli` package. The CLI communicates with the local Trade Manager daemon at `http://localhost:19000`.
+All commands use the `@vincentai/cli` package.
 
 ## How It Works
 

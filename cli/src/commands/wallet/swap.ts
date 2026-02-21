@@ -1,4 +1,11 @@
-import { parseArgs, getRequired, getOptional, hasFlag, showHelp } from '../../lib/args.js';
+import {
+  parseArgs,
+  getRequired,
+  getRequiredNumber,
+  getNumber,
+  hasFlag,
+  showHelp,
+} from '../../lib/args.js';
 import { resolveApiKey } from '../../lib/keystore.js';
 import { vincentPost } from '../../lib/client.js';
 
@@ -28,12 +35,12 @@ export async function run(argv: string[]): Promise<void> {
     sellToken: getRequired(flags, 'sell-token'),
     buyToken: getRequired(flags, 'buy-token'),
     sellAmount: getRequired(flags, 'sell-amount'),
-    chainId: Number(getRequired(flags, 'chain-id')),
+    chainId: getRequiredNumber(flags, 'chain-id'),
   };
 
   if (subcommand === 'execute') {
-    const slippage = getOptional(flags, 'slippage');
-    if (slippage) body.slippageBps = Number(slippage);
+    const slippage = getNumber(flags, 'slippage');
+    if (slippage !== undefined) body.slippageBps = slippage;
   }
 
   const res = await vincentPost(`/api/skills/evm-wallet/swap/${subcommand}`, apiKey, body);

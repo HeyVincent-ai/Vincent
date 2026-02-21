@@ -27,7 +27,7 @@ export function storeKey(keyData: KeyData): void {
   const dir = getDirForType(keyData.type);
   mkdirSync(dir, { recursive: true });
   const filePath = join(dir, `${keyData.id}.json`);
-  writeFileSync(filePath, JSON.stringify(keyData, null, 2) + '\n');
+  writeFileSync(filePath, JSON.stringify(keyData, null, 2) + '\n', { mode: 0o600 });
 }
 
 export function getKey(keyId: string): string {
