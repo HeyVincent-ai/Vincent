@@ -75,10 +75,9 @@ export function createApp(): Express {
 
   // MCP needs to be accessible from external agent clients (Claude/ChatGPT/Codex/etc.)
   // so allow all origins on /mcp while keeping stricter defaults elsewhere.
-  app.use('/mcp', cors({ origin: '*', credentials: false }));
   app.use((req, res, next) => {
     if (req.path.startsWith('/mcp')) {
-      return next();
+      return cors({ origin: '*', credentials: false })(req, res, next);
     }
     return corsDefault(req, res, next);
   });

@@ -30,14 +30,17 @@ interface JsonRpcResponse {
 const router = Router();
 
 router.get('/', (_req, res) => {
-  res.status(405).json({
-    jsonrpc: '2.0',
-    id: null,
-    error: {
-      code: -32601,
-      message: 'MCP server expects JSON-RPC POST requests',
-    },
-  });
+  res
+    .set('Allow', 'POST')
+    .status(405)
+    .json({
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32601,
+        message: 'MCP server expects JSON-RPC POST requests',
+      },
+    });
 });
 
 router.post('/', async (req: Request, res: Response) => {
@@ -51,6 +54,11 @@ router.post('/', async (req: Request, res: Response) => {
         message: 'Invalid JSON-RPC request',
       },
     });
+  }
+
+  // JSON-RPC 2.0: requests without an id are notifications and must not receive a response
+  if (payload.id === undefined) {
+    return res.status(204).end();
   }
 
   const id = payload.id ?? null;
@@ -72,10 +80,9 @@ router.post('/', async (req: Request, res: Response) => {
 
     switch (payload.method) {
       case 'initialize': {
-        const params = (payload.params || {}) as { protocolVersion?: string; clientInfo?: unknown };
         return res.json(
           buildResult(id, {
-            protocolVersion: params.protocolVersion || MCP_PROTOCOL_VERSION,
+            protocolVersion: MCP_PROTOCOL_VERSION,
             serverInfo: {
               name: 'Vincent MCP',
               version: process.env.npm_package_version || '1.0.0',
@@ -144,7 +151,10 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 router.delete('/', (_req, res) => {
-  res.status(405).json(buildError(null, -32601, 'Session termination is not supported'));
+  res
+    .set('Allow', 'POST')
+    .status(405)
+    .json(buildError(null, -32601, 'Session termination is not supported'));
 });
 
 function buildResult(id: JsonRpcId, result: unknown): JsonRpcResponse {

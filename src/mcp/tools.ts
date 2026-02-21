@@ -108,7 +108,7 @@ const rawSignerSignSchema = z.object({
   curve: z.enum(['ethereum', 'solana']),
 });
 
-function toolError(error: unknown): AppError {
+export function parseToolError(error: unknown): AppError {
   if (error instanceof AppError) return error;
   if (error instanceof ZodError) {
     return new AppError('INVALID_PARAMS', 'Invalid tool arguments', 400, error.issues);
@@ -263,23 +263,25 @@ export const TOOLS: ToolDefinition[] = [
         chainId: body.chainId,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.wallet.transfer',
-        inputData: body,
-        outputData: result,
-        status:
-          result.status === 'denied'
-            ? AuditLogStatus.FAILED
-            : result.status === 'pending_approval'
-              ? AuditLogStatus.PENDING
-              : AuditLogStatus.SUCCESS,
-        errorMessage: result.status === 'denied' ? result.reason : undefined,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.wallet.transfer',
+          inputData: body,
+          outputData: result,
+          status:
+            result.status === 'denied'
+              ? AuditLogStatus.FAILED
+              : result.status === 'pending_approval'
+                ? AuditLogStatus.PENDING
+                : AuditLogStatus.SUCCESS,
+          errorMessage: result.status === 'denied' ? result.reason : undefined,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -312,23 +314,25 @@ export const TOOLS: ToolDefinition[] = [
         chainId: body.chainId,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.wallet.send_transaction',
-        inputData: body,
-        outputData: result,
-        status:
-          result.status === 'denied'
-            ? AuditLogStatus.FAILED
-            : result.status === 'pending_approval'
-              ? AuditLogStatus.PENDING
-              : AuditLogStatus.SUCCESS,
-        errorMessage: result.status === 'denied' ? result.reason : undefined,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.wallet.send_transaction',
+          inputData: body,
+          outputData: result,
+          status:
+            result.status === 'denied'
+              ? AuditLogStatus.FAILED
+              : result.status === 'pending_approval'
+                ? AuditLogStatus.PENDING
+                : AuditLogStatus.SUCCESS,
+          errorMessage: result.status === 'denied' ? result.reason : undefined,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -388,17 +392,19 @@ export const TOOLS: ToolDefinition[] = [
         slippageBps: body.slippageBps,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.wallet.swap_preview',
-        inputData: body,
-        outputData: result,
-        status: AuditLogStatus.SUCCESS,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.wallet.swap_preview',
+          inputData: body,
+          outputData: result,
+          status: AuditLogStatus.SUCCESS,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -433,23 +439,25 @@ export const TOOLS: ToolDefinition[] = [
         slippageBps: body.slippageBps,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.wallet.swap_execute',
-        inputData: body,
-        outputData: result,
-        status:
-          result.status === 'denied'
-            ? AuditLogStatus.FAILED
-            : result.status === 'pending_approval'
-              ? AuditLogStatus.PENDING
-              : AuditLogStatus.SUCCESS,
-        errorMessage: result.status === 'denied' ? result.reason : undefined,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.wallet.swap_execute',
+          inputData: body,
+          outputData: result,
+          status:
+            result.status === 'denied'
+              ? AuditLogStatus.FAILED
+              : result.status === 'pending_approval'
+                ? AuditLogStatus.PENDING
+                : AuditLogStatus.SUCCESS,
+          errorMessage: result.status === 'denied' ? result.reason : undefined,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -482,23 +490,25 @@ export const TOOLS: ToolDefinition[] = [
         price: body.price,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.polymarket.bet',
-        inputData: body,
-        outputData: result,
-        status:
-          result.status === 'denied'
-            ? AuditLogStatus.FAILED
-            : result.status === 'pending_approval'
-              ? AuditLogStatus.PENDING
-              : AuditLogStatus.SUCCESS,
-        errorMessage: result.status === 'denied' ? result.reason : undefined,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.polymarket.bet',
+          inputData: body,
+          outputData: result,
+          status:
+            result.status === 'denied'
+              ? AuditLogStatus.FAILED
+              : result.status === 'pending_approval'
+                ? AuditLogStatus.PENDING
+                : AuditLogStatus.SUCCESS,
+          errorMessage: result.status === 'denied' ? result.reason : undefined,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -657,27 +667,29 @@ export const TOOLS: ToolDefinition[] = [
         curve: body.curve,
       });
 
-      auditService.log({
-        secretId: ctx.secret.id,
-        apiKeyId: ctx.apiKeyId,
-        action: 'mcp.raw_signer.sign',
-        inputData: {
-          curve: body.curve,
-          messageLength: body.message.length,
-          messagePreview: body.message.slice(0, 66) + (body.message.length > 66 ? '...' : ''),
-        },
-        outputData: result,
-        status:
-          result.status === 'denied'
-            ? AuditLogStatus.FAILED
-            : result.status === 'pending_approval'
-              ? AuditLogStatus.PENDING
-              : AuditLogStatus.SUCCESS,
-        errorMessage: result.status === 'denied' ? result.reason : undefined,
-        durationMs: Date.now() - start,
-        ipAddress: ctx.ipAddress,
-        userAgent: ctx.userAgent,
-      });
+      auditService
+        .log({
+          secretId: ctx.secret.id,
+          apiKeyId: ctx.apiKeyId,
+          action: 'mcp.raw_signer.sign',
+          inputData: {
+            curve: body.curve,
+            messageLength: body.message.length,
+            messagePreview: body.message.slice(0, 66) + (body.message.length > 66 ? '...' : ''),
+          },
+          outputData: result,
+          status:
+            result.status === 'denied'
+              ? AuditLogStatus.FAILED
+              : result.status === 'pending_approval'
+                ? AuditLogStatus.PENDING
+                : AuditLogStatus.SUCCESS,
+          errorMessage: result.status === 'denied' ? result.reason : undefined,
+          durationMs: Date.now() - start,
+          ipAddress: ctx.ipAddress,
+          userAgent: ctx.userAgent,
+        })
+        .catch(console.error);
 
       return result;
     },
@@ -821,8 +833,4 @@ export function listToolsForSecret(secret: SecretSafeData): ToolDefinition[] {
 
 export function getTool(name: string): ToolDefinition | undefined {
   return TOOLS.find((tool) => tool.name === name);
-}
-
-export function parseToolError(err: unknown): AppError {
-  return toolError(err);
 }

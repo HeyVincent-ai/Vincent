@@ -290,6 +290,7 @@ export default function ConnectAgents({ compact, className }: ConnectAgentsProps
             <div key={client.id} className="rounded-xl border border-border bg-card">
               <button
                 onClick={() => setOpenId(open ? '' : client.id)}
+                aria-expanded={open}
                 className="w-full flex items-center justify-between px-4 py-3 text-left"
               >
                 <div className="flex items-center gap-3">
