@@ -14,21 +14,27 @@ echo ""
 
 PIDS=()
 
+kill_tree() {
+  local pid=$1
+  local sig=${2:-TERM}
+  local children
+  children=$(pgrep -P "$pid" 2>/dev/null || true)
+  for child in $children; do
+    kill_tree "$child" "$sig"
+  done
+  kill -"$sig" "$pid" 2>/dev/null || true
+}
+
 cleanup() {
   echo ""
   echo "=== Cleaning up background processes ==="
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "Stopping PID $pid..."
-      kill "$pid" 2>/dev/null || true
-    fi
+    echo "Stopping process tree rooted at PID $pid..."
+    kill_tree "$pid" TERM
   done
   sleep 2
   for pid in "${PIDS[@]}"; do
-    if kill -0 "$pid" 2>/dev/null; then
-      echo "Force killing PID $pid..."
-      kill -9 "$pid" 2>/dev/null || true
-    fi
+    kill_tree "$pid" 9
   done
   echo "=== Cleanup complete ==="
 }
@@ -56,8 +62,9 @@ wait_for_endpoint() {
 echo "[1/4] Starting Vincent backend (npm run dev:all from repo root)..."
 cd "$REPO_ROOT"
 npm run dev:all > "$LOG_DIR/vincentBackend.log" 2>&1 &
-PIDS+=($!)
-echo "  PID: ${PIDS[-1]}"
+VINCENT_PID=$!
+PIDS+=($VINCENT_PID)
+echo "  PID: $VINCENT_PID"
 wait_for_endpoint "http://localhost:3000" "Vincent backend"
 
 # --- Step 2: Remove old test database ---
@@ -71,8 +78,9 @@ echo ""
 echo "[3/4] Starting Trade Manager (npm run dev:all from trade-manager/)..."
 cd "$TRADE_MANAGER_DIR"
 npm run dev:all > "$LOG_DIR/tradeManager.log" 2>&1 &
-PIDS+=($!)
-echo "  PID: ${PIDS[-1]}"
+TM_PID=$!
+PIDS+=($TM_PID)
+echo "  PID: $TM_PID"
 wait_for_endpoint "http://localhost:19000/health" "Trade Manager"
 
 # --- Step 4: Run Claude agent test ---

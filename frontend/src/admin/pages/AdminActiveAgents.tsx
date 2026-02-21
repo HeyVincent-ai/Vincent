@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getAdminActiveAgents } from '../api';
+import { getAdminActiveAgents, retryAdminAgent } from '../api';
 
 interface Agent {
   id: string;
@@ -13,6 +13,7 @@ interface Agent {
   readyAt: string | null;
   creditBalanceUsd: number;
   currentPeriodEnd: string | null;
+  hasSubscription: boolean;
   createdAt: string;
 }
 
@@ -35,6 +36,23 @@ export default function AdminActiveAgents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [retrying, setRetrying] = useState<Record<string, boolean>>({});
+
+  const handleRetry = async (id: string) => {
+    setRetrying((prev) => ({ ...prev, [id]: true }));
+    try {
+      await retryAdminAgent(id);
+      setAgents((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, status: 'PENDING', statusMessage: 'Retrying provisioning' } : a
+        )
+      );
+    } catch {
+      setError(`Failed to retry deployment ${id}`);
+    } finally {
+      setRetrying((prev) => ({ ...prev, [id]: false }));
+    }
+  };
 
   useEffect(() => {
     getAdminActiveAgents()
@@ -84,12 +102,13 @@ export default function AdminActiveAgents() {
                 <th className="px-4 py-3 font-medium">Credits</th>
                 <th className="px-4 py-3 font-medium">Period End</th>
                 <th className="px-4 py-3 font-medium">Created</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
               {agents.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     No active agent deployments
                   </td>
                 </tr>
@@ -121,6 +140,17 @@ export default function AdminActiveAgents() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {new Date(a.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      {a.status === 'ERROR' && a.hasSubscription && (
+                        <button
+                          onClick={() => handleRetry(a.id)}
+                          disabled={retrying[a.id]}
+                          className="px-3 py-1 text-xs font-medium rounded bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {retrying[a.id] ? 'Retrying...' : 'Retry'}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

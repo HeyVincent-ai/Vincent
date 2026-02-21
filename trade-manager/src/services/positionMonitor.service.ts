@@ -10,13 +10,12 @@ export class PositionMonitorService {
     const holdings = await this.vincentClient.getHoldings();
     const now = new Date();
 
-    // Filter out resolved/closed markets (redeemable or past endDate)
+    // Filter out resolved markets and empty positions.
+    // Only use `redeemable` to detect resolved markets — endDate is the
+    // *expected* resolution date and markets frequently trade past it.
     const activeHoldings = holdings.filter((holding) => {
       if (holding.redeemable) return false;
-      if (holding.endDate) {
-        const endDate = new Date(holding.endDate);
-        if (endDate < now) return false;
-      }
+      if (holding.shares <= 0) return false;
       return true;
     });
 
