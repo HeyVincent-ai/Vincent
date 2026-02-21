@@ -249,17 +249,17 @@ npx @vincentai/cli@latest wallet transfer --key-id <KEY_ID> --to 0xRecipient --a
 \`\`\`
 ```
 
-**Estimated line reduction:**
-| Skill | Before | After (est.) | Reduction |
-|-------|--------|-------------|-----------|
-| wallet | 357 | ~140 | ~61% |
-| polymarket | 486 | ~190 | ~61% |
-| trade-manager | 420 | ~180 | ~57% |
-| twitter | 177 | ~75 | ~58% |
-| brave-search | 161 | ~70 | ~57% |
-| **Total** | **1,601** | **~655** | **~59%** |
+**Actual line reduction:**
+| Skill | Before | After | Reduction |
+|-------|--------|-------|-----------|
+| wallet | 357 | 253 | 29% |
+| polymarket | 487 | 345 | 29% |
+| trade-manager | 421 | 287 | 32% |
+| twitter | 178 | 153 | 14% |
+| brave-search | 162 | 141 | 13% |
+| **Total** | **1,605** | **1,179** | **26%** |
 
-The reduction is larger than the scripts approach because the CLI also eliminates all key management prose (~20-30 lines per skill).
+The reduction is smaller than originally estimated because security model prose, policies, and behavioral notes (which are intentionally preserved) account for most of the content. The curl→CLI replacement and key management prose removal are significant but represent a smaller fraction than anticipated.
 
 ### Command Reference (All Commands)
 

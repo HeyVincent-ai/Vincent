@@ -91,19 +91,19 @@
 - [x] **4.32** `commands/trade-manager/positions.ts` — GET /api/positions
 - [x] **4.33** `commands/trade-manager/events.ts` — GET /api/events (optional `--rule-id`, `--limit`, `--offset`)
 
-## Phase 5: Rewrite SKILL.md Files
+## Phase 5: Rewrite SKILL.md Files ✅
 
-- [ ] **5.1** Rewrite `skills/wallet/SKILL.md` — replace curl with CLI commands, remove key management prose
-- [ ] **5.2** Rewrite `skills/polymarket/SKILL.md` — replace curl with CLI commands, remove key management prose
-- [ ] **5.3** Rewrite `skills/trade-manager/SKILL.md` — replace curl with CLI commands (trade-manager commands use localhost)
-- [ ] **5.4** Rewrite `skills/twitter/SKILL.md` — replace curl with CLI commands, remove key management prose
-- [ ] **5.5** Rewrite `skills/brave-search/SKILL.md` — replace curl with CLI commands, remove key management prose
+- [x] **5.1** Rewrite `skills/wallet/SKILL.md` — replace curl with CLI commands, remove key management prose (357 → 253 lines)
+- [x] **5.2** Rewrite `skills/polymarket/SKILL.md` — replace curl with CLI commands, remove key management prose (487 → 345 lines)
+- [x] **5.3** Rewrite `skills/trade-manager/SKILL.md` — replace curl with CLI commands (421 → 287 lines)
+- [x] **5.4** Rewrite `skills/twitter/SKILL.md` — replace curl with CLI commands, remove key management prose (178 → 153 lines)
+- [x] **5.5** Rewrite `skills/brave-search/SKILL.md` — replace curl with CLI commands, remove key management prose (162 → 141 lines)
 
 ## Phase 6: Build, Test & Publish Pipeline
 
 - [x] **6.1** Add build script to `cli/package.json` (tsc + chmod +x on bin entry)
 - [x] **6.2** Test CLI locally (`node dist/index.js --help`, `secret list`, etc.) — verified working
-- [ ] **6.3** Add CLI typecheck to root CI (`cd cli && npx tsc --noEmit`)
+- [x] **6.3** Add CLI typecheck to root CI (`npx tsc --project cli/tsconfig.json --noEmit` added to `.github/workflows/ci.yml`)
 - [ ] **6.4** First publish to npm: `cd cli && npm publish --access public`
 - [ ] **6.5** Update `scripts/publish_skill.sh` — optionally bump and publish CLI version alongside skills
 
@@ -113,6 +113,9 @@
 - The CLI has zero runtime dependencies — uses only Node built-in `fetch`, `fs`, `path`, `os`
 - `secret list` auto-discovers keys from `~/.openclaw/credentials/` directories — confirmed working with existing key files on disk
 - All 33 command files + 4 lib files compile cleanly with `tsc --noEmit`
+- **SKILL.md rewrite results**: Total 1,605 → 1,179 lines (26% reduction). Less than the estimated 59% because security model prose, policies, and behavioral notes (which stay) account for most of the content. The curl→CLI reduction is significant but the prose around key management was a smaller fraction than estimated.
+- Added a "Check for Existing Keys" step at the top of each Quick Start — `secret list --type <TYPE>` — so agents check for existing keys before creating new ones (replaces the verbose "search config paths" instructions)
+- Trade-manager SKILL.md had no frontmatter and no Configuration section to begin with (it's a local service, not a Vincent API), so reduction there was purely from curl→CLI
 
 ## Notes
 
