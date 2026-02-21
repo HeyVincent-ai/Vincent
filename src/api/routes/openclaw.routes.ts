@@ -70,7 +70,7 @@ router.post('/deploy', async (req: AuthenticatedRequest, res: Response) => {
       parsed.data.cancelUrl
     );
     sendSuccess(res, { deploymentId: deployment.id, checkoutUrl }, 201);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('OpenClaw deploy error:', error);
     errors.internal(res);
   }
@@ -84,7 +84,7 @@ router.get('/deployments', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const deployments = await openclawService.listDeployments(req.user!.id);
     sendSuccess(res, { deployments: deployments.map(toPublicData) });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('OpenClaw list error:', error);
     errors.internal(res);
   }
@@ -101,7 +101,7 @@ router.get('/deployments/:id', async (req: AuthenticatedRequest, res: Response) 
       return errors.notFound(res, 'Deployment');
     }
     sendSuccess(res, { deployment: toPublicData(deployment) });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('OpenClaw get error:', error);
     errors.internal(res);
   }
@@ -118,8 +118,8 @@ router.post('/deployments/:id/cancel', async (req: AuthenticatedRequest, res: Re
       deployment: toPublicData(deployment),
       currentPeriodEnd: deployment.currentPeriodEnd,
     });
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw cancel error:', error);
@@ -135,8 +135,8 @@ router.delete('/deployments/:id', async (req: AuthenticatedRequest, res: Respons
   try {
     const deployment = await openclawService.destroy(req.params.id as string, req.user!.id);
     sendSuccess(res, { deployment: toPublicData(deployment) });
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw destroy error:', error);
@@ -152,8 +152,8 @@ router.post('/deployments/:id/restart', async (req: AuthenticatedRequest, res: R
   try {
     const deployment = await openclawService.restart(req.params.id as string, req.user!.id);
     sendSuccess(res, { deployment: toPublicData(deployment) });
-  } catch (error: any) {
-    if (error.message.includes('not found')) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('not found')) {
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw restart error:', error);
@@ -169,12 +169,14 @@ router.post('/deployments/:id/retry', async (req: AuthenticatedRequest, res: Res
   try {
     const deployment = await openclawService.retryDeploy(req.params.id as string, req.user!.id);
     sendSuccess(res, { deployment: toPublicData(deployment) });
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
-      return errors.notFound(res, 'Deployment');
-    }
-    if (error.message.includes('only retry') || error.message.includes('no subscription')) {
-      return res.status(400).json({ success: false, error: error.message });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === 'Deployment not found') {
+        return errors.notFound(res, 'Deployment');
+      }
+      if (error.message.includes('only retry') || error.message.includes('no subscription')) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
     }
     console.error('OpenClaw retry error:', error);
     errors.internal(res);
@@ -189,12 +191,14 @@ router.post('/deployments/:id/reprovision', async (req: AuthenticatedRequest, re
   try {
     const deployment = await openclawService.reprovision(req.params.id as string, req.user!.id);
     sendSuccess(res, { deployment: toPublicData(deployment) });
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
-      return errors.notFound(res, 'Deployment');
-    }
-    if (error.message.includes('Can only reprovision') || error.message.includes('missing VPS')) {
-      return res.status(400).json({ success: false, error: error.message });
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message === 'Deployment not found') {
+        return errors.notFound(res, 'Deployment');
+      }
+      if (error.message.includes('Can only reprovision') || error.message.includes('missing VPS')) {
+        return res.status(400).json({ success: false, error: error.message });
+      }
     }
     console.error('OpenClaw reprovision error:', error);
     errors.internal(res);
@@ -222,7 +226,7 @@ router.get('/deployments/:id/ssh-key', async (req: AuthenticatedRequest, res: Re
       `attachment; filename="openclaw-${deployment.id.slice(-8)}.pem"`
     );
     res.send(deployment.sshPrivateKey);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('OpenClaw ssh-key error:', error);
     errors.internal(res);
   }
@@ -236,8 +240,8 @@ router.get('/deployments/:id/usage', async (req: AuthenticatedRequest, res: Resp
   try {
     const usage = await openclawService.getUsage(req.params.id as string, req.user!.id);
     sendSuccess(res, usage);
-  } catch (error: any) {
-    if (error.message === 'Deployment not found') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message === 'Deployment not found') {
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw usage error:', error);
@@ -273,7 +277,7 @@ router.post(
         parsed.data.cancelUrl
       );
       sendSuccess(res, result);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('OpenClaw credits checkout error:', error);
       errors.internal(res);
     }
@@ -290,8 +294,8 @@ router.get('/deployments/:id/channels', async (req: AuthenticatedRequest, res: R
   try {
     const channels = await openclawService.getChannelStatus(req.params.id as string, req.user!.id);
     sendSuccess(res, channels);
-  } catch (error: any) {
-    if (error.message.includes('not found')) {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('not found')) {
       return errors.notFound(res, 'Deployment');
     }
     console.error('OpenClaw channels error:', error);
@@ -320,12 +324,14 @@ router.post('/deployments/:id/telegram/setup', async (req: AuthenticatedRequest,
       parsed.data.botToken
     );
     sendSuccess(res, { message: 'Telegram bot configured and gateway restarting' });
-  } catch (error: any) {
-    if (error.message.includes('not found')) {
-      return errors.notFound(res, 'Deployment');
-    }
-    if (error.message.includes('Invalid')) {
-      return errors.badRequest(res, error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return errors.notFound(res, 'Deployment');
+      }
+      if (error.message.includes('Invalid')) {
+        return errors.badRequest(res, error.message);
+      }
     }
     console.error('OpenClaw telegram setup error:', error);
     errors.internal(res);
@@ -353,12 +359,14 @@ router.post('/deployments/:id/telegram/pair', async (req: AuthenticatedRequest, 
       parsed.data.code
     );
     sendSuccess(res, result);
-  } catch (error: any) {
-    if (error.message.includes('not found')) {
-      return errors.notFound(res, 'Deployment');
-    }
-    if (error.message.includes('Invalid')) {
-      return errors.badRequest(res, error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      if (error.message.includes('not found')) {
+        return errors.notFound(res, 'Deployment');
+      }
+      if (error.message.includes('Invalid')) {
+        return errors.badRequest(res, error.message);
+      }
     }
     console.error('OpenClaw telegram pair error:', error);
     errors.internal(res);

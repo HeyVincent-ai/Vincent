@@ -87,21 +87,22 @@ export async function validateSessionWithRoles(
     });
 
     return { user, roles };
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Log a sanitized subset of the error for debugging (similar to syncSession)
+    const errObj = error && typeof error === 'object' ? (error as Record<string, unknown>) : null;
     const status =
-      error && typeof error === 'object' && ('status_code' in error || 'status' in error)
-        ? (error.status_code ?? error.status)
+      errObj && ('status_code' in errObj || 'status' in errObj)
+        ? (errObj.status_code ?? errObj.status)
         : undefined;
     const type =
-      error && typeof error === 'object' && ('error_type' in error || 'code' in error)
-        ? (error.error_type ?? error.code)
+      errObj && ('error_type' in errObj || 'code' in errObj)
+        ? (errObj.error_type ?? errObj.code)
         : undefined;
 
     console.error('[auth] validateSessionWithRoles error', {
       status,
       type,
-      message: error && typeof error === 'object' ? error.message : String(error),
+      message: error instanceof Error ? error.message : String(error),
     });
     return { user: null, roles: [] };
   }
@@ -168,8 +169,8 @@ async function findOrCreateUser(params: {
   if (referralCode) {
     try {
       await referralService.recordReferral(referralCode, newUser.id);
-    } catch (err: any) {
-      console.error('[auth] Failed to record referral:', err.message);
+    } catch (err: unknown) {
+      console.error('[auth] Failed to record referral:', err instanceof Error ? err.message : err);
     }
   }
 

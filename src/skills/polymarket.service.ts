@@ -364,7 +364,7 @@ export function getEoaAddress(privateKey: string): string {
 /**
  * Get market info by condition ID.
  */
-export async function getMarket(conditionId: string): Promise<any> {
+export async function getMarket(conditionId: string): Promise<unknown> {
   const { ClobClient, Chain } = await loadClobClient();
   const host = env.POLYMARKET_CLOB_HOST || 'https://clob.polymarket.com';
   const client = new ClobClient(host, Chain.POLYGON);
@@ -470,25 +470,25 @@ function ensureStringArray(value: unknown): string[] {
 /**
  * Map a raw market object (from either /public-search or /markets) to our clean format.
  */
-function mapGammaMarket(m: any) {
+function mapGammaMarket(m: GammaMarket | Record<string, unknown>) {
   return {
-    id: m.id,
-    question: m.question,
-    conditionId: m.conditionId,
-    slug: m.slug,
+    id: String(m.id),
+    question: String(m.question),
+    conditionId: String(m.conditionId),
+    slug: String(m.slug),
     outcomes: ensureStringArray(m.outcomes),
     outcomePrices: ensureStringArray(m.outcomePrices),
     tokenIds: ensureStringArray(m.clobTokenIds),
-    active: m.active,
-    closed: m.closed,
-    acceptingOrders: m.acceptingOrders,
-    endDate: m.endDate,
-    volume: m.volume,
-    liquidity: m.liquidity,
-    bestBid: m.bestBid,
-    bestAsk: m.bestAsk,
-    lastTradePrice: m.lastTradePrice,
-    description: m.description,
+    active: Boolean(m.active),
+    closed: Boolean(m.closed),
+    acceptingOrders: Boolean(m.acceptingOrders),
+    endDate: String(m.endDate),
+    volume: String(m.volume),
+    liquidity: String(m.liquidity),
+    bestBid: m.bestBid as number | undefined,
+    bestAsk: m.bestAsk as number | undefined,
+    lastTradePrice: m.lastTradePrice as number | undefined,
+    description: m.description as string | undefined,
   };
 }
 
@@ -564,8 +564,10 @@ export async function searchMarketsGamma(params: {
     const events = data.events || [];
 
     // Flatten events -> markets
-    const markets = events.flatMap((event: any) =>
-      (event.markets || []).filter((m: any) => !active || m.acceptingOrders).map(mapGammaMarket)
+    const markets = events.flatMap((event: Record<string, unknown>) =>
+      ((event.markets || []) as Record<string, unknown>[])
+        .filter((m: Record<string, unknown>) => !active || m.acceptingOrders)
+        .map(mapGammaMarket)
     );
 
     return {
@@ -615,7 +617,7 @@ export async function placeLimitOrder(
     price: number;
     size: number;
   }
-): Promise<any> {
+): Promise<unknown> {
   const client = await buildClient(config);
 
   const order = await client.createOrder({
@@ -641,7 +643,7 @@ export async function placeMarketOrder(
     side: Side;
     amount: number;
   }
-): Promise<any> {
+): Promise<unknown> {
   const client = await buildClient(config);
 
   const userMarketOrder: UserMarketOrder = {
@@ -676,7 +678,7 @@ function isCloudflareBlock(data: unknown): boolean {
 /**
  * Validate that a CLOB order response is actually successful.
  */
-function validateOrderResponse(result: any): void {
+function validateOrderResponse(result: unknown): void {
   if (!result) {
     throw new Error('CLOB returned empty response');
   }
@@ -694,21 +696,23 @@ function validateOrderResponse(result: any): void {
     throw new Error(`CLOB returned unexpected response: ${result.slice(0, 200)}`);
   }
 
-  if (result.error) {
+  const res = result as Record<string, unknown>;
+
+  if (res.error) {
     let errMsg: string;
-    if (typeof result.error === 'string') {
-      errMsg = result.error.slice(0, 200);
+    if (typeof res.error === 'string') {
+      errMsg = res.error.slice(0, 200);
     } else {
       try {
-        errMsg = JSON.stringify(result.error).slice(0, 200);
+        errMsg = JSON.stringify(res.error).slice(0, 200);
       } catch {
-        errMsg = String(result.error).slice(0, 200);
+        errMsg = String(res.error).slice(0, 200);
       }
     }
     throw new Error(`CLOB order failed: ${errMsg}`);
   }
 
-  if (!result.orderID && !result.success) {
+  if (!res.orderID && !res.success) {
     let resultStr: string;
     try {
       resultStr = JSON.stringify(result).slice(0, 200);
@@ -749,7 +753,10 @@ export async function getTrades(
 /**
  * Cancel a specific order.
  */
-export async function cancelOrder(config: PolymarketClientConfig, orderId: string): Promise<any> {
+export async function cancelOrder(
+  config: PolymarketClientConfig,
+  orderId: string
+): Promise<unknown> {
   const client = await buildClient(config);
   return client.cancelOrder({ orderID: orderId });
 }
@@ -757,7 +764,7 @@ export async function cancelOrder(config: PolymarketClientConfig, orderId: strin
 /**
  * Cancel all open orders.
  */
-export async function cancelAllOrders(config: PolymarketClientConfig): Promise<any> {
+export async function cancelAllOrders(config: PolymarketClientConfig): Promise<unknown> {
   const client = await buildClient(config);
   return client.cancelAll();
 }

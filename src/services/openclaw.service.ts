@@ -202,30 +202,36 @@ export function sshExec(
     }, timeoutMs);
 
     conn.on('ready', () => {
-      conn.exec(command, (err: any, stream: any) => {
-        if (err) {
-          clearTimeout(timer);
-          conn.end();
-          return reject(err);
+      conn.exec(
+        command,
+        (
+          err: Error | undefined,
+          stream: NodeJS.ReadWriteStream & { stderr: NodeJS.ReadableStream }
+        ) => {
+          if (err) {
+            clearTimeout(timer);
+            conn.end();
+            return reject(err);
+          }
+
+          stream.on('close', (code: number) => {
+            clearTimeout(timer);
+            conn.end();
+            resolve({ stdout, stderr, code: code || 0 });
+          });
+
+          stream.on('data', (data: Buffer) => {
+            stdout += data.toString();
+          });
+
+          stream.stderr.on('data', (data: Buffer) => {
+            stderr += data.toString();
+          });
         }
-
-        stream.on('close', (code: number) => {
-          clearTimeout(timer);
-          conn.end();
-          resolve({ stdout, stderr, code: code || 0 });
-        });
-
-        stream.on('data', (data: Buffer) => {
-          stdout += data.toString();
-        });
-
-        stream.stderr.on('data', (data: Buffer) => {
-          stderr += data.toString();
-        });
-      });
+      );
     });
 
-    conn.on('error', (err: any) => {
+    conn.on('error', (err: Error) => {
       clearTimeout(timer);
       reject(err);
     });
@@ -611,8 +617,8 @@ async function pollSetupCompletion(
       if (errorResult.stdout.trim()) {
         throw new Error(`Setup script failed: ${errorResult.stdout.trim()}`);
       }
-    } catch (err: any) {
-      if (err.message?.startsWith('Setup script failed:')) throw err;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message.startsWith('Setup script failed:')) throw err;
       // SSH error — transient, will retry
     }
 
@@ -1158,12 +1164,19 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
                 ctx.serviceName = deliveredServiceName;
                 claimed = true;
                 addLog(`VPS delivered: ${deliveredServiceName}`);
-              } catch (err: any) {
-                if (err.code === 'P2002' && err.meta?.target?.includes('ovh_service_name')) {
-                  addLog(
-                    `VPS ${deliveredServiceName} already claimed by another deployment, retrying...`
-                  );
-                  continue;
+              } catch (err: unknown) {
+                if (
+                  err instanceof Error &&
+                  'code' in err &&
+                  (err as { code: string }).code === 'P2002'
+                ) {
+                  const prismaErr = err as { meta?: { target?: string[] } };
+                  if (prismaErr.meta?.target?.includes('ovh_service_name')) {
+                    addLog(
+                      `VPS ${deliveredServiceName} already claimed by another deployment, retrying...`
+                    );
+                    continue;
+                  }
                 }
                 throw err;
               }
@@ -1425,8 +1438,10 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
         await sendOpenClawReadyEmail(user.email, deploymentId, ctx.hostname);
         addLog(`Ready notification email sent to ${user.email}`);
       }
-    } catch (emailErr: any) {
-      addLog(`Failed to send ready email: ${emailErr.message}`);
+    } catch (emailErr: unknown) {
+      addLog(
+        `Failed to send ready email: ${emailErr instanceof Error ? emailErr.message : String(emailErr)}`
+      );
     }
 
     // Apply any pending referral rewards for this user
@@ -1436,16 +1451,19 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
       if (applied > 0) {
         addLog(`Applied ${applied} pending referral reward(s)`);
       }
-    } catch (refErr: any) {
-      addLog(`Failed to apply referral rewards: ${refErr.message}`);
+    } catch (refErr: unknown) {
+      addLog(
+        `Failed to apply referral rewards: ${refErr instanceof Error ? refErr.message : String(refErr)}`
+      );
     }
 
     addLog('Deployment complete!');
-  } catch (err: any) {
-    addLog(`ERROR: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    addLog(`ERROR: ${message}`);
     await updateDeployment(deploymentId, {
       status: 'ERROR',
-      statusMessage: err.message,
+      statusMessage: message,
       provisionLog: log,
     });
     throw err;
@@ -1482,8 +1500,8 @@ async function pollForDelivery(orderId: number, addLog: (msg: string) => void): 
       if (serviceName && serviceName.startsWith('vps')) {
         return serviceName;
       }
-    } catch (err: any) {
-      addLog(`Order association check error: ${err.message}`);
+    } catch (err: unknown) {
+      addLog(`Order association check error: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Secondary: check if a new VPS appeared in the list
@@ -1711,9 +1729,9 @@ export async function waitForRebuild(
           // Task API may be unavailable during rebuild
         }
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       if (e instanceof RebuildTaskError) throw e;
-      addLog(`Rebuild poll error: ${e.message}`);
+      addLog(`Rebuild poll error: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
@@ -1784,7 +1802,7 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
       try {
         const stripe = getStripe();
         await stripe.subscriptions.cancel(deployment.stripeSubscriptionId);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`[openclaw] Failed to cancel Stripe subscription:`, err);
       }
     }
@@ -1793,7 +1811,7 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
     if (deployment.ovhServiceName) {
       try {
         await ovhService.terminateVps(deployment.ovhServiceName);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`[openclaw] Failed to terminate VPS ${deployment.ovhServiceName}:`, err);
       }
     }
@@ -1802,7 +1820,7 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
     if (deployment.openRouterKeyHash) {
       try {
         await openRouterService.deleteKey(deployment.openRouterKeyHash);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`[openclaw] Failed to revoke OpenRouter key:`, err);
       }
     }
@@ -1812,10 +1830,10 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
       statusMessage: 'Deployment destroyed',
       destroyedAt: new Date(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     await updateDeployment(deploymentId, {
       status: 'ERROR',
-      statusMessage: `Destroy failed: ${err.message}`,
+      statusMessage: `Destroy failed: ${err instanceof Error ? err.message : String(err)}`,
     });
     throw err;
   }
@@ -1890,7 +1908,7 @@ export async function handleSubscriptionExpired(stripeSubscriptionId: string): P
     if (deployment.ovhServiceName) {
       try {
         await ovhService.terminateVps(deployment.ovhServiceName);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`[openclaw] Failed to terminate VPS ${deployment.ovhServiceName}:`, err);
       }
     }
@@ -1898,7 +1916,7 @@ export async function handleSubscriptionExpired(stripeSubscriptionId: string): P
     if (deployment.openRouterKeyHash) {
       try {
         await openRouterService.deleteKey(deployment.openRouterKeyHash);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error(`[openclaw] Failed to revoke OpenRouter key:`, err);
       }
     }
@@ -1908,11 +1926,11 @@ export async function handleSubscriptionExpired(stripeSubscriptionId: string): P
       statusMessage: 'Subscription expired, deployment destroyed',
       destroyedAt: new Date(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(`[openclaw] Destroy after subscription expiry failed:`, err);
     await updateDeployment(deployment.id, {
       status: 'ERROR',
-      statusMessage: `Destroy failed: ${err.message}`,
+      statusMessage: `Destroy failed: ${err instanceof Error ? err.message : String(err)}`,
     }).catch(console.error);
   }
 }
@@ -2210,8 +2228,11 @@ export async function reprovision(
     try {
       await openRouterService.deleteKey(deployment.openRouterKeyHash);
       console.log(`[openclaw] Cleaned up old OpenRouter key ${deployment.openRouterKeyHash}`);
-    } catch (err: any) {
-      console.error(`[openclaw] Failed to clean up OpenRouter key:`, err.message);
+    } catch (err: unknown) {
+      console.error(
+        `[openclaw] Failed to clean up OpenRouter key:`,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
@@ -2349,16 +2370,19 @@ async function reprovisionAsync(deploymentId: string, orKeyRaw: string): Promise
       if (applied > 0) {
         addLog(`Applied ${applied} pending referral reward(s)`);
       }
-    } catch (refErr: any) {
-      addLog(`Failed to apply referral rewards: ${refErr.message}`);
+    } catch (refErr: unknown) {
+      addLog(
+        `Failed to apply referral rewards: ${refErr instanceof Error ? refErr.message : String(refErr)}`
+      );
     }
 
     addLog('Reprovision complete!');
-  } catch (err: any) {
-    addLog(`ERROR: ${err.message}`);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    addLog(`ERROR: ${message}`);
     await updateDeployment(deploymentId, {
       status: 'ERROR',
-      statusMessage: `Reprovision failed: ${err.message}`,
+      statusMessage: `Reprovision failed: ${message}`,
       provisionLog: log,
     });
     throw err;
@@ -2396,8 +2420,11 @@ export async function retryDeploy(
     try {
       await openRouterService.deleteKey(deployment.openRouterKeyHash);
       console.log(`[openclaw] Cleaned up orphaned OpenRouter key ${deployment.openRouterKeyHash}`);
-    } catch (err: any) {
-      console.error(`[openclaw] Failed to clean up OpenRouter key:`, err.message);
+    } catch (err: unknown) {
+      console.error(
+        `[openclaw] Failed to clean up OpenRouter key:`,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
@@ -2482,8 +2509,11 @@ export async function cleanupOrphanedResources(): Promise<{
       });
       keysRevoked++;
       console.log(`[openclaw:cleanup] Revoked orphaned key for destroyed deployment ${d.id}`);
-    } catch (err: any) {
-      console.error(`[openclaw:cleanup] Failed to revoke key for ${d.id}:`, err.message);
+    } catch (err: unknown) {
+      console.error(
+        `[openclaw:cleanup] Failed to revoke key for ${d.id}:`,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
@@ -2509,10 +2539,10 @@ export async function cleanupOrphanedResources(): Promise<{
       });
       abandonedCheckouts++;
       console.log(`[openclaw:cleanup] Marked abandoned checkout ${d.id} as DESTROYED`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(
         `[openclaw:cleanup] Failed to clean up abandoned checkout ${d.id}:`,
-        err.message
+        err instanceof Error ? err.message : String(err)
       );
     }
   }
@@ -2594,8 +2624,11 @@ export async function checkStaleDeployments(): Promise<number> {
       });
       timedOut++;
       console.log(`[openclaw:timeout] Deployment ${id}: ${reason}`);
-    } catch (err: any) {
-      console.error(`[openclaw:timeout] Failed to mark ${id} as timed out:`, err.message);
+    } catch (err: unknown) {
+      console.error(
+        `[openclaw:timeout] Failed to mark ${id} as timed out:`,
+        err instanceof Error ? err.message : String(err)
+      );
     }
   }
 
