@@ -28,6 +28,7 @@ model User {
   openclawDeployments OpenClawDeployment[]
   dataSourceUsage     DataSourceUsage[]
   dataSourceCreditPurchases DataSourceCreditPurchase[]
+  readOnlyTokens      ReadOnlyToken[]
 
   @@map("users")
 }
@@ -63,6 +64,7 @@ model Secret {
   rawSignerMetadata         RawSignerMetadata?
   apiKeys                   ApiKey[]
   ownershipChallenges       OwnershipChallenge[]
+  readOnlyTokenLinks        ReadOnlyTokenSecret[]
   policies          Policy[]
   transactionLogs   TransactionLog[]
   auditLogs         AuditLog[]
@@ -154,6 +156,36 @@ model ApiKey {
   auditLogs       AuditLog[]
 
   @@map("api_keys")
+}
+
+// Read-only tokens for raw access
+model ReadOnlyToken {
+  id         String    @id @default(cuid())
+  tokenHash  String    @unique @map("token_hash")
+  userId     String    @map("user_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user    User                 @relation(fields: [userId], references: [id])
+  secrets ReadOnlyTokenSecret[]
+
+  @@index([userId])
+  @@index([revokedAt])
+  @@map("read_only_tokens")
+}
+
+// Join table for read-only token to allowed secrets
+model ReadOnlyTokenSecret {
+  tokenId  String @map("token_id")
+  secretId String @map("secret_id")
+
+  token  ReadOnlyToken @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  secret Secret        @relation(fields: [secretId], references: [id], onDelete: Cascade)
+
+  @@id([tokenId, secretId])
+  @@index([secretId])
+  @@map("read_only_token_secrets")
 }
 
 // Policy types enum

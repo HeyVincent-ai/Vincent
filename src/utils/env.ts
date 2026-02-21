@@ -54,6 +54,8 @@ const envSchema = z.object({
 
   // Frontend URL (for CORS in production)
   FRONTEND_URL: z.string().optional(),
+  // Raw read-only domain (hostname only, e.g. raw.heyvincent.ai)
+  RAW_DOMAIN: z.string().optional(),
 
   // Price Oracle
   COINGECKO_API_KEY: z.string().optional(),

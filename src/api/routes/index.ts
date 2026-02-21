@@ -13,6 +13,8 @@ import openclawRouter from './openclaw.routes.js';
 import ownershipRouter from './ownership.routes.js';
 import dataSourceManagementRouter from './dataSourceManagement.routes.js';
 import dataSourceProxyRouter from '../../dataSources/router.js';
+import rawRouter from './raw.routes.js';
+import readOnlyTokensRouter from './readOnlyTokens.routes.js';
 
 const router = Router();
 
@@ -31,5 +33,7 @@ router.use('/billing', billingRouter); // Billing & subscription endpoints
 router.use('/openclaw', openclawRouter); // OpenClaw VPS deployment endpoints
 router.use('/secrets/:secretId/data-sources', dataSourceManagementRouter); // Data source management (session auth)
 router.use('/data-sources', dataSourceProxyRouter); // Data source proxy endpoints (API key auth)
+router.use('/raw', rawRouter); // Read-only raw endpoints
+router.use('/read-only-tokens', readOnlyTokensRouter); // Read-only token mint + management
 
 export default router;

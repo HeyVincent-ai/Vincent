@@ -8,7 +8,7 @@ import * as Sentry from '@sentry/node';
 import { env } from './utils/env.js';
 import { errorHandler } from './api/middleware/errorHandler.js';
 import { requestLogger } from './api/middleware/requestLogger.js';
-import { sendSuccess } from './utils/response.js';
+import { sendSuccess, errors } from './utils/response.js';
 import apiRouter from './api/routes/index.js';
 import docsRouter from './docs/docs.routes.js';
 
@@ -29,6 +29,32 @@ export function createApp(): Express {
       return res.redirect(301, `https://${newHost}${req.originalUrl}`);
     }
     next();
+  });
+
+  function isRawHost(req: Request): boolean {
+    const host = req.get('host');
+    if (!host) return false;
+    const hostname = host.split(':')[0]?.toLowerCase();
+    if (!hostname) return false;
+    if (env.RAW_DOMAIN) {
+      return hostname === env.RAW_DOMAIN.toLowerCase();
+    }
+    return hostname.startsWith('raw.');
+  }
+
+  // Raw domain isolation: only allow read-only endpoints and health checks.
+  app.use((req, res, next) => {
+    if (!isRawHost(req)) {
+      next();
+      return;
+    }
+
+    if (req.path === '/health' || req.path.startsWith('/api/raw')) {
+      next();
+      return;
+    }
+
+    errors.notFound(res);
   });
 
   // Security middleware
