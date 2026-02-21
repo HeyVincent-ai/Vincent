@@ -24,7 +24,7 @@ import {
   getUserTweetsSchema,
 } from '../dataSources/twitter/handler.js';
 import { getEndpointCost } from '../dataSources/registry.js';
-import { checkCredit, deductCredit } from '../dataSources/credit.service.js';
+import { deductCredit, refundCredit } from '../dataSources/credit.service.js';
 import { logUsage } from '../dataSources/usage.service.js';
 
 export interface ToolContext {
@@ -170,19 +170,12 @@ async function runDataSourceTool<T extends z.ZodTypeAny>(
 
   const params = schema.parse(args ?? {});
 
-  const hasCredit = await checkCredit(user.id, cost);
-  if (!hasCredit) {
-    throw new AppError(
-      'INSUFFICIENT_CREDIT',
-      `Insufficient data source credit. Balance: $${user.dataSourceCreditUsd.toFixed(2)}, required: $${cost.toFixed(4)}`,
-      402,
-      { balance: user.dataSourceCreditUsd.toNumber(), required: cost }
-    );
-  }
+  // Atomically deduct credit BEFORE calling the external API to prevent race conditions.
+  // If deductCredit fails (insufficient balance), it throws a 402 error.
+  const newBalance = await deductCredit(user.id, cost);
 
   try {
     const result = await handler(params);
-    const newBalance = await deductCredit(user.id, cost);
 
     logUsage({
       userId: user.id,
@@ -216,6 +209,17 @@ async function runDataSourceTool<T extends z.ZodTypeAny>(
       },
     };
   } catch (err: unknown) {
+    // Refund credit if the external API call failed
+    try {
+      await refundCredit(user.id, cost);
+    } catch (refundErr) {
+      console.error('CRITICAL: credit refund failed', {
+        userId: user.id,
+        costUsd: cost,
+        refundErr,
+      });
+    }
+
     auditService
       .log({
         secretId: ctx.secret.id,

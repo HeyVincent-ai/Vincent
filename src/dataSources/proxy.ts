@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuditLogStatus } from '@prisma/client';
 import { getEndpointCost } from './registry.js';
-import { checkCredit, deductCredit } from './credit.service.js';
+import { deductCredit, refundCredit } from './credit.service.js';
 import { logUsage } from './usage.service.js';
 import { DataSourceRequest } from './middleware.js';
 import { sendError } from '../utils/response.js';
@@ -10,15 +10,15 @@ import * as audit from '../audit/audit.service.js';
 type ProxyHandler = (req: DataSourceRequest) => Promise<unknown>;
 
 /**
- * Wraps a data source proxy handler with credit checks, deduction, usage logging,
+ * Wraps a data source proxy handler with credit deduction, usage logging,
  * and audit logging.
  *
  * Returns an Express handler that:
  * 1. Looks up endpoint cost from the registry
- * 2. Checks user has sufficient credit
+ * 2. Atomically deducts credit (prevents race-condition overdraft)
  * 3. Calls the upstream handler
- * 4. On success: deducts credit, logs usage, appends _vincent metadata
- * 5. On failure: does NOT deduct, returns upstream error
+ * 4. On success: logs usage, appends _vincent metadata
+ * 5. On failure: refunds credit, returns upstream error
  */
 export function wrapProxy(
   dataSourceId: string,
@@ -37,26 +37,13 @@ export function wrapProxy(
 
     const userId = dsReq.dataSourceUser.id;
 
-    // Pre-check credit
-    const hasCredit = await checkCredit(userId, cost);
-    if (!hasCredit) {
-      const balance = dsReq.dataSourceUser.dataSourceCreditUsd.toNumber();
-      sendError(
-        res,
-        'INSUFFICIENT_CREDIT',
-        `Insufficient data source credit. Balance: $${balance.toFixed(2)}, required: $${cost.toFixed(4)}`,
-        402,
-        { balance, required: cost }
-      );
-      return;
-    }
+    // Atomically deduct credit BEFORE calling the external API to prevent race conditions.
+    // If deductCredit throws (insufficient balance), the AppError propagates to Express error handler.
+    const newBalance = await deductCredit(userId, cost);
 
     try {
       // Call upstream handler
       const result = await handler(dsReq);
-
-      // Deduct credit (atomic)
-      const newBalance = await deductCredit(userId, cost);
 
       // Log usage (fire-and-forget)
       logUsage({
@@ -91,6 +78,13 @@ export function wrapProxy(
         },
       });
     } catch (err: unknown) {
+      // Refund credit if the external API call failed
+      try {
+        await refundCredit(userId, cost);
+      } catch (refundErr) {
+        console.error('CRITICAL: credit refund failed', { userId, costUsd: cost, refundErr });
+      }
+
       // Audit log failure (fire-and-forget)
       audit
         .log({
