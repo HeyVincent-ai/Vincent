@@ -159,7 +159,9 @@ async function trigger(rule: RuleLike): Promise<void> {
   try {
     const result = await ruleExecutor.executeRule(rule);
     // Only log RULE_TRIGGERED if the trade was actually executed.
-    // If executeRule handled pending_approval, it reverted the rule to ACTIVE.
+    // If executeRule handled a pending-approval flow, it should have already
+    // updated the rule status (for example, to PENDING_APPROVAL) and left
+    // `result.executed` as false.
     if (result.executed) {
       await eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
     }
