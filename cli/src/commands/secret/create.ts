@@ -26,12 +26,18 @@ export async function run(argv: string[]): Promise<void> {
   const body: Record<string, unknown> = { type, memo };
   if (chainId !== undefined) body.chainId = chainId;
 
-  const res = (await vincentPost('/api/secrets', null, body)) as Record<string, unknown>;
+  const res = (await vincentPost('/api/secrets', null, body)) as {
+    data: {
+      secret: { id: string };
+      apiKey: { id: string; key: string };
+      claimUrl: string;
+    };
+  };
 
-  const apiKey = res.apiKey as string;
-  const keyId = (res.apiKeyId as string) || (res.id as string);
-
-  const secretId = (res.secretId as string) || (res.id as string);
+  const { secret, apiKey: apiKeyObj, claimUrl } = res.data;
+  const apiKey = apiKeyObj.key;
+  const keyId = apiKeyObj.id;
+  const secretId = secret.id;
 
   storeKey({
     id: keyId,
@@ -46,8 +52,7 @@ export async function run(argv: string[]): Promise<void> {
     JSON.stringify(
       {
         keyId,
-        claimUrl: res.claimUrl,
-        address: res.address,
+        claimUrl,
         secretId,
       },
       null,

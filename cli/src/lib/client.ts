@@ -36,10 +36,11 @@ async function request(
   }
 
   if (!res.ok) {
+    const err = (data as Record<string, unknown>)?.error;
     const msg =
       typeof data === 'object' && data !== null
         ? (data as Record<string, unknown>).message ||
-          (data as Record<string, unknown>).error ||
+          (typeof err === 'string' ? err : (err as Record<string, unknown>)?.message) ||
           text
         : text;
     console.error(`API error (${res.status}): ${msg}`);

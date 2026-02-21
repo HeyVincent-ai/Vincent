@@ -18,13 +18,17 @@ export async function run(argv: string[]): Promise<void> {
   const res = (await vincentPost('/api/secrets/relink', null, {
     relinkToken: token,
     apiKeyName: 'Re-linked API Key',
-  })) as Record<string, unknown>;
+  })) as {
+    data: {
+      secret: { id: string; type: SecretType };
+      apiKey: { id: string; key: string };
+    };
+  };
 
-  const secret = res.secret as Record<string, unknown>;
-  const apiKeyObj = res.apiKey as Record<string, unknown>;
-  const apiKey = apiKeyObj.key as string;
-  const keyId = apiKeyObj.id as string;
-  const type = secret.type as SecretType;
+  const { secret, apiKey: apiKeyObj } = res.data;
+  const apiKey = apiKeyObj.key;
+  const keyId = apiKeyObj.id;
+  const type = secret.type;
 
   storeKey({
     id: keyId,
