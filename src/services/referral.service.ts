@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import prisma from '../db/client.js';
 import * as openRouterService from './openrouter.service.js';
 import { sendReferralRewardEmail } from './email.service.js';
@@ -28,8 +29,7 @@ export async function getOrCreateReferralCode(userId: string): Promise<string> {
       return updated.referralCode!;
     } catch (err: unknown) {
       // Unique constraint violation — retry with a new code
-      if (err instanceof Error && 'code' in err && (err as { code: string }).code === 'P2002')
-        continue;
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') continue;
       throw err;
     }
   }

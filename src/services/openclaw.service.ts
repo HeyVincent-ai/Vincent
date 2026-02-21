@@ -46,6 +46,7 @@ import { sendOpenClawReadyEmail } from './email.service.js';
 import { env } from '../utils/env.js';
 import * as secretService from './secret.service.js';
 import * as apiKeyService from './apiKey.service.js';
+import { Prisma } from '@prisma/client';
 import type { OpenClawDeployment, OpenClawStatus } from '@prisma/client';
 
 // ============================================================
@@ -1165,13 +1166,8 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
                 claimed = true;
                 addLog(`VPS delivered: ${deliveredServiceName}`);
               } catch (err: unknown) {
-                if (
-                  err instanceof Error &&
-                  'code' in err &&
-                  (err as { code: string }).code === 'P2002'
-                ) {
-                  const prismaErr = err as { meta?: { target?: string[] } };
-                  if (prismaErr.meta?.target?.includes('ovh_service_name')) {
+                if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+                  if ((err.meta?.target as string[] | undefined)?.includes('ovh_service_name')) {
                     addLog(
                       `VPS ${deliveredServiceName} already claimed by another deployment, retrying...`
                     );

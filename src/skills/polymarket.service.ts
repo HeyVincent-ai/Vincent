@@ -471,24 +471,25 @@ function ensureStringArray(value: unknown): string[] {
  * Map a raw market object (from either /public-search or /markets) to our clean format.
  */
 function mapGammaMarket(m: GammaMarket | Record<string, unknown>) {
+  const rec = m as Record<string, unknown>;
   return {
-    id: String(m.id),
-    question: String(m.question),
-    conditionId: String(m.conditionId),
-    slug: String(m.slug),
-    outcomes: ensureStringArray(m.outcomes),
-    outcomePrices: ensureStringArray(m.outcomePrices),
-    tokenIds: ensureStringArray(m.clobTokenIds),
-    active: Boolean(m.active),
-    closed: Boolean(m.closed),
-    acceptingOrders: Boolean(m.acceptingOrders),
-    endDate: String(m.endDate),
-    volume: String(m.volume),
-    liquidity: String(m.liquidity),
-    bestBid: m.bestBid as number | undefined,
-    bestAsk: m.bestAsk as number | undefined,
-    lastTradePrice: m.lastTradePrice as number | undefined,
-    description: m.description as string | undefined,
+    id: String(rec.id),
+    question: String(rec.question),
+    conditionId: String(rec.conditionId),
+    slug: String(rec.slug),
+    outcomes: ensureStringArray(rec.outcomes),
+    outcomePrices: ensureStringArray(rec.outcomePrices),
+    tokenIds: ensureStringArray(rec.clobTokenIds),
+    active: Boolean(rec.active),
+    closed: Boolean(rec.closed),
+    acceptingOrders: Boolean(rec.acceptingOrders),
+    endDate: rec.endDate != null ? String(rec.endDate) : '',
+    volume: rec.volume != null ? String(rec.volume) : '',
+    liquidity: rec.liquidity != null ? String(rec.liquidity) : '',
+    bestBid: rec.bestBid as number | undefined,
+    bestAsk: rec.bestAsk as number | undefined,
+    lastTradePrice: rec.lastTradePrice as number | undefined,
+    description: rec.description as string | undefined,
   };
 }
 
