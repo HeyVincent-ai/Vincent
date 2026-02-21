@@ -1,4 +1,4 @@
-import { type Hex } from 'viem';
+import { type Hex, parseUnits } from 'viem';
 import { Prisma } from '@prisma/client';
 import prisma from '../db/client.js';
 import { AppError } from '../api/middleware/errorHandler.js';
@@ -71,6 +71,24 @@ export interface PolymarketBalanceOutput {
   walletAddress: string;
   collateral: { balance: string; allowance: string };
 }
+
+export interface WithdrawInput {
+  secretId: string;
+  apiKeyId?: string;
+  to: string;
+  amount: string; // human-readable (e.g. "100")
+}
+
+export interface WithdrawOutput {
+  status: 'executed' | 'pending_approval' | 'denied';
+  transactionLogId: string;
+  walletAddress: string;
+  transactionHash?: string;
+  reason?: string;
+}
+
+// USDC.e has 6 decimals on Polygon
+const USDC_DECIMALS = 6;
 
 // ============================================================
 // Helpers
@@ -348,8 +366,6 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 
   const collateral = await polymarket.getCollateralBalance(clientConfig);
 
-  // USDC.e has 6 decimals — convert from raw units to human-readable
-  const USDC_DECIMALS = 6;
   const toHuman = (raw: string) => (Number(raw) / 10 ** USDC_DECIMALS).toString();
 
   return {
@@ -527,4 +543,134 @@ export async function redeemPositions(
     redeemed: redeemedSummary,
     transactionHash: result.transactionHash,
   };
+}
+
+// ============================================================
+// Withdraw USDC
+// ============================================================
+
+export async function withdrawUsdc(input: WithdrawInput): Promise<WithdrawOutput> {
+  const { secretId, apiKeyId, to, amount } = input;
+  const wallet = await getWalletData(secretId);
+
+  const usdValue = parseFloat(amount);
+  if (isNaN(usdValue) || usdValue <= 0) {
+    throw new AppError('INVALID_AMOUNT', 'Amount must be a positive number', 400);
+  }
+
+  // Build policy check action — use token fields so the policy engine
+  // evaluates this as a USDC transfer (not ETH).
+  const policyAction: PolicyCheckAction = {
+    type: 'transfer',
+    to: to as Hex,
+    tokenAddress: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174', // USDC.e on Polygon
+    tokenAmount: usdValue,
+    tokenSymbol: 'USDC',
+    chainId: 137, // Polygon
+  };
+
+  const policyResult = await checkPolicies(secretId, policyAction);
+
+  // Create transaction log
+  const txLog = await prisma.transactionLog.create({
+    data: {
+      secretId,
+      apiKeyId,
+      actionType: 'polymarket_withdraw',
+      requestData: { to, amount, usdValue },
+      status:
+        policyResult.verdict === 'allow' || policyResult.verdict === 'require_approval'
+          ? 'PENDING'
+          : 'DENIED',
+    },
+  });
+
+  // Handle deny
+  if (policyResult.verdict === 'deny') {
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'DENIED',
+        responseData: { reason: policyResult.triggeredPolicy?.reason },
+      },
+    });
+
+    return {
+      status: 'denied',
+      transactionLogId: txLog.id,
+      walletAddress: wallet.walletAddress,
+      reason: policyResult.triggeredPolicy?.reason,
+    };
+  }
+
+  // Handle require_approval
+  if (policyResult.verdict === 'require_approval') {
+    const pendingApproval = await prisma.pendingApproval.create({
+      data: {
+        transactionLogId: txLog.id,
+        expiresAt: new Date(Date.now() + 30 * 60 * 1000),
+      },
+    });
+
+    sendApprovalRequest(pendingApproval.id).catch((err) =>
+      console.error('Failed to send approval request:', err)
+    );
+
+    return {
+      status: 'pending_approval',
+      transactionLogId: txLog.id,
+      walletAddress: wallet.walletAddress,
+      reason: policyResult.triggeredPolicy?.reason,
+    };
+  }
+
+  // Execute the transfer
+  try {
+    // Convert human-readable amount to raw units (6 decimals for USDC.e)
+    const rawAmount = parseUnits(amount, USDC_DECIMALS).toString();
+
+    // Pre-check balance to give a clear error before hitting the relayer
+    const clientConfig = {
+      privateKey: wallet.privateKey,
+      secretId,
+      safeAddress: wallet.safeAddress,
+    };
+    const collateral = await polymarket.getCollateralBalance(clientConfig);
+    if (BigInt(rawAmount) > BigInt(collateral.balance)) {
+      throw new AppError('INSUFFICIENT_BALANCE', 'Insufficient USDC balance', 400);
+    }
+
+    const result = await polymarket.transferUsdc(wallet.privateKey, to, rawAmount);
+
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'EXECUTED',
+        responseData: { transactionHash: result.transactionHash },
+      },
+    });
+
+    return {
+      status: 'executed',
+      transactionLogId: txLog.id,
+      walletAddress: wallet.walletAddress,
+      transactionHash: result.transactionHash,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    await prisma.transactionLog.update({
+      where: { id: txLog.id },
+      data: {
+        status: 'FAILED',
+        responseData: { error: errorMessage },
+      },
+    });
+
+    if (error instanceof AppError) {
+      throw error;
+    }
+
+    throw new AppError('WITHDRAW_FAILED', `USDC withdraw failed: ${errorMessage}`, 500);
+  }
 }

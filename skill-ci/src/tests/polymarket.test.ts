@@ -20,6 +20,7 @@ function getArgs(c: { args: Record<string, unknown> }): string {
 
 describe('Skill: polymarket', () => {
   let stateDir: string;
+  let sharedKeyId: string;
 
   beforeAll(() => {
     stateDir = mkdtempSync(join(tmpdir(), 'skill-ci-polymarket-'));
@@ -62,6 +63,9 @@ You MUST make both CLI calls. Report the keyId and the first market found.`,
     const createBody = JSON.parse(createResult.output);
     expect(createBody.keyId).toBeDefined();
 
+    // Store keyId for reuse in subsequent tests
+    sharedKeyId = createBody.keyId;
+
     // Verify markets were searched
     const marketCall = calls.find((c) => getArgs(c).includes('polymarket markets'));
     expect(marketCall).toBeDefined();
@@ -71,52 +75,35 @@ You MUST make both CLI calls. Report the keyId and the first market found.`,
   });
 
   it('can check holdings endpoint', async () => {
-    // Use a fresh state dir for isolation
-    const holdingsStateDir = mkdtempSync(join(tmpdir(), 'skill-ci-pm-holdings-'));
+    // Reuse the wallet created by the first test to avoid rate limiting
+    expect(sharedKeyId).toBeDefined();
 
-    try {
-      const result = await runSkillAgent({
-        skillContent,
-        baseUrl: BASE_URL,
-        stateDir: holdingsStateDir,
-        task: `Follow the skill instructions. You MUST make exactly these CLI calls in order:
+    const result = await runSkillAgent({
+      skillContent,
+      baseUrl: BASE_URL,
+      stateDir,
+      task: `Follow the skill instructions. Run vincent_cli with args: polymarket holdings --key-id ${sharedKeyId}
 
-Step 1: Run vincent_cli with args: secret create --type POLYMARKET_WALLET --memo "CI test holdings check"
+Report the holdings response.`,
+    });
 
-Step 2: Parse the JSON output from Step 1 to find the "keyId" field.
+    expect(result.error).toBeUndefined();
+    expect(result.success).toBe(true);
 
-Step 3: Run vincent_cli with args: polymarket holdings --key-id <KEYID> (replacing <KEYID> with the actual keyId from Step 1)
+    const calls = result.toolCalls.filter((c) => c.name === 'vincent_cli');
+    expect(calls.length).toBeGreaterThanOrEqual(1);
 
-You MUST make both CLI calls. Report the keyId and the holdings response.`,
-      });
+    // Verify holdings endpoint was called
+    const holdingsCall = calls.find((c) => getArgs(c).includes('polymarket holdings'));
+    expect(holdingsCall).toBeDefined();
 
-      expect(result.error).toBeUndefined();
-      expect(result.success).toBe(true);
+    const holdingsResult = holdingsCall!.result as { exitCode: number; output: string };
+    expect(holdingsResult.exitCode).toBe(0);
 
-      const calls = result.toolCalls.filter((c) => c.name === 'vincent_cli');
-      expect(calls.length).toBeGreaterThanOrEqual(2);
-
-      // Verify a POLYMARKET_WALLET secret was created
-      const createCall = calls.find((c) => getArgs(c).includes('secret create'));
-      expect(createCall).toBeDefined();
-
-      const createResult = createCall!.result as { exitCode: number; output: string };
-      expect(createResult.exitCode).toBe(0);
-
-      // Verify holdings endpoint was called
-      const holdingsCall = calls.find((c) => getArgs(c).includes('polymarket holdings'));
-      expect(holdingsCall).toBeDefined();
-
-      const holdingsResult = holdingsCall!.result as { exitCode: number; output: string };
-      expect(holdingsResult.exitCode).toBe(0);
-
-      const holdingsBody = JSON.parse(holdingsResult.output);
-      expect(holdingsBody.success).toBe(true);
-      expect(holdingsBody.data.walletAddress).toBeTruthy();
-      expect(Array.isArray(holdingsBody.data.holdings)).toBe(true);
-      expect(holdingsBody.data.holdings.length).toBe(0);
-    } finally {
-      rmSync(holdingsStateDir, { recursive: true, force: true });
-    }
+    const holdingsBody = JSON.parse(holdingsResult.output);
+    expect(holdingsBody.success).toBe(true);
+    expect(holdingsBody.data.walletAddress).toBeTruthy();
+    expect(Array.isArray(holdingsBody.data.holdings)).toBe(true);
+    expect(holdingsBody.data.holdings.length).toBe(0);
   });
 });

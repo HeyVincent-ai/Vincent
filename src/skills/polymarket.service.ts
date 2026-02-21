@@ -15,6 +15,9 @@ import prisma from '../db/client.js';
 import { env } from '../utils/env.js';
 import { initializePolymarketProxy } from '../utils/proxy.js';
 
+// USDC.e (bridged USDC) on Polygon
+const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
+
 // ============================================================
 // ESM dynamic imports (these packages are ESM-only)
 // ============================================================
@@ -174,8 +177,6 @@ export async function deploySafe(privateKey: string): Promise<string> {
 export async function approveCollateral(privateKey: string): Promise<void> {
   const relayClient = await getRelayClient(privateKey);
 
-  // USDC on Polygon (USDC.e bridged)
-  const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
   // Conditional Tokens Framework contract
   const CTF_CONTRACT = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
   // CTF Exchange address
@@ -876,7 +877,6 @@ export async function redeemPositions(
 
   const relayClient = await getRelayClient(privateKey);
 
-  const USDC_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174';
   const CTF_CONTRACT = '0x4D97DCd97eC945f40cF65F87097ACe5EA0476045';
   const NEG_RISK_ADAPTER = '0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296';
   const ZERO_BYTES32 = '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -933,5 +933,54 @@ export async function redeemPositions(
   }
 
   console.log(`Redeemed ${positions.length} position(s) (tx: ${tx.transactionHash})`);
+  return { transactionHash: tx.transactionHash };
+}
+
+// ============================================================
+// Transfer USDC (gasless via relayer)
+// ============================================================
+
+/**
+ * Transfer USDC.e from the Polymarket Safe to any address via the relayer (gasless).
+ * Amount is in raw units (6 decimals, e.g. "1000000" = 1 USDC).
+ */
+export async function transferUsdc(
+  privateKey: string,
+  to: string,
+  amount: string
+): Promise<{ transactionHash: string }> {
+  const relayClient = await getRelayClient(privateKey);
+
+  const { Interface } = await import('@ethersproject/abi');
+  const erc20Iface = new Interface(['function transfer(address to, uint256 amount)']);
+
+  const txns = [
+    {
+      to: USDC_ADDRESS,
+      data: erc20Iface.encodeFunctionData('transfer', [to, amount]),
+      value: '0',
+    },
+  ];
+
+  let response;
+  try {
+    response = await relayClient.execute(txns);
+  } catch (err) {
+    throw wrapRelayerError(err, 'USDC transfer');
+  }
+
+  const tx = await relayClient.pollUntilState(
+    response.transactionID,
+    ['STATE_MINED', 'STATE_CONFIRMED'],
+    'STATE_FAILED',
+    60,
+    2000
+  );
+
+  if (!tx) {
+    throw new Error('USDC transfer transaction failed or timed out');
+  }
+
+  console.log(`Transferred ${amount} USDC.e to ${to} (tx: ${tx.transactionHash})`);
   return { transactionHash: tx.transactionHash };
 }
