@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Globe, Wallet, Rocket, Shield, Sparkles, ArrowRight } from 'lucide-react';
+import ConnectAgents from './ConnectAgents';
 
 interface WelcomeOnboardingProps {
   onDeploy: () => void;
@@ -28,7 +29,15 @@ const VENUES = [
     name: 'Polymarket',
     detail: 'Prediction markets',
     icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        className="w-5 h-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <path d="M3 3v18h18" />
         <path d="M7 15l3-3 3 2 5-6" />
       </svg>
@@ -38,7 +47,15 @@ const VENUES = [
     name: 'DeFi',
     detail: 'Swaps, lending, yield',
     icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        className="w-5 h-5"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
         <circle cx="12" cy="12" r="10" />
         <path d="M8 12h8M12 8v8" />
       </svg>
@@ -72,7 +89,12 @@ const STEPS = [
   },
 ];
 
-export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreateSecret }: WelcomeOnboardingProps) {
+export default function WelcomeOnboarding({
+  onDeploy,
+  deploying,
+  error,
+  onCreateSecret,
+}: WelcomeOnboardingProps) {
   return (
     <div className="max-w-2xl mx-auto py-8 md:py-16">
       {/* Hero */}
@@ -81,7 +103,8 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
           Your agent is ready to deploy
         </h1>
         <p className="text-muted-foreground text-base md:text-lg max-w-lg mx-auto">
-          A self-improving AI agent with safe secret management, spending policies, and an airgapped vault — ready in one click.
+          A self-improving AI agent with safe secret management, spending policies, and an airgapped
+          vault — ready in one click.
         </p>
       </div>
 
@@ -119,7 +142,8 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
               to="/skills"
               className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Already have a bot? <span className="text-primary font-medium">Get the Skills File</span>
+              Already have a bot?{' '}
+              <span className="text-primary font-medium">Get the Skills File</span>
               <ArrowRight className="w-3.5 h-3.5 text-primary" />
             </Link>
           </div>
@@ -130,7 +154,9 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
       <div className="mb-10 grid md:grid-cols-2 gap-4">
         {/* Data Sources */}
         <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-3">Data</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-3">
+            Data
+          </p>
           <div className="space-y-2.5">
             {DATA_SOURCES.map((source) => (
               <div key={source.name} className="flex items-center gap-3">
@@ -147,7 +173,9 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
 
         {/* Venues */}
         <div className="bg-card border border-border rounded-xl p-4">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-3">Venues</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-3">
+            Venues
+          </p>
           <div className="space-y-2.5">
             {VENUES.map((venue) => (
               <div key={venue.name} className="flex items-center gap-3">
@@ -163,6 +191,13 @@ export default function WelcomeOnboarding({ onDeploy, deploying, error, onCreate
               </div>
             ))}
           </div>
+        </div>
+      </div>
+
+      {/* Connect existing agents */}
+      <div className="mb-10">
+        <div className="bg-card border border-border rounded-2xl p-6 md:p-8">
+          <ConnectAgents compact />
         </div>
       </div>
 

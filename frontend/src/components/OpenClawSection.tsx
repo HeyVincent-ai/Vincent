@@ -97,8 +97,8 @@ export default function OpenClawSection() {
       const { checkoutUrl } = res.data.data;
       window.location.href = checkoutUrl;
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { error?: { message?: string } } } })
-        ?.response?.data?.error?.message;
+      const msg = (err as { response?: { data?: { error?: { message?: string } } } })?.response
+        ?.data?.error?.message;
       setError(msg || 'Failed to start deployment');
       setDeploying(false);
     }
@@ -110,8 +110,20 @@ export default function OpenClawSection() {
         <h2 className="text-xl font-bold text-foreground mb-4">Agents</h2>
         <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+              fill="none"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+            />
           </svg>
           Loading...
         </div>
@@ -125,13 +137,25 @@ export default function OpenClawSection() {
     <div className="mt-10" id="openclaw">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Agents</h2>
-        <button
-          onClick={handleDeploy}
-          disabled={deploying}
-          className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
-        >
-          {deploying ? 'Redirecting...' : deployments.length === 0 ? 'Deploy Agent \u2014 7-day free trial' : 'Deploy Agent \u2014 $25/mo'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/agents/connect"
+            className="px-3 py-2 rounded-lg border border-border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/30 transition-colors"
+          >
+            Connect Agent
+          </Link>
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {deploying
+              ? 'Redirecting...'
+              : deployments.length === 0
+                ? 'Deploy Agent \u2014 7-day free trial'
+                : 'Deploy Agent \u2014 $25/mo'}
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -142,16 +166,34 @@ export default function OpenClawSection() {
 
       {active.length === 0 ? (
         <div className="bg-card rounded-lg border border-border p-10 text-center">
-          <svg className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z" />
+          <svg
+            className="w-12 h-12 mx-auto mb-3 text-muted-foreground/40"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={1}
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M8.25 3v1.5M4.5 8.25H3m18 0h-1.5M4.5 12H3m18 0h-1.5m-15 3.75H3m18 0h-1.5M8.25 19.5V21M12 3v1.5m0 15V21m3.75-18v1.5m0 15V21m-9-1.5h10.5a2.25 2.25 0 0 0 2.25-2.25V6.75a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 6.75v10.5a2.25 2.25 0 0 0 2.25 2.25Zm.75-12h9v9h-9v-9Z"
+            />
           </svg>
           <p className="text-foreground font-medium mb-1">No agents deployed yet</p>
-          <p className="text-sm text-muted-foreground">Click "Deploy Agent" to spin up your own AI agent.</p>
+          <p className="text-sm text-muted-foreground">
+            Click "Deploy Agent" to spin up your own AI agent.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
           {active.map((d) => {
-            const isInProgress = ['PENDING_PAYMENT', 'PENDING', 'ORDERING', 'PROVISIONING', 'INSTALLING'].includes(d.status);
+            const isInProgress = [
+              'PENDING_PAYMENT',
+              'PENDING',
+              'ORDERING',
+              'PROVISIONING',
+              'INSTALLING',
+            ].includes(d.status);
             const currentStep = stepIndex(d.status);
 
             const isClickable = d.status === 'READY' || d.status === 'CANCELING';
@@ -163,7 +205,9 @@ export default function OpenClawSection() {
               <>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[d.status] || 'bg-muted text-muted-foreground'}`}>
+                    <span
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[d.status] || 'bg-muted text-muted-foreground'}`}
+                    >
                       {d.status === 'CANCELING' ? 'CANCELING' : d.status}
                     </span>
                     {d.status === 'CANCELING' && d.currentPeriodEnd && (
@@ -173,7 +217,9 @@ export default function OpenClawSection() {
                     )}
                     {d.status === 'READY' && d.currentPeriodEnd && (
                       <span className="text-sm text-muted-foreground">
-                        {new Date(d.currentPeriodEnd) > new Date() && new Date(d.currentPeriodEnd).getTime() - Date.now() < 8 * 24 * 60 * 60 * 1000
+                        {new Date(d.currentPeriodEnd) > new Date() &&
+                        new Date(d.currentPeriodEnd).getTime() - Date.now() <
+                          8 * 24 * 60 * 60 * 1000
                           ? `Trial ends ${new Date(d.currentPeriodEnd).toLocaleDateString()}`
                           : `Renews ${new Date(d.currentPeriodEnd).toLocaleDateString()}`}
                       </span>
@@ -188,10 +234,13 @@ export default function OpenClawSection() {
                 </div>
 
                 {(d.hostname || d.ipAddress) && (
-                  <p className="text-sm text-muted-foreground mt-2 font-mono">{d.hostname || d.ipAddress}</p>
+                  <p className="text-sm text-muted-foreground mt-2 font-mono">
+                    {d.hostname || d.ipAddress}
+                  </p>
                 )}
 
-                {(d.status === 'READY' || d.status === 'CANCELING') && d.creditBalanceUsd != null && (
+                {(d.status === 'READY' || d.status === 'CANCELING') &&
+                  d.creditBalanceUsd != null &&
                   (() => {
                     const balance = Number(d.creditBalanceUsd);
                     const used = Number(d.lastKnownUsageUsd || 0);
@@ -204,13 +253,16 @@ export default function OpenClawSection() {
                             style={{ width: `${Math.min(100, (used / balance) * 100)}%` }}
                           />
                         </div>
-                        <span className={`text-xs ${remaining <= 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
-                          {remaining <= 0 ? 'Credits exhausted' : `$${remaining.toFixed(2)} credits remaining`}
+                        <span
+                          className={`text-xs ${remaining <= 0 ? 'text-destructive font-medium' : 'text-muted-foreground'}`}
+                        >
+                          {remaining <= 0
+                            ? 'Credits exhausted'
+                            : `$${remaining.toFixed(2)} credits remaining`}
                         </span>
                       </div>
                     );
-                  })()
-                )}
+                  })()}
 
                 {isInProgress && (
                   <div className="mt-3 flex items-center gap-2">
@@ -219,8 +271,12 @@ export default function OpenClawSection() {
                       const isCurrent = i === currentStep;
                       return (
                         <div key={i} className="flex items-center gap-1.5">
-                          <div className={`w-2 h-2 rounded-full ${done ? 'bg-green-500' : isCurrent ? 'bg-primary animate-pulse' : 'bg-muted'}`} />
-                          <span className={`text-xs ${isCurrent ? 'text-primary font-medium' : done ? 'text-green-400' : 'text-muted-foreground'}`}>
+                          <div
+                            className={`w-2 h-2 rounded-full ${done ? 'bg-green-500' : isCurrent ? 'bg-primary animate-pulse' : 'bg-muted'}`}
+                          />
+                          <span
+                            className={`text-xs ${isCurrent ? 'text-primary font-medium' : done ? 'text-green-400' : 'text-muted-foreground'}`}
+                          >
                             {step.label}
                           </span>
                           {i < PROGRESS_STEPS.length - 1 && (

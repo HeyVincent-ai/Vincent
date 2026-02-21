@@ -11,6 +11,7 @@ import { requestLogger } from './api/middleware/requestLogger.js';
 import { sendSuccess } from './utils/response.js';
 import apiRouter from './api/routes/index.js';
 import docsRouter from './docs/docs.routes.js';
+import mcpRouter from './mcp/router.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,12 +68,20 @@ export function createApp(): Express {
   );
 
   // CORS configuration
-  app.use(
-    cors({
-      origin: env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '*',
-      credentials: true,
-    })
-  );
+  const corsDefault = cors({
+    origin: env.NODE_ENV === 'production' ? process.env.FRONTEND_URL : '*',
+    credentials: true,
+  });
+
+  // MCP needs to be accessible from external agent clients (Claude/ChatGPT/Codex/etc.)
+  // so allow all origins on /mcp while keeping stricter defaults elsewhere.
+  app.use('/mcp', cors({ origin: '*', credentials: false }));
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/mcp')) {
+      return next();
+    }
+    return corsDefault(req, res, next);
+  });
 
   // Rate limiting
   const limiter = rateLimit({
@@ -126,6 +135,9 @@ export function createApp(): Express {
 
   // Mount API routes
   app.use('/api', apiRouter);
+
+  // Mount MCP server
+  app.use('/mcp', mcpRouter);
 
   // Mount API docs (Scalar UI)
   app.use('/docs', docsRouter);
