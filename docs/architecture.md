@@ -50,9 +50,11 @@ See [Backend Overview](./backend/README.md) for details.
 
 React SPA served by the same Express server in production (Vite build output). Communicates with backend via REST API. See [Frontend Overview](./frontend/README.md).
 
-### Trade Manager (`trade-manager/`)
+### Trade Manager (`src/services/tradeManager/`)
 
-Standalone Node.js app that runs on OpenClaw VPSes. Has its own Prisma schema (SQLite), own HTTP API on `localhost:19000`, and communicates with Vincent backend as a client. See [Trade Manager](./features/trade-manager.md).
+Integrated into the Vincent backend as a service. Manages automated trading rules (stop-loss, take-profit, trailing stop) for Polymarket positions. Multi-tenant via `secretId` scoping, uses the same PostgreSQL database, and executes trades through `polymarketSkill.placeBet()` with full policy enforcement. API endpoints are nested under `/api/skills/polymarket/rules/...`. See [Trade Manager](./features/trade-manager.md).
+
+The `trade-manager/` directory contains the original standalone implementation (historical reference).
 
 ### Skill CI (`skill-ci/`)
 

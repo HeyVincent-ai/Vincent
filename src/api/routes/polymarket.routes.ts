@@ -6,11 +6,15 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { sendSuccess, errors } from '../../utils/response.js';
 import * as polymarketSkill from '../../skills/polymarketSkill.service.js';
 import { auditService } from '../../audit/index.js';
+import tradeRulesRouter from './tradeRules.routes.js';
 
 const router = Router();
 
 // All Polymarket skill routes require API key auth
 router.use(apiKeyAuthMiddleware);
+
+// Trade rules sub-router (POST/GET/PATCH/DELETE /rules/...)
+router.use('/rules', tradeRulesRouter);
 
 // ============================================================
 // POST /api/skills/polymarket/bet

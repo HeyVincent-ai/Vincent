@@ -1,6 +1,6 @@
 # Trade Manager - Automated Stop-Loss, Take-Profit, and Trailing Stops
 
-Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs locally on your OpenClaw VPS and automatically executes trades when price conditions are met.
+Use this skill to create automated trading rules (stop-loss, take-profit, trailing stop) for your Polymarket positions. The Trade Manager runs as part of the Vincent backend and automatically executes trades when price conditions are met.
 
 All commands use the `@vincentai/cli` package. The CLI communicates with the local Trade Manager daemon at `http://localhost:19000`.
 
@@ -9,20 +9,21 @@ All commands use the `@vincentai/cli` package. The CLI communicates with the loc
 **Trade Manager is a companion to the Polymarket skill:**
 1. Use the **Polymarket skill** to browse markets and place bets
 2. Use **Trade Manager** to set automated exit rules on those positions
-3. The Trade Manager monitors prices **in real-time via WebSocket** (with 15-second polling as fallback) and executes trades through Vincent's Polymarket API when triggers are met
+3. The Trade Manager monitors prices **in real-time via WebSocket** (with polling as fallback) and executes trades through the same Polymarket infrastructure when triggers are met
 
 **Architecture:**
-- Local daemon running on your OpenClaw VPS
-- Local HTTP API at `http://localhost:19000`
-- Stores rules and events in local SQLite database
-- Executes trades through Vincent Polymarket API (same as manual trading)
+- Integrated into the Vincent backend (no separate service to run)
+- API endpoints under `/api/skills/polymarket/rules/...`
+- Uses the same API key as the Polymarket skill
+- Stores rules and events in the Vincent database
+- Executes trades through the same policy-enforced Polymarket pipeline
 - All Vincent policies (spending limits, approvals) still apply
 
 ## Quick Start
 
-### 1. Check Trade Manager Status
+### 1. Check Worker Status
 
-Before creating rules, verify the service is running:
+Before creating rules, verify the monitoring worker is running:
 
 ```bash
 npx @vincentai/cli@latest trade-manager health
@@ -114,7 +115,7 @@ See what positions the Trade Manager is currently tracking:
 npx @vincentai/cli@latest trade-manager positions --key-id <KEY_ID>
 ```
 
-Returns cached position data with current prices. This cache updates in real-time via WebSocket (with 15-second polling fallback).
+Returns cached position data with current prices. This cache updates via WebSocket and periodic polling.
 
 ### 9. View Event Log (Audit Trail)
 
@@ -136,6 +137,7 @@ npx @vincentai/cli@latest trade-manager events --key-id <KEY_ID> --rule-id <RULE
 - `RULE_TRAILING_UPDATED` - Trailing stop moved triggerPrice upward
 - `RULE_EVALUATED` - Worker checked the rule against current price
 - `RULE_TRIGGERED` - Trigger condition was met
+- `ACTION_PENDING_APPROVAL` - Trade requires human approval, rule paused
 - `ACTION_EXECUTED` - Trade executed successfully
 - `ACTION_FAILED` - Trade execution failed
 - `RULE_CANCELED` - Rule was manually canceled
@@ -191,11 +193,10 @@ npx @vincentai/cli@latest trade-manager events --key-id <KEY_ID>
 
 ### What Happens When a Rule Triggers
 
-1. **Worker detects trigger:** The background worker checks all active rules against current prices in real-time via WebSocket (with 15-second polling as fallback)
+1. **Worker detects trigger:** The background worker checks all active rules against current prices in real-time via WebSocket (with periodic polling as fallback)
 2. **Rule marked as triggered:** Status changes from `ACTIVE` to `TRIGGERED` atomically (prevents double-execution)
-3. **Trade executes:** Calls Vincent Polymarket API to place a market sell order
+3. **Trade executes:** Calls the Polymarket bet pipeline to place a market sell order (same pipeline as manual trading, with full policy enforcement)
 4. **Events logged:** Creates `RULE_TRIGGERED` and `ACTION_EXECUTED` events
-5. **You're notified:** (Future feature — Telegram notifications coming soon)
 
 **Important:** Executed trades still go through Vincent's policy enforcement. If your trade violates a spending limit or requires approval, the Trade Manager respects those policies.
 
@@ -203,6 +204,7 @@ npx @vincentai/cli@latest trade-manager events --key-id <KEY_ID>
 
 - `ACTIVE` - Rule is live and being monitored
 - `TRIGGERED` - Condition was met, trade executed (or attempted)
+- `PENDING_APPROVAL` - Trade requires human approval; rule is paused until the approval is granted or denied
 - `CANCELED` - Rule was manually canceled before triggering
 - `FAILED` - Rule triggered but trade execution failed
 - `EXPIRED` - (Future feature for time-based expiration)
@@ -211,20 +213,20 @@ npx @vincentai/cli@latest trade-manager events --key-id <KEY_ID>
 
 The Trade Manager runs a background worker that:
 - Monitors prices in real-time via Polymarket WebSocket feed
-- Falls back to HTTP polling every 15 seconds if WebSocket is unavailable
-- Fetches current positions from Vincent Polymarket API
+- Falls back to HTTP polling on a configurable interval if WebSocket is unavailable
+- Fetches current positions from the Polymarket API for each agent with active rules
 - Evaluates each rule against current price on every update
 - Executes trades when conditions are met
-- Logs all evaluations and actions
+- Logs trigger events, trailing stop adjustments, and execution outcomes
 
 **Circuit Breaker:**
-If Vincent API fails 5+ consecutive times, the worker enters "OPEN" state and pauses polling. It resumes after a cooldown period. Check worker status:
+If the Polymarket API fails 5+ consecutive times, the worker pauses. It resumes after a cooldown period. Check worker status:
 
 ```bash
 npx @vincentai/cli@latest trade-manager status --key-id <KEY_ID>
 ```
 
-Look for `circuitBreakerState: "CLOSED"` (healthy) or `"OPEN"` (paused due to errors).
+Look for `consecutiveFailures: 0` (healthy) or a `circuitBreakerUntil` timestamp (paused due to errors).
 
 ## Error Handling
 
@@ -239,12 +241,11 @@ Fix: Include all required flags (--market-id, --token-id, --rule-type, --trigger
 **404 Not Found - Rule doesn't exist:**
 Fix: Check the rule ID is correct
 
-**500 Internal Server Error - Trade execution failed:**
+**Failed rule execution:**
 The rule status will be `FAILED` with an `errorMessage` field explaining what went wrong. Common causes:
 - Insufficient balance
-- Market closed
-- Vincent API unreachable
-- Policy violation
+- Market closed or resolved
+- Policy violation (spending limit, approval required)
 
 Check the event log for details:
 ```bash

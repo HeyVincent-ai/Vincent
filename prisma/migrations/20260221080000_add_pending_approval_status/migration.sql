@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "TradeRuleStatus" ADD VALUE 'PENDING_APPROVAL';
+
+-- AlterEnum
+ALTER TYPE "TradeRuleEventType" ADD VALUE 'ACTION_PENDING_APPROVAL';

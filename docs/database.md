@@ -2,7 +2,7 @@
 
 Vincent uses PostgreSQL via Prisma ORM. The schema lives at `prisma/schema.prisma`.
 
-The trade manager has its own separate SQLite schema at `trade-manager/prisma/schema.prisma` — see [Trade Manager](./features/trade-manager.md).
+The trade manager models (`TradeRule`, `TradeMonitoredPosition`, `TradeRuleEvent`) are part of the main schema — see [Trade Manager](./features/trade-manager.md).
 
 ## Core Models
 

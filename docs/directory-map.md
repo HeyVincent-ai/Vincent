@@ -8,7 +8,7 @@ Where everything lives in the repo. Use this to orient yourself when looking for
 SafeSkills-2/
 ├── src/                    # Backend source (Express + TypeScript)
 ├── frontend/               # React frontend (Vite + Tailwind)
-├── trade-manager/          # Standalone trading automation app
+├── trade-manager/          # Original standalone trade manager (historical; now integrated into backend)
 ├── skill-ci/               # LLM agent test harness for skills
 ├── skills/                 # Agent-facing skill documentation (SKILL.md files)
 ├── plans/                  # Implementation plans (historical reference)
@@ -37,6 +37,7 @@ src/
 │   │   ├── policies.routes.ts  # Policy CRUD
 │   │   ├── evmWallet.routes.ts # EVM wallet skill endpoints
 │   │   ├── polymarket.routes.ts # Polymarket skill endpoints
+│   │   ├── tradeRules.routes.ts # Trade manager rule endpoints (sub-router of polymarket)
 │   │   ├── rawSigner.routes.ts # Raw signer endpoints
 │   │   ├── billing.routes.ts   # Stripe subscriptions, usage, webhooks
 │   │   ├── openclaw.routes.ts  # OpenClaw deployment management
@@ -61,7 +62,8 @@ src/
 │   ├── openrouter.service.ts   # OpenRouter key provisioning
 │   ├── ownership.service.ts    # Wallet ownership transfer (challenge/verify)
 │   ├── referral.service.ts     # Referral system
-│   └── email.service.ts        # Email service
+│   ├── email.service.ts        # Email service
+│   └── tradeManager/           # Trade manager (rules, monitoring, execution)
 │
 ├── skills/
 │   ├── evmWallet.service.ts    # High-level EVM wallet: transfer, sendTx, swap, balance
@@ -170,25 +172,25 @@ frontend/
 └── tsconfig.json
 ```
 
-## Trade Manager (`trade-manager/`)
+## Trade Manager (Backend-Integrated)
 
-Standalone app — separate `package.json`, separate Prisma schema (SQLite).
+The trade manager is now part of the Vincent backend. Source code lives in `src/services/tradeManager/` with routes in `src/api/routes/tradeRules.routes.ts`.
 
 ```
-trade-manager/
-├── src/
-│   ├── index.ts                # Entry point (HTTP server + background worker)
-│   ├── api/routes/             # Express routes (rules, positions, events, health)
-│   ├── services/               # Business logic (rule manager, executor, Vincent client)
-│   ├── worker/                 # Background monitoring worker loop
-│   ├── db/client.ts            # Prisma client singleton (SQLite)
-│   └── config/config.ts        # Config from file/env
-├── prisma/schema.prisma        # TradeRule, MonitoredPosition, RuleEvent, etc.
-├── dashboard/                  # React dashboard (optional)
-├── systemd/                    # Systemd service file
-├── scripts/                    # Test scripts
-└── package.json
+src/services/tradeManager/
+├── types.ts                        # Shared types (RuleLike, WorkerStatus, PriceUpdate)
+├── ruleManager.service.ts          # Rule CRUD (multi-tenant, Zod validation)
+├── eventLogger.service.ts          # Event logging (PostgreSQL native JSON)
+├── positionMonitor.service.ts      # Position sync from polymarketSkill.getHoldings()
+├── ruleExecutor.service.ts         # Rule evaluation + trade execution
+├── polymarketWebSocket.service.ts  # Shared WebSocket connection to Polymarket
+├── monitoringWorker.ts             # Background worker (start/stop lifecycle)
+└── index.ts                        # Re-exports
+
+src/api/routes/tradeRules.routes.ts # API routes (mounted under /api/skills/polymarket/rules)
 ```
+
+The `trade-manager/` directory contains the original standalone implementation (historical reference).
 
 ## Skill Definitions (`skills/`)
 
