@@ -3,40 +3,32 @@ import prisma from '../db/client.js';
 import { AppError } from '../api/middleware/errorHandler.js';
 
 /**
- * Check if user has sufficient data source credit.
- */
-export async function checkCredit(userId: string, costUsd: number): Promise<boolean> {
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  return user.dataSourceCreditUsd.toNumber() >= costUsd;
-}
-
-/**
  * Atomically deduct credit from user's data source balance.
+ * Uses UPDATE ... RETURNING for a single round-trip.
  * Throws 402 if insufficient credit.
  */
 export async function deductCredit(userId: string, costUsd: number): Promise<Decimal> {
   const cost = new Decimal(costUsd);
 
-  // Use a raw query for atomic decrement with check
-  const result = await prisma.$executeRaw`
+  const rows = await prisma.$queryRaw<{ data_source_credit_usd: Decimal }[]>`
     UPDATE "users"
     SET "data_source_credit_usd" = "data_source_credit_usd" - ${cost}
     WHERE "id" = ${userId}
       AND "data_source_credit_usd" >= ${cost}
+    RETURNING "data_source_credit_usd"
   `;
 
-  if (result === 0) {
+  if (rows.length === 0) {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
     throw new AppError(
       'INSUFFICIENT_CREDIT',
       `Insufficient data source credit. Balance: $${user.dataSourceCreditUsd.toFixed(2)}, required: $${costUsd.toFixed(4)}`,
-      402
+      402,
+      { balance: user.dataSourceCreditUsd.toNumber(), required: costUsd }
     );
   }
 
-  // Return the updated balance
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-  return user.dataSourceCreditUsd;
+  return new Decimal(rows[0].data_source_credit_usd);
 }
 
 /**
@@ -74,6 +66,18 @@ export async function addCredits(
   ]);
 
   return user.dataSourceCreditUsd;
+}
+
+/**
+ * Refund credit to user's data source balance (e.g., after a failed API call).
+ * Throws if the user doesn't exist (prevents silent no-op).
+ */
+export async function refundCredit(userId: string, costUsd: number): Promise<void> {
+  const cost = new Decimal(costUsd);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { dataSourceCreditUsd: { increment: cost } },
+  });
 }
 
 /**
