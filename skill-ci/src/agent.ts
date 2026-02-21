@@ -1,6 +1,6 @@
 import { generateText, stepCountIs } from 'ai';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { httpRequestTool } from './tools.js';
+import { createVincentCliTool } from './tools.js';
 import type { SkillTestResult, ToolCallRecord } from './types.js';
 
 const DEFAULT_MODEL = 'google/gemini-3-flash-preview';
@@ -10,6 +10,7 @@ export async function runSkillAgent(opts: {
   skillContent: string;
   task: string;
   baseUrl: string;
+  stateDir: string;
   model?: string;
   maxSteps?: number;
 }): Promise<SkillTestResult> {
@@ -17,6 +18,7 @@ export async function runSkillAgent(opts: {
     skillContent,
     task,
     baseUrl,
+    stateDir,
     model = process.env.SKILL_CI_MODEL || DEFAULT_MODEL,
     maxSteps = DEFAULT_MAX_STEPS,
   } = opts;
@@ -25,26 +27,34 @@ export async function runSkillAgent(opts: {
     apiKey: process.env.OPENROUTER_API_KEY || process.env.CI_OPENROUTER_API_KEY,
   });
 
-  const systemPrompt = `You are a testing agent verifying that a skill works correctly against a live API.
+  const vincentCli = createVincentCliTool({ baseUrl, stateDir });
 
-BASE URL: ${baseUrl}
+  const systemPrompt = `You are a testing agent verifying that a skill works correctly.
 
-IMPORTANT: All API endpoints in the skill instructions reference "https://heyvincent.ai". You MUST replace "https://heyvincent.ai" with "${baseUrl}" when making requests. For example:
-- "https://heyvincent.ai/api/secrets" becomes "${baseUrl}/api/secrets"
-- "https://heyvincent.ai/api/skills/evm-wallet/balances" becomes "${baseUrl}/api/skills/evm-wallet/balances"
+You have access to the "vincent_cli" tool which runs Vincent CLI commands. Use it to execute commands as documented in the skill instructions.
 
-Here are the skill instructions you must follow:
+IMPORTANT: The skill instructions show commands like "npx @vincentai/cli@latest <args>". When using the vincent_cli tool, pass ONLY the arguments after "vincent". For example:
+- Skill says: npx @vincentai/cli@latest brave web --q "bitcoin"
+  You call vincent_cli with args: brave web --q bitcoin
+- Skill says: npx @vincentai/cli@latest secret create --type EVM_WALLET --memo "test"
+  You call vincent_cli with args: secret create --type EVM_WALLET --memo test
+
+The CLI outputs JSON. Parse the JSON output to extract data (like keyId) for subsequent commands.
+
+When the skill says to use --key-id <KEY_ID>, use the keyId returned from a previous "secret create" command, or a key ID provided in your task instructions.
+
+Here are the skill instructions:
 
 <skill>
 ${skillContent}
 </skill>
 
-Complete the task by making HTTP requests to the API. Be methodical — read the skill instructions carefully, then execute the required steps in order. When you receive a response, parse it and use the returned data (like API keys) in subsequent requests.`;
+Complete the task using the vincent_cli tool. Be methodical — read the skill instructions carefully, then execute the required steps in order.`;
 
   try {
     const result = await generateText({
       model: openrouter(model),
-      tools: { http_request: httpRequestTool },
+      tools: { vincent_cli: vincentCli },
       stopWhen: stepCountIs(maxSteps),
       system: systemPrompt,
       prompt: task,

@@ -31,5 +31,8 @@ jobs:
       - name: Type-check
         run: npx tsc --noEmit
 
+      - name: Type-check CLI
+        run: npx tsc --project cli/tsconfig.json --noEmit
+
       - name: Run tests
         run: npm test
