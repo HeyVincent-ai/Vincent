@@ -187,6 +187,7 @@ curl "https://heyvincent.ai/api/skills/polymarket/rules/events?ruleId=<rule-id>&
 - `RULE_TRAILING_UPDATED` - Trailing stop moved triggerPrice upward
 - `RULE_EVALUATED` - Worker checked the rule against current price
 - `RULE_TRIGGERED` - Trigger condition was met
+- `ACTION_PENDING_APPROVAL` - Trade requires human approval, rule paused
 - `ACTION_EXECUTED` - Trade executed successfully
 - `ACTION_FAILED` - Trade execution failed
 - `RULE_CANCELED` - Rule was manually canceled
@@ -281,6 +282,7 @@ curl "https://heyvincent.ai/api/skills/polymarket/rules/status" \
 
 - `ACTIVE` - Rule is live and being monitored
 - `TRIGGERED` - Condition was met, trade executed (or attempted)
+- `PENDING_APPROVAL` - Trade requires human approval; rule is paused until the approval is granted or denied
 - `CANCELED` - Rule was manually canceled before triggering
 - `FAILED` - Rule triggered but trade execution failed
 - `EXPIRED` - (Future feature for time-based expiration)
@@ -293,7 +295,7 @@ The Trade Manager runs a background worker that:
 - Fetches current positions from the Polymarket API for each agent with active rules
 - Evaluates each rule against current price on every update
 - Executes trades when conditions are met
-- Logs all evaluations and actions
+- Logs trigger events, trailing stop adjustments, and execution outcomes
 
 **Circuit Breaker:**
 If the Polymarket API fails 5+ consecutive times, the worker pauses. It resumes after a cooldown period. Check worker status:
@@ -380,7 +382,7 @@ Create a new trading rule.
 **Response:** Rule object with `id`, `status: "ACTIVE"`, timestamps
 
 ### GET /api/skills/polymarket/rules
-List all rules for your agent. Optional query param: `?status=ACTIVE|TRIGGERED|CANCELED|FAILED`
+List all rules for your agent. Optional query param: `?status=ACTIVE|TRIGGERED|PENDING_APPROVAL|CANCELED|FAILED`
 
 ### GET /api/skills/polymarket/rules/:id
 Get a specific rule by ID.

@@ -70,7 +70,7 @@ jobs:
   auto-fix-codex:
     if: |
       github.event_name == 'pull_request_review' &&
-      github.event.review.user.login == 'chatgpt-codex-connector[bot]' &&
+      github.event.review.user.login == 'codex[bot]' &&
       github.event.review.state == 'COMMENTED'
     runs-on: ubuntu-latest
     steps:

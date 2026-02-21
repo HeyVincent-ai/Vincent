@@ -193,8 +193,10 @@ export class PolymarketWebSocketService extends EventEmitter {
     buys: Array<{ price: string; size: string }>,
     sells: Array<{ price: string; size: string }>
   ): number {
-    const bestBid = buys.length > 0 ? parseFloat(buys[0].price) : 0;
-    const bestAsk = sells.length > 0 ? parseFloat(sells[0].price) : 0;
+    // Sort to find best bid (highest buy) and best ask (lowest sell)
+    // rather than assuming the WS sends them pre-sorted
+    const bestBid = buys.length > 0 ? Math.max(...buys.map((b) => parseFloat(b.price))) : 0;
+    const bestAsk = sells.length > 0 ? Math.min(...sells.map((s) => parseFloat(s.price))) : 0;
 
     if (bestBid > 0 && bestAsk > 0) return (bestBid + bestAsk) / 2;
     if (bestBid > 0) return bestBid;

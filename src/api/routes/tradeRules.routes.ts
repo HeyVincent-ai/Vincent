@@ -104,7 +104,16 @@ router.get(
       return;
     }
 
-    sendSuccess(res, getWorkerStatus());
+    const workerStatus = getWorkerStatus();
+    const secretRules = await ruleManager.getRules(req.secret.id, 'ACTIVE');
+
+    // Return per-secret metrics + basic worker health (no global counts)
+    sendSuccess(res, {
+      running: workerStatus.running,
+      yourActiveRulesCount: secretRules.length,
+      lastSyncTime: workerStatus.lastSyncTime,
+      webSocketConnected: workerStatus.webSocketConnected,
+    });
   })
 );
 

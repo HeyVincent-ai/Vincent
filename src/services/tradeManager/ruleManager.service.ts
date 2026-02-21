@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { TradeRuleStatus } from '@prisma/client';
 import prisma from '../../db/client.js';
 import { AppError } from '../../api/middleware/errorHandler.js';
+import { env } from '../../utils/env.js';
 import * as eventLogger from './eventLogger.service.js';
 
 // Fetch market slug from Gamma API using condition ID
@@ -68,6 +69,19 @@ export const updateRuleSchema = z.object({ triggerPrice: z.number().gt(0).lt(1) 
 
 export async function createRule(secretId: string, input: z.infer<typeof createRuleSchema>) {
   const payload = createRuleSchema.parse(input);
+
+  // Enforce per-secret active rule limit
+  const activeCount = await prisma.tradeRule.count({
+    where: { secretId, status: 'ACTIVE' },
+  });
+  if (activeCount >= env.TRADE_MANAGER_MAX_RULES_PER_SECRET) {
+    throw new AppError(
+      'BAD_REQUEST',
+      `Maximum active rules limit reached (${env.TRADE_MANAGER_MAX_RULES_PER_SECRET}). Cancel existing rules before creating new ones.`,
+      400
+    );
+  }
+
   const marketSlug = await fetchMarketSlug(payload.marketId);
 
   const rule = await prisma.tradeRule.create({
@@ -91,6 +105,7 @@ export async function createRule(secretId: string, input: z.infer<typeof createR
 const VALID_RULE_STATUSES = new Set<string>([
   'ACTIVE',
   'TRIGGERED',
+  'PENDING_APPROVAL',
   'CANCELED',
   'EXPIRED',
   'FAILED',
@@ -141,8 +156,16 @@ export async function updateRule(
 
 export async function cancelRule(secretId: string, id: string) {
   const existing = await getRule(secretId, id);
-  if (existing.status !== 'ACTIVE' && existing.status !== 'FAILED') {
-    throw new AppError('BAD_REQUEST', 'Only active or failed rules can be canceled', 400);
+  if (
+    existing.status !== 'ACTIVE' &&
+    existing.status !== 'FAILED' &&
+    existing.status !== 'PENDING_APPROVAL'
+  ) {
+    throw new AppError(
+      'BAD_REQUEST',
+      'Only active, failed, or pending approval rules can be canceled',
+      400
+    );
   }
   const rule = await prisma.tradeRule.update({
     where: { id },
@@ -161,9 +184,18 @@ export async function markRuleTriggered(id: string, txHash?: string): Promise<bo
   return result.count === 1;
 }
 
+/** Mark a TRIGGERED rule as PENDING_APPROVAL — stops re-evaluation until human action. */
+export async function markRulePendingApproval(id: string): Promise<boolean> {
+  const result = await prisma.tradeRule.updateMany({
+    where: { id, status: 'TRIGGERED' },
+    data: { status: 'PENDING_APPROVAL' },
+  });
+  return result.count === 1;
+}
+
 export async function markRuleFailed(id: string, errorMessage: string): Promise<boolean> {
   const result = await prisma.tradeRule.updateMany({
-    where: { id, status: { in: ['ACTIVE', 'TRIGGERED'] } },
+    where: { id, status: { in: ['ACTIVE', 'TRIGGERED', 'PENDING_APPROVAL'] } },
     data: { status: 'FAILED', errorMessage, triggeredAt: new Date() },
   });
   if (result.count === 1) {

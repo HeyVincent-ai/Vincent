@@ -59,11 +59,17 @@ export async function updateAllPositions(): Promise<void> {
     select: { secretId: true },
   });
 
-  for (const { secretId } of distinctSecrets) {
-    try {
-      await updatePositions(secretId);
-    } catch (error) {
-      console.error(`[TradeManager] Failed to update positions for secret ${secretId}:`, error);
+  const results = await Promise.allSettled(
+    distinctSecrets.map(({ secretId }) => updatePositions(secretId))
+  );
+
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    if (result.status === 'rejected') {
+      console.error(
+        `[TradeManager] Failed to update positions for secret ${distinctSecrets[i].secretId}:`,
+        result.reason
+      );
     }
   }
 }

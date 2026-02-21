@@ -55,7 +55,18 @@ export async function executeRule(
     let amount: number;
 
     if (action.type === 'SELL_PARTIAL' && action.amount) {
-      amount = action.amount;
+      // Validate that the user holds enough shares for a partial sell
+      const { holdings } = await polymarketSkill.getHoldings(rule.secretId);
+      const holding = holdings.find((h) => h.tokenId === rule.tokenId);
+
+      if (!holding || holding.shares <= 0) {
+        const errorMessage = `Cannot execute SELL_PARTIAL: No shares found for tokenId ${rule.tokenId}`;
+        await ruleManager.markRuleFailed(rule.id, errorMessage);
+        throw new Error(errorMessage);
+      }
+
+      // Clamp to available shares if requesting more than held
+      amount = Math.min(action.amount, holding.shares);
     } else {
       // SELL_ALL — fetch actual holdings
       const { holdings } = await polymarketSkill.getHoldings(rule.secretId);
@@ -92,12 +103,12 @@ export async function executeRule(
     }
 
     if (result.status === 'pending_approval') {
-      // Trade requires human approval — revert rule to ACTIVE so it can be
-      // re-evaluated after approval is granted or denied.
-      await ruleManager.revertToActive(rule.id);
-      await eventLogger.logEvent(rule.id, 'ACTION_ATTEMPT', {
-        status: 'pending_approval',
-        message: 'Trade requires human approval; rule reverted to ACTIVE',
+      // Trade requires human approval — mark as PENDING_APPROVAL to stop
+      // re-evaluation. The rule will remain in this status until the approval
+      // is granted or denied externally.
+      await ruleManager.markRulePendingApproval(rule.id);
+      await eventLogger.logEvent(rule.id, 'ACTION_PENDING_APPROVAL', {
+        message: 'Trade requires human approval; rule paused until resolved',
       });
       return { orderId: result.orderId, executed: false };
     }

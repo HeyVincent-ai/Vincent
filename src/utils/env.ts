@@ -119,6 +119,7 @@ const envSchema = z.object({
     .optional()
     .default('true')
     .transform((val) => val === 'true'),
+  TRADE_MANAGER_MAX_RULES_PER_SECRET: z.coerce.number().int().positive().default(50),
 });
 
 export type Env = z.infer<typeof envSchema>;
