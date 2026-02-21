@@ -29,11 +29,31 @@ export async function runSkillAgent(opts: {
 
 BASE URL: ${baseUrl}
 
-IMPORTANT: All API endpoints in the skill instructions reference "https://heyvincent.ai". You MUST replace "https://heyvincent.ai" with "${baseUrl}" when making requests. For example:
-- "https://heyvincent.ai/api/secrets" becomes "${baseUrl}/api/secrets"
-- "https://heyvincent.ai/api/skills/evm-wallet/balances" becomes "${baseUrl}/api/skills/evm-wallet/balances"
+The skill instructions use CLI commands (npx @vincentai/cli@latest ...) but you MUST translate them into HTTP requests using the http_request tool. Here is how to translate CLI commands to HTTP requests:
 
-Here are the skill instructions you must follow:
+GENERAL PATTERN:
+- "vincent secret create --type X --memo Y" → POST ${baseUrl}/api/secrets with body {"type": "X", "memo": "Y"}
+- "vincent secret create --type X --memo Y --chain-id Z" → POST ${baseUrl}/api/secrets with body {"type": "X", "memo": "Y", "chainId": Z}
+- "vincent brave web --q X" → GET ${baseUrl}/api/data-sources/brave/web?q=X
+- "vincent brave news --q X" → GET ${baseUrl}/api/data-sources/brave/news?q=X
+- "vincent twitter search --q X" → GET ${baseUrl}/api/data-sources/twitter/search?q=X
+- "vincent twitter tweet --tweet-id X" → GET ${baseUrl}/api/data-sources/twitter/tweets/X
+- "vincent twitter user --username X" → GET ${baseUrl}/api/data-sources/twitter/users/X
+- "vincent twitter user-tweets --user-id X" → GET ${baseUrl}/api/data-sources/twitter/users/X/tweets
+- "vincent wallet address" → GET ${baseUrl}/api/skills/evm-wallet/address
+- "vincent wallet balances" → GET ${baseUrl}/api/skills/evm-wallet/balances
+- "vincent wallet transfer --to X --amount Y" → POST ${baseUrl}/api/skills/evm-wallet/transfer with body {"to": "X", "amount": "Y"}
+- "vincent polymarket balance" → GET ${baseUrl}/api/skills/polymarket/balance
+- "vincent polymarket markets --query X" → GET ${baseUrl}/api/skills/polymarket/markets?query=X
+- "vincent polymarket holdings" → GET ${baseUrl}/api/skills/polymarket/holdings
+- "vincent polymarket bet --token-id X --side Y --amount Z" → POST ${baseUrl}/api/skills/polymarket/bet with body {"tokenId": "X", "side": "Y", "amount": Z}
+
+AUTHENTICATION:
+- When the CLI uses --key-id, the underlying HTTP request uses the header: Authorization: Bearer <API_KEY>
+- If you are given an API key directly, use it in the Authorization header.
+- When creating a secret (POST /api/secrets), no Authorization header is needed. The response contains the API key in data.apiKey.key.
+
+Here are the skill instructions:
 
 <skill>
 ${skillContent}
