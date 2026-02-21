@@ -90,6 +90,18 @@ const REBUILD_MAX_RETRIES = 3;
 const REBUILD_RETRY_DELAY_MS = 30_000; // 30s
 
 // ============================================================
+// Errors
+// ============================================================
+
+/** Thrown when an OVH rebuild task fails, allowing retry at a higher level. */
+class RebuildTaskError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RebuildTaskError';
+  }
+}
+
+// ============================================================
 // Types
 // ============================================================
 
@@ -1191,46 +1203,69 @@ async function provisionAsync(deploymentId: string, options: DeployOptions): Pro
             throw new Error('Missing service name or SSH public key for rebuild');
           }
 
-          // Check if a rebuild is already in progress (e.g. retry after timeout)
-          const currentDetails = await ovhService.getVpsDetails(ctx.serviceName);
-          addLog(`VPS current state: ${currentDetails.state}`);
+          // Retry loop: covers both the rebuild API call AND waiting for completion,
+          // so we can recover from OVH-side rebuild failures (task state=error).
+          for (let rebuildAttempt = 1; rebuildAttempt <= REBUILD_MAX_RETRIES; rebuildAttempt++) {
+            try {
+              let rebuildTaskId: number | undefined;
 
-          if (currentDetails.state === 'installing') {
-            // A rebuild is already in progress — skip initiating a new one
-            addLog('Rebuild already in progress (VPS is installing), waiting for completion...');
-          } else {
-            addLog('Waiting for VPS tasks to complete...');
-            await waitForVpsReady(ctx.serviceName, addLog);
+              // Check if a rebuild is already in progress (e.g. retry after timeout)
+              const currentDetails = await ovhService.getVpsDetails(ctx.serviceName);
+              addLog(
+                `[rebuild attempt ${rebuildAttempt}/${REBUILD_MAX_RETRIES}] VPS current state: ${currentDetails.state}`
+              );
 
-            addLog('Rebuilding VPS with SSH key...');
-            const rebuildImageId = await findRebuildImage(ctx.serviceName, addLog);
-
-            for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
-              try {
-                const rebuildResult = await ovhService.rebuildVps(
-                  ctx.serviceName,
-                  rebuildImageId,
-                  ctx.sshPub
-                );
-                addLog(
-                  `Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`
-                );
-                break;
-              } catch (err: any) {
-                const isTaskConflict = err.message?.includes('running tasks');
-                if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
-                  addLog(
-                    `Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`
-                  );
-                  await sleep(REBUILD_RETRY_DELAY_MS);
-                } else {
-                  throw err;
+              if (currentDetails.state === 'installing') {
+                // VPS is installing — check if the rebuild task already failed
+                const taskIds = await ovhService.getVpsTasks(ctx.serviceName);
+                let hasActiveReinstall = false;
+                for (const tid of taskIds) {
+                  try {
+                    const task = await ovhService.getVpsTaskDetails(ctx.serviceName, tid);
+                    addLog(`OVH task ${tid}: type=${task.type}, state=${task.state}`);
+                    if (task.type === 'reinstallVm' && ACTIVE_TASK_STATES.has(task.state)) {
+                      hasActiveReinstall = true;
+                    }
+                  } catch {
+                    // Task may have completed
+                  }
                 }
+                if (hasActiveReinstall) {
+                  addLog('Rebuild in progress, waiting for completion...');
+                } else {
+                  // No active reinstall — VPS is stuck installing with an errored task
+                  addLog('VPS is installing but no active reinstall tasks found — rebuild failed');
+                  throw new RebuildTaskError(
+                    'VPS stuck in installing state with no active reinstall tasks'
+                  );
+                }
+              } else if (currentDetails.state === 'maintenance') {
+                // VPS stuck in maintenance from a previous failed rebuild — need a fresh rebuild
+                addLog(
+                  'VPS in maintenance (previous rebuild likely failed), waiting for it to recover...'
+                );
+                await waitForVpsReady(ctx.serviceName, addLog);
+                rebuildTaskId = await initiateRebuild(ctx.serviceName, ctx.sshPub, addLog);
+              } else {
+                addLog('Waiting for VPS tasks to complete...');
+                await waitForVpsReady(ctx.serviceName, addLog);
+                rebuildTaskId = await initiateRebuild(ctx.serviceName, ctx.sshPub, addLog);
+              }
+
+              await waitForRebuild(ctx.serviceName, addLog, rebuildTaskId);
+              break; // Rebuild succeeded
+            } catch (err) {
+              if (err instanceof RebuildTaskError && rebuildAttempt < REBUILD_MAX_RETRIES) {
+                addLog(
+                  `Rebuild attempt ${rebuildAttempt} failed on OVH side, retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`
+                );
+                await sleep(REBUILD_RETRY_DELAY_MS);
+              } else {
+                throw err;
               }
             }
           }
 
-          await waitForRebuild(ctx.serviceName, addLog);
           addLog('Rebuild complete, waiting 30s for SSH to come up...');
           await sleep(30_000);
 
@@ -1529,6 +1564,40 @@ async function pollForIp(serviceName: string, addLog: (msg: string) => void): Pr
 }
 
 /**
+ * Initiate a VPS rebuild, retrying on "running tasks" conflicts.
+ * Returns the OVH task ID for the rebuild.
+ */
+async function initiateRebuild(
+  serviceName: string,
+  sshPub: string,
+  addLog: (msg: string) => void
+): Promise<number> {
+  addLog('Rebuilding VPS with SSH key...');
+  const rebuildImageId = await findRebuildImage(serviceName, addLog);
+
+  for (let attempt = 1; attempt <= REBUILD_MAX_RETRIES; attempt++) {
+    try {
+      const rebuildResult = await ovhService.rebuildVps(serviceName, rebuildImageId, sshPub);
+      addLog(`Rebuild initiated (task: ${rebuildResult.id}, state: ${rebuildResult.state})`);
+      return rebuildResult.id;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      const isTaskConflict = message.includes('running tasks');
+      if (isTaskConflict && attempt < REBUILD_MAX_RETRIES) {
+        addLog(
+          `Rebuild attempt ${attempt} failed (running tasks), retrying in ${REBUILD_RETRY_DELAY_MS / 1000}s...`
+        );
+        await sleep(REBUILD_RETRY_DELAY_MS);
+      } else {
+        throw err;
+      }
+    }
+  }
+  // Should never reach here due to the throw in the loop
+  throw new Error('Failed to initiate rebuild after all retries');
+}
+
+/**
  * Find the Debian 12 rebuild image for a VPS.
  */
 export async function findRebuildImage(
@@ -1557,14 +1626,17 @@ export async function findRebuildImage(
 
 /**
  * Wait for VPS rebuild to complete (state: installing → running).
+ * Monitors the specific rebuild task for errors and fails fast if detected.
  */
 export async function waitForRebuild(
   serviceName: string,
-  addLog: (msg: string) => void
+  addLog: (msg: string) => void,
+  rebuildTaskId?: number
 ): Promise<void> {
   const deadline = Date.now() + REBUILD_POLL_TIMEOUT_MS;
   let wasInstalling = false;
   let lastTaskLog = 0; // throttle task detail logging to every ~60s
+  let maintenanceCount = 0; // track consecutive maintenance polls
 
   while (Date.now() < deadline) {
     await sleep(REBUILD_POLL_INTERVAL_MS);
@@ -1572,28 +1644,75 @@ export async function waitForRebuild(
       const details = await ovhService.getVpsDetails(serviceName);
       const elapsed = Math.round((Date.now() + REBUILD_POLL_TIMEOUT_MS - deadline) / 1000);
       addLog(`[${elapsed}s] VPS state: ${details.state}`);
-      if (details.state === 'installing') wasInstalling = true;
+      if (details.state === 'installing') {
+        wasInstalling = true;
+        maintenanceCount = 0;
+      }
       if (details.state === 'running' && wasInstalling) return;
 
-      // Log OVH task details periodically for diagnostics
+      // Detect maintenance state — indicates a failed rebuild
+      if (details.state === 'maintenance') {
+        maintenanceCount++;
+      }
+
+      // Check OVH task states periodically for error detection and diagnostics.
+      // When we have a specific rebuildTaskId, check it every poll.
+      // For full task scan, throttle to every ~60s.
       const now = Date.now();
-      if (now - lastTaskLog >= 60_000) {
-        lastTaskLog = now;
+      const shouldCheckAllTasks = now - lastTaskLog >= 60_000;
+
+      if (rebuildTaskId || shouldCheckAllTasks || maintenanceCount >= 2) {
         try {
-          const taskIds = await ovhService.getVpsTasks(serviceName);
-          if (taskIds.length > 0) {
+          // If we have a specific task ID, check it directly every poll
+          if (rebuildTaskId) {
+            const task = await ovhService.getVpsTaskDetails(serviceName, rebuildTaskId);
+            if (task.state === 'error') {
+              addLog(`[${elapsed}s] Rebuild task ${rebuildTaskId} failed (state=error)`);
+              throw new RebuildTaskError(
+                `OVH rebuild task ${rebuildTaskId} failed with state=error`
+              );
+            }
+          }
+
+          // Full task scan: log all tasks and check for stuck state
+          if (shouldCheckAllTasks || maintenanceCount >= 2) {
+            lastTaskLog = now;
+            const taskIds = await ovhService.getVpsTasks(serviceName);
+            let hasActiveReinstall = false;
+            let hasErroredReinstall = false;
+
             for (const taskId of taskIds) {
               const task = await ovhService.getVpsTaskDetails(serviceName, taskId);
               addLog(`[${elapsed}s] OVH task ${taskId}: type=${task.type}, state=${task.state}`);
+              if (task.type === 'reinstallVm') {
+                if (ACTIVE_TASK_STATES.has(task.state)) {
+                  hasActiveReinstall = true;
+                } else if (task.state === 'error') {
+                  hasErroredReinstall = true;
+                }
+              }
             }
-          } else {
-            addLog(`[${elapsed}s] No active OVH tasks`);
+
+            // If VPS is not running and there are no active reinstall tasks
+            // but there are errored ones, the rebuild has failed
+            if (!hasActiveReinstall && hasErroredReinstall && details.state !== 'running') {
+              addLog(`[${elapsed}s] No active reinstall tasks, only errored — rebuild failed`);
+              throw new RebuildTaskError(
+                'VPS has no active rebuild tasks and errored reinstallVm detected'
+              );
+            }
+
+            if (taskIds.length === 0) {
+              addLog(`[${elapsed}s] No OVH tasks found`);
+            }
           }
-        } catch {
-          // Non-critical — task API may be unavailable during rebuild
+        } catch (e) {
+          if (e instanceof RebuildTaskError) throw e;
+          // Task API may be unavailable during rebuild
         }
       }
     } catch (e: any) {
+      if (e instanceof RebuildTaskError) throw e;
       addLog(`Rebuild poll error: ${e.message}`);
     }
   }
