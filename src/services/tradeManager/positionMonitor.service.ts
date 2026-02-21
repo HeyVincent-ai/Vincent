@@ -92,10 +92,3 @@ export async function getCurrentPrice(tokenId: string): Promise<number> {
   const mid = await polymarketSkill.getMidpoint(tokenId);
   return parseFloat(mid);
 }
-
-export async function updatePositionPrice(tokenId: string, price: number): Promise<void> {
-  await prisma.tradeMonitoredPosition.updateMany({
-    where: { tokenId },
-    data: { currentPrice: price, lastUpdatedAt: new Date() },
-  });
-}
