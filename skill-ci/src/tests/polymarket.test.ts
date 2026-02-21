@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runSkillAgent } from '../agent.js';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const BASE_URL = process.env.SKILL_CI_BASE_URL!;
 const skillContent = readFileSync(
@@ -10,103 +13,106 @@ const skillContent = readFileSync(
 );
 
 describe('Skill: polymarket', () => {
+  let stateDir: string;
+
+  beforeAll(() => {
+    stateDir = mkdtempSync(join(tmpdir(), 'skill-ci-polymarket-'));
+  });
+
+  afterAll(() => {
+    if (stateDir) {
+      rmSync(stateDir, { recursive: true, force: true });
+    }
+  });
+
   it('can create a polymarket wallet and browse markets', async () => {
     const result = await runSkillAgent({
       skillContent,
       baseUrl: BASE_URL,
-      task: `Follow the skill instructions. You MUST make exactly these HTTP requests in order:
+      stateDir,
+      task: `Follow the skill instructions to:
+1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test polymarket wallet")
+2. Parse the JSON output to get the keyId
+3. Use that keyId to search markets for "bitcoin" with limit 5
 
-Step 1: POST to /api/secrets with body {"type": "POLYMARKET_WALLET", "memo": "CI test polymarket wallet"} to create a wallet.
-
-Step 2: Parse the JSON response from Step 1 to extract the API key from data.apiKey.key. Then make a GET request to /api/skills/polymarket/markets?query=bitcoin&limit=5 with the header "Authorization: Bearer <API_KEY>" (replacing <API_KEY> with the actual key from Step 1).
-
-You MUST make both HTTP requests. Report the API key, wallet address, and the first market found.`,
+You MUST make both CLI calls. Report the keyId and the first market found.`,
     });
 
     expect(result.error).toBeUndefined();
     expect(result.success).toBe(true);
 
-    const calls = result.toolCalls.filter((c) => c.name === 'http_request');
+    const calls = result.toolCalls.filter((c) => c.name === 'vincent_cli');
     expect(calls.length).toBeGreaterThanOrEqual(2);
 
     // Verify a POLYMARKET_WALLET secret was created
-    const createCall = calls.find(
-      (c) =>
-        (c.args as { url: string }).url.includes('/api/secrets') &&
-        (c.args as { method: string }).method === 'POST'
+    const createCall = calls.find((c) =>
+      (c.args as { args: string }).args.includes('secret create')
     );
     expect(createCall).toBeDefined();
 
-    const createResult = createCall!.result as {
-      status: number;
-      body: string;
-    };
-    expect(createResult.status).toBe(201);
-    const createBody = JSON.parse(createResult.body);
-    expect(createBody.data.apiKey.key).toMatch(/^ssk_/);
+    const createResult = createCall!.result as { exitCode: number; output: string };
+    expect(createResult.exitCode).toBe(0);
+    const createBody = JSON.parse(createResult.output);
+    expect(createBody.keyId).toBeDefined();
 
-    // Verify markets were searched/browsed
+    // Verify markets were searched
     const marketCall = calls.find((c) =>
-      (c.args as { url: string }).url.includes('/api/skills/polymarket/market')
+      (c.args as { args: string }).args.includes('polymarket markets')
     );
     expect(marketCall).toBeDefined();
 
-    const marketResult = marketCall!.result as { status: number };
-    expect(marketResult.status).toBe(200);
+    const marketResult = marketCall!.result as { exitCode: number; output: string };
+    expect(marketResult.exitCode).toBe(0);
   });
 
   it('can check holdings endpoint', async () => {
-    const result = await runSkillAgent({
-      skillContent,
-      baseUrl: BASE_URL,
-      task: `Follow the skill instructions. You MUST make exactly these HTTP requests in order:
+    // Use a fresh state dir for isolation
+    const holdingsStateDir = mkdtempSync(join(tmpdir(), 'skill-ci-pm-holdings-'));
 
-Step 1: POST to /api/secrets with body {"type": "POLYMARKET_WALLET", "memo": "CI test holdings check"} to create a wallet.
+    try {
+      const result = await runSkillAgent({
+        skillContent,
+        baseUrl: BASE_URL,
+        stateDir: holdingsStateDir,
+        task: `Follow the skill instructions to:
+1. Create a new Polymarket wallet (type: POLYMARKET_WALLET, memo: "CI test holdings check")
+2. Parse the JSON output to get the keyId
+3. Use that keyId to check your holdings
 
-Step 2: Parse the JSON response from Step 1 to extract the API key from data.apiKey.key. Then make a GET request to /api/skills/polymarket/holdings with the header "Authorization: Bearer <API_KEY>" (replacing <API_KEY> with the actual key from Step 1).
+You MUST make both CLI calls. Report the keyId and the holdings response.`,
+      });
 
-You MUST make both HTTP requests. Report the API key and the holdings response.`,
-    });
+      expect(result.error).toBeUndefined();
+      expect(result.success).toBe(true);
 
-    expect(result.error).toBeUndefined();
-    expect(result.success).toBe(true);
+      const calls = result.toolCalls.filter((c) => c.name === 'vincent_cli');
+      expect(calls.length).toBeGreaterThanOrEqual(2);
 
-    const calls = result.toolCalls.filter((c) => c.name === 'http_request');
-    expect(calls.length).toBeGreaterThanOrEqual(2);
+      // Verify a POLYMARKET_WALLET secret was created
+      const createCall = calls.find((c) =>
+        (c.args as { args: string }).args.includes('secret create')
+      );
+      expect(createCall).toBeDefined();
 
-    // Verify a POLYMARKET_WALLET secret was created
-    const createCall = calls.find(
-      (c) =>
-        (c.args as { url: string }).url.includes('/api/secrets') &&
-        (c.args as { method: string }).method === 'POST'
-    );
-    expect(createCall).toBeDefined();
+      const createResult = createCall!.result as { exitCode: number; output: string };
+      expect(createResult.exitCode).toBe(0);
 
-    const createResult = createCall!.result as {
-      status: number;
-      body: string;
-    };
-    expect(createResult.status).toBe(201);
-    const createBody = JSON.parse(createResult.body);
-    expect(createBody.data.apiKey.key).toMatch(/^ssk_/);
+      // Verify holdings endpoint was called
+      const holdingsCall = calls.find((c) =>
+        (c.args as { args: string }).args.includes('polymarket holdings')
+      );
+      expect(holdingsCall).toBeDefined();
 
-    // Verify holdings endpoint was called
-    const holdingsCall = calls.find((c) =>
-      (c.args as { url: string }).url.includes('/api/skills/polymarket/holdings')
-    );
-    expect(holdingsCall).toBeDefined();
+      const holdingsResult = holdingsCall!.result as { exitCode: number; output: string };
+      expect(holdingsResult.exitCode).toBe(0);
 
-    const holdingsResult = holdingsCall!.result as {
-      status: number;
-      body: string;
-    };
-    expect(holdingsResult.status).toBe(200);
-
-    const holdingsBody = JSON.parse(holdingsResult.body);
-    expect(holdingsBody.success).toBe(true);
-    expect(holdingsBody.data.walletAddress).toBeTruthy();
-    expect(Array.isArray(holdingsBody.data.holdings)).toBe(true);
-    // Empty holdings expected since wallet has no trades
-    expect(holdingsBody.data.holdings.length).toBe(0);
+      const holdingsBody = JSON.parse(holdingsResult.output);
+      expect(holdingsBody.success).toBe(true);
+      expect(holdingsBody.data.walletAddress).toBeTruthy();
+      expect(Array.isArray(holdingsBody.data.holdings)).toBe(true);
+      expect(holdingsBody.data.holdings.length).toBe(0);
+    } finally {
+      rmSync(holdingsStateDir, { recursive: true, force: true });
+    }
   });
 });

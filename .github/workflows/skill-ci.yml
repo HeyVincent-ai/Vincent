@@ -16,6 +16,8 @@ on:
     branches: [main]
     paths:
       - "skills/**"
+      - "cli/**"
+      - "skill-ci/**"
 
 jobs:
   skill-tests:
@@ -30,6 +32,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
+
+      - name: Build CLI
+        run: cd cli && npx tsc
 
       - name: Install skill-ci dependencies
         run: cd skill-ci && npm ci
