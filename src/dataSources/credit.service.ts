@@ -77,6 +77,18 @@ export async function addCredits(
 }
 
 /**
+ * Refund credit to user's data source balance (e.g., after a failed API call).
+ */
+export async function refundCredit(userId: string, costUsd: number): Promise<void> {
+  const cost = new Decimal(costUsd);
+  await prisma.$executeRaw`
+    UPDATE "users"
+    SET "data_source_credit_usd" = "data_source_credit_usd" + ${cost}
+    WHERE "id" = ${userId}
+  `;
+}
+
+/**
  * List credit purchases for a user.
  */
 export async function getCreditPurchases(userId: string) {
