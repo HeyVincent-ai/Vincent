@@ -1,4 +1,4 @@
-import { type Hex } from 'viem';
+import { type Hex, parseUnits } from 'viem';
 import { Prisma } from '@prisma/client';
 import prisma from '../db/client.js';
 import { AppError } from '../api/middleware/errorHandler.js';
@@ -86,6 +86,9 @@ export interface WithdrawOutput {
   transactionHash?: string;
   reason?: string;
 }
+
+// USDC.e has 6 decimals on Polygon
+const USDC_DECIMALS = 6;
 
 // ============================================================
 // Helpers
@@ -363,8 +366,6 @@ export async function getBalance(secretId: string): Promise<PolymarketBalanceOut
 
   const collateral = await polymarket.getCollateralBalance(clientConfig);
 
-  // USDC.e has 6 decimals — convert from raw units to human-readable
-  const USDC_DECIMALS = 6;
   const toHuman = (raw: string) => (Number(raw) / 10 ** USDC_DECIMALS).toString();
 
   return {
@@ -557,11 +558,14 @@ export async function withdrawUsdc(input: WithdrawInput): Promise<WithdrawOutput
     throw new AppError('INVALID_AMOUNT', 'Amount must be a positive number', 400);
   }
 
-  // Build policy check action
+  // Build policy check action — use token fields so the policy engine
+  // evaluates this as a USDC transfer (not ETH).
   const policyAction: PolicyCheckAction = {
     type: 'transfer',
     to: to as Hex,
-    value: usdValue,
+    tokenAddress: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174', // USDC.e on Polygon
+    tokenAmount: usdValue,
+    tokenSymbol: 'USDC',
     chainId: 137, // Polygon
   };
 
@@ -574,7 +578,10 @@ export async function withdrawUsdc(input: WithdrawInput): Promise<WithdrawOutput
       apiKeyId,
       actionType: 'polymarket_withdraw',
       requestData: { to, amount, usdValue },
-      status: policyResult.verdict === 'allow' ? 'PENDING' : 'DENIED',
+      status:
+        policyResult.verdict === 'allow' || policyResult.verdict === 'require_approval'
+          ? 'PENDING'
+          : 'DENIED',
     },
   });
 
@@ -620,8 +627,7 @@ export async function withdrawUsdc(input: WithdrawInput): Promise<WithdrawOutput
   // Execute the transfer
   try {
     // Convert human-readable amount to raw units (6 decimals for USDC.e)
-    const USDC_DECIMALS = 6;
-    const rawAmount = Math.round(usdValue * 10 ** USDC_DECIMALS).toString();
+    const rawAmount = parseUnits(amount, USDC_DECIMALS).toString();
 
     // Pre-check balance to give a clear error before hitting the relayer
     const clientConfig = {

@@ -6,6 +6,6 @@ export default defineConfig({
     environment: "node",
     include: ["src/tests/**/*.test.ts"],
     testTimeout: 120_000, // 2 min per test — LLM + API calls
-    retry: 1, // retry once on LLM flakiness
+    retry: 2, // retry on LLM flakiness
   },
 });

@@ -33,6 +33,8 @@ export async function runSkillAgent(opts: {
 
 You have access to the "vincent_cli" tool which runs Vincent CLI commands. Use it to execute commands as documented in the skill instructions.
 
+CRITICAL: You MUST call the vincent_cli tool for EVERY command. Never describe what you would do — always actually call the tool. If the task requires multiple CLI calls, you MUST make ALL of them. Do not stop after the first call. After each tool call, immediately proceed to the next required call.
+
 IMPORTANT: The skill instructions show commands like "npx @vincentai/cli@latest <args>". When using the vincent_cli tool, pass ONLY the arguments after "vincent". For example:
 - Skill says: npx @vincentai/cli@latest brave web --q "bitcoin"
   You call vincent_cli with args: brave web --q bitcoin
@@ -43,13 +45,15 @@ The CLI outputs JSON. Parse the JSON output to extract data (like keyId) for sub
 
 When the skill says to use --key-id <KEY_ID>, use the keyId returned from a previous "secret create" command, or a key ID provided in your task instructions.
 
+If a CLI call returns an error, still proceed with the remaining steps. Do not stop early.
+
 Here are the skill instructions:
 
 <skill>
 ${skillContent}
 </skill>
 
-Complete the task using the vincent_cli tool. Be methodical — read the skill instructions carefully, then execute the required steps in order.`;
+Complete the task using the vincent_cli tool. Be methodical — read the skill instructions carefully, then execute the required steps in order. You MUST make ALL required tool calls.`;
 
   try {
     const result = await generateText({
