@@ -3,7 +3,7 @@
   "info": {
     "title": "Vincent Agent API",
     "version": "1.0.0",
-    "description": "## What is Vincent?\n\n[Vincent](https://heyvincent.ai) provides skills and infrastructure for AI trading agents — self-custody wallets, market access, data sources, and policy controls. There are two ways to use it:\n\n**Bring your own agent** — Integrate Vincent skills into any agent via this API. Your agent creates secrets, executes skills, and the wallet owner manages policies through the [dashboard](https://heyvincent.ai).\n\n**Vincent + OpenClaw** — We deploy and manage a hosted [OpenClaw](https://github.com/openclaw) agent for you with every Vincent skill pre-installed. OpenClaw includes everything below plus managed infrastructure, sub-agents for research and execution, and the ability to bring your own Anthropic API key (ships with OpenRouter by default — just ask the agent to set up your key). [Deploy an agent →](https://heyvincent.ai/login)\n\nBoth paths include access to the [dashboard](https://heyvincent.ai) for managing wallets, policies, secrets, and transaction history.\n\n---\n\n## Key Concepts\n\n- **Secrets** — Hold a private key or credential that the agent never sees directly. Each secret generates an API key (`ssk_xxx`) the agent uses for authentication.\n- **Skills** — API endpoints that let the agent *use* a secret: transfer tokens, place bets, sign messages, search Twitter, and more.\n- **Policies** — Server-side rules (spending limits, address allowlists, approval thresholds) that constrain what the agent can do. The wallet owner controls these from the dashboard.\n\n## Skills\n\n- **EVM Wallet** — Self-custody smart accounts with policy controls and gasless transactions. Transfer tokens, swap via Uniswap, check balances across chains.\n- **Polymarket** — Search prediction markets, place bets, manage positions, and track trade history.\n- **Trade Manager** — Automated trade rules for Polymarket positions: stop-loss, take-profit, and trailing stop orders. Rules are monitored server-side and execute automatically when price conditions are met.\n- **Data Sources** — Twitter search and Brave Search access for market research and signals.\n- **Raw Signer** — Sign arbitrary messages with Ethereum (secp256k1) or Solana (ed25519) keys.\n\n## Dashboard + Telegram\n\nThe [dashboard](https://heyvincent.ai) lets wallet owners manage secrets, set policies, view audit logs, and monitor agent activity. For transaction approvals on the go, connect the Telegram bot — the agent requests approval, and you confirm or deny directly from Telegram.\n\n---\n\n## Getting Started with the API\n\n1. **Create a secret** via `POST /api/secrets` (no auth required). This returns an API key (`ssk_xxx`) and a claim URL.\n2. **Use the API key** as a Bearer token in the `Authorization` header for all skill endpoints.\n3. **Give the claim URL** to the secret owner so they can claim ownership, set policies, and manage the secret from the dashboard.\n\n## Re-linking\n\nIf an agent loses its API key, the secret owner can generate a one-time re-link token from the dashboard. The agent then calls `POST /api/secrets/relink` with that token to obtain a new API key.\n\n## Skill Execution Results\n\nSkill endpoints that perform on-chain actions return a `SkillExecutionResult` with one of three statuses:\n- **`executed`** (200) — Action completed successfully.\n- **`denied`** (403) — Blocked by a policy rule. The `reason` field explains why.\n- **`pending_approval`** (202) — Requires manual approval from the secret owner.\n\n---\n\n**Links:** [Dashboard](https://heyvincent.ai) · [OpenClaw](https://github.com/openclaw) · [GitHub](https://github.com/HeyVincent-ai/Vincent)"
+    "description": "## What is Vincent?\n\n[Vincent](https://heyvincent.ai) provides skills and infrastructure for AI trading agents — self-custody wallets, market access, data sources, and policy controls. There are three ways to use it:\n\n**MCP Server** — Connect Vincent to any MCP-compatible agent runtime (Claude, ChatGPT, Codex, Cursor, Manus, etc.) via the `/mcp` endpoint. Authenticate with a Bearer API key and get instant access to all tools scoped to your secret type. See the [Connect Agent guide](https://heyvincent.ai/agents/connect) for setup instructions.\n\n**REST API** — Integrate Vincent skills directly into any agent via the REST endpoints documented below. Your agent creates secrets, executes skills, and the wallet owner manages policies through the [dashboard](https://heyvincent.ai).\n\n**Vincent + OpenClaw** — We deploy and manage a hosted [OpenClaw](https://github.com/openclaw) agent for you with every Vincent skill pre-installed. OpenClaw includes everything below plus managed infrastructure, sub-agents for research and execution, and the ability to bring your own Anthropic API key (ships with OpenRouter by default — just ask the agent to set up your key). [Deploy an agent →](https://heyvincent.ai/login)\n\nAll paths include access to the [dashboard](https://heyvincent.ai) for managing wallets, policies, secrets, and transaction history.\n\n---\n\n## Key Concepts\n\n- **Secrets** — Hold a private key or credential that the agent never sees directly. Each secret generates an API key (`ssk_xxx`) the agent uses for authentication.\n- **Skills** — API endpoints that let the agent *use* a secret: transfer tokens, place bets, sign messages, search Twitter, and more.\n- **Policies** — Server-side rules (spending limits, address allowlists, approval thresholds) that constrain what the agent can do. The wallet owner controls these from the dashboard.\n\n## Skills\n\n- **EVM Wallet** — Self-custody smart accounts with policy controls and gasless transactions. Transfer tokens, swap via Uniswap, check balances across chains.\n- **Polymarket** — Search prediction markets, place bets, manage positions, and track trade history.\n- **Trade Manager** — Automated trade rules for Polymarket positions: stop-loss, take-profit, and trailing stop orders. Rules are monitored server-side and execute automatically when price conditions are met.\n- **Data Sources** — Twitter search and Brave Search access for market research and signals.\n- **Raw Signer** — Sign arbitrary messages with Ethereum (secp256k1) or Solana (ed25519) keys.\n\n## Dashboard + Telegram\n\nThe [dashboard](https://heyvincent.ai) lets wallet owners manage secrets, set policies, view audit logs, and monitor agent activity. For transaction approvals on the go, connect the Telegram bot — the agent requests approval, and you confirm or deny directly from Telegram.\n\n---\n\n## Getting Started with the API\n\n1. **Create a secret** via `POST /api/secrets` (no auth required). This returns an API key (`ssk_xxx`) and a claim URL.\n2. **Use the API key** as a Bearer token in the `Authorization` header for all skill endpoints.\n3. **Give the claim URL** to the secret owner so they can claim ownership, set policies, and manage the secret from the dashboard.\n\n## Re-linking\n\nIf an agent loses its API key, the secret owner can generate a one-time re-link token from the dashboard. The agent then calls `POST /api/secrets/relink` with that token to obtain a new API key.\n\n## Skill Execution Results\n\nSkill endpoints that perform on-chain actions return a `SkillExecutionResult` with one of three statuses:\n- **`executed`** (200) — Action completed successfully.\n- **`denied`** (403) — Blocked by a policy rule. The `reason` field explains why.\n- **`pending_approval`** (202) — Requires manual approval from the secret owner.\n\n---\n\n**Links:** [Dashboard](https://heyvincent.ai) · [OpenClaw](https://github.com/openclaw) · [GitHub](https://github.com/HeyVincent-ai/Vincent)"
   },
   "servers": [
     {
@@ -21,7 +21,8 @@
     { "name": "Polymarket", "description": "Trade on Polymarket prediction markets" },
     { "name": "Trade Manager", "description": "Automated trade rules (stop-loss, take-profit, trailing stop) for Polymarket positions" },
     { "name": "Raw Signer", "description": "Sign arbitrary messages with Ethereum or Solana keys" },
-    { "name": "Data Sources", "description": "Proxy access to Twitter and Brave Search APIs (requires DATA_SOURCES secret type)" }
+    { "name": "Data Sources", "description": "Proxy access to Twitter and Brave Search APIs (requires DATA_SOURCES secret type)" },
+    { "name": "MCP", "description": "Model Context Protocol server for connecting external agent runtimes (Claude, ChatGPT, Codex, Cursor, Manus, etc.). Uses JSON-RPC 2.0 over HTTP POST." }
   ],
   "components": {
     "securitySchemes": {
@@ -1379,6 +1380,138 @@
           "200": { "description": "News results", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuccessResponse" } } } },
           "401": { "description": "Unauthorized", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
           "403": { "description": "Forbidden", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+        }
+      }
+    },
+
+    "/mcp": {
+      "post": {
+        "operationId": "mcpJsonRpc",
+        "tags": ["MCP"],
+        "summary": "MCP JSON-RPC endpoint",
+        "description": "Model Context Protocol server endpoint. Accepts JSON-RPC 2.0 requests.\n\n**Supported methods:**\n- `initialize` — Handshake with client info and protocol version\n- `tools/list` — List available tools (scoped to API key's secret type)\n- `tools/call` — Execute a tool by name with arguments\n\n**Authentication:** Pass your Vincent API key as a Bearer token.\n\n**Tool scope:** The tools returned depend on the secret type of the API key:\n- `EVM_WALLET` — Wallet transfer, send transaction, swap, balances, address\n- `POLYMARKET_WALLET` — Bet, markets, positions, holdings, trades, balance, cancel orders\n- `RAW_SIGNER` — Sign messages, get addresses\n- `DATA_SOURCES` — Brave web/news search, Twitter search/tweets/users\n\n**Setup guides:**\n- **Claude Code:** `claude mcp add --transport http vincent https://safeskills.ai/mcp`\n- **ChatGPT:** Settings → Apps → Add MCP Server → URL: `https://safeskills.ai/mcp`\n- **Cursor:** Settings → MCP Servers → Add server → URL: `https://safeskills.ai/mcp`\n- **Codex:** `codex mcp add vincent --url \"https://safeskills.ai/mcp\" --bearer-token \"$VINCENT_MCP_API_KEY\"`\n\nSee [Connect Agent](https://heyvincent.ai/agents/connect) for full setup instructions.",
+        "security": [{ "ApiKeyAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jsonrpc", "method"],
+                "properties": {
+                  "jsonrpc": { "type": "string", "const": "2.0" },
+                  "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }], "description": "Request ID for correlating responses" },
+                  "method": { "type": "string", "enum": ["initialize", "tools/list", "tools/call"], "description": "JSON-RPC method name" },
+                  "params": {
+                    "type": "object",
+                    "description": "Method-specific parameters. For `initialize`: `{ protocolVersion, clientInfo }`. For `tools/call`: `{ name, arguments }`."
+                  }
+                }
+              },
+              "examples": {
+                "initialize": {
+                  "summary": "Initialize MCP session",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": { "protocolVersion": "2024-11-05", "clientInfo": { "name": "my-agent", "version": "1.0.0" } }
+                  }
+                },
+                "tools_list": {
+                  "summary": "List available tools",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "tools/list",
+                    "params": {}
+                  }
+                },
+                "tools_call": {
+                  "summary": "Call a tool",
+                  "value": {
+                    "jsonrpc": "2.0",
+                    "id": 3,
+                    "method": "tools/call",
+                    "params": { "name": "vincent_wallet_address", "arguments": {} }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC success response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["jsonrpc", "id"],
+                  "properties": {
+                    "jsonrpc": { "type": "string", "const": "2.0" },
+                    "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+                    "result": { "type": "object", "description": "Method-specific result. For `initialize`: server info and capabilities. For `tools/list`: `{ tools: [...] }`. For `tools/call`: `{ content: [{ type, text }] }`." }
+                  }
+                },
+                "examples": {
+                  "initialize": {
+                    "summary": "Initialize response",
+                    "value": {
+                      "jsonrpc": "2.0",
+                      "id": 1,
+                      "result": {
+                        "protocolVersion": "2024-11-05",
+                        "serverInfo": { "name": "Vincent MCP", "version": "1.0.0" },
+                        "capabilities": { "tools": { "listChanged": false } },
+                        "instructions": "This MCP server exposes Vincent skills based on the API key scope. Use tools/list to see available tools."
+                      }
+                    }
+                  },
+                  "tools_list": {
+                    "summary": "Tools list response",
+                    "value": {
+                      "jsonrpc": "2.0",
+                      "id": 2,
+                      "result": {
+                        "tools": [
+                          {
+                            "name": "vincent_wallet_address",
+                            "title": "Get wallet address",
+                            "description": "Get the smart account address for the EVM wallet.",
+                            "inputSchema": { "type": "object", "properties": {}, "required": [] }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON-RPC request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": { "type": "string", "const": "2.0" },
+                    "id": { "oneOf": [{ "type": "string" }, { "type": "integer" }, { "type": "null" }] },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "integer", "description": "JSON-RPC error code" },
+                        "message": { "type": "string" },
+                        "data": { "type": "object" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Missing or invalid API key", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
         }
       }
     }
