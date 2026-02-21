@@ -134,12 +134,24 @@ async function tick(): Promise<void> {
 // ── Trigger ─────────────────────────────────────────────────
 
 async function trigger(rule: RuleLike): Promise<void> {
+  // In-process guard prevents duplicate work within this instance
   if (executingRuleIds.has(rule.id)) return;
+
+  // DB-level atomic claim: only proceeds if rule is still ACTIVE.
+  // markRuleTriggered uses updateMany with status='ACTIVE' check,
+  // so only one instance/process can claim it.
+  const claimed = await ruleManager.markRuleTriggered(rule.id);
+  if (!claimed) return; // another instance already claimed it
 
   executingRuleIds.add(rule.id);
   try {
     const result = await ruleExecutor.executeRule(rule);
     await eventLogger.logEvent(rule.id, 'RULE_TRIGGERED', { result });
+  } catch (error) {
+    // Execution failed — revert to ACTIVE so it can be retried,
+    // unless executeRule already marked it FAILED (permanent failure)
+    await ruleManager.revertToActive(rule.id);
+    throw error;
   } finally {
     executingRuleIds.delete(rule.id);
   }
@@ -170,8 +182,7 @@ function setupWebSocketHandlers(ws: PolymarketWebSocketService): void {
 
 async function evaluateRulesForToken(tokenId: string, price: number): Promise<void> {
   try {
-    const activeRules = await ruleManager.getRules(undefined, 'ACTIVE');
-    const matchingRules = activeRules.filter((r) => r.tokenId === tokenId);
+    const matchingRules = await ruleManager.getRules(undefined, 'ACTIVE', tokenId);
 
     for (const rule of matchingRules) {
       const prevTriggerPrice = rule.triggerPrice;

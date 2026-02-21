@@ -59,16 +59,18 @@ router.get(
     }
 
     const ruleId = typeof req.query.ruleId === 'string' ? req.query.ruleId : undefined;
-    const limit =
-      typeof req.query.limit === 'string' ? Math.min(parseInt(req.query.limit, 10), 500) : 100;
-    const offset = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : 0;
+    const parsedLimit = typeof req.query.limit === 'string' ? parseInt(req.query.limit, 10) : 100;
+    const parsedOffset = typeof req.query.offset === 'string' ? parseInt(req.query.offset, 10) : 0;
+    const limit = Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), 500) : 100;
+    const offset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
 
     // If a ruleId is specified, verify it belongs to this secret
     if (ruleId) {
       await ruleManager.getRule(req.secret.id, ruleId);
     }
 
-    const events = await eventLogger.getEvents(ruleId, limit, offset);
+    // Always scope by secretId to prevent cross-tenant data leakage
+    const events = await eventLogger.getEvents({ ruleId, secretId: req.secret.id }, limit, offset);
     sendSuccess(res, { events });
   })
 );

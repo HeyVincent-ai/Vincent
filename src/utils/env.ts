@@ -113,11 +113,7 @@ const envSchema = z.object({
     .optional()
     .default('true')
     .transform((val) => val === 'true'),
-  TRADE_MANAGER_POLL_INTERVAL_S: z
-    .string()
-    .optional()
-    .default('60')
-    .transform((val) => parseInt(val, 10)),
+  TRADE_MANAGER_POLL_INTERVAL_S: z.coerce.number().int().positive().default(60),
   TRADE_MANAGER_WS_ENABLED: z
     .string()
     .optional()

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TradeRuleStatus } from '@prisma/client';
 import prisma from '../../db/client.js';
 import { AppError } from '../../api/middleware/errorHandler.js';
 import * as eventLogger from './eventLogger.service.js';
@@ -74,16 +75,29 @@ export async function createRule(secretId: string, input: z.infer<typeof createR
   return rule;
 }
 
+const VALID_RULE_STATUSES = new Set<string>([
+  'ACTIVE',
+  'TRIGGERED',
+  'CANCELED',
+  'EXPIRED',
+  'FAILED',
+]);
+
 /**
  * Get rules. When secretId is provided, returns rules for that secret only.
  * When omitted (used by the worker), returns rules across all secrets.
+ * tokenId can be provided to filter by a specific token (used by WS handler).
  */
-export async function getRules(secretId?: string, status?: string) {
+export async function getRules(secretId?: string, status?: string, tokenId?: string) {
+  const where: Record<string, unknown> = {};
+  if (secretId) where.secretId = secretId;
+  if (status && VALID_RULE_STATUSES.has(status)) {
+    where.status = status as TradeRuleStatus;
+  }
+  if (tokenId) where.tokenId = tokenId;
+
   return prisma.tradeRule.findMany({
-    where: {
-      ...(secretId ? { secretId } : undefined),
-      ...(status ? { status: status as any } : undefined),
-    },
+    where,
     orderBy: { createdAt: 'desc' },
   });
 }
@@ -140,6 +154,23 @@ export async function markRuleFailed(id: string, errorMessage: string): Promise<
     data: { status: 'FAILED', errorMessage, triggeredAt: new Date() },
   });
   await eventLogger.logEvent(id, 'RULE_FAILED', { errorMessage });
+  return result.count === 1;
+}
+
+/** Update the txHash on an already-triggered rule. */
+export async function setTriggerTxHash(id: string, txHash: string): Promise<void> {
+  await prisma.tradeRule.updateMany({
+    where: { id, status: 'TRIGGERED' },
+    data: { triggerTxHash: txHash },
+  });
+}
+
+/** Revert a TRIGGERED rule back to ACTIVE (used when execution fails transiently). */
+export async function revertToActive(id: string): Promise<boolean> {
+  const result = await prisma.tradeRule.updateMany({
+    where: { id, status: 'TRIGGERED' },
+    data: { status: 'ACTIVE', triggeredAt: null, triggerTxHash: null },
+  });
   return result.count === 1;
 }
 

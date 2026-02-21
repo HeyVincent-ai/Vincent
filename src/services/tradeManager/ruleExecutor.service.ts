@@ -81,11 +81,22 @@ export async function executeRule(rule: RuleLike): Promise<{ txHash?: string; or
       throw new Error(errorMessage);
     }
 
-    const txRef = result.orderId;
-    const didMark = await ruleManager.markRuleTriggered(rule.id, txRef);
-    if (didMark) {
-      await eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', { result });
+    if (result.status === 'pending_approval') {
+      // Trade requires human approval — revert rule to ACTIVE so it can be
+      // re-evaluated after approval is granted or denied.
+      await ruleManager.revertToActive(rule.id);
+      await eventLogger.logEvent(rule.id, 'ACTION_ATTEMPT', {
+        status: 'pending_approval',
+        message: 'Trade requires human approval; rule reverted to ACTIVE',
+      });
+      return { orderId: result.orderId };
     }
+
+    // Success — update the triggered rule with the order reference
+    if (result.orderId) {
+      await ruleManager.setTriggerTxHash(rule.id, result.orderId);
+    }
+    await eventLogger.logEvent(rule.id, 'ACTION_EXECUTED', { result });
 
     return { orderId: result.orderId };
   } catch (error) {

@@ -15,14 +15,14 @@ export async function updatePositions(secretId: string): Promise<void> {
         where: {
           secretId_marketId_tokenId_side: {
             secretId,
-            marketId: holding.tokenId,
+            marketId: holding.conditionId,
             tokenId: holding.tokenId,
             side: 'BUY',
           },
         },
         create: {
           secretId,
-          marketId: holding.tokenId,
+          marketId: holding.conditionId,
           marketSlug: holding.marketSlug,
           tokenId: holding.tokenId,
           side: 'BUY',

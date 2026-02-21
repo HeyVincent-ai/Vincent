@@ -16,12 +16,20 @@ export async function logEvent(
 }
 
 export async function getEvents(
-  ruleId?: string,
+  options: { ruleId?: string; secretId?: string },
   limit = 100,
   offset = 0
 ): Promise<Record<string, unknown>[]> {
+  const where: Record<string, unknown> = {};
+  if (options.ruleId) {
+    where.ruleId = options.ruleId;
+  }
+  if (options.secretId) {
+    where.rule = { secretId: options.secretId };
+  }
+
   const rows = await prisma.tradeRuleEvent.findMany({
-    where: ruleId ? { ruleId } : undefined,
+    where,
     orderBy: { createdAt: 'desc' },
     take: limit,
     skip: offset,

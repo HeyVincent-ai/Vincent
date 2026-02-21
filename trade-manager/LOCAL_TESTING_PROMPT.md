@@ -26,7 +26,7 @@ Read these skill files to understand how to use both services. **We are testing 
 
 ### 1. Polymarket Skill
 
-**Location:** `/Users/chris/Documents/WorkStuff/Lit/skills/SafeSkills-2/skills/polymarket/SKILL.md`
+**Location:** `skills/polymarket/SKILL.md` (relative to the repo root)
 
 This skill explains how to:
 
@@ -40,7 +40,7 @@ This skill explains how to:
 
 ### 2. Trade Manager Skill
 
-**Location:** `/Users/chris/Documents/WorkStuff/Lit/skills/SafeSkills-2/skills/trade-manager/SKILL.md`
+**Location:** `skills/trade-manager/SKILL.md` (relative to the repo root)
 
 This skill explains how to:
 
