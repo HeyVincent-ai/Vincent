@@ -695,6 +695,24 @@ async function claimPoolVps(): Promise<string | null> {
 }
 
 /**
+ * Return a VPS to the pool so it can be reused by a future deployment.
+ * Silently ignores duplicates (VPS already in pool).
+ */
+async function returnToPool(ovhServiceName: string): Promise<void> {
+  try {
+    await prisma.vpsPool.create({ data: { ovhServiceName } });
+    console.log(`[openclaw] Returned VPS ${ovhServiceName} to pool`);
+  } catch (err: unknown) {
+    // Unique constraint violation — VPS already in pool, that's fine
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      console.log(`[openclaw] VPS ${ovhServiceName} already in pool, skipping`);
+      return;
+    }
+    throw err;
+  }
+}
+
+/**
  * Find the first available VPS plan + datacenter from the priority list.
  * Falls back to the first plan with cart datacenters if nothing is in-stock.
  */
@@ -1803,12 +1821,12 @@ export async function destroy(deploymentId: string, userId: string): Promise<Ope
       }
     }
 
-    // Terminate VPS
+    // Return VPS to pool for reuse instead of terminating
     if (deployment.ovhServiceName) {
       try {
-        await ovhService.terminateVps(deployment.ovhServiceName);
+        await returnToPool(deployment.ovhServiceName);
       } catch (err: unknown) {
-        console.error(`[openclaw] Failed to terminate VPS ${deployment.ovhServiceName}:`, err);
+        console.error(`[openclaw] Failed to return VPS ${deployment.ovhServiceName} to pool:`, err);
       }
     }
 
@@ -1901,11 +1919,12 @@ export async function handleSubscriptionExpired(stripeSubscriptionId: string): P
   });
 
   try {
+    // Return VPS to pool for reuse instead of terminating
     if (deployment.ovhServiceName) {
       try {
-        await ovhService.terminateVps(deployment.ovhServiceName);
+        await returnToPool(deployment.ovhServiceName);
       } catch (err: unknown) {
-        console.error(`[openclaw] Failed to terminate VPS ${deployment.ovhServiceName}:`, err);
+        console.error(`[openclaw] Failed to return VPS ${deployment.ovhServiceName} to pool:`, err);
       }
     }
 
